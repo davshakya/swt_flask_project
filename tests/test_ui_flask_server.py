@@ -1633,10 +1633,13 @@ def test_admin_customers_search_shows_password_form_for_known_device_without_acc
         assert 'action="/admin/customers"' in body
         assert f'name="device_id" value="{device_id}"' in body
         assert "Set Customer Password" in body
-        assert "Set Password" in body
-        assert "Save Password" in body
         assert "Device Details" in body
+        assert 'data-password-toggle' in body
+        assert 'class="password-shell"' in body
+        assert "Save Password" in body
         assert "Delete" in body
+        assert "Customer account" not in body
+        assert "Server registered" not in body
         assert f'Search "known-search" found 1 known device(s).' in body
     finally:
         server_module.DEVICE_KEY_MAP.clear()
@@ -1654,6 +1657,8 @@ def test_admin_customers_page_removes_separate_known_devices_section():
     body = response.get_data(as_text=True)
     assert "Search Known Device ID" in body
     assert "Known Devices" not in body
+    assert "Service Alerts" not in body
+    assert "Audit Trail" not in body
 
 
 def test_admin_customers_page_shows_server_registered_device_without_telemetry():
@@ -1669,8 +1674,10 @@ def test_admin_customers_page_shows_server_registered_device_without_telemetry()
 
         body = response.get_data(as_text=True)
         assert "swt-node-from-server" in body
-        assert "Server registered" in body
-        assert "Set Customer Password" in body
+        assert "Server registered" not in body
+        assert "Customer account" not in body
+        assert "Device Details" in body
+        assert "Reset Password" in body
     finally:
         server_module.DEVICE_KEY_MAP.clear()
         server_module.DEVICE_KEY_MAP.update(original_map)
@@ -1696,7 +1703,9 @@ def test_admin_customers_page_registers_virtual_device_env_entries(tmp_path, mon
 
     body = response.get_data(as_text=True)
     assert "swt-virtual-admin-009" in body
-    assert "Server registered" in body
+    assert "Server registered" not in body
+    assert "Device Details" in body
+    assert "Reset Password" in body
 
     with get_db() as db:
         row = db.execute(
