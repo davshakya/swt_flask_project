@@ -1602,7 +1602,7 @@ def test_admin_customers_page_shows_registered_device_in_known_devices_and_searc
     assert "Search Demo" in body
     assert "Known Devices" not in body
     assert "Alerts / Warnings" in body
-    assert "Search and Manage Devices" in body
+    assert "Devices" in body
 
 
 def test_admin_customers_search_supports_partial_device_id():
@@ -1621,7 +1621,7 @@ def test_admin_customers_search_supports_partial_device_id():
     assert "swt-node-search-demo" in body
     assert "Search Demo" in body
     assert "swt-node-other-demo" not in body
-    assert 'Search "search-dem" found 1 known device(s).' in body
+    assert "1 device match" in body
 
 
 def test_resolve_app_secret_key_uses_database_persisted_secret(monkeypatch):
@@ -1698,6 +1698,7 @@ def test_seed_bootstrap_customer_accounts_restores_hashes_from_env(monkeypatch):
         "display_name": "Bootstrap Owner",
         "password_hash": generate_password_hash("BootstrapPass2026!"),
         "active": 1,
+        "cloud_feed_enabled": 0,
     }]
     payload = base64.b64encode(json.dumps({"accounts": accounts}).encode("utf-8")).decode("ascii")
     monkeypatch.setenv(server_module.CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV, payload)
@@ -1707,7 +1708,7 @@ def test_seed_bootstrap_customer_accounts_restores_hashes_from_env(monkeypatch):
         server_module.ensure_customer_accounts_table(cursor)
         server_module.seed_bootstrap_customer_accounts(cursor)
         row = cursor.execute(
-            "SELECT device_id, display_name, password_hash, active FROM customer_accounts WHERE device_id = ?",
+            "SELECT device_id, display_name, password_hash, active, cloud_feed_enabled FROM customer_accounts WHERE device_id = ?",
             ("swt-node-bootstrap",),
         ).fetchone()
 
@@ -1716,6 +1717,7 @@ def test_seed_bootstrap_customer_accounts_restores_hashes_from_env(monkeypatch):
     assert row[1] == "Bootstrap Owner"
     assert check_password_hash(row[2], "BootstrapPass2026!")
     assert row[3] == 1
+    assert row[4] == 0
 
 
 def test_seed_bootstrap_dashboard_password_uses_hash_from_env(monkeypatch):
@@ -1752,13 +1754,13 @@ def test_admin_customers_search_shows_password_form_for_known_device_without_acc
         assert f'name="device_id" value="{device_id}"' in body
         assert "Set Customer Password" in body
         assert "Device Details" in body
-        assert 'data-password-toggle' in body
-        assert 'class="password-shell"' in body
+        assert 'data-panel-toggle' in body
+        assert 'class="inline-panel"' in body
         assert "Save Password" in body
         assert "Delete" in body
         assert "Customer account" not in body
         assert "Server registered" not in body
-        assert f'Search "known-search" found 1 known device(s).' in body
+        assert "1 device match" in body
     finally:
         server_module.DEVICE_KEY_MAP.clear()
         server_module.DEVICE_KEY_MAP.update(original_map)
@@ -1773,7 +1775,8 @@ def test_admin_customers_page_removes_separate_known_devices_section():
     assert response.status_code == 200
 
     body = response.get_data(as_text=True)
-    assert "Search and Manage Devices" in body
+    assert "Add Customer" in body
+    assert "Devices" in body
     assert "Known Devices" not in body
     assert "Total Registered Devices" in body
     assert "Online Devices" in body
@@ -1786,6 +1789,124 @@ def test_admin_customers_page_removes_separate_known_devices_section():
     assert 'data-device-sort="device_id"' in body
     assert 'data-device-sort="status"' in body
     assert 'data-device-sort="alerts"' in body
+
+
+def test_admin_customer_page_can_edit_name_and_toggle_cloud_feed():
+    if BASE_URL:
+        pytest.skip("Admin customer edit/cloud-feed test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-admin-cloud-edit-001"
+    upsert_customer_account(
+        device_id,
+        "CloudTogglePass2026!",
+        display_name="Original Owner",
+        cloud_feed_enabled=0,
+    )
+    admin_client = make_admin_client()
+
+    page = admin_client.get(f"/admin/customers?q={device_id}")
+    assert page.status_code == 200
+    page_body = page.get_data(as_text=True)
+    assert "Edit Name" in page_body
+    assert "Enable Cloud" in page_body
+    assert "Disable Cloud" not in page_body
+
+    edit_response = admin_client.post(
+        f"/admin/customers/{device_id}/edit",
+        data={
+            "csrf_token": TEST_CSRF_TOKEN,
+            "q": device_id,
+            "display_name": "Updated Owner",
+        },
+    )
+    assert edit_response.status_code == 200
+    edit_body = edit_response.get_data(as_text=True)
+    assert f"Customer name updated for {device_id}." in edit_body
+    assert "Updated Owner" in edit_body
+
+    toggle_response = admin_client.post(
+        f"/admin/customers/{device_id}/cloud-feed",
+        data={
+            "csrf_token": TEST_CSRF_TOKEN,
+            "q": device_id,
+            "cloud_feed_enabled": "1",
+        },
+    )
+    assert toggle_response.status_code == 200
+    toggle_body = toggle_response.get_data(as_text=True)
+    assert f"Cloud feed enabled for {device_id}." in toggle_body
+    assert "Disable Cloud" in toggle_body
+
+    account = server_module.fetch_customer_account(device_id)
+    assert account
+    assert account["display_name"] == "Updated Owner"
+    assert int(account["cloud_feed_enabled"]) == 1
+
+
+def test_customer_dashboard_shows_cloud_feed_disabled_state():
+    if BASE_URL:
+        pytest.skip("Customer cloud-feed UI test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-cloud-disabled-ui-001"
+    upsert_customer_account(
+        device_id,
+        "CustomerCloudPass2026!",
+        display_name="Cloud Disabled Owner",
+        cloud_feed_enabled=0,
+    )
+    customer_client = make_customer_client(device_id)
+
+    response = customer_client.get("/customer/dashboard")
+    assert response.status_code == 200
+
+    body = response.get_data(as_text=True)
+    assert "Cloud Feed Disabled" in body
+    assert "Cloud feed is disabled for this customer account." in body
+    assert '"Cloud Feed"' in body or "Cloud Feed" in body
+
+
+def test_customer_last_blocks_when_cloud_feed_is_disabled():
+    if BASE_URL:
+        pytest.skip("Customer cloud-feed route test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-cloud-disabled-last-001"
+    upsert_customer_account(
+        device_id,
+        "CustomerCloudBlockPass2026!",
+        display_name="Blocked Owner",
+        cloud_feed_enabled=0,
+    )
+    customer_client = make_customer_client(device_id)
+
+    response = customer_client.get("/last")
+
+    assert response.status_code == 403
+    payload = response.get_json()
+    assert payload["cloud_feed_enabled"] is False
+    assert "Cloud feed is disabled" in payload["error"]
+
+
+def test_mobile_last_blocks_when_cloud_feed_is_disabled():
+    if BASE_URL:
+        pytest.skip("Mobile cloud-feed route test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-cloud-disabled-mobile-001"
+    upsert_customer_account(
+        device_id,
+        "CustomerMobileCloudPass2026!",
+        display_name="Mobile Blocked Owner",
+        cloud_feed_enabled=0,
+    )
+
+    response = client.get(
+        "/api/mobile/last",
+        headers=mobile_auth_headers(role="customer", username=device_id, device_id=device_id),
+    )
+
+    assert response.status_code == 403
+    payload = response.get_json()
+    assert payload["cloud_feed_enabled"] is False
+    assert "Cloud feed is disabled" in payload["error"]
 
 
 def test_admin_customers_page_shows_server_registered_device_without_telemetry():

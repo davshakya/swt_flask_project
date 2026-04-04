@@ -948,6 +948,42 @@ def current_customer_device_id():
     return normalize_device_id(session.get("device_id"))
 
 
+def current_customer_account():
+    device_id = current_customer_device_id()
+    if not device_id:
+        return None
+    return fetch_customer_account(device_id)
+
+
+def current_customer_cloud_feed_enabled():
+    if current_user_role() != "customer":
+        return True
+    account = current_customer_account()
+    if not account:
+        return False
+    return int(account.get("cloud_feed_enabled", 1) or 0) == 1
+
+
+def customer_cloud_feed_error_message():
+    return "Cloud feed is disabled for this customer account. Contact the admin to enable it."
+
+
+def customer_cloud_feed_block_response():
+    if current_user_role() != "customer" or current_customer_cloud_feed_enabled():
+        return None
+    return jsonify(
+        {
+            "error": customer_cloud_feed_error_message(),
+            "cloud_feed_enabled": False,
+        }
+    ), 403
+
+
+def customer_cloud_feed_abort_if_disabled():
+    if current_user_role() == "customer" and not current_customer_cloud_feed_enabled():
+        abort(403, description=customer_cloud_feed_error_message())
+
+
 def current_actor_username():
     return session.get("username", "unknown")
 
@@ -1429,6 +1465,9 @@ def build_admin_device_entry(device_id, snapshot=None):
         "sensor": payload.get("sensor"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
+        "registered_account": False,
+        "account_active": False,
+        "cloud_feed_enabled": False,
     }
 
 
@@ -1494,6 +1533,8 @@ def build_admin_known_devices(accounts, available_devices):
 
         entry["display_name"] = account.get("display_name") or entry.get("display_name")
         entry["registered_account"] = True
+        entry["account_active"] = int(account.get("active", 1) or 0) == 1
+        entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
 
     for device_id in list_registered_device_ids(limit=200):
         normalized_device_id = normalize_device_id(device_id)
@@ -1536,6 +1577,13 @@ def build_admin_known_devices(accounts, available_devices):
             alert_summary.get("highest_alert_severity")
             or alert_summary.get("latest_alert_severity")
             or "info"
+        )
+        entry["cloud_feed_label"] = (
+            "Enabled"
+            if entry.get("registered_account") and entry.get("cloud_feed_enabled")
+            else "Disabled"
+            if entry.get("registered_account")
+            else "Not set"
         )
 
     return sorted(
@@ -2299,11 +2347,26 @@ def ensure_customer_accounts_table(cursor):
             display_name TEXT,
             password_hash TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
+            cloud_feed_enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+
+
+def ensure_customer_accounts_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(customer_accounts)").fetchall()}
+    required = {
+        "display_name": "TEXT",
+        "active": "INTEGER NOT NULL DEFAULT 1",
+        "cloud_feed_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE customer_accounts ADD COLUMN {column} {definition}")
 
 
 def ensure_registered_devices_table(cursor):
@@ -2389,15 +2452,16 @@ def seed_bootstrap_customer_accounts(cursor):
         password_hash = str(item.get("password_hash") or "").strip()
         display_name = str(item.get("display_name") or "").strip() or None
         active = 1 if int(item.get("active", 1) or 0) == 1 else 0
+        cloud_feed_enabled = 1 if int(item.get("cloud_feed_enabled", 1) or 0) == 1 else 0
         if not normalized_device_id or not password_hash:
             continue
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
-            (normalized_device_id, display_name, password_hash, active),
+            (normalized_device_id, display_name, password_hash, active, cloud_feed_enabled),
         )
         seeded_count += 1
     if seeded_count:
@@ -2418,8 +2482,8 @@ def seed_default_customer_accounts(cursor):
     for device_id, display_name in DEFAULT_CUSTOMER_ACCOUNTS:
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
             (device_id, display_name, password_hash),
@@ -2505,6 +2569,7 @@ def init_db():
         ensure_app_settings_table(cursor)
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
+        ensure_customer_accounts_columns(cursor)
         ensure_registered_devices_table(cursor)
         ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
@@ -2715,7 +2780,7 @@ def fetch_customer_account(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, display_name, password_hash, active, created_at, updated_at
+            SELECT device_id, display_name, password_hash, active, cloud_feed_enabled, created_at, updated_at
             FROM customer_accounts
             WHERE device_id = ?
             """,
@@ -2728,7 +2793,7 @@ def list_customer_accounts(limit=100):
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT device_id, display_name, active, created_at, updated_at
+            SELECT device_id, display_name, active, cloud_feed_enabled, created_at, updated_at
             FROM customer_accounts
             ORDER BY updated_at DESC, device_id ASC
             LIMIT ?
@@ -2738,27 +2803,48 @@ def list_customer_accounts(limit=100):
     return [dict(row) for row in rows]
 
 
-def upsert_customer_account(device_id, password, display_name=None):
+def customer_cloud_feed_enabled(device_id):
+    account = fetch_customer_account(device_id)
+    if not account:
+        return False
+    return int(account.get("cloud_feed_enabled", 1) or 0) == 1
+
+
+def upsert_customer_account(device_id, password, display_name=None, active=None, cloud_feed_enabled=None):
     normalized_device_id = normalize_device_id(device_id)
     normalized_display_name = str(display_name or "").strip()
     if not normalized_device_id:
         raise ValueError("device_id is required")
     if not password or len(password) < 6:
         raise ValueError("password must be at least 6 characters")
+    existing = fetch_customer_account(normalized_device_id)
     password_hash = generate_password_hash(password)
+    resolved_active = 1 if active is None and not existing else (1 if int(active if active is not None else existing.get("active", 1) or 0) == 1 else 0)
+    resolved_cloud_feed_enabled = (
+        1
+        if cloud_feed_enabled is None and not existing
+        else (1 if int(cloud_feed_enabled if cloud_feed_enabled is not None else existing.get("cloud_feed_enabled", 1) or 0) == 1 else 0)
+    )
     with get_db() as db:
         db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
         db.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 display_name=excluded.display_name,
                 password_hash=excluded.password_hash,
-                active=1,
+                active=excluded.active,
+                cloud_feed_enabled=excluded.cloud_feed_enabled,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, normalized_display_name or None, password_hash),
+            (
+                normalized_device_id,
+                normalized_display_name or None,
+                password_hash,
+                resolved_active,
+                resolved_cloud_feed_enabled,
+            ),
         )
     return fetch_customer_account(normalized_device_id)
 
@@ -2771,7 +2857,43 @@ def update_customer_password(device_id, password):
         account["device_id"],
         password,
         display_name=account.get("display_name"),
+        active=account.get("active", 1),
+        cloud_feed_enabled=account.get("cloud_feed_enabled", 1),
     )
+
+
+def update_customer_account_profile(device_id, display_name=None, active=None, cloud_feed_enabled=None):
+    account = fetch_customer_account(device_id)
+    if not account:
+        raise ValueError("customer account not found")
+
+    resolved_display_name = account.get("display_name") if display_name is None else (str(display_name).strip() or None)
+    resolved_active = 1 if int(active if active is not None else account.get("active", 1) or 0) == 1 else 0
+    resolved_cloud_feed_enabled = (
+        1
+        if int(cloud_feed_enabled if cloud_feed_enabled is not None else account.get("cloud_feed_enabled", 1) or 0) == 1
+        else 0
+    )
+
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE customer_accounts
+            SET display_name = ?,
+                active = ?,
+                cloud_feed_enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE device_id = ?
+            """,
+            (
+                resolved_display_name,
+                resolved_active,
+                resolved_cloud_feed_enabled,
+                account["device_id"],
+            ),
+        )
+
+    return fetch_customer_account(account["device_id"])
 
 
 def authenticate_dashboard_user(username, password):
@@ -2793,6 +2915,7 @@ def authenticate_dashboard_user(username, password):
         "username": normalized_username,
         "device_id": normalized_username,
         "display_name": customer.get("display_name") or normalized_username,
+        "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
     }
 
 
@@ -2832,7 +2955,13 @@ def resolve_mobile_user():
     device_id = normalize_device_id(payload.get("device_id"))
 
     if role == "admin" and username == LOGIN_USERNAME:
-        user = {"role": "admin", "username": username, "device_id": None, "display_name": "Administrator"}
+        user = {
+            "role": "admin",
+            "username": username,
+            "device_id": None,
+            "display_name": "Administrator",
+            "cloud_feed_enabled": True,
+        }
     elif role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
@@ -2843,6 +2972,7 @@ def resolve_mobile_user():
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
+            "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
         }
     else:
         g.mobile_user = None
@@ -2872,6 +3002,18 @@ def current_mobile_scope_device_id(requested_device_id=None):
     if normalized_requested and scoped_device_id and normalized_requested != scoped_device_id:
         abort(403)
     return scoped_device_id or normalized_requested or None
+
+
+def mobile_customer_cloud_feed_block_response():
+    user = resolve_mobile_user()
+    if not user or user.get("role") != "customer" or user.get("cloud_feed_enabled", True):
+        return None
+    return jsonify(
+        {
+            "error": customer_cloud_feed_error_message(),
+            "cloud_feed_enabled": False,
+        }
+    ), 403
 
 def now_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -4857,6 +4999,9 @@ def stop_mqtt_bridge():
 @login_required
 @csrf_protect
 def motor_on():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     return queue_command("ON", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
@@ -4864,6 +5009,9 @@ def motor_on():
 @login_required
 @csrf_protect
 def motor_off():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
@@ -4871,6 +5019,9 @@ def motor_off():
 @login_required
 @csrf_protect
 def motor_auto():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     payload = queue_command("AUTO", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
     payload["message"] = "AUTO command queued for the device."
     return payload
@@ -4880,6 +5031,9 @@ def motor_auto():
 @login_required
 @csrf_protect
 def sensor_calibrate():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     payload = queue_command("CALIBRATE", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
     payload["message"] = "Sensor calibration request queued."
     return payload
@@ -4889,6 +5043,9 @@ def sensor_calibrate():
 @login_required
 @csrf_protect
 def sensor_configure():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     height_cm = request.values.get("height_cm", type=float)
     capacity_liters = request.values.get("capacity_liters", type=float)
     target_device = current_scope_device_id(request.values.get("device_id", type=str))
@@ -4943,6 +5100,7 @@ def mobile_auth_login():
             "username": authenticated_user.get("username"),
             "device_id": authenticated_user.get("device_id"),
             "display_name": authenticated_user.get("display_name"),
+            "cloud_feed_enabled": authenticated_user.get("cloud_feed_enabled", True),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
     })
@@ -4953,6 +5111,9 @@ def mobile_auth_login():
 def mobile_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
     audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     snapshot = load_dashboard_snapshot(scoped_device_id)
@@ -4973,6 +5134,9 @@ def mobile_bootstrap():
 @app.route("/api/mobile/analytics")
 @mobile_auth_required
 def mobile_analytics():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     try:
         start_dt, end_exclusive, label = resolve_date_window()
@@ -5040,6 +5204,7 @@ def mobile_account_password():
                     "username": username,
                     "device_id": device_id,
                     "display_name": updated_account.get("display_name") or device_id,
+                    "cloud_feed_enabled": int(updated_account.get("cloud_feed_enabled", 1) or 0) == 1,
                 },
             }
         )
@@ -5050,6 +5215,9 @@ def mobile_account_password():
 @app.route("/api/mobile/last")
 @mobile_auth_required
 def mobile_last():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     if not snapshot:
@@ -5060,18 +5228,27 @@ def mobile_last():
 @app.route("/api/mobile/motor/on", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_on():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response("ON", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
 
 
 @app.route("/api/mobile/motor/off", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_off():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
 
 
 @app.route("/api/mobile/motor/auto", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_auto():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response(
         "AUTO",
         target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
@@ -5082,6 +5259,9 @@ def mobile_motor_auto():
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])
 @mobile_auth_required
 def mobile_sensor_calibrate():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response(
         "CALIBRATE",
         target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
@@ -5092,6 +5272,9 @@ def mobile_sensor_calibrate():
 @app.route("/api/mobile/sensor/configure", methods=["POST"])
 @mobile_auth_required
 def mobile_sensor_configure():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     data = request.get_json(silent=True) or {}
     height_cm = data.get("height_cm")
     capacity_liters = data.get("capacity_liters")
@@ -5120,6 +5303,9 @@ def mobile_sensor_configure():
 @app.route("/api/mobile/device/status")
 @mobile_auth_required
 def mobile_device_status():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     return jsonify({
@@ -5271,13 +5457,17 @@ def account_password():
 def render_dashboard_page(selected_device_id=None):
     scoped_dashboard_device_id = current_scope_device_id(selected_device_id)
     logger.info("Dashboard opened")
+    customer_cloud_feed = current_customer_cloud_feed_enabled()
     return render_template(
         "index.html",
         is_admin=is_admin_user(),
         viewer_role=current_user_role(),
         viewer_device_id=current_customer_device_id(),
+        viewer_display_name=(current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
         selected_device_id=scoped_dashboard_device_id,
-        can_control=is_logged_in(),
+        cloud_feed_enabled=customer_cloud_feed,
+        cloud_feed_error=customer_cloud_feed_error_message() if current_user_role() == "customer" and not customer_cloud_feed else "",
+        can_control=is_logged_in() and (is_admin_user() or customer_cloud_feed),
     )
 
 
@@ -5356,6 +5546,106 @@ def admin_customer_password_reset(device_id):
             success = f"Customer password reset for {updated_account['device_id']}."
         except ValueError as exc:
             error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/edit", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_customer_edit(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    display_name = request.form.get("display_name", "")
+    account = fetch_customer_account(device_id)
+
+    if not account:
+        error = f"Customer account not found for {normalize_device_id(device_id) or 'that device'}."
+    else:
+        try:
+            updated_account = update_customer_account_profile(
+                account["device_id"],
+                display_name=display_name,
+            )
+            log_audit_event(
+                actor=current_actor_username(),
+                action="update_customer_profile",
+                target_type="customer_account",
+                target_id=updated_account["device_id"],
+                device_id=updated_account["device_id"],
+                details={"display_name": updated_account.get("display_name")},
+            )
+            success = f"Customer name updated for {updated_account['device_id']}."
+        except ValueError as exc:
+            error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/cloud-feed", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_customer_cloud_feed(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    desired_value = request.form.get("cloud_feed_enabled", "")
+    account = fetch_customer_account(device_id)
+
+    if not account:
+        error = f"Customer account not found for {normalize_device_id(device_id) or 'that device'}."
+    else:
+        enable_cloud_feed = str(desired_value or "").strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
+        updated_account = update_customer_account_profile(
+            account["device_id"],
+            cloud_feed_enabled=1 if enable_cloud_feed else 0,
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="set_customer_cloud_feed",
+            target_type="customer_account",
+            target_id=updated_account["device_id"],
+            device_id=updated_account["device_id"],
+            details={"cloud_feed_enabled": bool(enable_cloud_feed)},
+        )
+        success = (
+            f"Cloud feed enabled for {updated_account['device_id']}."
+            if enable_cloud_feed
+            else f"Cloud feed disabled for {updated_account['device_id']}."
+        )
 
     accounts = list_customer_accounts(limit=100)
     available_devices = build_admin_known_devices(
@@ -5502,6 +5792,7 @@ def customer_dashboard():
 @app.route("/devices/<device_id>")
 @login_required
 def device_detail_page(device_id):
+    customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     return render_template("device_detail.html", device_id=scoped_device_id, is_admin=is_admin_user())
 
@@ -5509,6 +5800,7 @@ def device_detail_page(device_id):
 @app.route("/firmware/update")
 @login_required
 def firmware_update_redirect():
+    customer_cloud_feed_abort_if_disabled()
     device_id = current_scope_device_id(request.args.get("device_id", type=str)) or latest_device_id()
     target_url = build_device_update_url(device_id)
     if not target_url:
@@ -5529,6 +5821,7 @@ def firmware_update_redirect():
 @app.route("/devices/<device_id>/firmware/update")
 @login_required
 def device_firmware_update_redirect(device_id):
+    customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     target_url = build_device_update_url(scoped_device_id)
     if not target_url:
@@ -5549,6 +5842,9 @@ def device_firmware_update_redirect(device_id):
 @app.route("/devices/<device_id>/status")
 @login_required
 def device_detail_status(device_id):
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
@@ -5613,6 +5909,9 @@ def status():
 @login_required
 def last():
     logger.info("Fetching last status")
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5626,6 +5925,9 @@ def history():
         return jsonify([])
 
     logger.info("Fetching history")
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     source_clause, source_params = device_source_where_clause()
 
@@ -5694,6 +5996,9 @@ def health():
 @app.route("/device/status")
 @login_required
 def device_status():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     if not snapshot_has_live_device_data(snapshot):
@@ -5707,6 +6012,9 @@ def device_status():
 @app.route("/system/status")
 @login_required
 def system_status():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5734,6 +6042,9 @@ def relay_health():
 @app.route("/monitoring/alerts")
 @login_required
 def monitoring_alerts():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     refresh_operational_alerts(load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None)
     limit = max(1, min(request.args.get("limit", default=20, type=int), 100))
@@ -5764,6 +6075,9 @@ def monitoring_alert_resolve(alert_id):
 @app.route("/monitoring/summary")
 @login_required
 def monitoring_summary():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5773,6 +6087,9 @@ def monitoring_summary():
 @app.route("/monitoring/audit")
 @login_required
 def monitoring_audit():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     limit = max(1, min(request.args.get("limit", default=30, type=int), 100))
     device_id = current_scope_device_id(request.args.get("device_id", type=str))
     return jsonify(fetch_audit_events(limit=limit, device_id=device_id))
@@ -5781,6 +6098,9 @@ def monitoring_audit():
 @app.route("/events")
 @login_required
 def events():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     limit = max(1, min(request.args.get("limit", default=12, type=int), 30))
     return jsonify(build_events(limit, device_id=current_scope_device_id(request.args.get("device_id", type=str))))
 
@@ -5789,6 +6109,9 @@ def events():
 @login_required
 def dashboard_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
@@ -5800,7 +6123,12 @@ def dashboard_bootstrap():
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
             "events": build_events(event_limit, device_id=scoped_device_id),
             "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
-            "viewer": {"role": current_user_role(), "device_id": scoped_device_id},
+            "viewer": {
+                "role": current_user_role(),
+                "device_id": scoped_device_id,
+                "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
+                "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
+            },
         }
     )
 
@@ -5808,6 +6136,9 @@ def dashboard_bootstrap():
 @app.route("/analytics")
 @login_required
 def analytics():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     try:
         start_dt, end_exclusive, label = resolve_date_window()
