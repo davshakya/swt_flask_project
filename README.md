@@ -343,4 +343,4 @@ For rollout and support work, see:
 4. Decide whether relay URLs should be blank for local testing.
 5. Start the server and sign in at `/login/admin`.
 6. Confirm `/health` and `/admin/db-summary` look correct.
-7. Send one test telemetry payload from a device or simulator and verify it appears in `/last`.
+7. Send one test telemetry payload from a device and verify it appears in `/last`.

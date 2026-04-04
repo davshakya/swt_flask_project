@@ -72,8 +72,6 @@
                 <div id="lowerSensorInfoCard"><div class="sub">Source Sensor</div><div id="lowerSensorInfo" class="value">--</div></div>
                 <div id="lowerLevelCard"><div class="sub">Source Level</div><div id="lowerLevel" class="value">--</div></div>
                 <div><div class="sub">Dry Run</div><div id="dryRun" class="value">--</div></div>
-                <div><div class="sub">Main Simulator</div><div id="simulator" class="value">--</div></div>
-                <div id="sourceSimulatorCard"><div class="sub">Source Simulator</div><div id="sourceSimulator" class="value">--</div></div>
                 <div><div class="sub">Signal</div><div id="signalQuality" class="value">--</div></div>
                 <div><div class="sub">Uptime</div><div id="uptime" class="value">--</div></div>
                 <div><div class="sub">Free Heap</div><div id="freeHeap" class="value">--</div></div>
@@ -121,12 +119,11 @@ async function loadDevice(){
   if(!response.ok){document.getElementById("headline").textContent=data.error||"Unable to load device.";return;}
   const snapshot=data.snapshot||{};
   const systemStatus=data.system_status||{};
-  const sourceMonitoringActive=String(snapshot.source_tank_simulator||"").toUpperCase()==="ON"||String(systemStatus.lower_tank_service||snapshot.lower_tank_service||"").toUpperCase()==="ON";
+  const sourceMonitoringActive=String(systemStatus.lower_tank_service||snapshot.lower_tank_service||"").toUpperCase()==="ON";
   document.getElementById("headline").textContent=`Telemetry ${snapshot.telemetry_status||"--"} | Sensor ${snapshot.sensor||"--"} | Wi-Fi ${snapshot.wifi||"--"} | Channel ${systemStatus.channel_mode||snapshot.channel_mode||"--"}`;
   setVisible("lowerTankServiceCard",sourceMonitoringActive);
   setVisible("lowerSensorInfoCard",sourceMonitoringActive);
   setVisible("lowerLevelCard",sourceMonitoringActive);
-  setVisible("sourceSimulatorCard",sourceMonitoringActive);
   setText("telemetry", snapshot.telemetry_status||"--");
   setText("level", snapshot.level!==undefined&&snapshot.level!==null?`${Number(snapshot.level).toFixed(1)}%`:"--");
   setText("motor", snapshot.motor||"--");
@@ -143,8 +140,6 @@ async function loadDevice(){
   setText("lowerSensorInfo", snapshot.lower_sensor_info||"--");
   setText("lowerLevel", snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null?`${Number(snapshot.lower_tank_level).toFixed(1)}%`:"--");
   setText("dryRun", yesNoLabel(snapshot.dry_run));
-  setText("simulator", upperLabel(snapshot.simulator));
-  setText("sourceSimulator", upperLabel(snapshot.source_tank_simulator));
   setText("signalQuality", systemStatus.signal_quality||snapshot.signal_quality||"--");
   setText("uptime", systemStatus.uptime_label||snapshot.uptime_label||"--");
   setText("freeHeap", systemStatus.free_heap_label||snapshot.free_heap_label||"--");

@@ -175,8 +175,6 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <div class="card"><span class="label">Fill ETA</span><div id="fill_time" class="value">--</div><div class="subvalue">Latest cycle estimate</div></div>
             <div class="card"><span class="label">Live Usage Rate</span><div id="ai_usage_rate" class="value">--</div><div class="subvalue">Device-side estimate</div></div>
             <div class="card"><span class="label">Device Forecast</span><div id="tomorrow_prediction" class="value">--</div><div class="subvalue">Direct device forecast</div></div>
-            <div class="card"><span class="label">Main Tank Simulator</span><div id="simulator_status" class="value">--</div><div id="simulator_info" class="subvalue">Device mode --</div></div>
-            <div id="sourceSimulatorCard" class="card"><span class="label">Source Tank Simulator</span><div id="source_simulator_status" class="value">--</div><div id="source_simulator_info" class="subvalue">Device mode --</div></div>
             <div class="card admin-only"><span class="label">Sensor Health</span><div id="sensor_status" class="value">--</div><div id="sensor_info" class="subvalue">HC-SR04 --</div><div id="wifi" class="subvalue">Wi-Fi --</div></div>
             <div id="lowerTankCard" class="card admin-only"><span class="label">Source Tank</span><div id="lower_tank_status" class="value">--</div><div id="lower_tank_info" class="subvalue">Lower tank data unavailable</div></div>
             <div class="card admin-only"><span class="label">Recent Starts</span><div id="motor_cycles" class="value">--</div><div class="subvalue">Recent start events</div></div>
@@ -327,14 +325,13 @@ function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)re
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
 function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump logo <strong>arming</strong>":"Pump logo <strong>spinning</strong>"):"Pump logo <strong>idle</strong>";}
 function buildSourceTankState(snapshot){
-    const sourceSimulatorOn=String(snapshot?.source_tank_simulator||"").toUpperCase()==="ON";
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
-    const monitoringActive=sourceSimulatorOn||serviceOn;
+    const monitoringActive=serviceOn;
     const lowerSensorRaw=String(snapshot?.lower_sensor||"").toUpperCase();
     const lowerLevelRaw=snapshot?.lower_tank_level;
     const levelAvailable=lowerLevelRaw!==null&&lowerLevelRaw!==undefined&&!Number.isNaN(Number(lowerLevelRaw));
     const level=levelAvailable?Math.max(0,Math.min(Number(lowerLevelRaw),100)):null;
-    const sensorHealthy=sourceSimulatorOn||lowerSensorRaw==="OK";
+    const sensorHealthy=lowerSensorRaw==="OK";
     const canStart=!monitoringActive||(levelAvailable&&sensorHealthy&&level>=SOURCE_TANK_MIN_RUN_PERCENT);
     let hintText="Source tank monitoring is OFF. Start Pump uses only the main tank state.";
     let hintTone="";
@@ -360,13 +357,11 @@ function buildSourceTankState(snapshot){
         }else{
             hintText="Source tank is ready. Start Pump will respect the source tank level.";
             hintTone="ok";
-            infoText=sourceSimulatorOn
-                ?"Source tank simulator is active and ready."
-                :(snapshot?.lower_sensor_info||"Source tank is ready.");
-            statusTone=sourceSimulatorOn?"warn":"ok";
+            infoText=snapshot?.lower_sensor_info||"Source tank is ready.";
+            statusTone="ok";
         }
     }
-    return{monitoringActive,sourceSimulatorOn,serviceOn,levelAvailable,level,sensorHealthy,canStart,hintText,hintTone,visualLevel,volumeText,infoText,statusText,statusTone,lowerSensorRaw};
+    return{monitoringActive,serviceOn,levelAvailable,level,sensorHealthy,canStart,hintText,hintTone,visualLevel,volumeText,infoText,statusText,statusTone,lowerSensorRaw};
 }
 function updateCommandAvailability(snapshot=state.data.snapshot){
     const sourceState=buildSourceTankState(snapshot);
@@ -538,11 +533,8 @@ function renderSnapshot(snapshot){
     renderTank(snapshot);
     document.getElementById("motor").textContent=snapshot.motor||"--";
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
-    const simulatorOn=String(snapshot.simulator||"").toUpperCase()==="ON";
     const sourceState=buildSourceTankState(snapshot);
-    const sourceSimulatorOn=sourceState.sourceSimulatorOn;
     const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
-    setElementVisibility("sourceSimulatorCard",sourceState.monitoringActive);
     setElementVisibility("lowerTankCard",sourceState.monitoringActive);
     document.getElementById("mode").textContent=currentMode==="MANUAL"?"Manual mode":"Auto mode";
     document.getElementById("auto_status").textContent=snapshot.auto_status||"--";
@@ -558,31 +550,19 @@ function renderSnapshot(snapshot){
     document.getElementById("tomorrow_prediction").textContent=snapshot.tomorrow_prediction??"--";
     const sensorRaw=String(snapshot.sensor||"").toUpperCase();
     const sensorConnected=sensorRaw==="OK";
-    document.getElementById("simulator_status").textContent=simulatorOn?"Enabled":"Disabled";
-    document.getElementById("simulator_info").textContent=simulatorOn
-        ?"Live sensor readings are bypassed and tank values are simulated."
-        :"Live HC-SR04 sensor readings are active on the device.";
-    applyStatusTone("simulator_status",simulatorOn?"warn":"ok");
-    document.getElementById("source_simulator_status").textContent=sourceSimulatorOn?"Enabled":"Disabled";
-    document.getElementById("source_simulator_info").textContent=sourceSimulatorOn
-        ?"Lower tank level and source sensor readings are simulated by the active simulator feed."
-        :"Lower tank values come from the configured source sensor path when it is enabled.";
-    applyStatusTone("source_simulator_status",sourceSimulatorOn?"warn":"ok");
-    document.getElementById("sensor_status").textContent=simulatorOn?"Simulated":(sensorRaw? (sensorConnected?"Connected":"Disconnected") : "--");
-    applyStatusTone("sensor_status",simulatorOn?"warn":(sensorRaw?(sensorConnected?"ok":"bad"):""));
-    document.getElementById("sensor_info").textContent=simulatorOn?"HC-SR04 bypassed while simulator mode is active":(sensorRaw?`HC-SR04 ${sensorConnected?"responding":"not responding"}`:"HC-SR04 status unavailable");
+    document.getElementById("sensor_status").textContent=sensorRaw?(sensorConnected?"Connected":"Disconnected"):"--";
+    applyStatusTone("sensor_status",sensorRaw?(sensorConnected?"ok":"bad"):"");
+    document.getElementById("sensor_info").textContent=sensorRaw?`HC-SR04 ${sensorConnected?"responding":"not responding"}`:"HC-SR04 status unavailable";
     document.getElementById("wifi").textContent=`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi??"--"}`;
     document.getElementById("lower_tank_status").textContent=sourceState.statusText;
     document.getElementById("lower_tank_info").textContent=sourceState.monitoringActive
-        ?`${sourceState.infoText} | ${sourceSimulatorOn?"Simulated":`${snapshot.lower_sensor_distance_cm??"--"} cm`}`
+        ?`${sourceState.infoText} | ${snapshot.lower_sensor_distance_cm??"--"} cm`
         :sourceState.infoText;
     applyStatusTone("lower_tank_status",sourceState.statusTone);
     document.getElementById("motor_cycles").textContent=snapshot.motor_cycles??"--";
     document.getElementById("leak_events").textContent=snapshot.leak_events??"--";
-    document.getElementById("healthStatus").textContent=simulatorOn?"Main Simulator Active":(snapshot.tank_health_status||"--");
-    document.getElementById("healthSummary").textContent=simulatorOn
-        ?"Tank readings shown here are generated by the active simulator feed, not live sensor measurements."
-        :(snapshot.tank_health_reasons?.[0]||"No health issues detected.");
+    document.getElementById("healthStatus").textContent=snapshot.tank_health_status||"--";
+    document.getElementById("healthSummary").textContent=snapshot.tank_health_reasons?.[0]||"No health issues detected.";
     document.getElementById("actionHint").textContent=sourceState.hintText;
     applyStatusTone("actionHint",sourceState.hintTone);
     ["btn_on","btn_off","btn_auto"].forEach((id)=>document.getElementById(id)?.classList.remove("active"));
@@ -609,12 +589,10 @@ function renderSnapshot(snapshot){
             :"Auto protection is active. Use Start Pump or Stop Pump for a supervised action without leaving auto control.";
     }
     const warnings=[];
-    if(simulatorOn)warnings.push("Simulator mode is active. Tank level, runtime, and sensor values are currently simulated by the active simulator feed.");
-    if(sourceSimulatorOn)warnings.push("Source tank simulator is active. Lower tank level and source sensor values are currently simulated by the active simulator feed.");
     if(Number(snapshot.level||0)<=state.preferences.lowThreshold)warnings.push(`Tank level is below ${state.preferences.lowThreshold}%.`);
     if(Number(snapshot.level||0)>=state.preferences.overflowThreshold)warnings.push(`Tank is above ${state.preferences.overflowThreshold}% and nearing full capacity.`);
     if(state.preferences.leakAlerts){["pipe_leak","slow_leak","drip"].forEach((key)=>{if(String(snapshot[key]||"").toUpperCase()==="YES")warnings.push(`${key.replace("_"," ")} alert is active.`);});}
-    if(state.preferences.systemAlerts&&!simulatorOn&&sensorRaw&&sensorRaw!=="OK")warnings.push("HC-SR04 sensor is not responding.");
+    if(state.preferences.systemAlerts&&sensorRaw&&sensorRaw!=="OK")warnings.push("HC-SR04 sensor is not responding.");
     if(state.preferences.systemAlerts&&snapshot.telemetry_status==="stale")warnings.push("Telemetry is stale. Check device power or connectivity.");
     banner("warningBanner",warnings.join(" "),warnings.length?"warn":"");
     if(warnings.length)desktopNotify(warnings[0]);

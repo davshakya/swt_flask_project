@@ -27,7 +27,6 @@ SELECT_COLUMNS = [
     "drip",
     "abnormal",
     "dry_run",
-    "simulator",
 ]
 FEATURE_COLUMNS = [
     "level",
@@ -39,7 +38,6 @@ FEATURE_COLUMNS = [
     "motor_on",
     "mode_auto",
     "alert_flag",
-    "simulator_flag",
     "level_delta_1",
     "level_delta_4",
     "usage_roll_mean_4",
@@ -165,7 +163,6 @@ def prepare_feature_frame(
     frame["drip_flag"] = normalize_boolean_flag(frame["drip"], {"YES", "ON", "TRUE"})
     frame["abnormal_flag"] = normalize_boolean_flag(frame["abnormal"], {"YES", "ON", "TRUE"})
     frame["dry_run_flag"] = normalize_boolean_flag(frame["dry_run"], {"YES", "ON", "TRUE"})
-    frame["simulator_flag"] = normalize_boolean_flag(frame["simulator"], {"ON", "TRUE"})
     frame["alert_flag"] = frame[
         ["pipe_leak_flag", "slow_leak_flag", "drip_flag", "abnormal_flag", "dry_run_flag"]
     ].max(axis=1)
@@ -186,7 +183,6 @@ def prepare_feature_frame(
         aggregated["motor_on"] = device_frame["motor_on"].resample(resample_rule).max()
         aggregated["mode_auto"] = device_frame["mode_auto"].resample(resample_rule).max()
         aggregated["alert_flag"] = device_frame["alert_flag"].resample(resample_rule).max()
-        aggregated["simulator_flag"] = device_frame["simulator_flag"].resample(resample_rule).max()
 
         aggregated = aggregated.ffill(limit=max(1, int(180 / resample_minutes)))
         aggregated = aggregated.dropna(subset=["level"])

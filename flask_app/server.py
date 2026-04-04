@@ -1695,6 +1695,8 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
+    cleaned.pop("simulator", None)
+    cleaned.pop("source_tank_simulator", None)
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -1714,7 +1716,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 ai_usage_rate, tomorrow_prediction,
                 dry_run,
                 wifi, wifi_rssi, sensor,
-                simulator, source_tank_simulator, sensor_info, sensor_distance_cm,
+                sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
                 auto_status, auto_status_tone, auto_timer,
                 tank_health, free_heap, uptime_s,
@@ -1722,7 +1724,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 cleaned.get("level"),
@@ -1744,8 +1746,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("wifi"),
                 cleaned.get("wifi_rssi"),
                 cleaned.get("sensor"),
-                cleaned.get("simulator"),
-                cleaned.get("source_tank_simulator"),
                 cleaned.get("sensor_info"),
                 cleaned.get("sensor_distance_cm"),
                 cleaned.get("tank_height_cm"),
@@ -1809,8 +1809,6 @@ def get_db():
 def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
-        "simulator": "TEXT",
-        "source_tank_simulator": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -1840,6 +1838,80 @@ def ensure_tank_data_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE tank_data ADD COLUMN {column} {definition}")
+
+
+def rebuild_tank_data_without_simulator_columns(cursor):
+    existing = [row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()]
+    obsolete = {"simulator", "source_tank_simulator"}
+    if not set(existing).intersection(obsolete):
+        return
+
+    preserved_columns = [column for column in existing if column not in obsolete]
+    if not preserved_columns:
+        return
+
+    preserved_sql = ", ".join(preserved_columns)
+    logger.info("Removing obsolete simulator telemetry columns from tank_data")
+    cursor.execute("ALTER TABLE tank_data RENAME TO tank_data_legacy")
+    cursor.execute(
+        """
+        CREATE TABLE tank_data(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level REAL,
+            motor TEXT,
+            mode TEXT,
+            runtime REAL,
+            current_runtime REAL,
+            last_runtime REAL,
+            fill_time REAL,
+            leak TEXT,
+            pump_failure TEXT,
+            abnormal TEXT,
+            drip TEXT,
+            slow_leak TEXT,
+            pipe_leak TEXT,
+            ai_usage_rate REAL,
+            tomorrow_prediction REAL,
+            dry_run TEXT,
+            wifi TEXT,
+            wifi_rssi INTEGER,
+            sensor TEXT,
+            sensor_info TEXT,
+            sensor_distance_cm REAL,
+            tank_height_cm REAL,
+            tank_capacity_liters REAL,
+            auto_status TEXT,
+            auto_status_tone TEXT,
+            auto_timer TEXT,
+            tank_health REAL,
+            free_heap INTEGER,
+            uptime_s INTEGER,
+            lower_tank_level REAL,
+            lower_sensor TEXT,
+            lower_sensor_info TEXT,
+            lower_sensor_distance_cm REAL,
+            device_id TEXT,
+            firmware_version TEXT,
+            reset_reason TEXT,
+            source_ip TEXT,
+            device_local_url TEXT,
+            channel_mode TEXT,
+            telemetry_service TEXT,
+            command_service TEXT,
+            ota_service TEXT,
+            lower_tank_service TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        f"""
+        INSERT INTO tank_data ({preserved_sql})
+        SELECT {preserved_sql}
+        FROM tank_data_legacy
+        """
+    )
+    cursor.execute("DROP TABLE tank_data_legacy")
 
 
 def ensure_relay_queue_table(cursor):
@@ -2082,8 +2154,6 @@ def init_db():
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
-                simulator TEXT,
-                source_tank_simulator TEXT,
                 sensor_info TEXT,
                 sensor_distance_cm REAL,
                 tank_height_cm REAL,
@@ -2113,6 +2183,7 @@ def init_db():
             """
         )
         ensure_tank_data_columns(cursor)
+        rebuild_tank_data_without_simulator_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_alerts_table(cursor)
@@ -2660,10 +2731,8 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    simulator = str(data.get("simulator", "OFF")).upper()
-    data["simulator"] = simulator if simulator in {"ON", "OFF"} else "OFF"
-    source_tank_simulator = str(data.get("source_tank_simulator", "OFF")).upper()
-    data["source_tank_simulator"] = source_tank_simulator if source_tank_simulator in {"ON", "OFF"} else "OFF"
+    data.pop("simulator", None)
+    data.pop("source_tank_simulator", None)
     data["control_policy"] = CONTROL_POLICY
     data["capacity_liters"] = round(capacity_liters, 1)
     data["tank_capacity_liters"] = round(capacity_liters, 1)
@@ -2883,8 +2952,6 @@ def build_empty_snapshot_payload(device_id=None):
     return {
         "level": 0,
         "mode": "AUTO",
-        "simulator": "OFF",
-        "source_tank_simulator": "OFF",
         "control_policy": CONTROL_POLICY,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
         "remaining_liters": 0,
