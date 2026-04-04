@@ -891,6 +891,114 @@ def test_monitoring_summary_endpoint():
     assert "devices" in data
 
 
+def test_build_admin_device_summary_counts_online_offline_and_alert_devices():
+    if BASE_URL:
+        pytest.skip("Admin device summary helper test is skipped against shared BASE_URL deployments.")
+
+    device_ids = [
+        "swt-summary-live-001",
+        "swt-summary-recent-002",
+        "swt-summary-stale-003",
+        "swt-summary-empty-004",
+    ]
+
+    try:
+        with get_db() as db:
+            for device_id in device_ids:
+                db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM ops_alerts WHERE kind = ?", ("summary_system_demo",))
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (?, 'summary_warning_demo', 'warning', 'demo warning', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (device_ids[0],),
+            )
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (?, 'summary_danger_demo', 'danger', 'demo danger', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (device_ids[2],),
+            )
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (?, 'summary_inactive_demo', 'warning', 'inactive warning', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (device_ids[3],),
+            )
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (NULL, 'summary_system_demo', 'warning', 'system warning', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """
+            )
+
+        summary = server_module.build_admin_device_summary(
+            [
+                {"device_id": device_ids[0], "telemetry_status": "live"},
+                {"device_id": device_ids[1], "telemetry_status": "recent"},
+                {"device_id": device_ids[2], "telemetry_status": "stale"},
+                {"device_id": device_ids[3], "telemetry_status": "no-data"},
+            ]
+        )
+
+        assert summary == {
+            "total_registered_devices": 4,
+            "online_devices": 2,
+            "offline_devices": 2,
+            "warning_alert_devices": 2,
+        }
+    finally:
+        with get_db() as db:
+            for device_id in device_ids:
+                db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM ops_alerts WHERE kind = ?", ("summary_system_demo",))
+
+
+def test_build_admin_known_devices_adds_status_and_alert_metadata():
+    if BASE_URL:
+        pytest.skip("Admin known-device metadata helper test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-admin-table-demo-001"
+
+    try:
+        with get_db() as db:
+            db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (device_id,))
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (?, 'table_warning_demo', 'warning', 'Check inlet valve.', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (device_id,),
+            )
+            db.execute(
+                """
+                INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+                VALUES (?, 'table_danger_demo', 'danger', 'Motor dry run risk.', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                """,
+                (device_id,),
+            )
+
+        devices = server_module.build_admin_known_devices(
+            accounts=[{"device_id": device_id, "display_name": "Admin Table Demo"}],
+            available_devices=[{"device_id": device_id, "telemetry_status": "recent", "level": 57.4, "mode": "AUTO", "motor": "OFF"}],
+        )
+
+        assert len(devices) == 1
+        assert devices[0]["admin_status"] == "online"
+        assert devices[0]["admin_status_label"] == "Online"
+        assert devices[0]["telemetry_status_label"] == "Recent"
+        assert devices[0]["active_alert_count"] == 2
+        assert devices[0]["warning_alert_label"] == "2 active"
+        assert devices[0]["latest_alert_severity"] == "danger"
+        assert devices[0]["latest_alert_message"]
+    finally:
+        with get_db() as db:
+            db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (device_id,))
+
+
 def test_dashboard_bootstrap_endpoint():
     data = get_json("/dashboard/bootstrap", params={"event_limit": 5, "audit_limit": 5})
     assert "snapshot" in data
@@ -958,6 +1066,15 @@ def test_device_detail_page_and_status():
     assert "monitoring_summary" in payload
     assert "history" in payload
     assert "audit" in payload
+    assert "events" in payload
+    assert len(payload["history"]) <= 10
+    assert len(payload["audit"]) <= 10
+    assert len(payload["alerts"]) <= 10
+    assert len(payload["events"]) <= 10
+    assert "Current Warnings" in page_body
+    assert "Recent Events" in page_body
+    assert "Bridge Services" not in page_body
+    assert "Audit Trail" not in page_body
     assert "locale-datetime.js" in page_body
 
 
@@ -1482,9 +1599,10 @@ def test_admin_customers_page_shows_registered_device_in_known_devices_and_searc
     body = response.get_data(as_text=True)
     assert 'id="device_search"' in body
     assert device_id in body
-    assert "Registered account" in body
     assert "Search Demo" in body
     assert "Known Devices" not in body
+    assert "Alerts / Warnings" in body
+    assert "Search and Manage Devices" in body
 
 
 def test_admin_customers_search_supports_partial_device_id():
@@ -1655,10 +1773,19 @@ def test_admin_customers_page_removes_separate_known_devices_section():
     assert response.status_code == 200
 
     body = response.get_data(as_text=True)
-    assert "Search Known Device ID" in body
+    assert "Search and Manage Devices" in body
     assert "Known Devices" not in body
-    assert "Service Alerts" not in body
+    assert "Total Registered Devices" in body
+    assert "Online Devices" in body
+    assert "Offline Devices" in body
+    assert "Warning / Alert Devices" in body
+    assert "Global Alerts" in body
     assert "Audit Trail" not in body
+    assert "Alerts / Warnings" in body
+    assert "Device ID" in body
+    assert 'data-device-sort="device_id"' in body
+    assert 'data-device-sort="status"' in body
+    assert 'data-device-sort="alerts"' in body
 
 
 def test_admin_customers_page_shows_server_registered_device_without_telemetry():

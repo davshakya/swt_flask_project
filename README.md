@@ -323,7 +323,22 @@ The emulator automatically scans `tests/virtual_devices/*.env` and starts one vi
 
 Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
 
-If you want the script to create a batch of virtual-device env files for you, use `--device_count`:
+If you want separate steps for fleet testing, generate the env files first:
+
+```powershell
+python scripts/generate_virtual_device_envs.py --base-url http://127.0.0.1:8000/ --device_count 10
+```
+
+Then start feeding live telemetry from those env files:
+
+```powershell
+python scripts/run_virtual_devices.py
+```
+
+`run_virtual_devices.py` looks in `tests/virtual_devices/generated/` first, then falls back to `tests/virtual_devices/`.
+If those device IDs were deleted from the local admin page earlier, generating or running the env files restores them in the local admin registry automatically.
+
+If you still want the old one-step flow, `virtual_device.py` can create a batch and run it immediately with `--device_count`:
 
 ```powershell
 python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device_count 10
@@ -343,6 +358,12 @@ If you want to target specific files instead of the whole directory, you can pas
 
 ```powershell
 python scripts/virtual_device.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
+```
+
+The dedicated fleet runner also accepts explicit files:
+
+```powershell
+python scripts/run_virtual_devices.py --env-file tests/virtual_devices/generated/device-001.env --env-file tests/virtual_devices/generated/device-002.env
 ```
 
 If you pass explicit per-device CLI flags like `--device-id` or `--device-key`, the script falls back to classic single-device mode and does not auto-scan the directory.

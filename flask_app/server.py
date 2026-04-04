@@ -1317,7 +1317,147 @@ a{border:1px solid rgba(148,163,184,.24);color:var(--text)}
     )
 
 
-def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query=""):
+def fetch_active_alert_device_ids():
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT DISTINCT device_id
+            FROM ops_alerts
+            WHERE active = 1
+              AND COALESCE(device_id, '') != ''
+            """
+        ).fetchall()
+    return {
+        normalize_device_id(row["device_id"])
+        for row in rows
+        if normalize_device_id(row["device_id"])
+    }
+
+
+def admin_device_is_online(device):
+    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent"}
+
+
+def admin_telemetry_status_label(value):
+    normalized = str(value or "").strip().lower()
+    if normalized == "live":
+        return "Live"
+    if normalized == "recent":
+        return "Recent"
+    if normalized == "stale":
+        return "Stale"
+    if normalized == "no-data":
+        return "No data"
+    return normalized.replace("-", " ").title() if normalized else "--"
+
+
+def alert_severity_rank(value):
+    normalized = str(value or "").strip().lower()
+    if normalized == "danger":
+        return 3
+    if normalized == "warning":
+        return 2
+    if normalized == "success":
+        return 1
+    return 0
+
+
+def fetch_active_alert_summaries(device_ids=None):
+    normalized_device_ids = [
+        item
+        for item in (normalize_device_id(value) for value in (device_ids or []))
+        if item
+    ]
+    query = """
+        SELECT device_id, severity, message, updated_at, id
+        FROM ops_alerts
+        WHERE active = 1
+          AND COALESCE(device_id, '') != ''
+    """
+    params = []
+    if normalized_device_ids:
+        placeholders = ",".join("?" for _ in normalized_device_ids)
+        query += f" AND device_id IN ({placeholders})"
+        params.extend(normalized_device_ids)
+    query += " ORDER BY updated_at DESC, id DESC"
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    summaries = {}
+    for row in rows:
+        device_id = normalize_device_id(row["device_id"])
+        if not device_id:
+            continue
+        entry = summaries.setdefault(
+            device_id,
+            {
+                "active_alert_count": 0,
+                "latest_alert_message": None,
+                "latest_alert_severity": "info",
+                "latest_alert_updated_at": None,
+                "highest_alert_severity": "info",
+            },
+        )
+        entry["active_alert_count"] += 1
+        severity = str(row["severity"] or "info").strip().lower() or "info"
+        if entry["latest_alert_message"] is None:
+            entry["latest_alert_message"] = row["message"]
+            entry["latest_alert_severity"] = severity
+            entry["latest_alert_updated_at"] = row["updated_at"]
+        if alert_severity_rank(severity) > alert_severity_rank(entry["highest_alert_severity"]):
+            entry["highest_alert_severity"] = severity
+    return summaries
+
+
+def build_admin_device_entry(device_id, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
+    payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
+    return {
+        "device_id": normalized_device_id,
+        "level": payload.get("level"),
+        "firmware_version": payload.get("firmware_version"),
+        "reset_reason": payload.get("reset_reason"),
+        "last_sync_at": payload.get("last_sync_at"),
+        "telemetry_status": payload.get("telemetry_status"),
+        "channel_mode": payload.get("channel_mode"),
+        "telemetry_service": payload.get("telemetry_service"),
+        "command_service": payload.get("command_service"),
+        "ota_service": payload.get("ota_service"),
+        "lower_tank_service": payload.get("lower_tank_service"),
+        "wifi": payload.get("wifi"),
+        "wifi_rssi": payload.get("wifi_rssi"),
+        "sensor": payload.get("sensor"),
+        "motor": payload.get("motor"),
+        "mode": payload.get("mode"),
+    }
+
+
+def build_admin_device_summary(available_devices):
+    alert_device_ids = fetch_active_alert_device_ids()
+    seen_device_ids = set()
+    online_devices = 0
+
+    for device in available_devices:
+        normalized_device_id = normalize_device_id(device.get("device_id"))
+        if not normalized_device_id or normalized_device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(normalized_device_id)
+        if admin_device_is_online(device):
+            online_devices += 1
+
+    total_registered_devices = len(seen_device_ids)
+    warning_alert_devices = len(seen_device_ids.intersection(alert_device_ids))
+    offline_devices = max(0, total_registered_devices - online_devices)
+
+    return {
+        "total_registered_devices": total_registered_devices,
+        "online_devices": online_devices,
+        "offline_devices": offline_devices,
+        "warning_alert_devices": warning_alert_devices,
+    }
+
+
+def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
     return render_template(
         "admin_customers.html",
         accounts=accounts,
@@ -1325,6 +1465,8 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary or build_admin_device_summary(available_devices),
+        global_alerts=fetch_filtered_alerts(limit=10),
         persistence_warnings=auth_persistence_warnings(),
     )
 
@@ -1338,7 +1480,7 @@ def build_admin_known_devices(accounts, available_devices):
         normalized_device_id = normalize_device_id(device.get("device_id"))
         if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
-        merged[normalized_device_id] = dict(device)
+        merged[normalized_device_id] = build_admin_device_entry(normalized_device_id, snapshot=dict(device))
 
     for account in accounts:
         normalized_device_id = normalize_device_id(account.get("device_id"))
@@ -1347,24 +1489,7 @@ def build_admin_known_devices(accounts, available_devices):
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["display_name"] = account.get("display_name") or entry.get("display_name")
@@ -1377,24 +1502,7 @@ def build_admin_known_devices(accounts, available_devices):
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["server_registered"] = True
@@ -1406,34 +1514,33 @@ def build_admin_known_devices(accounts, available_devices):
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["server_registered"] = True
 
+    alert_summaries = fetch_active_alert_summaries(merged.keys())
+    for device_id, entry in merged.items():
+        online = admin_device_is_online(entry)
+        telemetry_status = str(entry.get("telemetry_status") or "").strip().lower()
+        alert_summary = alert_summaries.get(device_id, {})
+        active_alert_count = int(alert_summary.get("active_alert_count") or 0)
+        entry["admin_status"] = "online" if online else "offline"
+        entry["admin_status_label"] = "Online" if online else "Offline"
+        entry["telemetry_status_label"] = admin_telemetry_status_label(telemetry_status)
+        entry["status_sort_value"] = 0 if online else 1
+        entry["active_alert_count"] = active_alert_count
+        entry["warning_alert_label"] = "Clear" if active_alert_count == 0 else f"{active_alert_count} active"
+        entry["latest_alert_message"] = alert_summary.get("latest_alert_message") or "No active alerts."
+        entry["latest_alert_severity"] = (
+            alert_summary.get("highest_alert_severity")
+            or alert_summary.get("latest_alert_severity")
+            or "info"
+        )
+
     return sorted(
         merged.values(),
-        key=lambda item: (
-            0 if item.get("registered_account") or item.get("server_registered") else 1,
-            str(item.get("device_id") or "").lower(),
-        ),
+        key=lambda item: str(item.get("device_id") or "").lower(),
     )
 
 
@@ -4011,30 +4118,7 @@ def fetch_device_inventory(limit=20, device_ids=None):
     inventory = []
     for row in rows:
         snapshot = enrich_snapshot(dict(row))
-        inventory.append(
-            {
-                "device_id": snapshot.get("device_id") or "unassigned",
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
-        )
+        inventory.append(build_admin_device_entry(snapshot.get("device_id") or "unassigned", snapshot=snapshot))
     return inventory
 
 
@@ -5228,6 +5312,7 @@ def admin_customers():
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
@@ -5237,6 +5322,7 @@ def admin_customers():
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary,
     )
 
 
@@ -5276,6 +5362,7 @@ def admin_customer_password_reset(device_id):
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
@@ -5285,6 +5372,7 @@ def admin_customer_password_reset(device_id):
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary,
     )
 
 
@@ -5315,6 +5403,7 @@ def admin_delete_known_device(device_id):
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
@@ -5324,6 +5413,7 @@ def admin_delete_known_device(device_id):
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary,
     )
 
 
@@ -5463,9 +5553,10 @@ def device_detail_status(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         return jsonify({"error": "device not found"}), 404
-    alerts = fetch_filtered_alerts(limit=20, device_id=scoped_device_id)
-    audit = fetch_audit_events(limit=20, device_id=scoped_device_id)
-    history = fetch_device_history(scoped_device_id, limit=48)
+    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
+    audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
+    history = fetch_device_history(scoped_device_id, limit=10)
+    events = build_events(limit=10, device_id=scoped_device_id)
     return jsonify(
         {
             "device_id": scoped_device_id,
@@ -5475,6 +5566,7 @@ def device_detail_status(device_id):
             "alerts": alerts,
             "audit": audit,
             "history": history,
+            "events": events,
         }
     )
 

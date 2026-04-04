@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 import sys
 
@@ -8,6 +9,8 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import virtual_device
+import generate_virtual_device_envs
+import run_virtual_devices
 
 
 def test_load_local_env_files_prefers_tests_virtual_device_env(tmp_path):
@@ -106,3 +109,100 @@ def test_generated_device_env_values_increment_device_id_and_seed():
     assert third["SWT_VIRTUAL_DEVICE_KEY"] == "shared-key"
     assert first["SWT_VIRTUAL_DEVICE_SEED"] == "42"
     assert third["SWT_VIRTUAL_DEVICE_SEED"] == "44"
+
+
+def test_build_configs_from_env_paths_applies_override_env(tmp_path):
+    env_path = tmp_path / "device-001.env"
+    env_path.write_text(
+        "SWT_VIRTUAL_DEVICE_ID=swt-override-001\n"
+        "SWT_VIRTUAL_DEVICE_KEY=override-key\n"
+        "SWT_VIRTUAL_DEVICE_BASE_URL=http://127.0.0.1:8000/\n",
+        encoding="utf-8",
+    )
+
+    configs = virtual_device.build_configs_from_env_paths(
+        [env_path],
+        override_env={
+            "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:9100/",
+            "SWT_VIRTUAL_DEVICE_RUN_SECONDS": "15",
+        },
+        base_environ={},
+    )
+
+    assert len(configs) == 1
+    assert configs[0].device_id == "swt-override-001"
+    assert configs[0].base_url == "http://127.0.0.1:9100/"
+    assert configs[0].run_seconds == 15.0
+
+
+def test_sync_virtual_device_envs_to_local_registry_restores_deleted_devices(tmp_path):
+    (tmp_path / "device.env").write_text("DB_FILE=data/test.db\n", encoding="utf-8")
+
+    env_dir = tmp_path / "tests" / "virtual_devices" / "generated"
+    env_dir.mkdir(parents=True)
+    env_path_1 = env_dir / "device-001.env"
+    env_path_2 = env_dir / "device-002.env"
+    env_path_1.write_text("SWT_VIRTUAL_DEVICE_ID=swt-000-000-000-001\n", encoding="utf-8")
+    env_path_2.write_text("SWT_VIRTUAL_DEVICE_ID=swt-000-000-000-002\n", encoding="utf-8")
+
+    db_path = tmp_path / "data" / "test.db"
+    db_path.parent.mkdir(parents=True)
+    with sqlite3.connect(db_path) as db:
+        cursor = db.cursor()
+        virtual_device.ensure_local_device_registry_tables(cursor)
+        cursor.execute(
+            "INSERT INTO ignored_devices(device_id, note) VALUES (?, ?)",
+            ("swt-000-000-000-001", "admin_delete"),
+        )
+        db.commit()
+
+    result = virtual_device.sync_virtual_device_envs_to_local_registry(
+        [env_path_1, env_path_2],
+        base_environ={},
+        project_root=tmp_path,
+    )
+
+    assert result["skipped"] is False
+    assert result["unhidden_devices"] == 1
+    assert result["registered_devices"] == 2
+
+    with sqlite3.connect(db_path) as db:
+        db.row_factory = sqlite3.Row
+        ignored_rows = db.execute("SELECT device_id FROM ignored_devices").fetchall()
+        registered_rows = db.execute(
+            "SELECT device_id, registration_source, key_rule FROM registered_devices ORDER BY device_id"
+        ).fetchall()
+
+    assert ignored_rows == []
+    assert [dict(row) for row in registered_rows] == [
+        {
+            "device_id": "swt-000-000-000-001",
+            "registration_source": "virtual_device_env",
+            "key_rule": "tests/virtual_devices/generated/device-001.env",
+        },
+        {
+            "device_id": "swt-000-000-000-002",
+            "registration_source": "virtual_device_env",
+            "key_rule": "tests/virtual_devices/generated/device-002.env",
+        },
+    ]
+
+
+def test_run_virtual_devices_build_override_env_normalizes_values():
+    args = run_virtual_devices.build_parser().parse_args(
+        [
+            "--base-url", "127.0.0.1:8000",
+            "--run-seconds", "20",
+        ]
+    )
+
+    overrides = run_virtual_devices.build_override_env(args)
+
+    assert overrides == {
+        "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
+        "SWT_VIRTUAL_DEVICE_RUN_SECONDS": "20.0",
+    }
+
+
+def test_generate_virtual_device_envs_module_exposes_main():
+    assert callable(generate_virtual_device_envs.main)

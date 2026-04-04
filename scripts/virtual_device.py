@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import re
+import sqlite3
 import sys
 import threading
 import time
@@ -102,6 +103,142 @@ def discover_virtual_device_env_files(env_dir: Path) -> list[Path]:
         path
         for path in env_dir.iterdir()
         if path.is_file() and path.suffix.lower() == ".env"
+    )
+
+
+def normalize_db_path(raw_path: str | Path, project_root: Path = PROJECT_ROOT) -> Path:
+    db_path = Path(raw_path).expanduser()
+    if not db_path.is_absolute():
+        db_path = project_root / db_path
+    return db_path
+
+
+def resolve_local_db_path(base_environ: Any = None, project_root: Path = PROJECT_ROOT) -> Path:
+    shared_env = {}
+    for dotenv_path in resolve_shared_env_file_paths(project_root):
+        shared_env.update(parse_simple_dotenv(dotenv_path))
+    runtime_env = dict(shared_env)
+    runtime_env.update(dict(os.environ if base_environ is None else base_environ))
+    configured_path = str(runtime_env.get("DB_FILE") or "").strip() or "data/tank.db"
+    return normalize_db_path(configured_path, project_root=project_root)
+
+
+def relative_to_project_or_str(path: Path, project_root: Path = PROJECT_ROOT) -> str:
+    try:
+        return str(path.resolve().relative_to(project_root.resolve()))
+    except (OSError, ValueError):
+        return str(path)
+
+
+def ensure_local_device_registry_tables(cursor: sqlite3.Cursor) -> None:
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS registered_devices(
+            device_id TEXT PRIMARY KEY,
+            registration_source TEXT NOT NULL,
+            key_rule TEXT,
+            first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ignored_devices(
+            device_id TEXT PRIMARY KEY,
+            note TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def sync_virtual_device_envs_to_local_registry(
+    env_paths: list[Path],
+    base_environ: Any = None,
+    project_root: Path = PROJECT_ROOT,
+) -> dict[str, Any]:
+    device_entries: list[tuple[str, str]] = []
+    seen_device_ids: set[str] = set()
+    for env_path in env_paths:
+        env_values = parse_simple_dotenv(env_path)
+        device_id = str(env_values.get("SWT_VIRTUAL_DEVICE_ID") or "").strip()
+        if not device_id or device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(device_id)
+        device_entries.append((device_id, relative_to_project_or_str(env_path, project_root=project_root)))
+
+    db_path = resolve_local_db_path(base_environ=base_environ, project_root=project_root)
+    result = {
+        "db_path": db_path,
+        "device_ids": [device_id for device_id, _key_rule in device_entries],
+        "unhidden_devices": 0,
+        "registered_devices": 0,
+        "skipped": False,
+    }
+
+    if not device_entries:
+        result["skipped"] = True
+        return result
+
+    if not db_path.exists():
+        result["skipped"] = True
+        return result
+
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    with sqlite3.connect(db_path) as db:
+        db.row_factory = sqlite3.Row
+        cursor = db.cursor()
+        ensure_local_device_registry_tables(cursor)
+
+        placeholders = ", ".join("?" for _device_id, _key_rule in device_entries)
+        device_ids = tuple(device_id for device_id, _key_rule in device_entries)
+        ignored_rows = cursor.execute(
+            f"SELECT device_id FROM ignored_devices WHERE device_id IN ({placeholders})",
+            device_ids,
+        ).fetchall()
+        result["unhidden_devices"] = len(ignored_rows)
+
+        cursor.execute(
+            f"DELETE FROM ignored_devices WHERE device_id IN ({placeholders})",
+            device_ids,
+        )
+
+        for device_id, key_rule in device_entries:
+            cursor.execute(
+                """
+                INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
+                VALUES (?, 'virtual_device_env', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    registration_source=excluded.registration_source,
+                    key_rule=excluded.key_rule,
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (device_id, key_rule),
+            )
+        db.commit()
+
+    result["registered_devices"] = len(device_entries)
+    return result
+
+
+def log_local_registry_sync(sync_result: dict[str, Any]) -> None:
+    if sync_result.get("skipped"):
+        return
+    device_count = len(sync_result.get("device_ids") or [])
+    if device_count <= 0:
+        return
+    unhidden_devices = int(sync_result.get("unhidden_devices") or 0)
+    LOG.info(
+        "Synced %s virtual devices to the local admin registry at %s%s",
+        device_count,
+        sync_result["db_path"],
+        f" and restored {unhidden_devices} previously deleted devices"
+        if unhidden_devices > 0
+        else "",
     )
 
 
@@ -1023,6 +1160,20 @@ def build_config_from_env(env_values: dict[str, str]) -> Config:
     return build_config(env_args)
 
 
+def build_configs_from_env_paths(
+    env_paths: list[Path],
+    override_env: dict[str, str] | None = None,
+    base_environ: Any = None,
+) -> list[Config]:
+    configs: list[Config] = []
+    for env_path in env_paths:
+        env_values = merge_env_files([env_path], base_environ=os.environ if base_environ is None else base_environ)
+        if override_env:
+            env_values.update(override_env)
+        configs.append(build_config_from_env(env_values))
+    return configs
+
+
 def generated_device_env_values(args: argparse.Namespace, index: int) -> dict[str, str]:
     return {
         "SWT_VIRTUAL_DEVICE_BASE_URL": normalize_base_url(args.base_url),
@@ -1100,6 +1251,12 @@ def generate_virtual_device_env_files(args: argparse.Namespace) -> list[Path]:
     LOG.info(
         "Backend multi-device auth hint: SWT_DEVICE_KEYS=%s",
         wildcard_rule_for_generated_devices(args.device_id, str(args.device_key or "").strip()),
+    )
+    log_local_registry_sync(
+        sync_virtual_device_envs_to_local_registry(
+            env_paths,
+            base_environ=os.environ,
+        )
     )
     return env_paths
 
@@ -1227,17 +1384,23 @@ def main() -> int:
     )
     if args.device_count > 0:
         env_paths = generate_virtual_device_env_files(args)
+        registry_synced = True
     else:
         env_paths = resolve_virtual_device_env_paths(
             args,
             cli_overrides_present=has_explicit_device_cli_overrides(),
         )
+        registry_synced = False
 
     if env_paths:
-        configs = [
-            build_config_from_env(merge_env_files([env_path], base_environ=os.environ))
-            for env_path in env_paths
-        ]
+        if not registry_synced:
+            log_local_registry_sync(
+                sync_virtual_device_envs_to_local_registry(
+                    env_paths,
+                    base_environ=os.environ,
+                )
+            )
+        configs = build_configs_from_env_paths(env_paths, base_environ=os.environ)
         if len(configs) == 1:
             LOG.info("Using virtual device env file %s", env_paths[0])
             try:

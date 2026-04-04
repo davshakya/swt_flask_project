@@ -7,31 +7,14 @@
 <title>Customer Accounts</title>
 {% include '_pwa_head.html' %}
 <style>
-:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.9);--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--shadow:0 28px 60px rgba(17,52,64,.12);--input-bg:rgba(248,252,252,.94);--ok-bg:rgba(31,157,104,.12);--ok-line:rgba(31,157,104,.18);--ok-text:#1f9d68;--error-bg:rgba(218,79,99,.12);--error-line:rgba(218,79,99,.18);--error-text:#a9334a;--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 24%),radial-gradient(circle at bottom right,rgba(31,157,104,.14),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%)}
+:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.9);--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--shadow:0 28px 60px rgba(17,52,64,.12);--input-bg:rgba(248,252,252,.94);--ok-bg:rgba(31,157,104,.12);--ok-line:rgba(31,157,104,.18);--ok-text:#1f9d68;--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--warn-text:#9a5c04;--error-bg:rgba(218,79,99,.12);--error-line:rgba(218,79,99,.18);--error-text:#a9334a;--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 24%),radial-gradient(circle at bottom right,rgba(31,157,104,.14),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%)}
 @media (prefers-color-scheme: dark){
-:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--shadow:0 28px 60px rgba(0,0,0,.32);--input-bg:rgba(10,26,35,.92);--ok-bg:rgba(70,209,143,.14);--ok-line:rgba(70,209,143,.2);--ok-text:#46d18f;--error-bg:rgba(255,125,145,.14);--error-line:rgba(255,125,145,.18);--error-text:#ffb3c0;--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at bottom right,rgba(70,209,143,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%)}
+:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--shadow:0 28px 60px rgba(0,0,0,.32);--input-bg:rgba(10,26,35,.92);--ok-bg:rgba(70,209,143,.14);--ok-line:rgba(70,209,143,.2);--ok-text:#46d18f;--warn-bg:rgba(255,192,86,.14);--warn-line:rgba(255,192,86,.22);--warn-text:#ffd47e;--error-bg:rgba(255,125,145,.14);--error-line:rgba(255,125,145,.18);--error-text:#ffb3c0;--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at bottom right,rgba(70,209,143,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%)}
 }
-*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg);padding:20px}.shell{width:min(1180px,100%);margin:0 auto;display:grid;gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.muted{color:var(--muted);line-height:1.6}.grid{display:grid;gap:16px}.split{display:grid;gap:18px;grid-template-columns:minmax(320px,420px) minmax(0,1fr)}.group{display:grid;gap:8px}.group label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}input{width:100%;padding:13px 15px;border-radius:15px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}button,a{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:15px;font-weight:800;text-decoration:none;font-family:inherit}button{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;cursor:pointer}a{border:1px solid var(--line);color:var(--text)}.row{display:flex;gap:10px;flex-wrap:wrap}.message{padding:13px 15px;border-radius:16px}.error{background:var(--error-bg);border:1px solid var(--error-line);color:var(--error-text)}.success{background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok-text)}.list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.list li{padding:14px 15px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.28)}.meta{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}@media (max-width:900px){.split{grid-template-columns:1fr}}
-.warning{padding:13px 15px;border-radius:16px;background:rgba(222,141,29,.12);border:1px solid rgba(222,141,29,.2);color:#9a5c04}
-.inline-reset{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto;align-items:end}
-.inline-reset label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
-.inline-reset button{white-space:nowrap}
-.device-heading{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
-.device-heading strong a{color:var(--text);border:none;padding:0}
-.device-name{font-size:13px;color:var(--muted);margin-top:4px}
-.device-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
-.device-actions a,.device-actions button{padding:0;border:none;background:none;color:var(--primary);font-size:13px;font-weight:800;border-radius:0}
-.device-actions a:hover,.device-actions button:hover{text-decoration:underline}
-.device-actions .danger{color:var(--error-text)}
-.password-shell{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
-.password-shell.is-open{display:block}
-.device-helper{margin:10px 0 0;font-size:12px;color:var(--muted)}
-.searchBar{display:grid;gap:8px;margin:14px 0 10px}
-.searchControls{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto auto;align-items:center}
-.searchInput{width:100%;padding:13px 15px;border-radius:15px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}
-.searchControls .clearLink{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}
-.searchMeta{font-size:12px;color:var(--muted)}
-.hidden-result{display:none!important}
+*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg);padding:20px}.shell{width:min(1280px,100%);margin:0 auto;display:grid;gap:18px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.muted{color:var(--muted);line-height:1.6}.split{display:grid;gap:18px;grid-template-columns:minmax(320px,420px) minmax(0,1fr)}.group{display:grid;gap:8px}.group label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}input{width:100%;padding:13px 15px;border-radius:15px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}button,a{display:inline-flex;align-items:center;justify-content:center;padding:12px 16px;border-radius:15px;font-weight:800;text-decoration:none;font-family:inherit}button{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;cursor:pointer}a{border:1px solid var(--line);color:var(--text)}.row{display:flex;gap:10px;flex-wrap:wrap}.message{padding:13px 15px;border-radius:16px}.error{background:var(--error-bg);border:1px solid var(--error-line);color:var(--error-text)}.success{background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok-text)}.warning{padding:13px 15px;border-radius:16px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-text)}.summary-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.summary-card{padding:18px;border-radius:22px;border:1px solid var(--line);background:rgba(255,255,255,.22)}.summary-value{font-size:30px;font-weight:800;letter-spacing:-.03em}.meta{font-size:12px;color:var(--muted);line-height:1.5}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}.section-head p{margin:0}.searchBar{display:grid;gap:8px;margin:14px 0 12px}.searchControls{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto auto;align-items:center}.searchInput{width:100%;padding:13px 15px;border-radius:15px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}.searchControls .clearLink{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}.searchMeta{font-size:12px;color:var(--muted)}.device-helper{margin:0;font-size:12px;color:var(--muted)}.table-shell{border:1px solid var(--line);border-radius:24px;background:rgba(255,255,255,.2);overflow:auto}.device-table-shell{max-height:42rem}.alert-table-shell{max-height:28rem}.admin-table{width:100%;border-collapse:separate;border-spacing:0;min-width:940px}.admin-table th,.admin-table td{padding:14px 16px;vertical-align:top;border-bottom:1px solid var(--line);text-align:left}.admin-table thead th{position:sticky;top:0;background:rgba(233,247,248,.96);backdrop-filter:blur(14px);z-index:2;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
+@media (prefers-color-scheme: dark){.admin-table thead th{background:rgba(12,28,37,.96)}}
+.admin-table tbody tr:last-child td{border-bottom:none}.cell-main{font-weight:800}.cell-sub{margin-top:4px;font-size:12px;color:var(--muted);line-height:1.5}.device-link{border:none;padding:0;color:var(--text);font-weight:800}.device-link:hover{text-decoration:underline}.pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);font-size:12px;font-weight:800}.pill-online{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-text)}.pill-offline{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-clear{background:rgba(154,202,221,.14);color:var(--muted)}.pill-warning{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}.pill-danger{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-info{background:rgba(52,185,214,.12);color:var(--primary)}.sort-button{display:inline-flex;align-items:center;gap:6px;padding:0;border:none;background:none;color:inherit;font:inherit;cursor:pointer}.sort-button::after{content:"";display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid currentColor;opacity:.32;transform:translateY(1px)}.sort-button[data-direction="desc"]::after{transform:rotate(180deg) translateY(-1px)}.sort-button.is-active{color:var(--text)}.action-links{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.action-links a,.action-links button{padding:0;border:none;background:none;color:var(--primary);font-size:13px;font-weight:800;border-radius:0}.action-links a:hover,.action-links button:hover{text-decoration:underline}.action-links .danger{color:var(--error-text)}.password-shell{display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}.password-shell.is-open{display:block}.inline-reset{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto;align-items:end}.inline-reset label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-reset button{white-space:nowrap}.empty-state{padding:16px;color:var(--muted);font-size:13px}.hidden-result{display:none!important}
+@media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-reset{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
 </style>
 </head>
@@ -51,6 +34,78 @@
                 <a href="/account/password">Admin Password</a>
                 <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Logout</button></form>
             </div>
+        </div>
+    </div>
+
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="eyebrow">Total Registered Devices</div>
+            <div class="summary-value">{{ device_summary.total_registered_devices }}</div>
+            <div class="meta">All known devices on this server.</div>
+        </div>
+        <div class="summary-card">
+            <div class="eyebrow">Online Devices</div>
+            <div class="summary-value">{{ device_summary.online_devices }}</div>
+            <div class="meta">Devices with live or recent telemetry.</div>
+        </div>
+        <div class="summary-card">
+            <div class="eyebrow">Offline Devices</div>
+            <div class="summary-value">{{ device_summary.offline_devices }}</div>
+            <div class="meta">Devices with stale or missing telemetry.</div>
+        </div>
+        <div class="summary-card">
+            <div class="eyebrow">Warning / Alert Devices</div>
+            <div class="summary-value">{{ device_summary.warning_alert_devices }}</div>
+            <div class="meta">Devices that currently need attention.</div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Global Alerts</div>
+                <p class="muted">Latest active warnings and alerts across all devices. Scroll to review older entries.</p>
+            </div>
+            <div class="meta">Showing up to 10 active alerts.</div>
+        </div>
+        <div class="table-shell alert-table-shell" style="margin-top:14px">
+            <table class="admin-table">
+                <thead>
+                    <tr>
+                        <th>Device ID</th>
+                        <th>Severity</th>
+                        <th>Alert</th>
+                        <th>Updated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if global_alerts %}
+                        {% for alert in global_alerts %}
+                        <tr>
+                            <td>
+                                {% if alert.device_id %}
+                                <a class="device-link" href="/devices/{{ alert.device_id }}">{{ alert.device_id }}</a>
+                                {% else %}
+                                <span class="cell-main">System</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="pill pill-{{ 'danger' if alert.severity == 'danger' else 'warning' if alert.severity == 'warning' else 'info' }}">{{ (alert.severity or 'info')|upper }}</span>
+                            </td>
+                            <td>
+                                <div class="cell-main">{{ alert.message or "--" }}</div>
+                                <div class="cell-sub">{{ alert.kind or "alert" }}</div>
+                            </td>
+                            <td><span data-utc-datetime="{{ alert.updated_at or '' }}">{{ alert.updated_at or "--" }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="empty-state">No active alerts right now.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -84,7 +139,12 @@
         </div>
 
         <div class="panel">
-            <div class="eyebrow">Search Known Device ID</div>
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">Search and Manage Devices</div>
+                    <p class="muted">All known device IDs are listed below. The table keeps about 10 rows visible at a time and can be sorted by device ID, status, or active warnings.</p>
+                </div>
+            </div>
             <form method="get" action="/admin/customers" class="searchBar">
                 <label for="device_search" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800">Search Device ID</label>
                 <div class="searchControls">
@@ -93,50 +153,97 @@
                     <a id="device_search_clear" class="clearLink" href="/admin/customers">Clear</a>
                 </div>
                 <div id="device_search_meta" class="searchMeta">{% if search_query %}Search "{{ search_query }}" found {{ available_devices|length }} known device(s).{% else %}Showing all known device IDs and customer accounts.{% endif %}</div>
-                <div class="device-helper">Open <strong>Device Details</strong> for each device's alerts and warnings.</div>
+                <div class="device-helper">Use <strong>Device Details</strong> for the full device page. Use <strong>Reset Password</strong> only when you need to update the customer login.</div>
             </form>
-            <ul class="list" style="margin-top:14px">
-                {% for device in available_devices %}
-                <li id="device_{{ device.device_id }}" class="searchable-device device-row" data-search="{{ (device.device_id ~ ' ' ~ (device.display_name or ''))|lower }}">
-                    <div class="device-heading">
-                        <div>
-                            <strong><a href="/devices/{{ device.device_id }}">{{ device.device_id }}</a></strong>
-                            {% if device.display_name %}
-                            <div class="device-name">{{ device.display_name }}</div>
-                            {% endif %}
-                        </div>
-                    </div>
-                    <div class="meta">Username: {{ device.device_id }} | Telemetry: {{ device.telemetry_status or "--" }} | Firmware: {{ device.firmware_version or "--" }} | Last sync: <span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></div>
-                    <div class="device-actions">
-                        <a href="/devices/{{ device.device_id }}">Device Details</a>
-                        <a href="#password_shell_{{ loop.index }}" data-password-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Reset Password</a>
-                        <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                            <button type="submit" class="danger">Delete</button>
-                        </form>
-                    </div>
-                    <div id="password_shell_{{ loop.index }}" class="password-shell" hidden>
-                    {% if device.registered_account %}
-                    <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                        <div class="group" style="margin:0">
-                            <label for="password_{{ loop.index }}">Reset Customer Password</label>
-                            <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Reset customer password" required>
-                        </div>
-                        <button type="submit">Reset Password</button>
-                    </form>
-                    {% else %}
-                    <form method="post" action="/admin/customers" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                        <div class="group" style="margin:0">
-                            <label for="password_{{ loop.index }}">Set Customer Password</label>
-                            <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create customer password" required>
-                        </div>
-                        <button type="submit">Save Password</button>
-                    </form>
-                    {% endif %}
-                    </div>
-                </li>
-                {% endfor %}
-                <li id="search_empty_devices"{% if available_devices %} class="hidden-result"{% endif %}>{% if search_query %}No known devices match this search.{% else %}No known devices have checked in yet.{% endif %}</li>
-            </ul>
+
+            <div class="table-shell device-table-shell">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
+                            <th>Customer</th>
+                            <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Status</button></th>
+                            <th>Tank Level</th>
+                            <th>Pump / Mode</th>
+                            <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts / Warnings</button></th>
+                            <th>Last Sync</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="device_table_body">
+                        {% for device in available_devices %}
+                        <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row" data-search="{{ (device.device_id ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
+                            <td>
+                                <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
+                                <div class="cell-sub">Firmware: {{ device.firmware_version or "--" }}</div>
+                            </td>
+                            <td>
+                                <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
+                                <div class="cell-sub">Username: {{ device.device_id }}</div>
+                            </td>
+                            <td>
+                                <span class="pill pill-{{ 'online' if device.admin_status == 'online' else 'offline' }}">{{ device.admin_status_label or "Offline" }}</span>
+                                <div class="cell-sub">Telemetry: {{ device.telemetry_status_label or "--" }}</div>
+                            </td>
+                            <td>
+                                <div class="cell-main">
+                                    {% if device.last_sync_at %}
+                                    {{ device.level if device.level is not none else "--" }}{% if device.level is not none %}%{% endif %}
+                                    {% else %}
+                                    --
+                                    {% endif %}
+                                </div>
+                                <div class="cell-sub">Signal: {{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</div>
+                            </td>
+                            <td>
+                                <div class="cell-main">
+                                    {% if device.last_sync_at %}
+                                    {{ device.motor or "--" }} / {{ device.mode or "--" }}
+                                    {% else %}
+                                    --
+                                    {% endif %}
+                                </div>
+                                <div class="cell-sub">Sensor: {{ device.sensor or "--" }}</div>
+                            </td>
+                            <td>
+                                <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}">{{ device.warning_alert_label or "Clear" }}</span>
+                                <div class="cell-sub">{{ device.latest_alert_message or "No active alerts." }}</div>
+                            </td>
+                            <td><span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></td>
+                            <td>
+                                <div class="action-links">
+                                    <a href="/devices/{{ device.device_id }}">Device Details</a>
+                                    <a href="#password_shell_{{ loop.index }}" data-password-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Reset Password</a>
+                                    <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                        <button type="submit" class="danger">Delete</button>
+                                    </form>
+                                </div>
+                                <div id="password_shell_{{ loop.index }}" class="password-shell" hidden>
+                                {% if device.registered_account %}
+                                <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                    <div class="group" style="margin:0">
+                                        <label for="password_{{ loop.index }}">Reset Customer Password</label>
+                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Reset customer password" required>
+                                    </div>
+                                    <button type="submit">Reset Password</button>
+                                </form>
+                                {% else %}
+                                <form method="post" action="/admin/customers" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                    <div class="group" style="margin:0">
+                                        <label for="password_{{ loop.index }}">Set Customer Password</label>
+                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create customer password" required>
+                                    </div>
+                                    <button type="submit">Save Password</button>
+                                </form>
+                                {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div id="search_empty_devices" class="empty-state{% if available_devices %} hidden-result{% endif %}">{% if search_query %}No known devices match this search.{% else %}No known devices have checked in yet.{% endif %}</div>
         </div>
     </div>
 </div>
@@ -149,9 +256,7 @@
         const raw = String(value || "").trim();
         return raw || fallback;
     }
-    const input = document.getElementById("device_search");
-    const meta = document.getElementById("device_search_meta");
-    const emptyDevices = document.getElementById("search_empty_devices");
+
     if (typeof localeTools.applyUtcDateTimeNodes === "function") localeTools.applyUtcDateTimeNodes(document);
     else {
         document.querySelectorAll("[data-utc-datetime]").forEach((node) => {
@@ -159,35 +264,89 @@
             node.textContent = formatLocaleDateTime(raw, node.textContent || "--");
         });
     }
-    if (!input) return;
 
-    const deviceItems = Array.from(document.querySelectorAll(".searchable-device"));
+    const input = document.getElementById("device_search");
+    const meta = document.getElementById("device_search_meta");
+    const emptyDevices = document.getElementById("search_empty_devices");
+    const tableBody = document.getElementById("device_table_body");
+    const deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
+    const sortButtons = Array.from(document.querySelectorAll("[data-device-sort]"));
+    let currentSort = { key: "device_id", direction: "asc" };
+
+    function normalizeText(value) {
+        return String(value || "").trim().toLowerCase();
+    }
+
+    function sortValue(row, key) {
+        if (key === "status") return Number(row.dataset.statusRank || 1);
+        if (key === "alerts") return Number(row.dataset.alertCount || 0);
+        return normalizeText(row.dataset.deviceId || "");
+    }
+
+    function compareRows(left, right, key, direction) {
+        const multiplier = direction === "desc" ? -1 : 1;
+        const leftValue = sortValue(left, key);
+        const rightValue = sortValue(right, key);
+
+        if (leftValue < rightValue) return -1 * multiplier;
+        if (leftValue > rightValue) return 1 * multiplier;
+
+        const leftId = normalizeText(left.dataset.deviceId || "");
+        const rightId = normalizeText(right.dataset.deviceId || "");
+        if (leftId < rightId) return -1;
+        if (leftId > rightId) return 1;
+        return 0;
+    }
+
+    function updateSortButtons() {
+        sortButtons.forEach((button) => {
+            const active = button.dataset.deviceSort === currentSort.key;
+            button.classList.toggle("is-active", active);
+            button.dataset.direction = active ? currentSort.direction : "";
+        });
+    }
+
+    function applySort() {
+        if (!tableBody) return;
+        const sortedRows = [...deviceRows].sort((left, right) => compareRows(left, right, currentSort.key, currentSort.direction));
+        sortedRows.forEach((row) => tableBody.appendChild(row));
+        updateSortButtons();
+    }
 
     function applyFilter() {
-        const query = input.value.trim().toLowerCase();
+        const query = normalizeText(input ? input.value : "");
         let visibleDevices = 0;
 
-        for (const card of deviceItems) {
-            const matches = !query || (card.dataset.search || "").includes(query);
-            card.classList.toggle("hidden-result", !matches);
-            if (matches) visibleDevices++;
-        }
+        deviceRows.forEach((row) => {
+            const matches = !query || normalizeText(row.dataset.search || "").includes(query);
+            row.classList.toggle("hidden-result", !matches);
+            if (matches) visibleDevices += 1;
+        });
 
         if (emptyDevices) {
             emptyDevices.textContent = query ? "No known devices match this search." : "No known devices have checked in yet.";
-            emptyDevices.classList.toggle("hidden-result", query ? visibleDevices !== 0 : deviceItems.length !== 0);
+            emptyDevices.classList.toggle("hidden-result", query ? visibleDevices !== 0 : deviceRows.length !== 0);
         }
 
         if (!meta) return;
         if (!query) {
-            meta.textContent = `Showing ${visibleDevices} known device ID(s) and customer account(s).`;
+            meta.textContent = `Showing ${visibleDevices} known device(s).`;
             return;
         }
         meta.textContent = `Search "${query}" found ${visibleDevices} known device(s).`;
     }
 
-    input.addEventListener("input", applyFilter);
-    applyFilter();
+    if (input) input.addEventListener("input", applyFilter);
+    sortButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+            const nextKey = button.dataset.deviceSort || "device_id";
+            const defaultDirection = button.dataset.sortDefault || "asc";
+            if (currentSort.key === nextKey) currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
+            else currentSort = { key: nextKey, direction: defaultDirection };
+            applySort();
+        });
+    });
+
     const passwordPanels = Array.from(document.querySelectorAll(".password-shell"));
     const passwordToggles = Array.from(document.querySelectorAll("[data-password-toggle]"));
 
@@ -215,9 +374,10 @@
             setPasswordPanelState(panel, shouldOpen);
         });
     });
+
+    applySort();
+    applyFilter();
 })();
 </script>
 </body>
 </html>
-
-
