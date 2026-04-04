@@ -47,6 +47,12 @@ def test_discover_virtual_device_env_files_finds_multiple_envs(tmp_path):
     assert [path.name for path in discovered] == ["device-001.env", "device-002.env"]
 
 
+def test_format_sequenced_value_preserves_numeric_suffix():
+    assert virtual_device.format_sequenced_value("swt-000-000-000-001", 1) == "swt-000-000-000-001"
+    assert virtual_device.format_sequenced_value("swt-000-000-000-001", 5) == "swt-000-000-000-005"
+    assert virtual_device.format_sequenced_value("virtual-device", 3) == "virtual-device-003"
+
+
 def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_BASE_URL", "http://127.0.0.1:9100/")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_ID", "virtual-test-device")
@@ -79,3 +85,24 @@ def test_build_config_from_env_uses_per_file_values_over_shared_defaults():
     assert config.device_id == "virtual-device-002"
     assert config.device_key == "virtual-key-002"
     assert config.base_url == "http://127.0.0.1:9102/"
+
+
+def test_generated_device_env_values_increment_device_id_and_seed():
+    args = virtual_device.build_parser().parse_args(
+        [
+            "--base-url", "http://127.0.0.1:8000/",
+            "--device-id", "swt-000-000-000-001",
+            "--device-key", "shared-key",
+            "--seed", "42",
+        ]
+    )
+
+    first = virtual_device.generated_device_env_values(args, 1)
+    third = virtual_device.generated_device_env_values(args, 3)
+
+    assert first["SWT_VIRTUAL_DEVICE_ID"] == "swt-000-000-000-001"
+    assert third["SWT_VIRTUAL_DEVICE_ID"] == "swt-000-000-000-003"
+    assert first["SWT_VIRTUAL_DEVICE_KEY"] == "shared-key"
+    assert third["SWT_VIRTUAL_DEVICE_KEY"] == "shared-key"
+    assert first["SWT_VIRTUAL_DEVICE_SEED"] == "42"
+    assert third["SWT_VIRTUAL_DEVICE_SEED"] == "44"

@@ -323,6 +323,14 @@ The emulator automatically scans `tests/virtual_devices/*.env` and starts one vi
 
 Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
 
+If you want the script to create a batch of virtual-device env files for you, use `--device_count`:
+
+```powershell
+python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device_count 10
+```
+
+That command creates numbered env files under `tests/virtual_devices/generated/` and then runs exactly those generated devices in one process.
+
 Suggested layout:
 
 - `tests/virtual_devices/device-001.env`
@@ -338,6 +346,8 @@ python scripts/virtual_device.py --env-file tests/virtual_devices/device-001.env
 ```
 
 If you pass explicit per-device CLI flags like `--device-id` or `--device-key`, the script falls back to classic single-device mode and does not auto-scan the directory.
+
+When `--device_count` is used, the generated devices all share the same `SWT_VIRTUAL_DEVICE_KEY` by default, and the script prints a suggested wildcard `SWT_DEVICE_KEYS=...` rule for Flask.
 
 Helpful options:
 

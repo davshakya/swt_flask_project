@@ -17,6 +17,7 @@ import argparse
 import logging
 import os
 import random
+import re
 import sys
 import threading
 import time
@@ -30,6 +31,7 @@ import requests
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TESTS_ROOT = PROJECT_ROOT / "tests"
 DEFAULT_VIRTUAL_DEVICE_ENV_DIR = TESTS_ROOT / "virtual_devices"
+DEFAULT_GENERATED_VIRTUAL_DEVICE_ENV_DIR = DEFAULT_VIRTUAL_DEVICE_ENV_DIR / "generated"
 LEGACY_VIRTUAL_DEVICE_ENV_PATH = TESTS_ROOT / "virtual_device.env"
 
 
@@ -183,6 +185,44 @@ def format_duration(seconds: float) -> str:
     if minutes > 0:
         return f"{minutes}m {secs}s"
     return f"{secs}s"
+
+
+def bool_to_env_text(value: bool) -> str:
+    return "true" if value else "false"
+
+
+def format_env_scalar(value: Any) -> str:
+    if isinstance(value, bool):
+        return bool_to_env_text(value)
+    return str(value)
+
+
+def numeric_suffix_parts(value: str) -> tuple[str, int | None, int]:
+    text = str(value or "").strip()
+    match = re.search(r"(\d+)$", text)
+    if not match:
+        return text, None, 3
+    digits = match.group(1)
+    return text[: -len(digits)], int(digits), len(digits)
+
+
+def format_sequenced_value(base_value: str, index: int) -> str:
+    prefix, start_number, width = numeric_suffix_parts(base_value)
+    if start_number is not None:
+        return f"{prefix}{start_number + index - 1:0{width}d}"
+    cleaned_prefix = prefix.rstrip("-_ ")
+    separator = "" if not cleaned_prefix else "-"
+    return f"{cleaned_prefix}{separator}{index:03d}" if cleaned_prefix else f"{index:03d}"
+
+
+def wildcard_rule_for_generated_devices(base_device_id: str, shared_key: str) -> str:
+    prefix, start_number, _width = numeric_suffix_parts(base_device_id)
+    if start_number is not None and prefix:
+        wildcard = f"{prefix}*"
+    else:
+        cleaned_prefix = str(base_device_id or "").strip().rstrip("-_ ")
+        wildcard = f"{cleaned_prefix}-*" if cleaned_prefix else "virtual-device-*"
+    return f"{wildcard}:{shared_key}"
 
 
 @dataclass
@@ -776,6 +816,14 @@ def build_parser(environ: Any = None) -> argparse.ArgumentParser:
         help="Run device configs from one or more explicit .env files. May be passed multiple times.",
     )
     parser.add_argument(
+        "--device_count",
+        "--device-count",
+        dest="device_count",
+        type=int,
+        default=0,
+        help="Auto-generate and run N virtual device env files in tests/virtual_devices/generated.",
+    )
+    parser.add_argument(
         "--base-url",
         default=env_text(
             "SWT_VIRTUAL_DEVICE_BASE_URL",
@@ -975,6 +1023,87 @@ def build_config_from_env(env_values: dict[str, str]) -> Config:
     return build_config(env_args)
 
 
+def generated_device_env_values(args: argparse.Namespace, index: int) -> dict[str, str]:
+    return {
+        "SWT_VIRTUAL_DEVICE_BASE_URL": normalize_base_url(args.base_url),
+        "SWT_VIRTUAL_DEVICE_ID": format_sequenced_value(args.device_id, index),
+        "SWT_VIRTUAL_DEVICE_KEY": str(args.device_key or "").strip(),
+        "SWT_VIRTUAL_DEVICE_SOURCE": str(args.device_source or DEVICE_SOURCE_VIRTUAL).strip().lower(),
+        "SWT_VIRTUAL_DEVICE_LOCAL_URL": str(args.device_local_url or "").strip(),
+        "SWT_VIRTUAL_DEVICE_FIRMWARE_VERSION": str(args.firmware_version or "").strip() or "virtual-mcu-1.0.0",
+        "SWT_VIRTUAL_DEVICE_TANK_HEIGHT_CM": format_env_scalar(args.tank_height_cm),
+        "SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS": format_env_scalar(args.tank_capacity_liters),
+        "SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT": format_env_scalar(args.start_level_percent),
+        "SWT_VIRTUAL_DEVICE_START_SOURCE_LEVEL_PERCENT": format_env_scalar(args.start_source_level_percent),
+        "SWT_VIRTUAL_DEVICE_AUTO_START_PERCENT": format_env_scalar(args.auto_start_percent),
+        "SWT_VIRTUAL_DEVICE_AUTO_STOP_PERCENT": format_env_scalar(args.auto_stop_percent),
+        "SWT_VIRTUAL_DEVICE_SOURCE_MIN_RUN_PERCENT": format_env_scalar(args.source_min_run_percent),
+        "SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR": format_env_scalar(args.usage_liters_per_hour),
+        "SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR": format_env_scalar(args.fill_liters_per_hour),
+        "SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR": format_env_scalar(args.source_recovery_liters_per_hour),
+        "SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL": format_env_scalar(args.telemetry_interval),
+        "SWT_VIRTUAL_DEVICE_COMMAND_POLL_INTERVAL": format_env_scalar(args.command_poll_interval),
+        "SWT_VIRTUAL_DEVICE_LOOP_SLEEP": format_env_scalar(args.loop_sleep),
+        "SWT_VIRTUAL_DEVICE_RUN_SECONDS": format_env_scalar(args.run_seconds),
+        "SWT_VIRTUAL_DEVICE_CONNECTED_SECONDS": format_env_scalar(args.connected_seconds),
+        "SWT_VIRTUAL_DEVICE_DISCONNECTED_SECONDS": format_env_scalar(args.disconnected_seconds),
+        "SWT_VIRTUAL_DEVICE_CHANNEL_MODE": str(args.channel_mode or "both").strip().lower(),
+        "SWT_VIRTUAL_DEVICE_SEED": str(int(args.seed) + index - 1),
+        "SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK": bool_to_env_text(bool(args.enable_source_tank)),
+        "SWT_VIRTUAL_DEVICE_REQUIRE_ACTIVE_SOURCE": bool_to_env_text(bool(args.require_active_source)),
+        "SWT_VIRTUAL_DEVICE_LOG_LEVEL": str(args.log_level or "INFO").upper(),
+    }
+
+
+def write_virtual_device_env_file(path: Path, env_values: dict[str, str]) -> None:
+    lines = [
+        "# Auto-generated by scripts/virtual_device.py",
+        "# Edit carefully: running --device_count again may refresh these files.",
+        "",
+    ]
+    for key, value in env_values.items():
+        lines.append(f"{key}={value}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def generate_virtual_device_env_files(args: argparse.Namespace) -> list[Path]:
+    if args.device_count <= 0:
+        return []
+
+    if args.env_file:
+        raise SystemExit("--device_count cannot be combined with --env-file")
+
+    if not str(args.device_key or "").strip():
+        raise SystemExit("device key is required to generate virtual device env files.")
+
+    env_root = resolve_runtime_path(args.env_dir)
+    generated_dir = env_root / "generated"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+
+    for existing in generated_dir.glob("device-*.env"):
+        try:
+            existing.unlink()
+        except OSError:
+            pass
+
+    env_paths: list[Path] = []
+    for index in range(1, int(args.device_count) + 1):
+        env_path = generated_dir / f"device-{index:03d}.env"
+        write_virtual_device_env_file(env_path, generated_device_env_values(args, index))
+        env_paths.append(env_path)
+
+    LOG.info(
+        "Generated %s virtual device env files in %s",
+        len(env_paths),
+        generated_dir,
+    )
+    LOG.info(
+        "Backend multi-device auth hint: SWT_DEVICE_KEYS=%s",
+        wildcard_rule_for_generated_devices(args.device_id, str(args.device_key or "").strip()),
+    )
+    return env_paths
+
+
 def has_explicit_device_cli_overrides(argv: list[str] | None = None) -> bool:
     tokens = list(sys.argv[1:] if argv is None else argv)
     override_prefixes = (
@@ -1090,14 +1219,19 @@ def run_multi_device_configs(configs: list[Config], env_paths: list[Path]) -> in
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
+    if args.device_count < 0:
+        raise SystemExit("--device_count must be 0 or greater")
     logging.basicConfig(
         level=getattr(logging, str(args.log_level).upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
-    env_paths = resolve_virtual_device_env_paths(
-        args,
-        cli_overrides_present=has_explicit_device_cli_overrides(),
-    )
+    if args.device_count > 0:
+        env_paths = generate_virtual_device_env_files(args)
+    else:
+        env_paths = resolve_virtual_device_env_paths(
+            args,
+            cli_overrides_present=has_explicit_device_cli_overrides(),
+        )
 
     if env_paths:
         configs = [
