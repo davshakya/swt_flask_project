@@ -1,0 +1,52 @@
+services:
+  - type: web
+    name: smart-water-tank
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r flask_app/requirements.txt
+    startCommand: gunicorn server:app --config flask_app/gunicorn.conf.py
+    autoDeploy: true
+    healthCheckPath: /health
+    disk:
+      name: smart-water-tank-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.11
+      - key: DB_FILE
+        value: /var/data/tank.db
+      - key: SESSION_COOKIE_SECURE
+        value: true
+      - key: SESSION_COOKIE_SAMESITE
+        value: Lax
+      - key: TELEMETRY_HISTORY_ENABLED
+        value: true
+      - key: DATA_RETENTION_DAYS
+        value: 7
+      - key: MAX_TELEMETRY_ROWS_PER_DEVICE
+        value: 65000
+      - key: DEVICE_COMMAND_RETENTION_DAYS
+        value: 7
+      - key: OPS_ALERT_RETENTION_DAYS
+        value: 30
+      - key: OPS_AUDIT_RETENTION_DAYS
+        value: 30
+      - key: DB_MAINTENANCE_ENABLED
+        value: true
+      - key: DB_TARGET_SIZE_MB
+        value: 256
+      - key: DB_MAINTENANCE_MIN_INTERVAL_SECONDS
+        value: 900
+      - key: DB_WAL_AUTOCHECKPOINT_PAGES
+        value: 1000
+      - key: REQUIRE_RENDER_PERSISTENT_DB
+        value: false
+      - key: LOG_LEVEL
+        value: warning
+      - key: GUNICORN_ACCESS_LOG_ENABLED
+        value: false
+      - key: WEB_CONCURRENCY
+        value: 1
+      - key: GUNICORN_THREADS
+        value: 4

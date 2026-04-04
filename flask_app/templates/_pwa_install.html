@@ -1,0 +1,95 @@
+<div id="pwaInstallPanel" hidden style="position:fixed;right:18px;bottom:18px;z-index:9999;max-width:min(360px,calc(100vw - 36px));border:1px solid rgba(19,78,94,.12);border-radius:22px;padding:16px 16px 14px;background:rgba(255,255,255,.94);backdrop-filter:blur(14px);box-shadow:0 24px 50px rgba(17,52,64,.18);font:500 14px 'Trebuchet MS','Segoe UI',sans-serif;color:#12303a">
+  <div style="font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:#1389a5;font-weight:800;margin-bottom:8px">Install Smart Water Tank</div>
+  <div id="pwaInstallTitle" style="font-size:18px;font-weight:800;line-height:1.2;margin-bottom:6px">Open it like a real app</div>
+  <div id="pwaInstallCopy" style="color:#5f7d86;line-height:1.5;margin-bottom:14px">Install this app for quicker launch, full-screen use, and a cleaner mobile experience.</div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap">
+    <button id="pwaInstallButton" type="button" hidden style="border:none;border-radius:999px;padding:12px 16px;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font:800 14px 'Trebuchet MS','Segoe UI',sans-serif;cursor:pointer">Install App</button>
+    <button id="pwaInstallDismiss" type="button" style="border:1px solid rgba(19,78,94,.14);border-radius:999px;padding:12px 16px;background:transparent;color:#12303a;font:800 14px 'Trebuchet MS','Segoe UI',sans-serif;cursor:pointer">Not Now</button>
+  </div>
+</div>
+<script>
+(()=>{
+  const panel = document.getElementById("pwaInstallPanel");
+  const button = document.getElementById("pwaInstallButton");
+  const dismiss = document.getElementById("pwaInstallDismiss");
+  const copy = document.getElementById("pwaInstallCopy");
+  const title = document.getElementById("pwaInstallTitle");
+  const dismissKey = "swt_pwa_install_dismissed_until";
+  const now = Date.now();
+  const dismissedUntil = Number(localStorage.getItem(dismissKey) || 0);
+  let deferredPrompt = null;
+
+  const isStandalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  const isIos = /iphone|ipad|ipod/i.test(window.navigator.userAgent || "");
+  const hostname = window.location.hostname || "";
+  const isIpAddress = /^(?:\d{1,3}\.){3}\d{1,3}$/.test(hostname) || /^\[[0-9a-f:]+\]$/i.test(hostname);
+  const isInstallableContext = window.isSecureContext || hostname === "localhost" || hostname === "127.0.0.1";
+
+  function showPanel() {
+    if (!panel || isStandalone || dismissedUntil > now) return;
+    panel.hidden = false;
+  }
+
+  function hidePanel(days = 7) {
+    if (!panel) return;
+    panel.hidden = true;
+    localStorage.setItem(dismissKey, String(Date.now() + days * 24 * 60 * 60 * 1000));
+  }
+
+  if (dismiss) {
+    dismiss.addEventListener("click", () => hidePanel());
+  }
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/service-worker.js").catch(() => {});
+    });
+  }
+
+  if (isIpAddress && !isStandalone) {
+    if (title) title.textContent = "Install Smart Water Tank on this device";
+    if (copy) {
+      copy.textContent = isInstallableContext
+        ? "You opened the dashboard by local IP address. Install it to your home screen for one-tap access."
+        : "You opened the dashboard by local IP address. Use your browser menu and choose Add to Home Screen. For the full PWA install prompt, open the secure HTTPS dashboard.";
+    }
+    if (button) button.hidden = !isInstallableContext;
+    showPanel();
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPrompt = event;
+    if (button) button.hidden = false;
+    if (title) title.textContent = "Install it for one-tap access";
+    if (copy) copy.textContent = "Add Smart Water Tank to your home screen for faster launch, smoother refresh, and full-screen viewing.";
+    showPanel();
+  });
+
+  if (button) {
+    button.addEventListener("click", async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      try {
+        await deferredPrompt.userChoice;
+      } finally {
+        deferredPrompt = null;
+        button.hidden = true;
+      }
+    });
+  }
+
+  if (isIos && !isStandalone) {
+    if (title) title.textContent = "Add it to your iPhone home screen";
+    if (copy) copy.textContent = "On iPhone or iPad, tap Share in Safari and choose Add to Home Screen to install Smart Water Tank.";
+    if (button) button.hidden = true;
+    showPanel();
+  }
+
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    if (button) button.hidden = true;
+    hidePanel(30);
+  });
+})();
+</script>

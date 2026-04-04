@@ -1,0 +1,8 @@
+Flask
+pymysql
+pandas
+numpy
+gunicorn
+flask_cors
+requests
+paho-mqtt

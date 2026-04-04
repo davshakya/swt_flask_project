@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>Smart Water Tank Dashboard</title>
+{% include '_pwa_head.html' %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#ef4444;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
+@media (prefers-color-scheme: dark){
+:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.86);--panel-strong:#0f2430;--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--primary-deep:#8fe5ff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 30%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(85,193,221,.12),rgba(15,36,48,.88));--chip-bg:rgba(15,36,48,.84);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.04);--tank-wrap-bg:linear-gradient(180deg,rgba(85,193,221,.08),rgba(10,22,32,.72));--tank-shell-border:rgba(173,219,235,.18);--tank-shell-bg:linear-gradient(180deg,rgba(16,34,45,.94),rgba(11,26,35,.9));--tank-inner-bg:linear-gradient(180deg,rgba(4,17,24,.96),rgba(8,28,38,.94));--tank-water-top:rgba(255,255,255,.18);--card-bg:rgba(14,31,41,.84);--input-bg:rgba(10,26,35,.92);--list-bg:rgba(12,29,39,.88);--setting-bg:rgba(12,29,39,.84);--button-outline:rgba(154,202,221,.16);--button-lite-bg:rgba(85,193,221,.12);--button-lite-ring:rgba(85,193,221,.16);--info-bg:rgba(85,193,221,.14);--info-line:rgba(85,193,221,.22);--warn-bg:rgba(244,178,76,.14);--warn-line:rgba(244,178,76,.2);--danger-bg:rgba(255,125,145,.14);--danger-line:rgba(255,125,145,.22);--text-strong:#f7fcfd;--chart-grid:rgba(154,202,221,.12);--chart-ticks:#9fb7c0;--chart-level:#67d6ff;--chart-level-fill:rgba(103,214,255,.16);--chart-daily:#46d18f;--chart-pattern:#f4b24c;--chart-motor:#ff7d91;--water-low:linear-gradient(180deg,#ff9aa9 0%,#e64559 100%);--water-mid:linear-gradient(180deg,#62ddff 0%,#1794d6 100%);--water-high:linear-gradient(180deg,#90f1b7 0%,#1ea45d 100%)}
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg);transition:background .3s ease,color .3s ease}
+.shell{width:min(1380px,calc(100% - 28px));margin:0 auto;padding:28px 0 44px}
+.panel{background:var(--panel);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}
+.hero,.split,.charts{display:grid;gap:18px;align-items:stretch}.hero{grid-template-columns:minmax(320px,390px) minmax(0,1fr)}.split,.charts{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{display:grid;gap:16px;align-items:stretch}.metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.muted{color:var(--muted)}h1,h2,h3,p{margin:0}.hero-copy{display:flex;flex-direction:column;gap:18px;justify-content:flex-start;min-width:0}.hero-head{display:flex;justify-content:space-between;gap:18px;align-items:stretch}.hero-head h1{flex:1;font-size:clamp(2rem,4vw,3.5rem);line-height:.98;letter-spacing:-.03em;max-width:11ch}.hero-actions{display:flex;gap:10px;align-items:stretch;flex-wrap:wrap;justify-content:flex-end}.hero-actions>*{margin:0}.hero-actions form{display:flex}.hero-actions form button{height:100%}.live-panel{min-width:220px;text-align:left;background:var(--panel-live-bg);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}.hero-lead{font-size:1.06rem;line-height:1.75;color:var(--muted);max-width:62ch}
+.brand-lockup{display:flex;align-items:center;gap:16px}.brand-copy{min-width:0}.brand-logo{position:relative;display:grid;place-items:center;width:78px;height:78px;flex:0 0 78px;border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(223,242,246,.72));border:1px solid rgba(255,255,255,.58);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 18px 34px rgba(17,52,64,.12)}.brand-logo::before{content:"";position:absolute;inset:10px;border-radius:20px;background:radial-gradient(circle at 30% 28%,rgba(255,255,255,.5),transparent 40%),linear-gradient(180deg,rgba(19,137,165,.08),rgba(19,137,165,.02))}.brand-logo.is-spinning .logo-wheel{animation:logo-spin 1.4s linear infinite}.brand-logo.is-spinning{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--primary) 12%,transparent)}.brand-logo.is-pending{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--warn) 16%,transparent)}.brand-logo svg{position:relative;z-index:1;width:58px;height:58px;display:block}.logo-wheel{transform-origin:50% 50%}.logo-hub{filter:drop-shadow(0 2px 4px rgba(23,30,165,.24))}.brand-status{margin-top:10px;font-size:13px;color:var(--muted);font-weight:700}.brand-status strong{color:var(--text-strong)}@keyframes logo-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.status-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;align-items:stretch}.chip{padding:14px 15px;border-radius:20px;background:var(--chip-bg);border:1px solid var(--line);box-shadow:var(--chip-shadow);display:flex;flex-direction:column;justify-content:flex-start;height:100%}.chip strong,.label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;font-weight:800}
+.banner{display:none;padding:14px 16px;border-radius:18px;font-weight:700}.banner.show{display:block}.info{background:var(--info-bg);border:1px solid var(--info-line)}.warn{background:var(--warn-bg);border:1px solid var(--warn-line)}.danger{background:var(--danger-bg);border:1px solid var(--danger-line)}
+.tank-wrap{text-align:center;background:var(--tank-wrap-bg);display:flex;flex-direction:column;gap:20px;height:100%}.tank-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;justify-items:stretch;align-items:start;flex:1}.tank-stack.source-hidden{grid-template-columns:1fr}.tank-block{width:100%;max-width:160px;min-width:0;justify-self:center;display:flex;flex-direction:column;align-items:center;height:100%}.tank-block.is-disabled{opacity:.58}.tank{width:100%;height:252px;margin:0 auto;border:6px solid var(--tank-shell-border);border-radius:30px;padding:12px;background:var(--tank-shell-bg)}.tank-inner{position:relative;height:100%;overflow:hidden;border-radius:18px;background:var(--tank-inner-bg)}.water{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--water-mid);transition:height .7s ease,background .3s ease}.water::before{content:"";position:absolute;top:-20px;left:-20%;width:140%;height:40px;border-radius:50%;background:var(--tank-water-top);animation:wave 4s linear infinite}@keyframes wave{from{transform:translateX(0)}to{transform:translateX(-22%)}}
+.tank-caption{margin-bottom:10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.level{font-size:clamp(36px,3vw,44px);font-weight:800;margin-top:14px;letter-spacing:-.04em;line-height:1}.sub{color:var(--muted);margin-top:8px;line-height:1.5}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mini,.card{background:var(--card-bg);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--chip-shadow);display:flex;flex-direction:column;justify-content:flex-start;height:100%}.card .value{font-size:28px;font-weight:800;letter-spacing:-.03em}.card .subvalue{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.55}.statuscopy{font-size:18px;font-weight:700;line-height:1.45}.ops-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}.badge.ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.badge.warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.badge.bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.alert-list li strong{display:block;font-size:13px;margin-bottom:4px}.alert-meta{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
+.controls,.filters,.range-buttons{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;border:none;border-radius:16px;padding:12px 18px;font-weight:800;cursor:pointer;transition:transform .2s ease,opacity .2s ease,filter .2s ease;font-family:inherit}button:hover{transform:translateY(-1px);filter:brightness(1.03)}button:disabled{opacity:.55;cursor:not-allowed;transform:none}.action-link{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border-radius:16px;font-weight:800;text-decoration:none;transition:transform .2s ease,opacity .2s ease;font-family:inherit}.action-link:hover{transform:translateY(-1px)}.btn-on{background:linear-gradient(135deg,#21b573,#1a8556);color:#fff}.btn-off{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-auto{background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}.btn-calibrate{background:linear-gradient(135deg,#ffb24a,#f46b45);color:#fff;box-shadow:0 12px 24px rgba(244,107,69,.24)}.btn-calibrate:hover{filter:brightness(1.05)}.btn-lite{background:var(--button-lite-bg);color:var(--primary-deep)}.btn-outline{background:transparent;border:1px solid var(--button-outline);color:var(--text)}.active{box-shadow:0 0 0 3px var(--button-lite-ring)}
+input[type="date"],input[type="number"]{min-height:48px;background:var(--input-bg);border:1px solid var(--line);color:var(--text);padding:11px 13px;border-radius:14px;font-family:inherit}
+.tank-config{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.input-group{display:flex;flex-direction:column;gap:6px}.input-group label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
+canvas{width:100%!important;height:300px!important}.list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.list li{padding:14px 15px;border-radius:18px;background:var(--list-bg);border:1px solid var(--line)}.timeline li{border-left:4px solid var(--primary)}.timeline .warning{border-left-color:var(--warn)}.timeline .danger{border-left-color:var(--danger)}.timeline .success{border-left-color:var(--good)}time{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
+.settings{grid-template-columns:repeat(2,minmax(0,1fr))}.setting{padding:16px;border-radius:20px;background:var(--setting-bg);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:space-between;height:100%}.setting label{display:flex;justify-content:space-between;gap:12px;align-items:center}.setting span{display:block;color:var(--muted);font-size:12px;margin-top:8px;line-height:1.55}
+.admin-dashboard .customer-only{display:none!important}
+.customer-dashboard .admin-only{display:none!important}
+@media (max-width:1080px){.hero,.split,.charts{grid-template-columns:1fr}.hero-copy{order:-1}.hero-head{flex-direction:column}.hero-head h1{max-width:none}.hero-actions{justify-content:flex-start}}
+@media (max-width:960px){.tank-config{grid-template-columns:1fr}}
+@media (max-width:720px){.shell{width:min(100% - 18px,1380px);padding-top:20px}.pair,.settings,.tank-stack{grid-template-columns:1fr}.tank-block{max-width:200px}.tank{width:200px;height:300px}.hero-actions{width:100%;justify-content:flex-start}.live-panel{width:100%}.status-row{grid-template-columns:1fr 1fr}.hero-lead{font-size:1rem}.panel{padding:18px}.brand-lockup{align-items:flex-start}.brand-logo{width:68px;height:68px;flex-basis:68px}}
+@media (max-width:560px){.hero-head h1{font-size:2.4rem}.status-row{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:1fr}.controls > *{width:100%}.range-buttons,.filters{display:grid;grid-template-columns:1fr}.range-buttons > *, .filters > *{width:100%}}
+</style>
+</head>
+<body class="{% if is_admin %}admin-dashboard{% else %}customer-dashboard{% endif %}">
+<div class="shell">
+    <section class="hero">
+        <div class="panel tank-wrap">
+            <div id="tankStack" class="tank-stack">
+                <div class="tank-block">
+                    <div class="tank-caption">Main Tank</div>
+                    <div class="tank">
+                        <div class="tank-inner"><div id="water" class="water"></div></div>
+                    </div>
+                    <div id="tankLevel" class="level">--%</div>
+                    <div id="tankLiters" class="sub">--</div>
+                </div>
+                <div id="sourceTankBlock" class="tank-block is-disabled">
+                    <div class="tank-caption">Source Tank</div>
+                    <div class="tank">
+                        <div class="tank-inner"><div id="sourceWater" class="water"></div></div>
+                    </div>
+                    <div id="sourceTankLevel" class="level">OFF</div>
+                    <div id="sourceTankLiters" class="sub">Monitoring OFF</div>
+                </div>
+            </div>
+            <div class="pair">
+                <div class="mini"><span class="label">Time To Empty</span><strong id="timeToEmpty">--</strong></div>
+                <div class="mini"><span class="label">Tank Health</span><strong id="healthScore">--</strong></div>
+            </div>
+        </div>
+        <div class="panel hero-copy">
+            <div class="eyebrow">Smart Water Tank</div>
+            <div class="hero-head">
+                <div class="brand-lockup">
+                    <div id="brandLogo" class="brand-logo" aria-hidden="true">
+                        <svg viewBox="0 0 96 96" role="img">
+                            <defs>
+                                <linearGradient id="logoOuterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#2b7eff"></stop>
+                                    <stop offset="100%" stop-color="#171ea5"></stop>
+                                </linearGradient>
+                                <linearGradient id="logoBladeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" stop-color="#7be1ff"></stop>
+                                    <stop offset="100%" stop-color="#1b45e2"></stop>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="48" cy="48" r="46" fill="#8befff"></circle>
+                            <circle cx="48" cy="48" r="42" fill="url(#logoOuterGradient)" stroke="#cffbff" stroke-width="1.5"></circle>
+                            <g class="logo-wheel">
+                                <rect x="38" y="7" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
+                                <rect x="38" y="61" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
+                                <rect x="7" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
+                                <rect x="61" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
+                                <rect x="41" y="24" width="14" height="6" rx="3" fill="#8eebff"></rect>
+                                <rect x="41" y="66" width="14" height="6" rx="3" fill="#8eebff"></rect>
+                                <rect x="24" y="41" width="6" height="14" rx="3" fill="#8eebff"></rect>
+                                <rect x="66" y="41" width="6" height="14" rx="3" fill="#8eebff"></rect>
+                                <circle cx="48" cy="48" r="21" fill="none" stroke="#a7f7ff" stroke-width="4"></circle>
+                                <circle class="logo-hub" cx="48" cy="48" r="11" fill="#2e6ef3"></circle>
+                                <polygon points="48,39 55,43 55,53 48,57 41,53 41,43" fill="#aef7ff" stroke="#d8fdff" stroke-width="1.2"></polygon>
+                            </g>
+                        </svg>
+                    </div>
+                    <div class="brand-copy">
+                        <h1>Dashboard</h1>
+                        <div id="logoStatus" class="brand-status">Pump logo <strong>idle</strong></div>
+                    {% if selected_device_id %}
+                        <div class="sub" style="margin-top:10px">Viewing device <strong>{{ selected_device_id }}</strong></div>
+                    {% endif %}
+                    </div>
+                </div>
+                <div class="hero-actions">
+                    <div class="mini live-panel">
+                        <span class="label">Dashboard Sync</span>
+                        <strong id="refreshStatus">Connecting...</strong>
+                        <div id="lastUpdated" class="sub">Waiting for first sync.</div>
+                    </div>
+                    {% if is_admin %}
+                    <a class="btn-outline action-link" href="/admin/customers">Customers</a>
+                    <a class="btn-outline action-link" href="/account/password">Admin Password</a>
+                    {% endif %}
+                    <button id="btn_refresh" class="btn-lite" type="button" onclick="manualRefresh()">Refresh</button>
+                    <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn-outline" type="submit">Logout</button></form>
+                </div>
+            </div>
+            <p class="hero-lead">{% if is_admin %}See tank level, pump activity, and water-use guidance at a glance.{% else %}See your tank status, health signals, and water-use trends online.{% endif %}</p>
+            <div id="commandBanner" class="banner info"></div>
+            <div id="warningBanner" class="banner warn"></div>
+            <div class="status-row">
+                <div class="chip admin-only"><strong>Cloud service</strong><div id="serverStatus">--</div></div>
+                <div class="chip"><strong>Tank device</strong><div id="deviceStatus">--</div></div>
+                <div class="chip"><strong>Live feed</strong><div id="telemetryStatus">--</div></div>
+                <div class="chip"><strong>Last update</strong><div id="lastSync">--</div></div>
+                <div class="chip admin-only"><strong>Signal quality</strong><div id="signalQuality">--</div></div>
+                <div class="chip admin-only"><strong>Dashboard version</strong><div id="apiVersion">--</div></div>
+            </div>
+            <div class="split">
+                <div class="card">
+                    <span class="label">Quick Actions</span>
+                    <div class="controls">
+                        <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
+                        <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
+                        <button id="btn_auto" class="btn-auto" type="button" onclick="sendAutoCommand()" {% if not can_control %}disabled{% endif %}>Return To Auto</button>
+                        {% if is_admin %}
+                        <button id="btn_calibrate" class="btn-calibrate" onclick="sendCalibrateCommand()" {% if not can_control %}disabled{% endif %}>Calibrate Sensor</button>
+                        <a id="btn_firmware" class="btn-outline action-link" href="{% if selected_device_id %}/devices/{{ selected_device_id }}/firmware/update{% else %}/firmware/update{% endif %}" target="_blank" rel="noopener" {% if not can_control %}style="display:none"{% endif %}>Firmware Update</a>
+                        {% endif %}
+                    </div>
+                    {% if is_admin %}
+                    <div class="tank-config" {% if not can_control %}style="display:none"{% endif %}>
+                        <div class="input-group">
+                            <label for="tankHeightCm">Tank Height (cm)</label>
+                            <input id="tankHeightCm" type="number" min="30" max="500" step="0.1" placeholder="e.g. 120.0">
+                        </div>
+                        <div class="input-group">
+                            <label for="tankCapacityLiters">Tank Capacity (L)</label>
+                            <input id="tankCapacityLiters" type="number" min="50" max="50000" step="1" placeholder="e.g. 1000">
+                        </div>
+                        <button id="btn_config" class="btn-lite" onclick="sendTankConfig()">Save Tank Config</button>
+                    </div>
+                    {% endif %}
+                    <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source tank monitoring is off. Start Pump uses only the main tank state.</div>
+                    <div id="controlSummary" class="subvalue">{% if can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
+                </div>
+                <div class="card">
+                    <span class="label">Home Status</span>
+                    <div id="healthStatus" class="value">--</div>
+                    <div id="healthSummary" class="subvalue">Waiting for fresh tank data.</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+        <div class="grid metrics">
+            <div class="card"><span class="label">Pump State</span><div id="motor" class="value">--</div><div id="mode" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Pump Guidance</span><div id="auto_status" class="statuscopy">--</div><div id="auto_timer" class="subvalue">--</div><div id="auto_status_note" class="subvalue">Waiting for device telemetry</div></div>
+            <div class="card"><span class="label">Current Pump Run</span><div id="current_runtime" class="value">--</div><div id="runtime" class="subvalue">Last run --</div></div>
+            <div class="card"><span class="label">Fill ETA</span><div id="fill_time" class="value">--</div><div class="subvalue">Latest cycle estimate</div></div>
+            <div class="card"><span class="label">Live Usage Rate</span><div id="ai_usage_rate" class="value">--</div><div class="subvalue">Device-side estimate</div></div>
+            <div class="card"><span class="label">Device Forecast</span><div id="tomorrow_prediction" class="value">--</div><div class="subvalue">Direct device forecast</div></div>
+            <div class="card"><span class="label">Main Tank Simulator</span><div id="simulator_status" class="value">--</div><div id="simulator_info" class="subvalue">Device mode --</div></div>
+            <div id="sourceSimulatorCard" class="card"><span class="label">Source Tank Simulator</span><div id="source_simulator_status" class="value">--</div><div id="source_simulator_info" class="subvalue">Device mode --</div></div>
+            <div class="card admin-only"><span class="label">Sensor Health</span><div id="sensor_status" class="value">--</div><div id="sensor_info" class="subvalue">HC-SR04 --</div><div id="wifi" class="subvalue">Wi-Fi --</div></div>
+            <div id="lowerTankCard" class="card admin-only"><span class="label">Source Tank</span><div id="lower_tank_status" class="value">--</div><div id="lower_tank_info" class="subvalue">Lower tank data unavailable</div></div>
+            <div class="card admin-only"><span class="label">Recent Starts</span><div id="motor_cycles" class="value">--</div><div class="subvalue">Recent start events</div></div>
+            <div class="card admin-only"><span class="label">Recent Leaks</span><div id="leak_events" class="value">--</div><div class="subvalue">Recent leak detections</div></div>
+            <div class="card"><span class="label">Consumption Rate</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Percent used per hour</div></div>
+            <div class="card"><span class="label">Forecast Tomorrow</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Analytics forecast</div></div>
+        </div>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+        <div class="eyebrow">Water Habits</div>
+        <div class="split" style="align-items:center">
+            <div>
+                <h2>Usage trends and helpful forecasts</h2>
+                <p id="rangeLabel" class="muted">Loading range...</p>
+            </div>
+            <div class="range-buttons" style="justify-content:flex-end">
+                <button id="range_1" class="btn-lite" onclick="setQuickRange(1)">Today</button>
+                <button id="range_7" class="btn-lite active" onclick="setQuickRange(7)">7 Days</button>
+                <button id="range_30" class="btn-lite" onclick="setQuickRange(30)">30 Days</button>
+            </div>
+        </div>
+        <div class="filters" style="margin-top:14px">
+            <input type="date" id="startDate">
+            <input type="date" id="endDate">
+            <button class="btn-lite" onclick="applyCustomRange()">Apply Dates</button>
+            <button class="btn-outline" onclick="resetFilters()">Reset</button>
+        </div>
+        <div class="grid metrics" style="margin-top:16px">
+            <div class="card"><span class="label">Average Daily Usage</span><div id="avg_daily_usage" class="value">--</div><div id="avg_daily_usage_text" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Peak Usage Day</span><div id="peak_usage_day" class="value">--</div><div id="peak_usage_value" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Lowest Usage Day</span><div id="lowest_usage_day" class="value">--</div><div id="lowest_usage_value" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Usage Change</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Average Level</span><div id="avg_level" class="value">--</div><div id="min_max_level" class="subvalue">--</div></div>
+            <div class="card"><span class="label">Time Until Empty</span><div id="time_empty" class="value">--</div><div class="subvalue">Based on selected range</div></div>
+        </div>
+    </section>
+
+    <section class="charts" style="margin-top:16px">
+        <div class="panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><canvas id="levelChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><canvas id="dailyChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><canvas id="patternChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><canvas id="motorChart"></canvas></div>
+    </section>
+
+    <section class="split customer-only" style="margin-top:16px">
+        <div class="panel">
+            <div class="eyebrow">Recent Events</div>
+            <h3>Household water timeline</h3>
+            <ul id="eventTimeline" class="list timeline"></ul>
+        </div>
+        <div class="panel">
+            <div class="eyebrow">Health Details</div>
+            <h3>Why the system looks this way</h3>
+            <ul id="healthReasons" class="list"></ul>
+            <div style="height:14px"></div>
+            <ul id="alerts" class="list"></ul>
+        </div>
+    </section>
+
+    <section class="split customer-only" style="margin-top:16px">
+        <div class="panel">
+            <div class="eyebrow">Suggestions</div>
+            <h3>Helpful next steps</h3>
+            <ul id="ai_insights" class="list"></ul>
+        </div>
+        <div class="panel">
+            <div class="eyebrow">Alerts</div>
+            <h3>Alert preferences</h3>
+            <div class="grid settings" style="margin-top:14px">
+                <div class="setting"><label>Low-level threshold <input id="lowThreshold" type="number" min="5" max="50"></label><span>Warn when tank drops below this percent.</span></div>
+                <div class="setting"><label>Overflow threshold <input id="overflowThreshold" type="number" min="80" max="100"></label><span>Warn when tank is near full.</span></div>
+                <div class="setting"><label>Leak alerts <input id="toggleLeak" type="checkbox"></label><span>Show leak-related warnings.</span></div>
+                <div class="setting"><label>System alerts <input id="toggleSystem" type="checkbox"></label><span>Show stale-data and hardware warnings.</span></div>
+                <div class="setting"><label>Desktop notifications <input id="toggleDesktop" type="checkbox"></label><span>Use browser notifications on this device.</span></div>
+                <div class="setting"><button class="btn-lite" onclick="savePreferences()">Save Preferences</button><span>Your preferences are stored in this browser.</span></div>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<script>
+const API="";
+const SELECTED_DEVICE_ID={{ selected_device_id|tojson }};
+const CSRF_TOKEN={{ csrf_token|tojson }};
+const CAN_CONTROL={{ can_control|tojson }};
+const EVENT_FEED_LIMIT=5;
+const FAST_POLL_MS=10000;
+const ACTIVITY_POLL_MS=30000;
+const ANALYTICS_POLL_MS=90000;
+const SOURCE_TANK_MIN_RUN_PERCENT=20;
+const charts={};
+const state={
+    quickRange:7,
+    customRange:false,
+    lastAlert:"",
+    pendingPumpStart:false,
+    commandBusy:false,
+    preferences:{lowThreshold:20,overflowThreshold:95,leakAlerts:true,systemAlerts:true,desktopAlerts:false},
+    cache:{},
+    data:{snapshot:null,systemStatus:null,analytics:null,events:null},
+    inFlight:{bootstrap:false,live:false,events:false,analytics:false},
+    controllers:{analytics:null},
+    lastRefreshAt:null,
+    refreshStatus:"Connecting...",
+    refreshTone:"warn",
+    refreshDetail:"Waiting for first sync.",
+    analyticsUpdatedAt:0
+};
+let chartsAvailable=true;
+const localeTools=window.swtLocale||{};
+
+const fmtPct=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)}%`;
+const fmtHours=(v)=>v===null||v===undefined||Number.isNaN(Number(v))||Number(v)<=0?"--":`${Number(v).toFixed(1)} hrs`;
+const fmtUsage=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%`;
+const isoDate=(d)=>d.toISOString().slice(0,10);
+const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
+function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
+function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
+    if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
+    const raw=String(value??"").trim();
+    return raw||fallback;
+}
+function formatLocaleDate(value,fallback="--",options={dateStyle:"medium"}){
+    if(typeof localeTools.formatDate==="function")return localeTools.formatDate(value,fallback,options);
+    return formatLocaleDateTime(value,fallback,options);
+}
+function formatHourBucket(value){
+    if(typeof localeTools.formatHourBucket==="function")return localeTools.formatHourBucket(value);
+    return String(value??"").trim();
+}
+function compactLocaleLabel(value){
+    if(typeof localeTools.compactLabel==="function")return localeTools.compactLabel(value);
+    return String(value??"").trim();
+}
+function localizedTimeText(value,fallback="--"){
+    return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
+}
+function setElementVisibility(id, visible){
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.style.display=visible?"":"none";
+}
+function buildMotorBehaviorSeries(motor){const time=Array.isArray(motor?.time)?motor.time:[];const values=Array.isArray(motor?.values)?motor.values:[];const size=Math.min(time.length,values.length);if(!size)return{time:[],values:[]};const compactTime=[];const compactValues=[];let last=null;for(let i=0;i<size;i+=1){const raw=values[i];if(raw===null||raw===undefined||raw===""){compactTime.push(time[i]);compactValues.push(null);last=null;continue;}const current=Number(raw)===1?1:0;if(last===null||current!==last){compactTime.push(time[i]);compactValues.push(current);last=current;}}if(compactTime[compactTime.length-1]!==time[size-1]){const tail=values[size-1];compactTime.push(time[size-1]);compactValues.push(tail===null||tail===undefined||tail===""?null:(Number(tail)===1?1:0));}return{time:compactTime,values:compactValues};}
+function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)return;el.style.fontWeight="700";if(tone==="ok"){el.style.color="var(--good)";return;}if(tone==="warn"){el.style.color="var(--warn)";return;}if(tone==="bad"){el.style.color="var(--danger)";return;}el.style.color="";}
+function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
+function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump logo <strong>arming</strong>":"Pump logo <strong>spinning</strong>"):"Pump logo <strong>idle</strong>";}
+function buildSourceTankState(snapshot){
+    const sourceSimulatorOn=String(snapshot?.source_tank_simulator||"").toUpperCase()==="ON";
+    const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
+    const monitoringActive=sourceSimulatorOn||serviceOn;
+    const lowerSensorRaw=String(snapshot?.lower_sensor||"").toUpperCase();
+    const lowerLevelRaw=snapshot?.lower_tank_level;
+    const levelAvailable=lowerLevelRaw!==null&&lowerLevelRaw!==undefined&&!Number.isNaN(Number(lowerLevelRaw));
+    const level=levelAvailable?Math.max(0,Math.min(Number(lowerLevelRaw),100)):null;
+    const sensorHealthy=sourceSimulatorOn||lowerSensorRaw==="OK";
+    const canStart=!monitoringActive||(levelAvailable&&sensorHealthy&&level>=SOURCE_TANK_MIN_RUN_PERCENT);
+    let hintText="Source tank monitoring is OFF. Start Pump uses only the main tank state.";
+    let hintTone="";
+    let visualLevel="OFF";
+    let volumeText="Monitoring OFF";
+    let infoText="Source tank interlock is off.";
+    let statusText="Off";
+    let statusTone="";
+    if(monitoringActive){
+        visualLevel=levelAvailable?fmtPct(level):"--";
+        volumeText=snapshot?.lower_water_available_label||"--";
+        statusText=levelAvailable?fmtPct(level):"--";
+        if(!levelAvailable||!sensorHealthy){
+            hintText="Source tank data is unavailable. Start Pump will stay locked until the source reading recovers.";
+            hintTone="warn";
+            infoText=snapshot?.lower_sensor_info||"Source tank data unavailable";
+            statusTone="bad";
+        }else if(level<SOURCE_TANK_MIN_RUN_PERCENT){
+            hintText=`Source tank is below ${SOURCE_TANK_MIN_RUN_PERCENT}%. Start Pump is temporarily unavailable.`;
+            hintTone="warn";
+            infoText=snapshot?.lower_sensor_info||"Source tank is low";
+            statusTone="warn";
+        }else{
+            hintText="Source tank is ready. Start Pump will respect the source tank level.";
+            hintTone="ok";
+            infoText=sourceSimulatorOn
+                ?"Source tank simulator is active and ready."
+                :(snapshot?.lower_sensor_info||"Source tank is ready.");
+            statusTone=sourceSimulatorOn?"warn":"ok";
+        }
+    }
+    return{monitoringActive,sourceSimulatorOn,serviceOn,levelAvailable,level,sensorHealthy,canStart,hintText,hintTone,visualLevel,volumeText,infoText,statusText,statusTone,lowerSensorRaw};
+}
+function updateCommandAvailability(snapshot=state.data.snapshot){
+    const sourceState=buildSourceTankState(snapshot);
+    const baseEnabled=CAN_CONTROL&&!state.commandBusy;
+    const startButton=document.getElementById("btn_on");
+    const stopButton=document.getElementById("btn_off");
+    const autoButton=document.getElementById("btn_auto");
+    const calibrateButton=document.getElementById("btn_calibrate");
+    const configButton=document.getElementById("btn_config");
+    if(startButton)startButton.disabled=!baseEnabled||!sourceState.canStart;
+    if(stopButton)stopButton.disabled=!baseEnabled;
+    if(autoButton)autoButton.disabled=!baseEnabled;
+    if(calibrateButton)calibrateButton.disabled=!baseEnabled;
+    if(configButton)configButton.disabled=!baseEnabled;
+}
+
+function banner(id,message,tone){const el=document.getElementById(id);if(!message){el.className=`banner ${tone||""}`.trim();el.classList.remove("show");el.textContent="";return;}el.className=`banner show ${tone}`;el.textContent=message;}
+function severityTone(severity){const value=String(severity||"").toLowerCase();if(value==="danger"||value==="critical")return"bad";if(value==="warning"||value==="warn")return"warn";return"ok";}
+function isPageHidden(){return document.visibilityState==="hidden";}
+function setRefreshMeta(status,tone="ok",detail){state.refreshStatus=status;state.refreshTone=tone;if(detail!==undefined)state.refreshDetail=detail;const statusEl=document.getElementById("refreshStatus");const detailEl=document.getElementById("lastUpdated");if(statusEl){statusEl.textContent=state.refreshStatus;statusEl.style.color=tone==="bad"?"var(--danger)":tone==="warn"?"var(--warn)":"var(--good)";}if(detailEl)detailEl.textContent=state.refreshDetail;}
+function markRefreshed(status){state.lastRefreshAt=Date.now();setRefreshMeta(status,"ok","Updated just now");}
+function updateRefreshClock(){if(!state.lastRefreshAt)return;setRefreshMeta(state.refreshStatus,state.refreshTone,`Updated ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);}
+function setRefreshBusy(status){if(state.lastRefreshAt){setRefreshMeta(status,"warn",`Last good update ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);return;}setRefreshMeta(status,"warn","Waiting for the first successful sync.");}
+function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));loadAnalytics({force:true});}
+function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));loadAnalytics({force:true});}
+function resetFilters(){setQuickRange(7);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
+function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
+function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
+function query(){const p=scopedParams();if(state.customRange){p.set("start_date",document.getElementById("startDate").value);p.set("end_date",document.getElementById("endDate").value);}else{p.set("days",state.quickRange);}return p.toString();}
+function toChartNumberArray(values,{allowNull=false}={}){return(Array.isArray(values)?values:[]).map((value)=>{if(value===null||value===undefined||value==="")return allowNull?null:0;const numeric=Number(value);return Number.isFinite(numeric)?numeric:(allowNull?null:0);});}
+function downsampleSeries(labels,values,maxPoints=240){const safeLabels=Array.isArray(labels)?labels:[];const safeValues=Array.isArray(values)?values:[];const size=Math.min(safeLabels.length,safeValues.length);if(size<=maxPoints)return{labels:safeLabels.slice(0,size),values:safeValues.slice(0,size)};const sampledLabels=[];const sampledValues=[];const step=(size-1)/(maxPoints-1);for(let index=0;index<maxPoints;index+=1){const sourceIndex=Math.min(size-1,Math.round(index*step));sampledLabels.push(safeLabels[sourceIndex]);sampledValues.push(safeValues[sourceIndex]);}return{labels:sampledLabels,values:sampledValues};}
+function updateChartSafely(chart,key,labels,values){if(!chart)return;try{chart.data.labels=labels;chart.data.datasets[0].data=values;chart.update("none");}catch(error){console.error(`Chart update failed for ${key}`,error);banner("commandBanner","Analytics charts hit a rendering issue. The summary cards are still accurate.","warn");}}
+function getFiniteChartValues(values){return(Array.isArray(values)?values:[]).filter((value)=>value!==null&&value!==undefined&&Number.isFinite(Number(value))).map((value)=>Number(value));}
+function resizeCanvasChart(canvas){const rect=canvas.getBoundingClientRect();const width=Math.max(320,Math.round(rect.width||canvas.clientWidth||640));const height=Math.max(220,Math.round(rect.height||canvas.clientHeight||300));const dpr=Math.max(1,window.devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);return{ctx,width,height};}
+function drawCanvasChrome(ctx,width,height,title){const text=themeVar("--text");const muted=themeVar("--muted");const grid=themeVar("--chart-grid");const left=52;const right=18;const top=18;const bottom=30;const plotWidth=Math.max(10,width-left-right);const plotHeight=Math.max(10,height-top-bottom);ctx.clearRect(0,0,width,height);ctx.lineWidth=1;ctx.strokeStyle=grid;for(let step=0;step<=5;step+=1){const y=top+(plotHeight/5)*step;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+plotWidth,y);ctx.stroke();}ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+plotHeight);ctx.lineTo(left+plotWidth,top+plotHeight);ctx.stroke();ctx.fillStyle=text;ctx.font='600 12px "Trebuchet MS","Segoe UI",sans-serif';ctx.fillText(title,left,14);ctx.fillStyle=muted;return{left,right,top,bottom,plotWidth,plotHeight};}
+function drawCanvasEmpty(canvas,title,message){const {ctx,width,height}=resizeCanvasChart(canvas);const box=drawCanvasChrome(ctx,width,height,title);ctx.fillStyle=themeVar("--muted");ctx.font='500 14px "Trebuchet MS","Segoe UI",sans-serif';ctx.textAlign="center";ctx.fillText(message,width/2,box.top+box.plotHeight/2);ctx.textAlign="left";}
+function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null}={}){
+    const {ctx,width,height}=resizeCanvasChart(canvas);
+    const box=drawCanvasChrome(ctx,width,height,title);
+    const numericValues=Array.isArray(values)?values.map((value)=>value===null||value===undefined?null:Number(value)):[];
+    const finiteValues=getFiniteChartValues(numericValues);
+    if(!finiteValues.length){drawCanvasEmpty(canvas,title,"No chart data in this range.");return;}
+    let min=minValue??Math.min(...finiteValues);
+    let max=maxValue??Math.max(...finiteValues);
+    if(max<=min){max=min+1;}
+    if(minValue===null||minValue===undefined){min=Math.min(0,min);}
+    if(maxValue===null||maxValue===undefined){max=max+(max-min)*0.08||1;}
+    ctx.fillStyle=themeVar("--chart-ticks");
+    ctx.font='11px "Trebuchet MS","Segoe UI",sans-serif';
+    for(let step=0;step<=5;step+=1){
+        const y=box.top+(box.plotHeight/5)*step;
+        const value=max-((max-min)/5)*step;
+        const label=tickFormatter?tickFormatter(value):value.toFixed(1);
+        ctx.fillText(label,6,y+4);
+    }
+    const safeLabels=Array.isArray(labels)?labels:[];
+    const sampleCount=Math.max(1,numericValues.length);
+    const lineXForIndex=(index)=>box.left+(sampleCount===1?box.plotWidth/2:(index/(sampleCount-1))*box.plotWidth);
+    const barSlotWidth=box.plotWidth/sampleCount;
+    const barCenterForIndex=(index)=>box.left+barSlotWidth*(index+0.5);
+    const yForValue=(value)=>box.top+((max-value)/(max-min))*box.plotHeight;
+    if(kind==="bar"){
+        const barWidth=Math.max(12,Math.min(64,barSlotWidth*0.54));
+        ctx.fillStyle=color;
+        numericValues.forEach((value,index)=>{
+            if(value===null||!Number.isFinite(value))return;
+            const centerX=barCenterForIndex(index);
+            const x=centerX-barWidth/2;
+            const y=yForValue(value);
+            ctx.fillRect(x,y,barWidth,box.top+box.plotHeight-y);
+        });
+        ctx.fillStyle=themeVar("--chart-ticks");
+        ctx.textAlign="center";
+        const labelIndexes=sampleCount<=7?[...Array(sampleCount).keys()]:[0,Math.floor((sampleCount-1)/2),sampleCount-1];
+        labelIndexes.forEach((index)=>{
+            const shortLabel=compactLocaleLabel(safeLabels[index]??"");
+            ctx.fillText(shortLabel,barCenterForIndex(index),Math.min(height-6,box.top+box.plotHeight+20));
+        });
+        ctx.textAlign="left";
+        return;
+    }
+    ctx.strokeStyle=color;
+    ctx.lineWidth=stepped?2.4:2.2;
+    ctx.beginPath();
+    let started=false;
+    let prevY=box.top+box.plotHeight;
+    numericValues.forEach((value,index)=>{
+        if(value===null||!Number.isFinite(value)){started=false;return;}
+        const x=lineXForIndex(index);
+        const y=yForValue(value);
+        if(!started){ctx.moveTo(x,y);started=true;}
+        else if(stepped){ctx.lineTo(x,prevY);ctx.lineTo(x,y);}
+        else{ctx.lineTo(x,y);}
+        prevY=y;
+    });
+    ctx.stroke();
+    if(fillColor){
+        ctx.lineTo(box.left+box.plotWidth,box.top+box.plotHeight);
+        ctx.lineTo(box.left,box.top+box.plotHeight);
+        ctx.closePath();
+        ctx.fillStyle=fillColor;
+        ctx.globalAlpha=0.28;
+        ctx.fill();
+        ctx.globalAlpha=1;
+    }
+    const startLabel=compactLocaleLabel(safeLabels[0]??"");
+    const endLabel=compactLocaleLabel(safeLabels[Math.max(0,safeLabels.length-1)]??"");
+    ctx.fillStyle=themeVar("--chart-ticks");
+    ctx.textAlign="left";
+    ctx.fillText(startLabel,box.left,Math.min(height-6,box.top+box.plotHeight+20));
+    ctx.textAlign="right";
+    ctx.fillText(endLabel,box.left+box.plotWidth,Math.min(height-6,box.top+box.plotHeight+20));
+    ctx.textAlign="left";
+}
+function drawAnalyticsCharts(data){
+    if(!chartsAvailable||!data)return;
+    const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),360);
+    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`});
+    drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
+    drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
+    const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
+    const motorSeries=downsampleSeries(motorSeriesRaw.time,motorSeriesRaw.values,240);
+    drawCanvasSeries(charts.motor.canvas,"Motor State",motorSeries.labels,motorSeries.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,tickFormatter:(value)=>Number(value)>=0.5?"ON":"OFF"});
+}
+
+function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
+function initTankConfigInputs(){const h=document.getElementById("tankHeightCm");const c=document.getElementById("tankCapacityLiters");if(h&&!h.value)h.value="120";if(c&&!c.value)c.value="1000";}
+async function savePreferences(){state.preferences={lowThreshold:Number(document.getElementById("lowThreshold").value||20),overflowThreshold:Number(document.getElementById("overflowThreshold").value||95),leakAlerts:document.getElementById("toggleLeak").checked,systemAlerts:document.getElementById("toggleSystem").checked,desktopAlerts:document.getElementById("toggleDesktop").checked};localStorage.setItem("tankDashboardPreferences",JSON.stringify(state.preferences));if(state.preferences.desktopAlerts&&"Notification"in window&&Notification.permission==="default"){await Notification.requestPermission();}if(state.data.snapshot)renderSnapshot(state.data.snapshot);banner("commandBanner","Notification preferences saved on this browser.","info");}
+function desktopNotify(message){if(!state.preferences.desktopAlerts||!("Notification"in window)||Notification.permission!=="granted"||state.lastAlert===message)return;state.lastAlert=message;new Notification("Smart Water Tank",{body:message});}
+function syncSection(key,payload,renderer){state.data[key]=payload;const serialized=JSON.stringify(payload??null);if(state.cache[key]===serialized)return false;state.cache[key]=serialized;renderer(payload);return true;}
+async function fetchJSON(url,options={}){const requestOptions={cache:"no-store",...options};const method=String(requestOptions.method||"GET").toUpperCase();const headers=new Headers(requestOptions.headers||{});if(!["GET","HEAD","OPTIONS"].includes(method))headers.set("X-CSRF-Token",CSRF_TOKEN);requestOptions.method=method;requestOptions.headers=headers;const response=await fetch(url,requestOptions);let payload=null;try{payload=await response.json();}catch(error){payload={};}if(!response.ok)throw new Error(payload?.error||`Request failed with status ${response.status}`);return payload;}
+function setRefreshButtonDisabled(disabled){const button=document.getElementById("btn_refresh");if(button)button.disabled=disabled;}
+
+function initCharts(){
+    chartsAvailable=true;
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Daily Usage %"],["pattern","patternChart","Hourly Usage %"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};drawCanvasEmpty(canvas,title,"Waiting for data.");});
+}
+
+function refreshChartsTheme(){
+    if(state.data.analytics){drawAnalyticsCharts(state.data.analytics);return;}
+    if(chartsAvailable){Object.values(charts).forEach((chart)=>{if(chart?.canvas&&chart?.title)drawCanvasEmpty(chart.canvas,chart.title,"Waiting for data.");});}
+}
+
+function renderTank(snapshot){
+    const level=Math.max(0,Math.min(Number(snapshot.level||0),100));
+    const water=document.getElementById("water");
+    water.style.height=`${level}%`;
+    water.style.background=level<=state.preferences.lowThreshold?"var(--water-low)":level>=state.preferences.overflowThreshold?"var(--water-high)":"var(--water-mid)";
+    document.getElementById("tankLevel").textContent=fmtPct(level);
+    document.getElementById("tankLiters").textContent=snapshot.water_available_label||"--";
+    document.getElementById("timeToEmpty").textContent=fmtHours(snapshot.empty_prediction);
+    document.getElementById("healthScore").textContent=`${snapshot.tank_health??"--"} / 100`;
+    const sourceState=buildSourceTankState(snapshot);
+    const tankStack=document.getElementById("tankStack");
+    const sourceBlock=document.getElementById("sourceTankBlock");
+    const sourceWater=document.getElementById("sourceWater");
+    sourceBlock.style.display=sourceState.monitoringActive?"":"none";
+    tankStack.classList.toggle("source-hidden",!sourceState.monitoringActive);
+    sourceBlock.classList.toggle("is-disabled",!sourceState.monitoringActive);
+    sourceWater.style.height=sourceState.monitoringActive&&sourceState.levelAvailable?`${sourceState.level}%`:"0%";
+    sourceWater.style.background=!sourceState.monitoringActive
+        ?"var(--line)"
+        :sourceState.level<=state.preferences.lowThreshold?"var(--water-low)":sourceState.level>=state.preferences.overflowThreshold?"var(--water-high)":"var(--water-mid)";
+    document.getElementById("sourceTankLevel").textContent=sourceState.visualLevel;
+    document.getElementById("sourceTankLiters").textContent=sourceState.volumeText;
+}
+
+function renderSnapshot(snapshot){
+    renderTank(snapshot);
+    document.getElementById("motor").textContent=snapshot.motor||"--";
+    const currentMode=(snapshot.mode||"AUTO").toUpperCase();
+    const simulatorOn=String(snapshot.simulator||"").toUpperCase()==="ON";
+    const sourceState=buildSourceTankState(snapshot);
+    const sourceSimulatorOn=sourceState.sourceSimulatorOn;
+    const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
+    setElementVisibility("sourceSimulatorCard",sourceState.monitoringActive);
+    setElementVisibility("lowerTankCard",sourceState.monitoringActive);
+    document.getElementById("mode").textContent=currentMode==="MANUAL"?"Manual mode":"Auto mode";
+    document.getElementById("auto_status").textContent=snapshot.auto_status||"--";
+    document.getElementById("auto_timer").textContent=snapshot.auto_timer||"--";
+    applyStatusTone("auto_status",String(snapshot.auto_status_tone||"info").toLowerCase());
+    document.getElementById("auto_status_note").textContent=snapshot.telemetry_status==="stale"
+        ?`Snapshot last synced ${localizedLastSync}.`
+        :"Reported by device firmware.";
+    document.getElementById("runtime").textContent=`Last run ${snapshot.last_runtime||"--"}`;
+    document.getElementById("current_runtime").textContent=snapshot.current_runtime||"--";
+    document.getElementById("fill_time").textContent=snapshot.fill_time||"--";
+    document.getElementById("ai_usage_rate").textContent=snapshot.ai_usage_rate??"--";
+    document.getElementById("tomorrow_prediction").textContent=snapshot.tomorrow_prediction??"--";
+    const sensorRaw=String(snapshot.sensor||"").toUpperCase();
+    const sensorConnected=sensorRaw==="OK";
+    document.getElementById("simulator_status").textContent=simulatorOn?"Enabled":"Disabled";
+    document.getElementById("simulator_info").textContent=simulatorOn
+        ?"Live sensor readings are bypassed and tank values are simulated."
+        :"Live HC-SR04 sensor readings are active on the device.";
+    applyStatusTone("simulator_status",simulatorOn?"warn":"ok");
+    document.getElementById("source_simulator_status").textContent=sourceSimulatorOn?"Enabled":"Disabled";
+    document.getElementById("source_simulator_info").textContent=sourceSimulatorOn
+        ?"Lower tank level and source sensor readings are simulated by the active simulator feed."
+        :"Lower tank values come from the configured source sensor path when it is enabled.";
+    applyStatusTone("source_simulator_status",sourceSimulatorOn?"warn":"ok");
+    document.getElementById("sensor_status").textContent=simulatorOn?"Simulated":(sensorRaw? (sensorConnected?"Connected":"Disconnected") : "--");
+    applyStatusTone("sensor_status",simulatorOn?"warn":(sensorRaw?(sensorConnected?"ok":"bad"):""));
+    document.getElementById("sensor_info").textContent=simulatorOn?"HC-SR04 bypassed while simulator mode is active":(sensorRaw?`HC-SR04 ${sensorConnected?"responding":"not responding"}`:"HC-SR04 status unavailable");
+    document.getElementById("wifi").textContent=`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi??"--"}`;
+    document.getElementById("lower_tank_status").textContent=sourceState.statusText;
+    document.getElementById("lower_tank_info").textContent=sourceState.monitoringActive
+        ?`${sourceState.infoText} | ${sourceSimulatorOn?"Simulated":`${snapshot.lower_sensor_distance_cm??"--"} cm`}`
+        :sourceState.infoText;
+    applyStatusTone("lower_tank_status",sourceState.statusTone);
+    document.getElementById("motor_cycles").textContent=snapshot.motor_cycles??"--";
+    document.getElementById("leak_events").textContent=snapshot.leak_events??"--";
+    document.getElementById("healthStatus").textContent=simulatorOn?"Main Simulator Active":(snapshot.tank_health_status||"--");
+    document.getElementById("healthSummary").textContent=simulatorOn
+        ?"Tank readings shown here are generated by the active simulator feed, not live sensor measurements."
+        :(snapshot.tank_health_reasons?.[0]||"No health issues detected.");
+    document.getElementById("actionHint").textContent=sourceState.hintText;
+    applyStatusTone("actionHint",sourceState.hintTone);
+    ["btn_on","btn_off","btn_auto"].forEach((id)=>document.getElementById(id)?.classList.remove("active"));
+    const motorState=(snapshot.motor||"").toUpperCase();
+    const staleTelemetry=snapshot.telemetry_status==="stale";
+    if(motorState==="ON")state.pendingPumpStart=false;
+    else if(!staleTelemetry)state.pendingPumpStart=false;
+    updatePumpLogoMotion({motorState,pending:state.pendingPumpStart});
+    if(!staleTelemetry){
+        document.getElementById("btn_auto").classList.toggle("active",currentMode!=="MANUAL");
+        if(motorState==="ON")document.getElementById("btn_on").classList.add("active");
+        else document.getElementById("btn_off").classList.add("active");
+    }
+    updateCommandAvailability(snapshot);
+    if(staleTelemetry){
+        document.getElementById("controlSummary").textContent=`Showing the last synced device state from ${localizedLastSync}. New commands will wait in the queue until the device checks in again.`;
+    }else if(currentMode==="MANUAL"){
+        document.getElementById("controlSummary").textContent=motorState==="ON"
+            ?"Manual Start is active. The system will return to Auto when the high-level stop point is reached."
+            :"Manual Stop is active. The system will return to Auto when the low-level start point is reached.";
+    }else{
+        document.getElementById("controlSummary").textContent=motorState==="ON"
+            ?"Auto protection is active. The pump is running now, and the tank thresholds are still safely in control."
+            :"Auto protection is active. Use Start Pump or Stop Pump for a supervised action without leaving auto control.";
+    }
+    const warnings=[];
+    if(simulatorOn)warnings.push("Simulator mode is active. Tank level, runtime, and sensor values are currently simulated by the active simulator feed.");
+    if(sourceSimulatorOn)warnings.push("Source tank simulator is active. Lower tank level and source sensor values are currently simulated by the active simulator feed.");
+    if(Number(snapshot.level||0)<=state.preferences.lowThreshold)warnings.push(`Tank level is below ${state.preferences.lowThreshold}%.`);
+    if(Number(snapshot.level||0)>=state.preferences.overflowThreshold)warnings.push(`Tank is above ${state.preferences.overflowThreshold}% and nearing full capacity.`);
+    if(state.preferences.leakAlerts){["pipe_leak","slow_leak","drip"].forEach((key)=>{if(String(snapshot[key]||"").toUpperCase()==="YES")warnings.push(`${key.replace("_"," ")} alert is active.`);});}
+    if(state.preferences.systemAlerts&&!simulatorOn&&sensorRaw&&sensorRaw!=="OK")warnings.push("HC-SR04 sensor is not responding.");
+    if(state.preferences.systemAlerts&&snapshot.telemetry_status==="stale")warnings.push("Telemetry is stale. Check device power or connectivity.");
+    banner("warningBanner",warnings.join(" "),warnings.length?"warn":"");
+    if(warnings.length)desktopNotify(warnings[0]);
+}
+
+function renderSystemStatus(system){
+    document.getElementById("serverStatus").textContent=system.server||"--";
+    document.getElementById("deviceStatus").textContent=system.device||"--";
+    document.getElementById("telemetryStatus").textContent=system.telemetry_status||"--";
+    document.getElementById("lastSync").textContent=system.last_sync_at?`${localizedTimeText(system.last_sync_at)} (${ago(system.seconds_since_sync)})`:"No telemetry";
+    document.getElementById("signalQuality").textContent=system.signal_quality||"--";
+    document.getElementById("apiVersion").textContent=system.swt_version||system.api_version||"--";
+    applyStatusTone("serverStatus",String(system.server||"").toLowerCase()==="online"?"ok":"");
+    applyStatusTone("deviceStatus",String(system.device||"").toLowerCase()==="online"?"ok":"bad");
+    const telemetry=String(system.telemetry_status||"").toLowerCase();
+    applyStatusTone("telemetryStatus",telemetry==="live"?"ok":(telemetry==="recent"?"warn":"bad"));
+    const quality=String(system.signal_quality||"").toLowerCase();
+    applyStatusTone("signalQuality",quality==="excellent"||quality==="good"?"ok":(quality==="fair"?"warn":"bad"));
+    const capacityInput=document.getElementById("tankCapacityLiters");
+    if(capacityInput&&document.activeElement!==capacityInput&&Number(system.capacity_liters)>0)capacityInput.value=Number(system.capacity_liters).toFixed(0);
+}
+
+function renderAnalytics(data){
+    document.getElementById("rangeLabel").textContent=data.range?.label||"--";
+    document.getElementById("avg_daily_usage").textContent=fmtUsage(data.insights?.avg_daily_usage);
+    document.getElementById("avg_daily_usage_text").textContent=`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`;
+    document.getElementById("peak_usage_day").textContent=formatLocaleDate(data.insights?.peak_usage_day);
+    document.getElementById("peak_usage_value").textContent=fmtUsage(data.insights?.peak_usage_value);
+    document.getElementById("lowest_usage_day").textContent=formatLocaleDate(data.insights?.lowest_usage_day);
+    document.getElementById("lowest_usage_value").textContent=fmtUsage(data.insights?.lowest_usage_value);
+    const changeRaw=data.comparison?.change_pct;
+    const changeNumber=Number(changeRaw);
+    const hasChange=changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
+    document.getElementById("usage_change").textContent=hasChange?`${changeNumber>0?"+":""}${changeNumber.toFixed(1)}%`:"--";
+    document.getElementById("usage_change_text").textContent=hasChange
+        ?`${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} previous day`
+        :"Previous-day baseline too small for a meaningful comparison.";
+    document.getElementById("avg_level").textContent=fmtPct(data.insights?.avg_level);
+    document.getElementById("min_max_level").textContent=`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`;
+    document.getElementById("time_empty").textContent=fmtHours(data.insights?.empty_prediction);
+    document.getElementById("consumption_rate").textContent=`${Number(data.insights?.consumption_rate||0).toFixed(2)}%/hr`;
+    document.getElementById("ai_tomorrow_usage").textContent=fmtUsage(data.prediction?.tomorrow_usage);
+    document.getElementById("timeToEmpty").textContent=fmtHours(data.insights?.empty_prediction);
+    const health=document.getElementById("healthReasons");health.innerHTML="";(data.health?.reasons||["No health issues found."]).forEach((reason)=>{const li=document.createElement("li");li.textContent=reason;health.appendChild(li);});
+    const alerts=document.getElementById("alerts");alerts.innerHTML="";(data.alerts||[]).forEach((text)=>{const li=document.createElement("li");li.textContent=text;alerts.appendChild(li);});
+    const insights=[];if(hasChange&&changeNumber>15)insights.push("Usage has increased noticeably. Check for extra consumption or leakage.");if(Number(data.insights?.motor_cycles||0)>12)insights.push("Motor cycling is high. Adjust auto-start and auto-stop thresholds.");if(Number(data.insights?.avg_level||0)<40)insights.push("Tank stays low for long periods. Consider filling earlier in the day.");if(Number(data.prediction?.tomorrow_usage||0)>Number(data.insights?.avg_daily_usage||0))insights.push("Tomorrow usage is forecast above the current daily average.");if(!insights.length)insights.push("Usage pattern looks stable for the selected range.");
+    const ai=document.getElementById("ai_insights");ai.innerHTML="";insights.forEach((text)=>{const li=document.createElement("li");li.textContent=text;ai.appendChild(li);});
+    drawAnalyticsCharts(data);
+}
+
+function renderEvents(events){const timeline=document.getElementById("eventTimeline");timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");li.innerHTML="<time>No recent events</time>Waiting for activity.";timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const li=document.createElement("li");li.classList.add(event.severity||"info");li.innerHTML=`<time>${localizedTimeText(event.time)}</time>${event.message||"--"}`;timeline.appendChild(li);});}
+
+function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCommandAvailability();}
+async function sendAutoCommand(){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/motor/auto"),{method:"POST"});banner("commandBanner",`AUTO request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will leave manual override on its next command poll.`,"info");await refreshAll(true);}catch(error){console.log("auto command error",error);banner("commandBanner","Unable to queue AUTO command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. Keep tank near empty for accurate height learning.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendTankConfig(){const height=Number(document.getElementById("tankHeightCm").value);const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(height)||!Number.isFinite(capacity)){banner("commandBanner","Enter both tank height and capacity values.","warn");return;}if(height<30||height>500){banner("commandBanner","Tank height must be between 30 and 500 cm.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({height_cm:String(height),capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});banner("commandBanner",`Tank config queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.height_cm).toFixed(1)} cm, ${Number(payload.capacity_liters).toFixed(1)} L.`,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
+async function bootstrapDashboard(){if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markRefreshed("Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
+async function refreshLive({force=false}={}){if(state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markRefreshed("Live status synced");}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
+async function refreshEvents({force=false}={}){if(state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
+async function loadAnalytics({force=false}={}){if(state.inFlight.analytics||(!force&&isPageHidden()))return;state.inFlight.analytics=true;if(state.controllers.analytics)state.controllers.analytics.abort();const controller=new AbortController();state.controllers.analytics=controller;try{const data=await fetchJSON(`${API}/analytics?${query()}`,{signal:controller.signal});if(data.error){banner("commandBanner",data.error,"danger");return;}const changed=syncSection("analytics",data,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Existing charts are still shown.","warn");}finally{if(state.controllers.analytics===controller)state.controllers.analytics=null;state.inFlight.analytics=false;}}
+async function refreshAll(force=false){try{await Promise.all([refreshLive({force}),refreshEvents({force}),loadAnalytics({force})]);}catch(error){console.log("refresh error",error);banner("commandBanner","Dashboard refresh failed. Check the Flask server connection.","danger");}}
+async function manualRefresh(){setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
+function startPolling(){setInterval(()=>refreshLive(),FAST_POLL_MS);setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS);setInterval(()=>loadAnalytics(),ANALYTICS_POLL_MS);setInterval(updateRefreshClock,15000);}
+
+function initDates(){const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);}
+
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(Date.now()-state.analyticsUpdatedAt>ANALYTICS_POLL_MS/2)loadAnalytics({force:true});}});
+if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}
+try{initCharts();}catch(error){chartsAvailable=false;console.error("Dashboard chart initialization failed",error);}
+initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");bootstrapDashboard().finally(()=>loadAnalytics({force:true}));startPolling();
+</script>
+{% include '_pwa_install.html' %}
+</body>
+</html>
+
+
+
