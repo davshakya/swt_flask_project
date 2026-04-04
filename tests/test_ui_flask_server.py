@@ -1633,7 +1633,10 @@ def test_admin_customers_search_shows_password_form_for_known_device_without_acc
         assert 'action="/admin/customers"' in body
         assert f'name="device_id" value="{device_id}"' in body
         assert "Set Customer Password" in body
-        assert "Save Customer" in body
+        assert "Set Password" in body
+        assert "Save Password" in body
+        assert "Device Details" in body
+        assert "Delete" in body
         assert f'Search "known-search" found 1 known device(s).' in body
     finally:
         server_module.DEVICE_KEY_MAP.clear()
@@ -1666,11 +1669,166 @@ def test_admin_customers_page_shows_server_registered_device_without_telemetry()
 
         body = response.get_data(as_text=True)
         assert "swt-node-from-server" in body
-        assert "Server device key" in body
+        assert "Server registered" in body
         assert "Set Customer Password" in body
     finally:
         server_module.DEVICE_KEY_MAP.clear()
         server_module.DEVICE_KEY_MAP.update(original_map)
+
+
+def test_admin_customers_page_registers_virtual_device_env_entries(tmp_path, monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual-device env registration UI test is skipped against shared BASE_URL deployments.")
+
+    tests_root = tmp_path / "tests"
+    virtual_devices_dir = tests_root / "virtual_devices"
+    virtual_devices_dir.mkdir(parents=True)
+    (virtual_devices_dir / "device-009.env").write_text(
+        "SWT_VIRTUAL_DEVICE_ID=swt-virtual-admin-009\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(server_module, "PROJECT_ROOT", tmp_path)
+
+    admin_client = make_admin_client()
+    response = admin_client.get("/admin/customers")
+    assert response.status_code == 200
+
+    body = response.get_data(as_text=True)
+    assert "swt-virtual-admin-009" in body
+    assert "Server registered" in body
+
+    with get_db() as db:
+        row = db.execute(
+            "SELECT registration_source FROM registered_devices WHERE device_id = ?",
+            ("swt-virtual-admin-009",),
+        ).fetchone()
+    assert row
+    assert row["registration_source"] == "virtual_device_env"
+
+
+def test_admin_delete_known_device_removes_device_records():
+    if BASE_URL:
+        pytest.skip("Admin delete-known-device test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-delete-me-001"
+    admin_client = make_admin_client()
+
+    with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM registered_devices WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+        db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (device_id,))
+        db.execute(
+            """
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
+            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (device_id, "Delete Demo", generate_password_hash("DeletePass2026!")),
+        )
+        db.execute(
+            """
+            INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
+            VALUES (?, 'virtual_device_env', 'tests/virtual_devices/device-001.env', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute(
+            """
+            INSERT INTO tank_data(level, motor, mode, device_source, sensor, wifi, device_id, created_at)
+            VALUES (55.0, 'OFF', 'AUTO', 'virtual', 'OK', 'ONLINE', ?, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute(
+            """
+            INSERT INTO device_command_queue(target_device, command, created_at)
+            VALUES (?, 'ON', CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute(
+            """
+            INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+            VALUES (?, 'delete_demo', 'warning', 'delete me', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute(
+            """
+            INSERT INTO ops_audit_log(actor, action, target_type, target_id, device_id, details, created_at)
+            VALUES ('admin', 'seed_delete_demo', 'device', ?, ?, '{}', CURRENT_TIMESTAMP)
+            """,
+            (device_id, device_id),
+        )
+
+    response = admin_client.post(
+        f"/admin/customers/{device_id}/delete",
+        data={"csrf_token": TEST_CSRF_TOKEN},
+    )
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert f"Deleted device {device_id} from admin records." in body
+
+    with get_db() as db:
+        assert db.execute("SELECT 1 FROM customer_accounts WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM registered_devices WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM tank_data WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM device_command_queue WHERE target_device = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM ops_alerts WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM ops_audit_log WHERE device_id = ?", (device_id,)).fetchone() is None
+        ignored_row = db.execute("SELECT note FROM ignored_devices WHERE device_id = ?", (device_id,)).fetchone()
+    assert ignored_row
+    assert ignored_row["note"] == "admin_delete"
+
+
+def test_admin_delete_known_device_hides_virtual_env_device_until_readded(tmp_path, monkeypatch):
+    if BASE_URL:
+        pytest.skip("Admin delete-known-device suppression test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-virtual-hidden-011"
+    tests_root = tmp_path / "tests"
+    virtual_devices_dir = tests_root / "virtual_devices"
+    virtual_devices_dir.mkdir(parents=True)
+    (virtual_devices_dir / "device-011.env").write_text(
+        f"SWT_VIRTUAL_DEVICE_ID={device_id}\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(server_module, "PROJECT_ROOT", tmp_path)
+
+    with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM registered_devices WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    admin_client = make_admin_client()
+    first_response = admin_client.get("/admin/customers")
+    assert first_response.status_code == 200
+    assert device_id in first_response.get_data(as_text=True)
+
+    delete_response = admin_client.post(
+        f"/admin/customers/{device_id}/delete",
+        data={"csrf_token": TEST_CSRF_TOKEN},
+    )
+    assert delete_response.status_code == 200
+    delete_body = delete_response.get_data(as_text=True)
+    assert f"Deleted device {device_id} from admin records." in delete_body
+
+    second_response = admin_client.get("/admin/customers")
+    assert second_response.status_code == 200
+    second_body = second_response.get_data(as_text=True)
+    assert device_id not in second_body
+
+    with get_db() as db:
+        assert db.execute("SELECT 1 FROM registered_devices WHERE device_id = ?", (device_id,)).fetchone() is None
+        ignored_row = db.execute("SELECT note FROM ignored_devices WHERE device_id = ?", (device_id,)).fetchone()
+    assert ignored_row
+    assert ignored_row["note"] == "admin_delete"
 
 
 def test_admin_device_dashboard_redirects_to_device_detail():

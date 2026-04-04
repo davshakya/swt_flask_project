@@ -713,9 +713,62 @@ def list_registered_device_ids(limit=200):
     return [normalize_device_id(row["device_id"]) for row in rows if normalize_device_id(row["device_id"])]
 
 
-def remember_registered_device(device_id, registration_source, key_rule=None):
+def list_ignored_device_ids(limit=None):
+    query = """
+        SELECT device_id
+        FROM ignored_devices
+        ORDER BY updated_at DESC, device_id ASC
+    """
+    params = ()
+    if limit is not None:
+        query += " LIMIT ?"
+        params = (limit,)
+    with get_db() as db:
+        rows = db.execute(query, params).fetchall()
+    return {
+        normalize_device_id(row["device_id"])
+        for row in rows
+        if normalize_device_id(row["device_id"])
+    }
+
+
+def device_is_ignored(device_id, ignored_device_ids=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
+        return False
+    if ignored_device_ids is None:
+        ignored_device_ids = list_ignored_device_ids()
+    return normalized_device_id in ignored_device_ids
+
+
+def remember_ignored_device(device_id, note=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                note=excluded.note,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, str(note or "").strip() or None),
+        )
+
+
+def forget_ignored_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
+
+
+def remember_registered_device(device_id, registration_source, key_rule=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id or device_is_ignored(normalized_device_id):
         return
     with get_db() as db:
         db.execute(
@@ -730,6 +783,119 @@ def remember_registered_device(device_id, registration_source, key_rule=None):
             """,
             (normalized_device_id, registration_source, key_rule),
         )
+
+
+def iter_virtual_device_env_paths():
+    tests_root = PROJECT_ROOT / "tests"
+    seen = set()
+    candidates = [
+        tests_root / "virtual_device.env",
+    ]
+    virtual_devices_dir = tests_root / "virtual_devices"
+    if virtual_devices_dir.exists():
+        candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
+
+    for path in candidates:
+        resolved = str(path.resolve()) if path.exists() else str(path)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield path
+
+
+def relative_to_project_or_str(path):
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def seed_registered_devices_from_configuration():
+    seeded_device_ids = set()
+    ignored_device_ids = list_ignored_device_ids()
+
+    for device_id in sorted(DEVICE_KEY_MAP.keys()):
+        normalized_device_id = normalize_device_id(device_id)
+        if (
+            not normalized_device_id
+            or normalized_device_id in seeded_device_ids
+            or normalized_device_id in ignored_device_ids
+        ):
+            continue
+        remember_registered_device(
+            normalized_device_id,
+            registration_source="configured_device_keys",
+            key_rule=normalized_device_id,
+        )
+        seeded_device_ids.add(normalized_device_id)
+
+    for env_path in iter_virtual_device_env_paths():
+        env_values = parse_simple_dotenv(env_path)
+        normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
+        if (
+            not normalized_device_id
+            or normalized_device_id in seeded_device_ids
+            or normalized_device_id in ignored_device_ids
+        ):
+            continue
+        remember_registered_device(
+            normalized_device_id,
+            registration_source="virtual_device_env",
+            key_rule=relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
+        )
+        seeded_device_ids.add(normalized_device_id)
+
+
+def delete_known_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+
+    deleted_counts = {
+        "customer_accounts": 0,
+        "registered_devices": 0,
+        "tank_data": 0,
+        "device_command_queue": 0,
+        "ops_alerts": 0,
+        "ops_audit_log": 0,
+        "ignored_devices": 0,
+    }
+
+    with get_db() as db:
+        deleted_counts["customer_accounts"] = int(
+            db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["registered_devices"] = int(
+            db.execute("DELETE FROM registered_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["tank_data"] = int(
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["device_command_queue"] = int(
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ops_alerts"] = int(
+            db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ops_audit_log"] = int(
+            db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ignored_devices"] = int(
+            db.execute(
+                """
+                INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+                VALUES (?, 'admin_delete', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    note=excluded.note,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id,),
+            ).rowcount or 0
+        )
+
+    clear_runtime_caches(normalized_device_id)
+
+    return deleted_counts
 
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
@@ -1164,17 +1330,19 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
 
 
 def build_admin_known_devices(accounts, available_devices):
+    seed_registered_devices_from_configuration()
+    ignored_device_ids = list_ignored_device_ids()
     merged = {}
 
     for device in available_devices:
         normalized_device_id = normalize_device_id(device.get("device_id"))
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
         merged[normalized_device_id] = dict(device)
 
     for account in accounts:
         normalized_device_id = normalize_device_id(account.get("device_id"))
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
@@ -1204,7 +1372,7 @@ def build_admin_known_devices(accounts, available_devices):
 
     for device_id in list_registered_device_ids(limit=200):
         normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
@@ -1233,7 +1401,7 @@ def build_admin_known_devices(accounts, available_devices):
 
     for device_id in sorted(DEVICE_KEY_MAP.keys()):
         normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
@@ -2046,6 +2214,19 @@ def ensure_registered_devices_table(cursor):
     )
 
 
+def ensure_ignored_devices_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ignored_devices(
+            device_id TEXT PRIMARY KEY,
+            note TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def load_base64_json_env(name):
     raw_value = os.environ.get(name, "").strip()
     if not raw_value:
@@ -2218,6 +2399,7 @@ def init_db():
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
         ensure_registered_devices_table(cursor)
+        ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
         cursor.execute(
@@ -2262,7 +2444,14 @@ def init_db():
             ON registered_devices(last_seen_at, device_id)
             """
         )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ignored_devices_updated
+            ON ignored_devices(updated_at, device_id)
+            """
+        )
 
+    seed_registered_devices_from_configuration()
     logger.info("Database initialization complete")
 
 
@@ -2451,6 +2640,7 @@ def upsert_customer_account(device_id, password, display_name=None):
         raise ValueError("password must be at least 6 characters")
     password_hash = generate_password_hash(password)
     with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
         db.execute(
             """
             INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
@@ -5056,6 +5246,7 @@ def admin_customers():
 def admin_customer_password_reset(device_id):
     error = None
     success = None
+    search_query = request.values.get("q", "", type=str) or ""
     new_password = request.form.get("password", "")
     account = fetch_customer_account(device_id)
 
@@ -5085,12 +5276,54 @@ def admin_customer_password_reset(device_id):
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
     return render_customer_admin_page(
-        accounts=accounts,
-        available_devices=available_devices,
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
         error=error,
         success=success,
+        search_query=search_query,
+    )
+
+
+@app.route("/admin/customers/<device_id>/delete", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_delete_known_device(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    try:
+        deleted_counts = delete_known_device(normalized_device_id)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="delete_known_device",
+            target_type="device",
+            target_id=normalized_device_id,
+            details=deleted_counts,
+        )
+        success = f"Deleted device {normalized_device_id} from admin records."
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
     )
 
 

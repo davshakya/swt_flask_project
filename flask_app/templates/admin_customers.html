@@ -16,6 +16,9 @@
 .inline-reset{display:grid;gap:10px;grid-template-columns:minmax(0,1fr) auto;align-items:end;margin-top:12px}
 .inline-reset label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .inline-reset button{white-space:nowrap}
+.device-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.device-actions a,.device-actions button{padding:9px 12px;border-radius:12px;font-size:13px}
+.device-actions .danger{background:linear-gradient(135deg,#cf4e69,#a9334a);color:#fff;border:none}
 .device-password-form{display:grid;gap:10px;margin-top:12px}
 .device-password-form button{justify-self:start}
 .searchBar{display:grid;gap:8px;margin:14px 0 10px}
@@ -127,14 +130,27 @@
                             {% if device.display_name %}
                             <span class="tag">{{ device.display_name }}</span>
                             {% endif %}
+                            {% if device.registered_account %}
+                            <span class="tag">Customer account</span>
+                            {% endif %}
+                            {% if device.server_registered %}
+                            <span class="tag">Server registered</span>
+                            {% endif %}
                             {% if not device.registered_account %}
                             <span class="tag">Known device</span>
                             {% endif %}
                         </div>
                     </div>
                     <div class="meta">Username: {{ device.device_id }} | Telemetry: {{ device.telemetry_status or "--" }} | Firmware: {{ device.firmware_version or "--" }} | Last sync: <span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></div>
+                    <div class="device-actions">
+                        <a href="/devices/{{ device.device_id }}">Device Details</a>
+                        <a href="#password_{{ loop.index }}">{% if device.registered_account %}Reset Password{% else %}Set Password{% endif %}</a>
+                        <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                            <button type="submit" class="danger">Delete</button>
+                        </form>
+                    </div>
                     {% if device.registered_account %}
-                    <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                         <div class="group" style="margin:0">
                             <label for="password_{{ loop.index }}">Reset Customer Password</label>
                             <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Reset customer password" required>
@@ -142,12 +158,12 @@
                         <button type="submit">Reset Password</button>
                     </form>
                     {% else %}
-                    <form method="post" action="/admin/customers" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}">
+                    <form method="post" action="/admin/customers" class="inline-reset"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                         <div class="group" style="margin:0">
                             <label for="password_{{ loop.index }}">Set Customer Password</label>
                             <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create customer password" required>
                         </div>
-                        <button type="submit">Save Customer</button>
+                        <button type="submit">Save Password</button>
                     </form>
                     {% endif %}
                 </li>
