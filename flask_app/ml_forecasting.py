@@ -78,15 +78,20 @@ def validate_forecast_args(resample_minutes: int, horizon_hours: int, min_sample
         raise ValueError("--min-samples must be at least 50")
 
 
-def query_training_rows(db_path: Path, device_id: str) -> pd.DataFrame:
+def query_training_rows(db_path: Path, device_id: str, device_source: str | None = None) -> pd.DataFrame:
     if not db_path.exists():
         raise FileNotFoundError(f"Database file not found: {db_path}")
 
-    where = ""
-    params: Iterable[str] = ()
+    clauses: list[str] = []
+    params: list[str] = []
     if device_id.strip():
-        where = "WHERE COALESCE(device_id, '') = ?"
-        params = (device_id.strip(),)
+        clauses.append("COALESCE(device_id, '') = ?")
+        params.append(device_id.strip())
+    if device_source:
+        clauses.append("COALESCE(device_source, 'real') = ?")
+        params.append(str(device_source).strip().lower())
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
 
     query = f"""
         SELECT {", ".join(SELECT_COLUMNS)}
@@ -95,21 +100,31 @@ def query_training_rows(db_path: Path, device_id: str) -> pd.DataFrame:
         ORDER BY created_at ASC
     """
     with sqlite3.connect(db_path) as connection:
-        return pd.read_sql_query(query, connection, params=params)
+        return pd.read_sql_query(query, connection, params=tuple(params))
 
 
-def query_device_forecast_rows(connection: sqlite3.Connection, device_id: str) -> pd.DataFrame:
+def query_device_forecast_rows(
+    connection: sqlite3.Connection,
+    device_id: str,
+    device_source: str | None = None,
+) -> pd.DataFrame:
     normalized_device_id = str(device_id or "").strip()
     if not normalized_device_id:
         raise ValueError("device_id is required for forecast inference")
 
+    clauses = ["COALESCE(device_id, '') = ?"]
+    params: list[str] = [normalized_device_id]
+    if device_source:
+        clauses.append("COALESCE(device_source, 'real') = ?")
+        params.append(str(device_source).strip().lower())
+
     query = f"""
         SELECT {", ".join(SELECT_COLUMNS)}
         FROM tank_data
-        WHERE COALESCE(device_id, '') = ?
+        WHERE {" AND ".join(clauses)}
         ORDER BY created_at ASC
     """
-    return pd.read_sql_query(query, connection, params=(normalized_device_id,))
+    return pd.read_sql_query(query, connection, params=tuple(params))
 
 
 def normalize_boolean_flag(series: pd.Series, truthy: Iterable[str]) -> pd.Series:

@@ -132,6 +132,7 @@ To avoid confusion, keep backend-only settings in `flask_app/.env` and shared de
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_URL`: Optional fixed device URL used when building firmware update redirects.
+- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/virtual_device.py`.
 
 ### Storage and retention
 
@@ -185,10 +186,10 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| `/status` | `GET` | Basic API status/version response |
-| `/status` | `POST` | Receive and store device telemetry |
-| `/device/command` | `GET` | Device polls for queued or relayed commands |
-| `/device/command/ack` | `POST` | Device acknowledges command delivery |
+| `/status` | `GET` | Basic API status/version response and active `device_source_mode` |
+| `/status` | `POST` | Receive and store device telemetry; devices may send `X-Device-Source: real|virtual` |
+| `/device/command` | `GET` | Device polls for queued or relayed commands for the active source mode |
+| `/device/command/ack` | `POST` | Device acknowledges command delivery for the active source mode |
 
 ### Monitoring and data endpoints
 
@@ -205,6 +206,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/events` | Recent event feed | Session |
 | `/relay/health` | Relay queue and relay connectivity summary | Admin |
 | `/admin/db-summary` | DB size/retention/row summary | Admin |
+| `/admin/device-source-mode` | Get or set the active backend `device_source_mode` | Admin |
 | `/ml/predict` | Forecast payload for a device | Session |
 
 ### Mobile API
@@ -293,6 +295,33 @@ python scripts/cleanup_single_device_db.py --db-path data/tank.db --keep-device-
 ```
 
 By default, the script creates a timestamped backup before deleting rows.
+
+### Run the virtual device emulator
+
+The emulator behaves like the MCU and is useful for Flask-side testing:
+
+- sends telemetry to `/status`
+- polls `/device/command`
+- acknowledges `/device/command/ack`
+- simulates relay/service connect-disconnect periods
+
+Recommended flow:
+
+1. Set `SWT_DEVICE_SOURCE_MODE=virtual` in `device.env`.
+2. Start Flask.
+3. Run:
+
+```powershell
+python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device-id swt-node-01 --device-key change-me-device-key
+```
+
+Helpful options:
+
+- `--run-seconds 120`
+- `--connected-seconds 90 --disconnected-seconds 30`
+- `--no-enable-source-tank`
+
+If you want to switch modes without restarting Flask, `GET/POST /admin/device-source-mode` is available for admin sessions. `POST` uses the normal CSRF protection.
 
 ## Deployment Guidance
 

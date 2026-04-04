@@ -78,8 +78,12 @@ TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
+DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
+DEVICE_SOURCE_REAL = "real"
+DEVICE_SOURCE_VIRTUAL = "virtual"
+DEVICE_SOURCE_HEADER = "X-Device-Source"
 IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
@@ -503,6 +507,11 @@ DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, int(os.environ.get("DB_MAINTENANCE
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, int(os.environ.get("DB_WAL_AUTOCHECKPOINT_PAGES", "1000")))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
 CONTROL_POLICY = "AUTO_PROTECTED"
+DEFAULT_DEVICE_SOURCE_MODE = (
+    DEVICE_SOURCE_VIRTUAL
+    if str(os.environ.get("SWT_DEVICE_SOURCE_MODE", DEVICE_SOURCE_REAL)).strip().lower() == DEVICE_SOURCE_VIRTUAL
+    else DEVICE_SOURCE_REAL
+)
 MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, int(os.environ.get("MOBILE_TOKEN_MAX_AGE_HOURS", "168")) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
@@ -738,14 +747,23 @@ def normalize_device_id(value):
     return str(value or "").strip()
 
 
+def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
+    raw = str(value or "").strip().lower()
+    if raw in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        return raw
+    return default
+
+
 def clear_runtime_caches(device_id=None):
     analytics_cache.clear()
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         dashboard_snapshot_cache.clear()
         return
-    dashboard_snapshot_cache.pop(normalized_device_id, None)
-    dashboard_snapshot_cache.pop("__latest__", None)
+    for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
+        dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
+    dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
+    dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
 
 
 def current_user_role():
@@ -1431,7 +1449,7 @@ def build_level_forecast_payload(device_id):
         raise RuntimeError(f"ML forecasting helpers could not be imported: {exc}") from exc
 
     with get_db() as db:
-        raw = query_device_forecast_rows(db, normalized_device_id)
+        raw = query_device_forecast_rows(db, normalized_device_id, device_source=get_device_source_mode())
     prediction = predict_latest_level(raw, artifact)
 
     metrics = {}
@@ -1697,6 +1715,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned.pop("device_key", None)
     cleaned.pop("simulator", None)
     cleaned.pop("source_tank_simulator", None)
+    cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -1716,6 +1735,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 ai_usage_rate, tomorrow_prediction,
                 dry_run,
                 wifi, wifi_rssi, sensor,
+                device_source,
                 sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
                 auto_status, auto_status_tone, auto_timer,
@@ -1724,7 +1744,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 cleaned.get("level"),
@@ -1746,6 +1766,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("wifi"),
                 cleaned.get("wifi_rssi"),
                 cleaned.get("sensor"),
+                cleaned.get("device_source"),
                 cleaned.get("sensor_info"),
                 cleaned.get("sensor_distance_cm"),
                 cleaned.get("tank_height_cm"),
@@ -1790,10 +1811,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_id"),
     )
 
-    alert_snapshot = dict(cleaned)
-    alert_snapshot["telemetry_status"] = "fresh"
-    evaluate_snapshot_alerts(alert_snapshot)
-    relay_status_async(cleaned)
+    if cleaned.get("device_source") == get_device_source_mode():
+        alert_snapshot = dict(cleaned)
+        alert_snapshot["telemetry_status"] = "fresh"
+        evaluate_snapshot_alerts(alert_snapshot)
+        if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
+            relay_status_async(cleaned)
     return cleaned
 
 
@@ -1809,6 +1832,7 @@ def get_db():
 def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
+        "device_source": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -1876,6 +1900,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             wifi TEXT,
             wifi_rssi INTEGER,
             sensor TEXT,
+            device_source TEXT,
             sensor_info TEXT,
             sensor_distance_cm REAL,
             tank_height_cm REAL,
@@ -2154,6 +2179,7 @@ def init_db():
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
+                device_source TEXT,
                 sensor_info TEXT,
                 sensor_distance_cm REAL,
                 tank_height_cm REAL,
@@ -2266,6 +2292,57 @@ def set_app_setting(key, value):
 def delete_app_setting(key):
     with get_db() as db:
         db.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+
+
+def get_device_source_mode():
+    configured = get_app_setting(DEVICE_SOURCE_MODE_SETTING, DEFAULT_DEVICE_SOURCE_MODE)
+    return normalize_device_source(configured, default=DEFAULT_DEVICE_SOURCE_MODE)
+
+
+def set_device_source_mode(mode):
+    normalized_mode = normalize_device_source(mode, default=None)
+    if normalized_mode not in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        raise ValueError("device source mode must be 'real' or 'virtual'")
+    set_app_setting(DEVICE_SOURCE_MODE_SETTING, normalized_mode)
+    clear_runtime_caches()
+    return normalized_mode
+
+
+def parse_explicit_device_source(value):
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return None
+    if raw in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        return raw
+    raise ValueError("device_source must be 'real' or 'virtual'")
+
+
+def resolve_request_device_source(payload=None):
+    payload = payload or {}
+    header_source = parse_explicit_device_source(request.headers.get(DEVICE_SOURCE_HEADER))
+    payload_source = parse_explicit_device_source(payload.get("device_source"))
+    if header_source and payload_source and header_source != payload_source:
+        raise ValueError("device_source does not match X-Device-Source header")
+    return header_source or payload_source or DEVICE_SOURCE_REAL
+
+
+def active_device_source_conflict_response(request_source):
+    active_mode = get_device_source_mode()
+    return (
+        jsonify(
+            {
+                "error": f"{request_source} device source is inactive while backend mode is {active_mode}",
+                "device_source": request_source,
+                "device_source_mode": active_mode,
+            }
+        ),
+        409,
+    )
+
+
+def device_source_where_clause(column="device_source", mode=None):
+    normalized_mode = normalize_device_source(mode, default=get_device_source_mode())
+    return f"COALESCE({column}, '{DEVICE_SOURCE_REAL}') = ?", [normalized_mode]
 
 
 def ensure_app_secret_key_persisted():
@@ -2668,17 +2745,21 @@ def calculate_health(snapshot=None, leak_events=0, motor_cycles=0, consumption_r
 
 
 def fetch_latest_row(db):
+    clause, params = device_source_where_clause()
     return db.execute(
-        """
+        f"""
         SELECT *
         FROM tank_data
+        WHERE {clause}
         ORDER BY created_at DESC, id DESC
         LIMIT 1
-        """
+        """,
+        tuple(params),
     ).fetchone()
 
 
 def recent_counts(db, limit=200):
+    clause, params = device_source_where_clause()
     motor_cycles = db.execute(
         f"""
         SELECT COUNT(*) FROM (
@@ -2687,13 +2768,15 @@ def recent_counts(db, limit=200):
             FROM (
                 SELECT id, motor
                 FROM tank_data
+                WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
             )
             ORDER BY id
         )
         WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
-        """
+        """,
+        tuple(params),
     ).fetchone()[0]
 
     leak_events = db.execute(
@@ -2704,13 +2787,15 @@ def recent_counts(db, limit=200):
             FROM (
                 SELECT id, pipe_leak
                 FROM tank_data
+                WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
             )
             ORDER BY id
         )
         WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
-        """
+        """,
+        tuple(params),
     ).fetchone()[0]
 
     return motor_cycles, leak_events
@@ -2733,6 +2818,8 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
     data.pop("simulator", None)
     data.pop("source_tank_simulator", None)
+    data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
+    data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
     data["capacity_liters"] = round(capacity_liters, 1)
     data["tank_capacity_liters"] = round(capacity_liters, 1)
@@ -2860,14 +2947,16 @@ def load_dataframe(start_dt, end_exclusive, device_id=None):
     if pd_local is None:
         raise RuntimeError("Pandas unavailable")
 
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
         WHERE created_at >= ? AND created_at < ?
-    """
-    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)]
+          AND """
+    query += source_clause
+    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params]
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
         query += " AND device_id = ?"
@@ -2952,6 +3041,8 @@ def build_empty_snapshot_payload(device_id=None):
     return {
         "level": 0,
         "mode": "AUTO",
+        "device_source": get_device_source_mode(),
+        "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
         "remaining_liters": 0,
@@ -2984,7 +3075,8 @@ def build_empty_snapshot_payload(device_id=None):
 
 def load_dashboard_snapshot(device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    cache_key = normalized_device_id or "__latest__"
+    active_mode = get_device_source_mode()
+    cache_key = f"{active_mode}:{normalized_device_id or '__latest__'}"
     if SNAPSHOT_CACHE_TTL_SECONDS > 0:
         cached = dashboard_snapshot_cache.get(cache_key)
         if cached and (time.time() - cached["created_at"] < SNAPSHOT_CACHE_TTL_SECONDS):
@@ -3024,6 +3116,8 @@ def build_system_status_payload(snapshot, device_id=None):
         "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
         "seconds_since_sync": snapshot.get("seconds_since_sync") if snapshot else None,
         "telemetry_status": snapshot.get("telemetry_status") if snapshot else "no-data",
+        "device_source": snapshot.get("device_source") if snapshot else get_device_source_mode(),
+        "device_source_mode": get_device_source_mode(),
         "signal_quality": snapshot.get("signal_quality") if snapshot else "Unknown",
         "device_id": snapshot.get("device_id") if snapshot else None,
         "firmware_version": snapshot.get("firmware_version") if snapshot else None,
@@ -3059,6 +3153,8 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
         "registered_devices": registered_device_ids,
         "latest_snapshot": {
             "device_id": snapshot.get("device_id") if snapshot else None,
+            "device_source": snapshot.get("device_source") if snapshot else get_device_source_mode(),
+            "device_source_mode": get_device_source_mode(),
             "firmware_version": snapshot.get("firmware_version") if snapshot else None,
             "reset_reason": snapshot.get("reset_reason") if snapshot else None,
             "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
@@ -3101,6 +3197,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 
 def build_db_summary_payload():
     file_sizes = collect_database_file_sizes()
+    active_mode = get_device_source_mode()
     with get_db() as db:
         telemetry_row = db.execute(
             """
@@ -3150,6 +3247,7 @@ def build_db_summary_payload():
         },
         "analytics": {
             "history_enabled": TELEMETRY_HISTORY_ENABLED,
+            "device_source_mode": active_mode,
             "retention_days": DATA_RETENTION_DAYS,
             "max_rows_per_device": MAX_TELEMETRY_ROWS_PER_DEVICE,
             "graphs_ready": TELEMETRY_HISTORY_ENABLED and telemetry_rows >= 2,
@@ -3190,7 +3288,13 @@ def build_db_summary_payload():
 
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    cache_key = (start_dt.strftime(DATE_ONLY_FORMAT), end_exclusive.strftime(DATE_ONLY_FORMAT), normalized_device_id or "*")
+    active_mode = get_device_source_mode()
+    cache_key = (
+        start_dt.strftime(DATE_ONLY_FORMAT),
+        end_exclusive.strftime(DATE_ONLY_FORMAT),
+        normalized_device_id or "*",
+        active_mode,
+    )
     cached = analytics_cache.get(cache_key)
     if cached and (time.time() - cached["created_at"] < 30):
         return cached["payload"]
@@ -3367,14 +3471,17 @@ def build_events(limit=12, device_id=None):
         return []
 
     normalized_device_id = normalize_device_id(device_id)
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, sensor, wifi, created_at
         FROM tank_data
+        WHERE 
     """
-    params = []
+    query += source_clause
+    params = list(source_params)
     if normalized_device_id:
-        query += " WHERE device_id = ?"
+        query += " AND device_id = ?"
         params.append(normalized_device_id)
     query += " ORDER BY created_at DESC, id DESC LIMIT 240"
     with get_db() as db:
@@ -3687,16 +3794,21 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT *
         FROM tank_data
         WHERE id IN (
             SELECT MAX(id)
             FROM tank_data
+            WHERE 
+    """
+    query += source_clause
+    query += """
             GROUP BY COALESCE(device_id, '')
         )
     """
-    params = []
+    params = list(source_params)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
         query += f" AND COALESCE(device_id, '') IN ({placeholders})"
@@ -3740,21 +3852,23 @@ def fetch_device_snapshot(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
-            """
+            f"""
             SELECT *
             FROM tank_data
             WHERE device_id = ?
+              AND {source_clause}
             ORDER BY created_at DESC, id DESC
             LIMIT 1
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()
         if not row:
             return None
         motor_cycles = db.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM (
                 SELECT motor,
                        LAG(motor) OVER (ORDER BY id) AS prev_motor
@@ -3762,6 +3876,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, motor
                     FROM tank_data
                     WHERE device_id = ?
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 )
@@ -3769,10 +3884,10 @@ def fetch_device_snapshot(device_id):
             )
             WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
         leak_events = db.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM (
                 SELECT pipe_leak,
                        LAG(pipe_leak) OVER (ORDER BY id) AS prev_pipe_leak
@@ -3780,6 +3895,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, pipe_leak
                     FROM tank_data
                     WHERE device_id = ?
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 )
@@ -3787,7 +3903,7 @@ def fetch_device_snapshot(device_id):
             )
             WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
     return enrich_snapshot(dict(row), motor_cycles, leak_events)
 
@@ -3799,16 +3915,18 @@ def fetch_device_history(device_id, limit=48):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return []
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         rows = db.execute(
-            """
+            f"""
             SELECT level, motor, sensor, wifi_rssi, created_at
             FROM tank_data
             WHERE device_id = ?
+              AND {source_clause}
             ORDER BY created_at DESC, id DESC
             LIMIT ?
             """,
-            (normalized_device_id, limit),
+            (normalized_device_id, *source_params, limit),
         ).fetchall()
     history = []
     for row in reversed(rows):
@@ -3825,9 +3943,18 @@ def fetch_device_history(device_id, limit=48):
 
 
 def latest_device_id():
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
-            "SELECT device_id FROM tank_data WHERE device_id IS NOT NULL AND device_id != '' ORDER BY id DESC LIMIT 1"
+            f"""
+            SELECT device_id
+            FROM tank_data
+            WHERE device_id IS NOT NULL AND device_id != ''
+              AND {source_clause}
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            tuple(source_params),
         ).fetchone()
     return row["device_id"] if row else None
 
@@ -4730,6 +4857,13 @@ def mobile_device_status():
 
 @app.route("/device/command")
 def get_command():
+    try:
+        request_source = resolve_request_device_source()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if request_source != get_device_source_mode():
+        return active_device_source_conflict_response(request_source)
+
     auth_ok, auth_payload, auth_status = authenticate_device_request()
     if not auth_ok:
         return auth_payload, auth_status
@@ -4743,6 +4877,8 @@ def get_command():
             "command_source": "queue",
             "control_policy": CONTROL_POLICY,
             "device_id": device_id,
+            "device_source": request_source,
+            "device_source_mode": get_device_source_mode(),
         }
 
     relay_payload = fetch_cloud_command(device_id) or {}
@@ -4752,12 +4888,21 @@ def get_command():
         "command_source": "relay" if relay_payload.get("command") else None,
         "control_policy": CONTROL_POLICY,
         "device_id": device_id,
+        "device_source": request_source,
+        "device_source_mode": get_device_source_mode(),
     }
 
 
 @app.route("/device/command/ack", methods=["POST"])
 def acknowledge_device_command():
     payload = request.get_json(silent=True) or {}
+    try:
+        request_source = resolve_request_device_source(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if request_source != get_device_source_mode():
+        return active_device_source_conflict_response(request_source)
+
     auth_ok, auth_payload, auth_status = authenticate_device_request(payload)
     if not auth_ok:
         return auth_payload, auth_status
@@ -4779,6 +4924,8 @@ def acknowledge_device_command():
         "command_id": command_id,
         "command_source": command_source,
         "device_id": device_id,
+        "device_source": request_source,
+        "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
     }, status_code
 
@@ -4979,6 +5126,44 @@ def admin_db_summary():
     return jsonify(build_db_summary_payload())
 
 
+@app.route("/admin/device-source-mode", methods=["GET", "POST"])
+@admin_required
+@csrf_protect
+def admin_device_source_mode():
+    if request.method == "GET":
+        return jsonify(
+            {
+                "device_source_mode": get_device_source_mode(),
+                "allowed_modes": [DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL],
+            }
+        )
+
+    data = request.get_json(silent=True) or {}
+    requested_mode = data.get("device_source_mode")
+    if requested_mode is None:
+        requested_mode = request.form.get("device_source_mode")
+    try:
+        normalized_mode = set_device_source_mode(requested_mode)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    actor = current_actor_username()
+    log_audit_event(
+        actor=actor,
+        action="set_device_source_mode",
+        target_type="backend_setting",
+        target_id=DEVICE_SOURCE_MODE_SETTING,
+        details={"device_source_mode": normalized_mode},
+    )
+    return jsonify(
+        {
+            "status": "updated",
+            "device_source_mode": normalized_mode,
+            "allowed_modes": [DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL],
+        }
+    )
+
+
 @app.route("/admin/dashboard/<device_id>")
 @admin_required
 def admin_device_dashboard(device_id):
@@ -5069,12 +5254,17 @@ def status():
             "status": "running",
             "version": API_VERSION,
             "swt_version": SWT_VERSION,
+            "device_source_mode": get_device_source_mode(),
         })
 
     data = request.get_json(silent=True)
     if not data:
         logger.warning("Invalid JSON received")
         return jsonify({"error": "invalid json"}), 400
+    try:
+        data["device_source"] = resolve_request_device_source(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     auth_ok, auth_payload, auth_status = authenticate_device_request(data)
     if not auth_ok:
@@ -5088,7 +5278,9 @@ def status():
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "server_status": "running",
-        "control_policy": CONTROL_POLICY
+        "control_policy": CONTROL_POLICY,
+        "device_source": data["device_source"],
+        "device_source_mode": get_device_source_mode(),
     })
 
 
@@ -5110,6 +5302,7 @@ def history():
 
     logger.info("Fetching history")
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
+    source_clause, source_params = device_source_where_clause()
 
     try:
         start_dt, end_exclusive, _label = resolve_date_window()
@@ -5119,11 +5312,12 @@ def history():
     with get_db() as db:
         if scoped_device_id:
             rows = db.execute(
-                """
+                f"""
                 SELECT level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
                   AND device_id = ?
+                  AND {source_clause}
                 ORDER BY created_at ASC, id ASC
                 LIMIT 800
                 """,
@@ -5131,18 +5325,20 @@ def history():
                     start_dt.strftime(TIMESTAMP_FORMAT),
                     end_exclusive.strftime(TIMESTAMP_FORMAT),
                     scoped_device_id,
+                    *source_params,
                 ),
             ).fetchall()
         else:
             rows = db.execute(
-                """
+                f"""
                 SELECT level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
+                  AND {source_clause}
                 ORDER BY created_at ASC, id ASC
                 LIMIT 800
                 """,
-                (start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT))
+                (start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params)
             ).fetchall()
 
     return jsonify(
@@ -5165,7 +5361,8 @@ def health():
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
-        "control_policy": CONTROL_POLICY
+        "control_policy": CONTROL_POLICY,
+        "device_source_mode": get_device_source_mode(),
     }
 
 
@@ -5205,6 +5402,7 @@ def relay_health():
         "last_error": relay_state.get("last_error"),
         "last_status_code": relay_state.get("last_status_code"),
         "pending_count": pending,
+        "device_source_mode": get_device_source_mode(),
     })
 
 
