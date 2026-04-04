@@ -27,6 +27,8 @@ from urllib.parse import urljoin
 import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+TESTS_ROOT = PROJECT_ROOT / "tests"
+DEFAULT_VIRTUAL_DEVICE_ENV_PATH = TESTS_ROOT / "virtual_device.env"
 
 
 def parse_simple_dotenv(path: Path) -> dict[str, str]:
@@ -49,14 +51,23 @@ def parse_simple_dotenv(path: Path) -> dict[str, str]:
     return values
 
 
-def load_local_env_files() -> None:
-    original = set(os.environ)
+def resolve_env_file_paths(project_root: Path = PROJECT_ROOT) -> list[Path]:
+    return [
+        project_root / "device.env",
+        project_root / ".env",
+        project_root / "tests" / "virtual_device.env",
+    ]
+
+
+def load_local_env_files(env_paths: list[Path] | None = None, environ: Any = None) -> None:
+    target_env = os.environ if environ is None else environ
+    original = set(target_env)
     loaded = set()
-    for dotenv_path in (PROJECT_ROOT / "device.env", PROJECT_ROOT / ".env"):
+    for dotenv_path in (env_paths or resolve_env_file_paths()):
         for key, value in parse_simple_dotenv(dotenv_path).items():
             if key in original and key not in loaded:
                 continue
-            os.environ[key] = value
+            target_env[key] = value
             loaded.add(key)
 
 
@@ -78,6 +89,56 @@ def normalize_base_url(value: str) -> str:
 
 def clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
+
+
+def env_text(*names: str, default: str = "") -> str:
+    for name in names:
+        value = os.environ.get(name)
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text:
+            return text
+    return default
+
+
+def env_float(*names: str, default: float) -> float:
+    text = env_text(*names, default="")
+    if not text:
+        return default
+    try:
+        return float(text)
+    except ValueError:
+        return default
+
+
+def env_int(*names: str, default: int) -> int:
+    text = env_text(*names, default="")
+    if not text:
+        return default
+    try:
+        return int(text)
+    except ValueError:
+        return default
+
+
+def env_flag(*names: str, default: bool) -> bool:
+    text = env_text(*names, default="")
+    if not text:
+        return default
+    normalized = text.lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def env_choice(*names: str, allowed: set[str], default: str) -> str:
+    text = env_text(*names, default="").lower()
+    if text in allowed:
+        return text
+    return default
 
 
 def format_duration(seconds: float) -> str:
@@ -149,6 +210,8 @@ class VirtualDevice:
         self.note_until = 0.0
         self.calibrating_until = 0.0
         self.last_posted_service_state = "ON" if self.last_connectivity_state else "OFF"
+        self.last_backend_unreachable_hint_at = 0.0
+        self.last_source_mode_hint_at = 0.0
 
     @property
     def status_url(self) -> str:
@@ -169,6 +232,43 @@ class VirtualDevice:
             "X-Device-Key": self.config.device_key,
             "X-Device-Source": self.config.device_source,
         }
+
+    def log_backend_unreachable_hint(self) -> None:
+        now = time.monotonic()
+        if (now - self.last_backend_unreachable_hint_at) < 30.0:
+            return
+        self.last_backend_unreachable_hint_at = now
+        LOG.warning(
+            "Backend %s is unreachable. Start Flask with `python server.py` or pass --base-url to a running backend.",
+            self.config.base_url,
+        )
+
+    def log_source_mode_hint(self) -> None:
+        now = time.monotonic()
+        if (now - self.last_source_mode_hint_at) < 30.0:
+            return
+        self.last_source_mode_hint_at = now
+        LOG.warning(
+            "Backend command mode does not match this emulator source=%s. "
+            "Set SWT_DEVICE_SOURCE_MODE=%s in device.env and restart Flask, "
+            "or switch /admin/device-source-mode after logging in.",
+            self.config.device_source,
+            self.config.device_source,
+        )
+
+    def handle_request_exception(self, context: str, exc: requests.RequestException) -> None:
+        LOG.warning("%s: %s", context, exc)
+        message = str(exc)
+        if any(
+            marker in message
+            for marker in (
+                "Connection refused",
+                "actively refused it",
+                "Failed to establish a new connection",
+                "Max retries exceeded",
+            )
+        ):
+            self.log_backend_unreachable_hint()
 
     def elapsed(self) -> float:
         return time.monotonic() - self.started_at
@@ -337,6 +437,11 @@ class VirtualDevice:
     def service_state(self, online: bool) -> str:
         return "ON" if online else "OFF"
 
+    def lower_tank_service_state(self, online: bool) -> str:
+        if not self.config.enable_source_tank:
+            return "OFF"
+        return self.service_state(online)
+
     def status_note(self, online: bool) -> tuple[str, str, str]:
         now = time.monotonic()
         if now < self.note_until:
@@ -368,7 +473,8 @@ class VirtualDevice:
         tomorrow_prediction = round(self.config.usage_liters_per_hour * 24.0 * 1.05, 2)
         wifi_rssi = int(self.rng.randint(-68, -54) if online else -92)
         sensor_ok = online and time.monotonic() >= self.calibrating_until
-        source_sensor_ok = online and self.config.enable_source_tank
+        lower_tank_service = self.lower_tank_service_state(online)
+        source_sensor_ok = lower_tank_service == "ON"
         dry_run = "YES" if self.config.enable_source_tank and self.source_level is not None and self.source_level <= 2.0 else "NO"
         fill_eta_seconds = None
         if self.motor_on and self.fill_percent_per_hour() > 0:
@@ -426,7 +532,7 @@ class VirtualDevice:
             "telemetry_service": self.service_state(online),
             "command_service": self.service_state(online),
             "ota_service": self.service_state(online),
-            "lower_tank_service": "ON" if self.config.enable_source_tank else "OFF",
+            "lower_tank_service": lower_tank_service,
         }
 
     def report_backend_mode(self) -> None:
@@ -434,7 +540,7 @@ class VirtualDevice:
             response = self.session.get(self.status_url, timeout=(5, 10))
             payload = response.json() if response.ok else {}
         except requests.RequestException as exc:
-            LOG.warning("Unable to read backend status before start: %s", exc)
+            self.handle_request_exception("Unable to read backend status before start", exc)
             return
         except ValueError:
             LOG.warning("Backend status response was not valid JSON.")
@@ -451,6 +557,7 @@ class VirtualDevice:
                 if self.config.require_active_source:
                     raise SystemExit(message)
                 LOG.warning(message)
+                self.log_source_mode_hint()
 
     def post_telemetry(self, online: bool) -> bool:
         payload = self.build_payload(online)
@@ -462,7 +569,7 @@ class VirtualDevice:
                 timeout=(5, 15),
             )
         except requests.RequestException as exc:
-            LOG.warning("Telemetry post failed: %s", exc)
+            self.handle_request_exception("Telemetry post failed", exc)
             return False
 
         if response.status_code in {401, 403}:
@@ -470,6 +577,7 @@ class VirtualDevice:
 
         if response.status_code == 409:
             LOG.warning("Backend rejected telemetry because source mode is inactive: %s", response.text)
+            self.log_source_mode_hint()
             return False
 
         if not response.ok:
@@ -481,12 +589,13 @@ class VirtualDevice:
             LOG.info("Service state changed to %s", service_state)
             self.last_posted_service_state = service_state
         LOG.info(
-            "Telemetry saved | source=%s level=%.1f%% motor=%s mode=%s wifi=%s",
+            "Telemetry saved | source=%s level=%.1f%% motor=%s mode=%s wifi=%s lower_tank_service=%s",
             self.config.device_source,
             payload["level"],
             payload["motor"],
             payload["mode"],
             payload["wifi"],
+            payload["lower_tank_service"],
         )
         return True
 
@@ -504,7 +613,7 @@ class VirtualDevice:
                 timeout=(5, 15),
             )
         except requests.RequestException as exc:
-            LOG.warning("Command ack failed: %s", exc)
+            self.handle_request_exception("Command ack failed", exc)
             return
 
         if response.status_code in {401, 403}:
@@ -512,6 +621,7 @@ class VirtualDevice:
 
         if response.status_code == 409:
             LOG.warning("Backend rejected command ack because source mode is inactive: %s", response.text)
+            self.log_source_mode_hint()
             return
 
         if not response.ok:
@@ -528,7 +638,7 @@ class VirtualDevice:
                 timeout=(5, 15),
             )
         except requests.RequestException as exc:
-            LOG.warning("Command poll failed: %s", exc)
+            self.handle_request_exception("Command poll failed", exc)
             return False
 
         if response.status_code in {401, 403}:
@@ -536,6 +646,7 @@ class VirtualDevice:
 
         if response.status_code == 409:
             LOG.warning("Command poll rejected because backend source mode is different: %s", response.text)
+            self.log_source_mode_hint()
             return False
 
         if not response.ok:
@@ -602,73 +713,100 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--base-url",
-        default=os.environ.get("SWT_LOCAL_FLASK_BASE_URL") or os.environ.get("SWT_CLOUD_BASE_URL") or "http://127.0.0.1:8000/",
-        help="Flask backend base URL. Defaults to SWT_LOCAL_FLASK_BASE_URL, then SWT_CLOUD_BASE_URL.",
+        default=env_text(
+            "SWT_VIRTUAL_DEVICE_BASE_URL",
+            "SWT_LOCAL_FLASK_BASE_URL",
+            "SWT_CLOUD_BASE_URL",
+            default="http://127.0.0.1:8000/",
+        ),
+        help="Flask backend base URL. Defaults to SWT_VIRTUAL_DEVICE_BASE_URL, then shared Flask URL settings.",
     )
     parser.add_argument(
         "--device-id",
-        default=os.environ.get("SWT_DEVICE_ID", "swt-node-01"),
+        default=env_text("SWT_VIRTUAL_DEVICE_ID", "SWT_DEVICE_ID", default="swt-node-01"),
         help="Device ID used in X-Device-Id and telemetry payloads.",
     )
     parser.add_argument(
         "--device-key",
-        default=os.environ.get("SWT_DEVICE_API_KEY", ""),
+        default=env_text("SWT_VIRTUAL_DEVICE_KEY", "SWT_DEVICE_API_KEY", default=""),
         help="Device API key used in X-Device-Key.",
     )
     parser.add_argument(
         "--device-source",
-        default=DEVICE_SOURCE_VIRTUAL,
+        default=env_choice("SWT_VIRTUAL_DEVICE_SOURCE", allowed={"real", "virtual"}, default=DEVICE_SOURCE_VIRTUAL),
         choices=["real", "virtual"],
         help="Device source tag sent to the backend. Use virtual for emulator testing.",
     )
     parser.add_argument(
         "--device-local-url",
-        default=os.environ.get("SWT_LOCAL_DEVICE_URL", ""),
+        default=env_text("SWT_VIRTUAL_DEVICE_LOCAL_URL", "SWT_LOCAL_DEVICE_URL", default=""),
         help="Local device URL to publish with telemetry.",
     )
-    parser.add_argument("--firmware-version", default="virtual-mcu-1.0.0")
-    parser.add_argument("--tank-height-cm", type=float, default=180.0)
-    parser.add_argument("--tank-capacity-liters", type=float, default=1000.0)
-    parser.add_argument("--start-level-percent", type=float, default=62.0)
-    parser.add_argument("--start-source-level-percent", type=float, default=74.0)
-    parser.add_argument("--auto-start-percent", type=float, default=28.0)
-    parser.add_argument("--auto-stop-percent", type=float, default=92.0)
-    parser.add_argument("--source-min-run-percent", type=float, default=18.0)
-    parser.add_argument("--usage-liters-per-hour", type=float, default=34.0)
-    parser.add_argument("--fill-liters-per-hour", type=float, default=180.0)
-    parser.add_argument("--source-recovery-liters-per-hour", type=float, default=18.0)
-    parser.add_argument("--telemetry-interval", type=float, default=5.0)
-    parser.add_argument("--command-poll-interval", type=float, default=2.5)
-    parser.add_argument("--loop-sleep", type=float, default=0.5)
-    parser.add_argument("--run-seconds", type=float, default=0.0, help="Run for N seconds. Use 0 to run forever.")
-    parser.add_argument("--connected-seconds", type=float, default=120.0)
+    parser.add_argument("--firmware-version", default=env_text("SWT_VIRTUAL_DEVICE_FIRMWARE_VERSION", default="virtual-mcu-1.0.0"))
+    parser.add_argument("--tank-height-cm", type=float, default=env_float("SWT_VIRTUAL_DEVICE_TANK_HEIGHT_CM", default=180.0))
+    parser.add_argument(
+        "--tank-capacity-liters",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS", default=1000.0),
+    )
+    parser.add_argument("--start-level-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT", default=62.0))
+    parser.add_argument(
+        "--start-source-level-percent",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_START_SOURCE_LEVEL_PERCENT", default=74.0),
+    )
+    parser.add_argument("--auto-start-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_AUTO_START_PERCENT", default=28.0))
+    parser.add_argument("--auto-stop-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_AUTO_STOP_PERCENT", default=92.0))
+    parser.add_argument(
+        "--source-min-run-percent",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_MIN_RUN_PERCENT", default=18.0),
+    )
+    parser.add_argument("--usage-liters-per-hour", type=float, default=env_float("SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR", default=34.0))
+    parser.add_argument("--fill-liters-per-hour", type=float, default=env_float("SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR", default=180.0))
+    parser.add_argument(
+        "--source-recovery-liters-per-hour",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=18.0),
+    )
+    parser.add_argument("--telemetry-interval", type=float, default=env_float("SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL", default=5.0))
+    parser.add_argument("--command-poll-interval", type=float, default=env_float("SWT_VIRTUAL_DEVICE_COMMAND_POLL_INTERVAL", default=2.5))
+    parser.add_argument("--loop-sleep", type=float, default=env_float("SWT_VIRTUAL_DEVICE_LOOP_SLEEP", default=0.5))
+    parser.add_argument(
+        "--run-seconds",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_RUN_SECONDS", default=0.0),
+        help="Run for N seconds. Use 0 to run forever.",
+    )
+    parser.add_argument("--connected-seconds", type=float, default=env_float("SWT_VIRTUAL_DEVICE_CONNECTED_SECONDS", default=120.0))
     parser.add_argument(
         "--disconnected-seconds",
         type=float,
-        default=30.0,
+        default=env_float("SWT_VIRTUAL_DEVICE_DISCONNECTED_SECONDS", default=30.0),
         help="When greater than 0, the emulator cycles through connected/offline periods.",
     )
     parser.add_argument(
         "--channel-mode",
-        default=os.environ.get("SWT_FLASK_CHANNEL_MODE", "both"),
+        default=env_choice("SWT_VIRTUAL_DEVICE_CHANNEL_MODE", "SWT_FLASK_CHANNEL_MODE", allowed={"both", "cloud", "local"}, default="both"),
         choices=["both", "cloud", "local"],
         help="Reported device channel mode.",
     )
-    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--seed", type=int, default=env_int("SWT_VIRTUAL_DEVICE_SEED", default=42))
     parser.add_argument(
         "--enable-source-tank",
         action=argparse.BooleanOptionalAction,
-        default=True,
+        default=env_flag("SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK", default=True),
         help="Enable lower/source tank telemetry and interlock behavior.",
     )
     parser.add_argument(
         "--require-active-source",
         action="store_true",
+        default=env_flag("SWT_VIRTUAL_DEVICE_REQUIRE_ACTIVE_SOURCE", default=False),
         help="Exit early if backend /status shows a different device_source_mode.",
     )
     parser.add_argument(
         "--log-level",
-        default="INFO",
+        default=env_choice("SWT_VIRTUAL_DEVICE_LOG_LEVEL", allowed={"debug", "info", "warning", "error"}, default="info").upper(),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
     return parser

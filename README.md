@@ -52,6 +52,7 @@ PowerShell:
 ```powershell
 Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
+Copy-Item tests\virtual_device.env.example tests\virtual_device.env
 ```
 
 ### 2. Edit the copied files before first run
@@ -111,8 +112,9 @@ Values already present in the real process environment are preserved. Among the 
 
 - system environment variables win
 - `device.env` can override values loaded from `.env` files
+- `tests/virtual_device.env` can override shared values, but only for `scripts/virtual_device.py`
 
-To avoid confusion, keep backend-only settings in `flask_app/.env` and shared device credentials in `device.env`.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_device.env`.
 
 ## Important Environment Variables
 
@@ -308,12 +310,15 @@ The emulator behaves like the MCU and is useful for Flask-side testing:
 Recommended flow:
 
 1. Set `SWT_DEVICE_SOURCE_MODE=virtual` in `device.env`.
-2. Start Flask.
-3. Run:
+2. Adjust `tests/virtual_device.env` if you want emulator-specific settings without changing shared device config.
+3. Start Flask.
+4. Run:
 
 ```powershell
 python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device-id swt-node-01 --device-key change-me-device-key
 ```
+
+The emulator automatically loads defaults from `tests/virtual_device.env`, so you can usually run it without passing all CLI flags every time.
 
 Helpful options:
 

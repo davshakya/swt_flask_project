@@ -8,4 +8,5 @@ artifacts/
 *.db-wal
 flask_app/.env
 device.env
+tests/virtual_device.env
 .idea/
