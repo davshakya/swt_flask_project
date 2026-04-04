@@ -18,6 +18,7 @@ import logging
 import os
 import random
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -28,7 +29,8 @@ import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 TESTS_ROOT = PROJECT_ROOT / "tests"
-DEFAULT_VIRTUAL_DEVICE_ENV_PATH = TESTS_ROOT / "virtual_device.env"
+DEFAULT_VIRTUAL_DEVICE_ENV_DIR = TESTS_ROOT / "virtual_devices"
+LEGACY_VIRTUAL_DEVICE_ENV_PATH = TESTS_ROOT / "virtual_device.env"
 
 
 def parse_simple_dotenv(path: Path) -> dict[str, str]:
@@ -51,10 +53,16 @@ def parse_simple_dotenv(path: Path) -> dict[str, str]:
     return values
 
 
-def resolve_env_file_paths(project_root: Path = PROJECT_ROOT) -> list[Path]:
+def resolve_shared_env_file_paths(project_root: Path = PROJECT_ROOT) -> list[Path]:
     return [
         project_root / "device.env",
         project_root / ".env",
+    ]
+
+
+def resolve_env_file_paths(project_root: Path = PROJECT_ROOT) -> list[Path]:
+    return [
+        *resolve_shared_env_file_paths(project_root),
         project_root / "tests" / "virtual_device.env",
     ]
 
@@ -71,7 +79,31 @@ def load_local_env_files(env_paths: list[Path] | None = None, environ: Any = Non
             loaded.add(key)
 
 
-load_local_env_files()
+def merge_env_files(env_paths: list[Path], base_environ: Any = None) -> dict[str, str]:
+    merged = dict(os.environ if base_environ is None else base_environ)
+    for dotenv_path in env_paths:
+        merged.update(parse_simple_dotenv(dotenv_path))
+    return merged
+
+
+def resolve_runtime_path(raw_path: str | Path) -> Path:
+    path = Path(raw_path).expanduser()
+    if path.is_absolute():
+        return path
+    return (Path.cwd() / path).resolve()
+
+
+def discover_virtual_device_env_files(env_dir: Path) -> list[Path]:
+    if not env_dir.exists() or not env_dir.is_dir():
+        return []
+    return sorted(
+        path
+        for path in env_dir.iterdir()
+        if path.is_file() and path.suffix.lower() == ".env"
+    )
+
+
+load_local_env_files(resolve_shared_env_file_paths())
 
 
 LOG = logging.getLogger("virtual-device")
@@ -91,9 +123,10 @@ def clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
-def env_text(*names: str, default: str = "") -> str:
+def env_text(*names: str, default: str = "", environ: Any = None) -> str:
+    source = os.environ if environ is None else environ
     for name in names:
-        value = os.environ.get(name)
+        value = source.get(name)
         if value is None:
             continue
         text = str(value).strip()
@@ -102,8 +135,8 @@ def env_text(*names: str, default: str = "") -> str:
     return default
 
 
-def env_float(*names: str, default: float) -> float:
-    text = env_text(*names, default="")
+def env_float(*names: str, default: float, environ: Any = None) -> float:
+    text = env_text(*names, default="", environ=environ)
     if not text:
         return default
     try:
@@ -112,8 +145,8 @@ def env_float(*names: str, default: float) -> float:
         return default
 
 
-def env_int(*names: str, default: int) -> int:
-    text = env_text(*names, default="")
+def env_int(*names: str, default: int, environ: Any = None) -> int:
+    text = env_text(*names, default="", environ=environ)
     if not text:
         return default
     try:
@@ -122,8 +155,8 @@ def env_int(*names: str, default: int) -> int:
         return default
 
 
-def env_flag(*names: str, default: bool) -> bool:
-    text = env_text(*names, default="")
+def env_flag(*names: str, default: bool, environ: Any = None) -> bool:
+    text = env_text(*names, default="", environ=environ)
     if not text:
         return default
     normalized = text.lower()
@@ -134,8 +167,8 @@ def env_flag(*names: str, default: bool) -> bool:
     return default
 
 
-def env_choice(*names: str, allowed: set[str], default: str) -> str:
-    text = env_text(*names, default="").lower()
+def env_choice(*names: str, allowed: set[str], default: str, environ: Any = None) -> str:
+    text = env_text(*names, default="", environ=environ).lower()
     if text in allowed:
         return text
     return default
@@ -213,6 +246,15 @@ class VirtualDevice:
         self.last_backend_unreachable_hint_at = 0.0
         self.last_source_mode_hint_at = 0.0
 
+    def log(self, level: int, message: str, *args: Any) -> None:
+        LOG.log(level, f"[%s] {message}", self.config.device_id, *args)
+
+    def info(self, message: str, *args: Any) -> None:
+        self.log(logging.INFO, message, *args)
+
+    def warning(self, message: str, *args: Any) -> None:
+        self.log(logging.WARNING, message, *args)
+
     @property
     def status_url(self) -> str:
         return urljoin(self.config.base_url, "status")
@@ -238,7 +280,7 @@ class VirtualDevice:
         if (now - self.last_backend_unreachable_hint_at) < 30.0:
             return
         self.last_backend_unreachable_hint_at = now
-        LOG.warning(
+        self.warning(
             "Backend %s is unreachable. Start Flask with `python server.py` or pass --base-url to a running backend.",
             self.config.base_url,
         )
@@ -248,7 +290,7 @@ class VirtualDevice:
         if (now - self.last_source_mode_hint_at) < 30.0:
             return
         self.last_source_mode_hint_at = now
-        LOG.warning(
+        self.warning(
             "Backend command mode does not match this emulator source=%s. "
             "Set SWT_DEVICE_SOURCE_MODE=%s in device.env and restart Flask, "
             "or switch /admin/device-source-mode after logging in.",
@@ -257,7 +299,7 @@ class VirtualDevice:
         )
 
     def handle_request_exception(self, context: str, exc: requests.RequestException) -> None:
-        LOG.warning("%s: %s", context, exc)
+        self.warning("%s: %s", context, exc)
         message = str(exc)
         if any(
             marker in message
@@ -543,12 +585,12 @@ class VirtualDevice:
             self.handle_request_exception("Unable to read backend status before start", exc)
             return
         except ValueError:
-            LOG.warning("Backend status response was not valid JSON.")
+            self.warning("Backend status response was not valid JSON.")
             return
 
         backend_mode = str(payload.get("device_source_mode") or "").strip().lower()
         if backend_mode:
-            LOG.info("Backend source mode is %s", backend_mode)
+            self.info("Backend source mode is %s", backend_mode)
             if backend_mode != self.config.device_source:
                 message = (
                     f"Backend source mode is {backend_mode}, but this emulator is publishing as "
@@ -556,7 +598,7 @@ class VirtualDevice:
                 )
                 if self.config.require_active_source:
                     raise SystemExit(message)
-                LOG.warning(message)
+                self.warning("%s", message)
                 self.log_source_mode_hint()
 
     def post_telemetry(self, online: bool) -> bool:
@@ -576,19 +618,19 @@ class VirtualDevice:
             raise SystemExit(f"Device authentication failed: HTTP {response.status_code}")
 
         if response.status_code == 409:
-            LOG.warning("Backend rejected telemetry because source mode is inactive: %s", response.text)
+            self.warning("Backend rejected telemetry because source mode is inactive: %s", response.text)
             self.log_source_mode_hint()
             return False
 
         if not response.ok:
-            LOG.warning("Telemetry post returned HTTP %s: %s", response.status_code, response.text)
+            self.warning("Telemetry post returned HTTP %s: %s", response.status_code, response.text)
             return False
 
         service_state = payload["telemetry_service"]
         if service_state != self.last_posted_service_state:
-            LOG.info("Service state changed to %s", service_state)
+            self.info("Service state changed to %s", service_state)
             self.last_posted_service_state = service_state
-        LOG.info(
+        self.info(
             "Telemetry saved | source=%s level=%.1f%% motor=%s mode=%s wifi=%s lower_tank_service=%s",
             self.config.device_source,
             payload["level"],
@@ -620,15 +662,15 @@ class VirtualDevice:
             raise SystemExit(f"Device authentication failed during ack: HTTP {response.status_code}")
 
         if response.status_code == 409:
-            LOG.warning("Backend rejected command ack because source mode is inactive: %s", response.text)
+            self.warning("Backend rejected command ack because source mode is inactive: %s", response.text)
             self.log_source_mode_hint()
             return
 
         if not response.ok:
-            LOG.warning("Command ack returned HTTP %s: %s", response.status_code, response.text)
+            self.warning("Command ack returned HTTP %s: %s", response.status_code, response.text)
             return
 
-        LOG.info("Acknowledged command %s from %s", command_id, command_source)
+        self.info("Acknowledged command %s from %s", command_id, command_source)
 
     def poll_command(self) -> bool:
         try:
@@ -645,18 +687,18 @@ class VirtualDevice:
             raise SystemExit(f"Device authentication failed during command poll: HTTP {response.status_code}")
 
         if response.status_code == 409:
-            LOG.warning("Command poll rejected because backend source mode is different: %s", response.text)
+            self.warning("Command poll rejected because backend source mode is different: %s", response.text)
             self.log_source_mode_hint()
             return False
 
         if not response.ok:
-            LOG.warning("Command poll returned HTTP %s: %s", response.status_code, response.text)
+            self.warning("Command poll returned HTTP %s: %s", response.status_code, response.text)
             return False
 
         try:
             payload = response.json()
         except ValueError:
-            LOG.warning("Command poll returned invalid JSON.")
+            self.warning("Command poll returned invalid JSON.")
             return False
 
         command = str(payload.get("command") or "").strip().upper()
@@ -665,16 +707,19 @@ class VirtualDevice:
         if not command:
             return False
 
-        LOG.info("Received command %s (%s)", command, command_source)
+        self.info("Received command %s (%s)", command, command_source)
         self.apply_command(command)
         self.acknowledge_command(command_id, command_source)
         return True
 
-    def run(self) -> None:
+    def run(self, stop_event: threading.Event | None = None) -> None:
         self.report_backend_mode()
         force_telemetry = True
 
         while True:
+            if stop_event and stop_event.is_set():
+                return
+
             now = time.monotonic()
             elapsed = now - self.started_at
             dt = min(max(now - self.last_step_at, 0.0), 5.0)
@@ -701,15 +746,34 @@ class VirtualDevice:
                 force_telemetry = False
 
             if self.config.run_seconds > 0 and elapsed >= self.config.run_seconds:
-                LOG.info("Run duration reached. Stopping emulator.")
+                self.info("Run duration reached. Stopping emulator.")
                 return
 
-            time.sleep(self.config.loop_sleep)
+            if stop_event:
+                if stop_event.wait(self.config.loop_sleep):
+                    return
+            else:
+                time.sleep(self.config.loop_sleep)
 
 
-def build_parser() -> argparse.ArgumentParser:
+def build_parser(environ: Any = None) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Run a virtual Smart Water Tank device against the Flask backend.",
+    )
+    parser.add_argument(
+        "--env-dir",
+        default=env_text(
+            "SWT_VIRTUAL_DEVICE_ENV_DIR",
+            default=str(DEFAULT_VIRTUAL_DEVICE_ENV_DIR),
+            environ=environ,
+        ),
+        help="Directory containing one .env file per virtual device.",
+    )
+    parser.add_argument(
+        "--env-file",
+        action="append",
+        default=[],
+        help="Run device configs from one or more explicit .env files. May be passed multiple times.",
     )
     parser.add_argument(
         "--base-url",
@@ -718,95 +782,155 @@ def build_parser() -> argparse.ArgumentParser:
             "SWT_LOCAL_FLASK_BASE_URL",
             "SWT_CLOUD_BASE_URL",
             default="http://127.0.0.1:8000/",
+            environ=environ,
         ),
         help="Flask backend base URL. Defaults to SWT_VIRTUAL_DEVICE_BASE_URL, then shared Flask URL settings.",
     )
     parser.add_argument(
         "--device-id",
-        default=env_text("SWT_VIRTUAL_DEVICE_ID", "SWT_DEVICE_ID", default="swt-node-01"),
+        default=env_text("SWT_VIRTUAL_DEVICE_ID", "SWT_DEVICE_ID", default="swt-node-01", environ=environ),
         help="Device ID used in X-Device-Id and telemetry payloads.",
     )
     parser.add_argument(
         "--device-key",
-        default=env_text("SWT_VIRTUAL_DEVICE_KEY", "SWT_DEVICE_API_KEY", default=""),
+        default=env_text("SWT_VIRTUAL_DEVICE_KEY", "SWT_DEVICE_API_KEY", default="", environ=environ),
         help="Device API key used in X-Device-Key.",
     )
     parser.add_argument(
         "--device-source",
-        default=env_choice("SWT_VIRTUAL_DEVICE_SOURCE", allowed={"real", "virtual"}, default=DEVICE_SOURCE_VIRTUAL),
+        default=env_choice(
+            "SWT_VIRTUAL_DEVICE_SOURCE",
+            allowed={"real", "virtual"},
+            default=DEVICE_SOURCE_VIRTUAL,
+            environ=environ,
+        ),
         choices=["real", "virtual"],
         help="Device source tag sent to the backend. Use virtual for emulator testing.",
     )
     parser.add_argument(
         "--device-local-url",
-        default=env_text("SWT_VIRTUAL_DEVICE_LOCAL_URL", "SWT_LOCAL_DEVICE_URL", default=""),
+        default=env_text("SWT_VIRTUAL_DEVICE_LOCAL_URL", "SWT_LOCAL_DEVICE_URL", default="", environ=environ),
         help="Local device URL to publish with telemetry.",
     )
-    parser.add_argument("--firmware-version", default=env_text("SWT_VIRTUAL_DEVICE_FIRMWARE_VERSION", default="virtual-mcu-1.0.0"))
-    parser.add_argument("--tank-height-cm", type=float, default=env_float("SWT_VIRTUAL_DEVICE_TANK_HEIGHT_CM", default=180.0))
+    parser.add_argument(
+        "--firmware-version",
+        default=env_text("SWT_VIRTUAL_DEVICE_FIRMWARE_VERSION", default="virtual-mcu-1.0.0", environ=environ),
+    )
+    parser.add_argument(
+        "--tank-height-cm",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_TANK_HEIGHT_CM", default=180.0, environ=environ),
+    )
     parser.add_argument(
         "--tank-capacity-liters",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS", default=1000.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS", default=1000.0, environ=environ),
     )
-    parser.add_argument("--start-level-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT", default=62.0))
+    parser.add_argument(
+        "--start-level-percent",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT", default=62.0, environ=environ),
+    )
     parser.add_argument(
         "--start-source-level-percent",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_START_SOURCE_LEVEL_PERCENT", default=74.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_START_SOURCE_LEVEL_PERCENT", default=74.0, environ=environ),
     )
-    parser.add_argument("--auto-start-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_AUTO_START_PERCENT", default=28.0))
-    parser.add_argument("--auto-stop-percent", type=float, default=env_float("SWT_VIRTUAL_DEVICE_AUTO_STOP_PERCENT", default=92.0))
+    parser.add_argument(
+        "--auto-start-percent",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_AUTO_START_PERCENT", default=28.0, environ=environ),
+    )
+    parser.add_argument(
+        "--auto-stop-percent",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_AUTO_STOP_PERCENT", default=92.0, environ=environ),
+    )
     parser.add_argument(
         "--source-min-run-percent",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_MIN_RUN_PERCENT", default=18.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_MIN_RUN_PERCENT", default=18.0, environ=environ),
     )
-    parser.add_argument("--usage-liters-per-hour", type=float, default=env_float("SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR", default=34.0))
-    parser.add_argument("--fill-liters-per-hour", type=float, default=env_float("SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR", default=180.0))
+    parser.add_argument(
+        "--usage-liters-per-hour",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR", default=34.0, environ=environ),
+    )
+    parser.add_argument(
+        "--fill-liters-per-hour",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR", default=180.0, environ=environ),
+    )
     parser.add_argument(
         "--source-recovery-liters-per-hour",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=18.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=18.0, environ=environ),
     )
-    parser.add_argument("--telemetry-interval", type=float, default=env_float("SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL", default=5.0))
-    parser.add_argument("--command-poll-interval", type=float, default=env_float("SWT_VIRTUAL_DEVICE_COMMAND_POLL_INTERVAL", default=2.5))
-    parser.add_argument("--loop-sleep", type=float, default=env_float("SWT_VIRTUAL_DEVICE_LOOP_SLEEP", default=0.5))
+    parser.add_argument(
+        "--telemetry-interval",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL", default=5.0, environ=environ),
+    )
+    parser.add_argument(
+        "--command-poll-interval",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_COMMAND_POLL_INTERVAL", default=2.5, environ=environ),
+    )
+    parser.add_argument(
+        "--loop-sleep",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_LOOP_SLEEP", default=0.5, environ=environ),
+    )
     parser.add_argument(
         "--run-seconds",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_RUN_SECONDS", default=0.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_RUN_SECONDS", default=0.0, environ=environ),
         help="Run for N seconds. Use 0 to run forever.",
     )
-    parser.add_argument("--connected-seconds", type=float, default=env_float("SWT_VIRTUAL_DEVICE_CONNECTED_SECONDS", default=120.0))
+    parser.add_argument(
+        "--connected-seconds",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_CONNECTED_SECONDS", default=120.0, environ=environ),
+    )
     parser.add_argument(
         "--disconnected-seconds",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_DISCONNECTED_SECONDS", default=30.0),
+        default=env_float("SWT_VIRTUAL_DEVICE_DISCONNECTED_SECONDS", default=30.0, environ=environ),
         help="When greater than 0, the emulator cycles through connected/offline periods.",
     )
     parser.add_argument(
         "--channel-mode",
-        default=env_choice("SWT_VIRTUAL_DEVICE_CHANNEL_MODE", "SWT_FLASK_CHANNEL_MODE", allowed={"both", "cloud", "local"}, default="both"),
+        default=env_choice(
+            "SWT_VIRTUAL_DEVICE_CHANNEL_MODE",
+            "SWT_FLASK_CHANNEL_MODE",
+            allowed={"both", "cloud", "local"},
+            default="both",
+            environ=environ,
+        ),
         choices=["both", "cloud", "local"],
         help="Reported device channel mode.",
     )
-    parser.add_argument("--seed", type=int, default=env_int("SWT_VIRTUAL_DEVICE_SEED", default=42))
+    parser.add_argument("--seed", type=int, default=env_int("SWT_VIRTUAL_DEVICE_SEED", default=42, environ=environ))
     parser.add_argument(
         "--enable-source-tank",
         action=argparse.BooleanOptionalAction,
-        default=env_flag("SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK", default=True),
+        default=env_flag("SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK", default=True, environ=environ),
         help="Enable lower/source tank telemetry and interlock behavior.",
     )
     parser.add_argument(
         "--require-active-source",
         action="store_true",
-        default=env_flag("SWT_VIRTUAL_DEVICE_REQUIRE_ACTIVE_SOURCE", default=False),
+        default=env_flag("SWT_VIRTUAL_DEVICE_REQUIRE_ACTIVE_SOURCE", default=False, environ=environ),
         help="Exit early if backend /status shows a different device_source_mode.",
     )
     parser.add_argument(
         "--log-level",
-        default=env_choice("SWT_VIRTUAL_DEVICE_LOG_LEVEL", allowed={"debug", "info", "warning", "error"}, default="info").upper(),
+        default=env_choice(
+            "SWT_VIRTUAL_DEVICE_LOG_LEVEL",
+            allowed={"debug", "info", "warning", "error"},
+            default="info",
+            environ=environ,
+        ).upper(),
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
     )
     return parser
@@ -846,6 +970,123 @@ def build_config(args: argparse.Namespace) -> Config:
     )
 
 
+def build_config_from_env(env_values: dict[str, str]) -> Config:
+    env_args = build_parser(environ=env_values).parse_args([])
+    return build_config(env_args)
+
+
+def has_explicit_device_cli_overrides(argv: list[str] | None = None) -> bool:
+    tokens = list(sys.argv[1:] if argv is None else argv)
+    override_prefixes = (
+        "--base-url",
+        "--device-id",
+        "--device-key",
+        "--device-source",
+        "--device-local-url",
+        "--firmware-version",
+        "--tank-height-cm",
+        "--tank-capacity-liters",
+        "--start-level-percent",
+        "--start-source-level-percent",
+        "--auto-start-percent",
+        "--auto-stop-percent",
+        "--source-min-run-percent",
+        "--usage-liters-per-hour",
+        "--fill-liters-per-hour",
+        "--source-recovery-liters-per-hour",
+        "--telemetry-interval",
+        "--command-poll-interval",
+        "--loop-sleep",
+        "--run-seconds",
+        "--connected-seconds",
+        "--disconnected-seconds",
+        "--channel-mode",
+        "--seed",
+        "--enable-source-tank",
+        "--no-enable-source-tank",
+        "--require-active-source",
+    )
+    return any(any(token == prefix or token.startswith(f"{prefix}=") for prefix in override_prefixes) for token in tokens)
+
+
+def resolve_virtual_device_env_paths(args: argparse.Namespace, cli_overrides_present: bool = False) -> list[Path]:
+    if args.env_file:
+        env_paths = [resolve_runtime_path(item) for item in args.env_file]
+        missing = [str(path) for path in env_paths if not path.exists() or not path.is_file()]
+        if missing:
+            raise SystemExit(f"virtual device env file not found: {', '.join(missing)}")
+        return env_paths
+
+    if cli_overrides_present:
+        return []
+
+    env_dir = resolve_runtime_path(args.env_dir)
+    discovered = discover_virtual_device_env_files(env_dir)
+    if discovered:
+        return discovered
+
+    if LEGACY_VIRTUAL_DEVICE_ENV_PATH.exists():
+        return [LEGACY_VIRTUAL_DEVICE_ENV_PATH]
+
+    return []
+
+
+def start_virtual_device(config: Config, stop_event: threading.Event | None = None) -> None:
+    LOG.info(
+        "Starting virtual device %s against %s as source=%s",
+        config.device_id,
+        config.base_url,
+        config.device_source,
+    )
+    VirtualDevice(config).run(stop_event=stop_event)
+
+
+def run_multi_device_configs(configs: list[Config], env_paths: list[Path]) -> int:
+    stop_event = threading.Event()
+    threads: list[threading.Thread] = []
+    errors: list[tuple[str, str]] = []
+    error_lock = threading.Lock()
+
+    def worker(config: Config, env_path: Path) -> None:
+        try:
+            start_virtual_device(config, stop_event=stop_event)
+        except KeyboardInterrupt:
+            stop_event.set()
+        except SystemExit as exc:
+            stop_event.set()
+            with error_lock:
+                errors.append((config.device_id, str(exc)))
+            LOG.error("[%s] Emulator stopped: %s (env file: %s)", config.device_id, exc, env_path)
+        except Exception:
+            stop_event.set()
+            with error_lock:
+                errors.append((config.device_id, f"unexpected error in {env_path.name}"))
+            LOG.exception("[%s] Emulator failed from env file %s", config.device_id, env_path)
+
+    for config, env_path in zip(configs, env_paths):
+        thread = threading.Thread(
+            target=worker,
+            args=(config, env_path),
+            name=f"virtual-device-{config.device_id}",
+            daemon=True,
+        )
+        threads.append(thread)
+        thread.start()
+
+    try:
+        while any(thread.is_alive() for thread in threads):
+            for thread in threads:
+                thread.join(timeout=0.2)
+    except KeyboardInterrupt:
+        LOG.info("Stopping %s virtual devices.", len(configs))
+        stop_event.set()
+        for thread in threads:
+            thread.join(timeout=2.0)
+        return 0
+
+    return 1 if errors else 0
+
+
 def main() -> int:
     parser = build_parser()
     args = parser.parse_args()
@@ -853,15 +1094,35 @@ def main() -> int:
         level=getattr(logging, str(args.log_level).upper(), logging.INFO),
         format="%(asctime)s | %(levelname)s | %(message)s",
     )
-    config = build_config(args)
-    LOG.info(
-        "Starting virtual device %s against %s as source=%s",
-        config.device_id,
-        config.base_url,
-        config.device_source,
+    env_paths = resolve_virtual_device_env_paths(
+        args,
+        cli_overrides_present=has_explicit_device_cli_overrides(),
     )
+
+    if env_paths:
+        configs = [
+            build_config_from_env(merge_env_files([env_path], base_environ=os.environ))
+            for env_path in env_paths
+        ]
+        if len(configs) == 1:
+            LOG.info("Using virtual device env file %s", env_paths[0])
+            try:
+                start_virtual_device(configs[0])
+            except KeyboardInterrupt:
+                LOG.info("Virtual device stopped by user.")
+                return 0
+            return 0
+
+        LOG.info(
+            "Using %s virtual device env files from %s",
+            len(env_paths),
+            env_paths[0].parent,
+        )
+        return run_multi_device_configs(configs, env_paths)
+
+    config = build_config(args)
     try:
-        VirtualDevice(config).run()
+        start_virtual_device(config)
     except KeyboardInterrupt:
         LOG.info("Virtual device stopped by user.")
         return 0

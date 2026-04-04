@@ -35,6 +35,18 @@ def test_load_local_env_files_prefers_tests_virtual_device_env(tmp_path):
     assert env["SWT_VIRTUAL_DEVICE_BASE_URL"] == "http://127.0.0.1:9100/"
 
 
+def test_discover_virtual_device_env_files_finds_multiple_envs(tmp_path):
+    env_dir = tmp_path / "tests" / "virtual_devices"
+    env_dir.mkdir(parents=True)
+    (env_dir / "device-002.env").write_text("SWT_VIRTUAL_DEVICE_ID=device-002\n", encoding="utf-8")
+    (env_dir / "device-001.env").write_text("SWT_VIRTUAL_DEVICE_ID=device-001\n", encoding="utf-8")
+    (env_dir / "device-template.env.example").write_text("ignored\n", encoding="utf-8")
+
+    discovered = virtual_device.discover_virtual_device_env_files(env_dir)
+
+    assert [path.name for path in discovered] == ["device-001.env", "device-002.env"]
+
+
 def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_BASE_URL", "http://127.0.0.1:9100/")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_ID", "virtual-test-device")
@@ -51,3 +63,19 @@ def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     assert args.telemetry_interval == 9.5
     assert args.enable_source_tank is False
     assert args.log_level == "DEBUG"
+
+
+def test_build_config_from_env_uses_per_file_values_over_shared_defaults():
+    env = {
+        "SWT_DEVICE_ID": "shared-device",
+        "SWT_DEVICE_API_KEY": "shared-key",
+        "SWT_VIRTUAL_DEVICE_ID": "virtual-device-002",
+        "SWT_VIRTUAL_DEVICE_KEY": "virtual-key-002",
+        "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:9102/",
+    }
+
+    config = virtual_device.build_config_from_env(env)
+
+    assert config.device_id == "virtual-device-002"
+    assert config.device_key == "virtual-key-002"
+    assert config.base_url == "http://127.0.0.1:9102/"

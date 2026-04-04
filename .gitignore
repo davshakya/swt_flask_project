@@ -9,4 +9,5 @@ artifacts/
 flask_app/.env
 device.env
 tests/virtual_device.env
+tests/virtual_devices/*.env
 .idea/

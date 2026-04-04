@@ -52,7 +52,8 @@ PowerShell:
 ```powershell
 Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
-Copy-Item tests\virtual_device.env.example tests\virtual_device.env
+New-Item -ItemType Directory -Force tests\virtual_devices | Out-Null
+Copy-Item tests\virtual_devices\device-template.env.example tests\virtual_devices\device-002.env
 ```
 
 ### 2. Edit the copied files before first run
@@ -112,9 +113,9 @@ Values already present in the real process environment are preserved. Among the 
 
 - system environment variables win
 - `device.env` can override values loaded from `.env` files
-- `tests/virtual_device.env` can override shared values, but only for `scripts/virtual_device.py`
+- per-device files in `tests/virtual_devices/*.env` can override shared values, but only for `scripts/virtual_device.py`
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_device.env`.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_devices/*.env`.
 
 ## Important Environment Variables
 
@@ -310,15 +311,33 @@ The emulator behaves like the MCU and is useful for Flask-side testing:
 Recommended flow:
 
 1. Set `SWT_DEVICE_SOURCE_MODE=virtual` in `device.env`.
-2. Adjust `tests/virtual_device.env` if you want emulator-specific settings without changing shared device config.
+2. Configure one or more device files in `tests/virtual_devices/`.
 3. Start Flask.
 4. Run:
 
 ```powershell
-python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device-id swt-node-01 --device-key change-me-device-key
+python scripts/virtual_device.py
 ```
 
-The emulator automatically loads defaults from `tests/virtual_device.env`, so you can usually run it without passing all CLI flags every time.
+The emulator automatically scans `tests/virtual_devices/*.env` and starts one virtual device per file. This lets one script process simulate multiple devices at once.
+
+Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
+
+Suggested layout:
+
+- `tests/virtual_devices/device-001.env`
+- `tests/virtual_devices/device-002.env`
+- `tests/virtual_devices/device-003.env`
+
+Use `tests/virtual_devices/device-template.env.example` as the starting point for each additional device file.
+
+If you want to target specific files instead of the whole directory, you can pass `--env-file` more than once:
+
+```powershell
+python scripts/virtual_device.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
+```
+
+If you pass explicit per-device CLI flags like `--device-id` or `--device-key`, the script falls back to classic single-device mode and does not auto-scan the directory.
 
 Helpful options:
 
