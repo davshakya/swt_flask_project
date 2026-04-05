@@ -32,6 +32,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_app.runtime_utils import (
     db_parent_is_writable,
+    env_float,
+    env_int,
     env_flag as runtime_env_flag,
     load_dotenv_values,
     normalize_db_path as runtime_normalize_db_path,
@@ -275,7 +277,7 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
     "SESSION_COOKIE_SECURE",
     "true" if IS_RENDER else "false"
 ).lower() not in {"0", "false", "no"}
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.environ.get("SESSION_LIFETIME_HOURS", "12")))
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
 
 
@@ -446,19 +448,19 @@ LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip(
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
 DEVICE_KEYS, DEVICE_KEYS_SOURCE = resolve_device_key_registry()
-TANK_CAPACITY_LITERS = float(os.environ.get("TANK_CAPACITY_LITERS", "1000"))
-STALE_AFTER_SECONDS = int(os.environ.get("DATA_STALE_AFTER_SECONDS", "180"))
-DATA_RETENTION_DAYS = max(1, int(os.environ.get("DATA_RETENTION_DAYS", "7")))
+TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
+STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
+DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 7))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
-MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, int(os.environ.get("MAX_TELEMETRY_ROWS_PER_DEVICE", "65000")))
-DEVICE_COMMAND_RETENTION_DAYS = max(1, int(os.environ.get("DEVICE_COMMAND_RETENTION_DAYS", "7")))
-OPS_ALERT_RETENTION_DAYS = max(1, int(os.environ.get("OPS_ALERT_RETENTION_DAYS", "30")))
-OPS_AUDIT_RETENTION_DAYS = max(1, int(os.environ.get("OPS_AUDIT_RETENTION_DAYS", "30")))
+MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
+DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
+OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
+OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
-DB_TARGET_SIZE_MB = max(0.0, float(os.environ.get("DB_TARGET_SIZE_MB", "256" if IS_RENDER else "0")))
+DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
-DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, int(os.environ.get("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", "900" if IS_RENDER else "3600")))
-DB_WAL_AUTOCHECKPOINT_PAGES = max(100, int(os.environ.get("DB_WAL_AUTOCHECKPOINT_PAGES", "1000")))
+DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
+DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
 CONTROL_POLICY = "AUTO_PROTECTED"
 DEFAULT_DEVICE_SOURCE_MODE = (
@@ -466,16 +468,16 @@ DEFAULT_DEVICE_SOURCE_MODE = (
     if str(os.environ.get("SWT_DEVICE_SOURCE_MODE", DEVICE_SOURCE_REAL)).strip().lower() == DEVICE_SOURCE_VIRTUAL
     else DEVICE_SOURCE_REAL
 )
-MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, int(os.environ.get("MOBILE_TOKEN_MAX_AGE_HOURS", "168")) * 3600)
+MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
 dashboard_snapshot_cache = {}
 level_forecast_model_cache = {}
-SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, float(os.environ.get("SNAPSHOT_CACHE_TTL_SECONDS", "2.0")))
-ANALYTICS_MAX_GAP_MINUTES = int(os.environ.get("ANALYTICS_MAX_GAP_MINUTES", "20"))
-ANALYTICS_MAX_LEVEL_DELTA_PCT = float(os.environ.get("ANALYTICS_MAX_LEVEL_DELTA_PCT", "25"))
-ANALYTICS_MIN_BASELINE_USAGE_PCT = float(os.environ.get("ANALYTICS_MIN_BASELINE_USAGE_PCT", "1.0"))
-ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = float(os.environ.get("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", "0.05"))
+SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
+ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
+ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
+ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
+ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
 DEFAULT_LEVEL_FORECAST_MODEL_PATH = PROJECT_ROOT / "artifacts" / "level_forecast_model.pkl"
 DEFAULT_SHARED_CLOUD_BASE_URL = normalize_http_base_url(os.environ.get("SWT_CLOUD_BASE_URL")) or "https://smart-water-tank-v1.onrender.com"
@@ -483,8 +485,8 @@ DEFAULT_RELAY_STATUS_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_UR
 DEFAULT_RELAY_COMMAND_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_URL}/device/command"
 RELAY_STATUS_URLS = os.environ.get("RELAY_STATUS_URLS", DEFAULT_RELAY_STATUS_URLS)
 RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_URLS)
-RELAY_TIMEOUT_SEC = float(os.environ.get("RELAY_TIMEOUT_SEC", "25"))
-RELAY_CONNECT_TIMEOUT_SEC = float(os.environ.get("RELAY_CONNECT_TIMEOUT_SEC", "5"))
+RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
+RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
@@ -493,12 +495,12 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 WHATSAPP_WEBHOOK_URL = os.environ.get("WHATSAPP_WEBHOOK_URL", "").strip()
 MQTT_ENABLED = os.environ.get("MQTT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER_HOST", "").strip()
-MQTT_BROKER_PORT = int(os.environ.get("MQTT_BROKER_PORT", "1883"))
+MQTT_BROKER_PORT = env_int("MQTT_BROKER_PORT", 1883)
 MQTT_USERNAME = os.environ.get("MQTT_USERNAME", "").strip()
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 MQTT_TOPIC_PREFIX = os.environ.get("MQTT_TOPIC_PREFIX", "swt").strip().strip("/")
-MQTT_KEEPALIVE_SEC = max(15, int(os.environ.get("MQTT_KEEPALIVE_SEC", "30")))
-MQTT_QOS = max(0, min(2, int(os.environ.get("MQTT_QOS", "1"))))
+MQTT_KEEPALIVE_SEC = max(15, env_int("MQTT_KEEPALIVE_SEC", 30))
+MQTT_QOS = max(0, min(2, env_int("MQTT_QOS", 1)))
 MQTT_COMMAND_RETAIN = os.environ.get("MQTT_COMMAND_RETAIN", "true").lower() in {"1", "true", "yes", "on"}
 
 
