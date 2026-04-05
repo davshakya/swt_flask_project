@@ -60,6 +60,7 @@ def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_ID", "virtual-test-device")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_KEY", "virtual-test-key")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL", "9.5")
+    monkeypatch.setenv("SWT_VIRTUAL_DEVICE_TIME_SCALE", "7.5")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK", "false")
     monkeypatch.setenv("SWT_VIRTUAL_DEVICE_LOG_LEVEL", "debug")
 
@@ -69,6 +70,7 @@ def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     assert args.device_id == "virtual-test-device"
     assert args.device_key == "virtual-test-key"
     assert args.telemetry_interval == 9.5
+    assert args.time_scale == 7.5
     assert args.enable_source_tank is False
     assert args.log_level == "DEBUG"
 
@@ -156,6 +158,57 @@ def test_virtual_device_payload_includes_source_tank_aliases():
     assert payload["source_tank_service"] == payload["lower_tank_service"] == "ON"
 
 
+def test_virtual_device_time_scale_accelerates_fill_and_drain():
+    slow_config = virtual_device.build_config_from_env(
+        {
+            "SWT_VIRTUAL_DEVICE_ID": "swt-speed-001",
+            "SWT_VIRTUAL_DEVICE_KEY": "speed-key",
+            "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
+            "SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS": "1000",
+            "SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT": "60",
+            "SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR": "60",
+            "SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR": "300",
+            "SWT_VIRTUAL_DEVICE_TIME_SCALE": "1",
+            "SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK": "false",
+        }
+    )
+    fast_config = virtual_device.build_config_from_env(
+        {
+            "SWT_VIRTUAL_DEVICE_ID": "swt-speed-002",
+            "SWT_VIRTUAL_DEVICE_KEY": "speed-key",
+            "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
+            "SWT_VIRTUAL_DEVICE_TANK_CAPACITY_LITERS": "1000",
+            "SWT_VIRTUAL_DEVICE_START_LEVEL_PERCENT": "60",
+            "SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR": "60",
+            "SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR": "300",
+            "SWT_VIRTUAL_DEVICE_TIME_SCALE": "6",
+            "SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK": "false",
+        }
+    )
+
+    slow_drain = virtual_device.VirtualDevice(slow_config)
+    fast_drain = virtual_device.VirtualDevice(fast_config)
+    slow_drain.rng.seed(123)
+    fast_drain.rng.seed(123)
+
+    slow_drain.update_simulation(60.0, services_online=True)
+    fast_drain.update_simulation(60.0, services_online=True)
+
+    assert fast_drain.level < slow_drain.level
+
+    slow_fill = virtual_device.VirtualDevice(slow_config)
+    fast_fill = virtual_device.VirtualDevice(fast_config)
+    slow_fill.rng.seed(456)
+    fast_fill.rng.seed(456)
+    slow_fill.motor_on = True
+    fast_fill.motor_on = True
+
+    slow_fill.update_simulation(60.0, services_online=True)
+    fast_fill.update_simulation(60.0, services_online=True)
+
+    assert fast_fill.level > slow_fill.level
+
+
 def test_sync_virtual_device_envs_to_local_registry_restores_deleted_devices(tmp_path):
     (tmp_path / "device.env").write_text("DB_FILE=data/test.db\n", encoding="utf-8")
 
@@ -213,6 +266,7 @@ def test_virtual_device_build_override_env_normalizes_explicit_values():
     argv = [
         "--base-url", "127.0.0.1:8000",
         "--run-seconds", "20",
+        "--time-scale", "8",
     ]
     args = virtual_device.build_parser().parse_args(argv)
 
@@ -221,6 +275,7 @@ def test_virtual_device_build_override_env_normalizes_explicit_values():
     assert overrides == {
         "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
         "SWT_VIRTUAL_DEVICE_RUN_SECONDS": "20.0",
+        "SWT_VIRTUAL_DEVICE_TIME_SCALE": "8.0",
     }
 
 

@@ -391,6 +391,7 @@ class Config:
     usage_liters_per_hour: float
     fill_liters_per_hour: float
     source_recovery_liters_per_hour: float
+    time_scale: float
     enable_source_tank: bool
     channel_mode: str
     seed: int
@@ -517,13 +518,15 @@ class VirtualDevice:
         return self.source_level >= self.config.source_min_run_percent
 
     def fill_percent_per_hour(self) -> float:
-        return (self.config.fill_liters_per_hour / self.config.tank_capacity_liters) * 100.0
+        return ((self.config.fill_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters) * 100.0
 
     def use_percent_per_hour(self) -> float:
-        return (self.config.usage_liters_per_hour / self.config.tank_capacity_liters) * 100.0
+        return ((self.config.usage_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters) * 100.0
 
     def source_recovery_percent_per_hour(self) -> float:
-        return (self.config.source_recovery_liters_per_hour / self.config.tank_capacity_liters) * 100.0
+        return (
+            (self.config.source_recovery_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters
+        ) * 100.0
 
     def set_note(self, text: str, tone: str = "info", ttl_seconds: float = 25.0) -> None:
         self.note_text = text
@@ -693,8 +696,9 @@ class VirtualDevice:
         auto_status, auto_tone, auto_timer = self.status_note(online)
         sensor_distance = self.compute_sensor_distance(self.level)
         lower_distance = self.compute_sensor_distance(self.source_level) if self.config.enable_source_tank else None
-        usage_rate = round(self.config.usage_liters_per_hour, 2)
-        tomorrow_prediction = round(self.config.usage_liters_per_hour * 24.0 * 1.05, 2)
+        effective_usage_liters_per_hour = self.config.usage_liters_per_hour * self.config.time_scale
+        usage_rate = round(effective_usage_liters_per_hour, 2)
+        tomorrow_prediction = round(effective_usage_liters_per_hour * 24.0 * 1.05, 2)
         wifi_rssi = int(self.rng.randint(-68, -54) if online else -92)
         sensor_ok = online and time.monotonic() >= self.calibrating_until
         lower_tank_service = self.lower_tank_service_state(online)
@@ -1080,6 +1084,12 @@ def build_parser(environ: Any = None) -> argparse.ArgumentParser:
         default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=18.0, environ=environ),
     )
     parser.add_argument(
+        "--time-scale",
+        type=float,
+        default=env_float("SWT_VIRTUAL_DEVICE_TIME_SCALE", default=6.0, environ=environ),
+        help="Scale the virtual tank physics up or down without changing telemetry intervals.",
+    )
+    parser.add_argument(
         "--telemetry-interval",
         type=float,
         default=env_float("SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL", default=5.0, environ=environ),
@@ -1176,6 +1186,7 @@ def build_config(args: argparse.Namespace) -> Config:
         usage_liters_per_hour=max(0.1, float(args.usage_liters_per_hour)),
         fill_liters_per_hour=max(0.1, float(args.fill_liters_per_hour)),
         source_recovery_liters_per_hour=max(0.0, float(args.source_recovery_liters_per_hour)),
+        time_scale=max(0.1, float(args.time_scale)),
         enable_source_tank=bool(args.enable_source_tank),
         channel_mode=str(args.channel_mode or "both").strip().lower(),
         seed=int(args.seed),
@@ -1220,6 +1231,7 @@ def generated_device_env_values(args: argparse.Namespace, index: int) -> dict[st
         "SWT_VIRTUAL_DEVICE_USAGE_LITERS_PER_HOUR": format_env_scalar(args.usage_liters_per_hour),
         "SWT_VIRTUAL_DEVICE_FILL_LITERS_PER_HOUR": format_env_scalar(args.fill_liters_per_hour),
         "SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR": format_env_scalar(args.source_recovery_liters_per_hour),
+        "SWT_VIRTUAL_DEVICE_TIME_SCALE": format_env_scalar(args.time_scale),
         "SWT_VIRTUAL_DEVICE_TELEMETRY_INTERVAL": format_env_scalar(args.telemetry_interval),
         "SWT_VIRTUAL_DEVICE_COMMAND_POLL_INTERVAL": format_env_scalar(args.command_poll_interval),
         "SWT_VIRTUAL_DEVICE_LOOP_SLEEP": format_env_scalar(args.loop_sleep),
@@ -1298,6 +1310,8 @@ def build_override_env(
         overrides["SWT_VIRTUAL_DEVICE_BASE_URL"] = normalize_base_url(args.base_url)
     if cli_has_option("--run-seconds", argv=argv) and args.run_seconds is not None:
         overrides["SWT_VIRTUAL_DEVICE_RUN_SECONDS"] = str(max(0.0, float(args.run_seconds)))
+    if cli_has_option("--time-scale", argv=argv) and args.time_scale is not None:
+        overrides["SWT_VIRTUAL_DEVICE_TIME_SCALE"] = str(max(0.1, float(args.time_scale)))
     return overrides
 
 

@@ -43,3 +43,5 @@ If you still want the old one-step behavior, you can keep using:
 ```powershell
 python scripts/run_virtual_devices.py --base-url http://127.0.0.1:8000/ --device_count 10
 ```
+
+Tank speed note: set `SWT_VIRTUAL_DEVICE_TIME_SCALE` in `tests/virtual_device.env` or a per-device `.env` file to make the emulator fill and drain faster or slower without changing telemetry timing.
