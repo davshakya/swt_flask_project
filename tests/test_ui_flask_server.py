@@ -651,7 +651,10 @@ def test_device_history_is_retained_across_firmware_updates_for_same_device():
 
 
 def test_device_command_requires_valid_credentials():
-    response = client.get("/device/command")
+    response = client.get(
+        "/device/command",
+        headers={"X-Device-Source": server_module.get_device_source_mode()},
+    )
     assert response.status_code == 401
 
     queue_command("AUTO", target_device=default_test_device_id())
@@ -660,6 +663,63 @@ def test_device_command_requires_valid_credentials():
     assert good.get_json()["command"] == "AUTO"
     assert good.get_json()["command_source"] == "queue"
     assert good.get_json()["command_id"] is not None
+
+
+def test_virtual_device_command_skips_cloud_relay(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual device command test is skipped against shared BASE_URL deployments.")
+
+    device_id = default_test_device_id()
+    original_mode = server_module.get_device_source_mode()
+    with get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+    def fail_requests_get(*args, **kwargs):
+        raise AssertionError("virtual devices should not poll cloud relay commands")
+
+    monkeypatch.setattr(server_module, "RELAY_COMMAND_URL_LIST", ["https://example.invalid/device/command"])
+    monkeypatch.setattr(server_module.requests, "get", fail_requests_get)
+
+    try:
+        server_module.set_device_source_mode(server_module.DEVICE_SOURCE_VIRTUAL)
+        response = client.get(
+            "/device/command",
+            headers={**device_headers(device_id), "X-Device-Source": "virtual"},
+        )
+    finally:
+        server_module.set_device_source_mode(original_mode)
+
+    assert response.status_code == 200
+    assert response.get_json()["command"] is None
+    assert response.get_json()["command_source"] is None
+
+
+def test_virtual_device_command_ack_skips_cloud_relay(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual device command ack test is skipped against shared BASE_URL deployments.")
+
+    device_id = default_test_device_id()
+    original_mode = server_module.get_device_source_mode()
+
+    def fail_requests_post(*args, **kwargs):
+        raise AssertionError("virtual devices should not acknowledge cloud relay commands")
+
+    monkeypatch.setattr(server_module, "RELAY_COMMAND_URL_LIST", ["https://example.invalid/device/command"])
+    monkeypatch.setattr(server_module.requests, "post", fail_requests_post)
+
+    try:
+        server_module.set_device_source_mode(server_module.DEVICE_SOURCE_VIRTUAL)
+        response = client.post(
+            "/device/command/ack",
+            json={"command_id": 123, "command_source": "relay", "device_source": "virtual"},
+            headers={**device_headers(device_id), "X-Device-Source": "virtual"},
+        )
+    finally:
+        server_module.set_device_source_mode(original_mode)
+
+    assert response.status_code == 404
+    assert response.get_json()["acknowledged"] is False
+    assert response.get_json()["command_source"] == "relay"
 
 
 def test_device_command_queue_keeps_latest_pending_command_per_device():

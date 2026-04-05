@@ -43,6 +43,7 @@ def device_headers(device_id=None, device_key=None):
     return {
         "X-Device-Id": resolved_device_id,
         "X-Device-Key": resolved_device_key,
+        "X-Device-Source": server_module.get_device_source_mode(),
     }
 
 

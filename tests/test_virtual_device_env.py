@@ -75,6 +75,16 @@ def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
     assert args.log_level == "DEBUG"
 
 
+def test_build_parser_ignores_shared_cloud_url_for_virtual_device_defaults(monkeypatch):
+    monkeypatch.delenv("SWT_VIRTUAL_DEVICE_BASE_URL", raising=False)
+    monkeypatch.delenv("SWT_LOCAL_FLASK_BASE_URL", raising=False)
+    monkeypatch.setenv("SWT_CLOUD_BASE_URL", "https://smart-water-tank-v1.onrender.com/")
+
+    args = virtual_device.build_parser().parse_args([])
+
+    assert args.base_url == "http://127.0.0.1:8000/"
+
+
 def test_build_config_from_env_uses_per_file_values_over_shared_defaults():
     env = {
         "SWT_DEVICE_ID": "shared-device",

@@ -16,6 +16,8 @@ the script checks `generated/` first, then this directory, and starts one emulat
 
 Use [`device-template.env.example`](device-template.env.example) as the starting point for additional devices.
 
+The virtual-device runner stays local by default: it uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, then `http://127.0.0.1:8000/`. It does not fall back to `SWT_CLOUD_BASE_URL`.
+
 For automatic batch generation without starting the emulators yet, run:
 
 ```powershell

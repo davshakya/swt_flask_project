@@ -318,6 +318,15 @@ def env_choice(*names: str, allowed: set[str], default: str, environ: Any = None
     return default
 
 
+def default_virtual_device_base_url(environ: Any = None) -> str:
+    return env_text(
+        "SWT_VIRTUAL_DEVICE_BASE_URL",
+        "SWT_LOCAL_FLASK_BASE_URL",
+        default="http://127.0.0.1:8000/",
+        environ=environ,
+    )
+
+
 def format_duration(seconds: float) -> str:
     total = max(0, int(round(seconds)))
     hours, remainder = divmod(total, 3600)
@@ -994,14 +1003,8 @@ def build_parser(environ: Any = None) -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--base-url",
-        default=env_text(
-            "SWT_VIRTUAL_DEVICE_BASE_URL",
-            "SWT_LOCAL_FLASK_BASE_URL",
-            "SWT_CLOUD_BASE_URL",
-            default="http://127.0.0.1:8000/",
-            environ=environ,
-        ),
-        help="Flask backend base URL. Defaults to SWT_VIRTUAL_DEVICE_BASE_URL, then shared Flask URL settings.",
+        default=default_virtual_device_base_url(environ=environ),
+        help="Flask backend base URL. Defaults to SWT_VIRTUAL_DEVICE_BASE_URL, then SWT_LOCAL_FLASK_BASE_URL, then http://127.0.0.1:8000/.",
     )
     parser.add_argument(
         "--device-id",

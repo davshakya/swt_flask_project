@@ -323,6 +323,8 @@ The emulator automatically scans `tests/virtual_devices/*.env` and starts one vi
 
 Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
 
+Virtual devices stay on the local Flask server by default. `scripts/run_virtual_devices.py` uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, and otherwise falls back to `http://127.0.0.1:8000/`; it does not fall back to `SWT_CLOUD_BASE_URL`.
+
 If you want separate steps for fleet testing, generate the env files first:
 
 ```powershell

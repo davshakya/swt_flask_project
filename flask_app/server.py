@@ -4938,7 +4938,13 @@ def drain_relay_queue(max_items=3):
             )
 
 
-def fetch_cloud_command(device_id=None):
+def cloud_relay_enabled_for_device_source(device_source):
+    return normalize_device_source(device_source, default=DEVICE_SOURCE_REAL) == DEVICE_SOURCE_REAL
+
+
+def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
+    if not cloud_relay_enabled_for_device_source(device_source):
+        return None
     if not RELAY_COMMAND_URL_LIST:
         return None
     for url in RELAY_COMMAND_URL_LIST:
@@ -4966,7 +4972,9 @@ def fetch_cloud_command(device_id=None):
     return None
 
 
-def acknowledge_relay_command(device_id, command_id):
+def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE_REAL):
+    if not cloud_relay_enabled_for_device_source(device_source):
+        return False
     if not RELAY_COMMAND_URL_LIST:
         return False
 
@@ -5523,7 +5531,7 @@ def get_command():
             "device_source_mode": get_device_source_mode(),
         }
 
-    relay_payload = fetch_cloud_command(device_id) or {}
+    relay_payload = fetch_cloud_command(device_id, device_source=request_source) or {}
     return {
         "command": relay_payload.get("command"),
         "command_id": relay_payload.get("command_id"),
@@ -5554,7 +5562,7 @@ def acknowledge_device_command():
     command_source = str(payload.get("command_source") or "queue").strip().lower()
 
     if command_source == "relay":
-        acknowledged = acknowledge_relay_command(device_id, command_id)
+        acknowledged = acknowledge_relay_command(device_id, command_id, device_source=request_source)
     else:
         acknowledged = acknowledge_queued_command_id(device_id, command_id)
         if acknowledged:
