@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import base64
 import json
-import os
 import re
 import sqlite3
 import sys
@@ -16,175 +15,32 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server as server_module
 from server import (
     DEVICE,
-    DEVICE_KEY_MAP,
     LOGIN_USERNAME,
     app,
     drain_relay_queue,
-    get_dashboard_password,
     get_db,
     queue_command,
     set_dashboard_password,
     upsert_customer_account,
 )
-
-BASE_URL = os.environ.get("TEST_BASE_URL")
-client = app.test_client()
-TEST_CSRF_TOKEN = "test-csrf-token"
-TEST_ADMIN_PASSWORD = os.environ.get("TEST_ADMIN_PASSWORD", "AdminFixturePass2026!")
-
-
-def device_headers(device_id=None, device_key=None):
-    if not DEVICE_KEY_MAP:
-        return {}
-    resolved_device_id = device_id or next(iter(DEVICE_KEY_MAP))
-    resolved_device_key = device_key or DEVICE_KEY_MAP[resolved_device_id]
-    return {
-        "X-Device-Id": resolved_device_id,
-        "X-Device-Key": resolved_device_key,
-    }
-
-
-def ensure_known_admin_password(password=TEST_ADMIN_PASSWORD):
-    if BASE_URL:
-        return os.environ.get("TEST_ADMIN_PASSWORD") or get_dashboard_password() or "Admin123"
-    set_dashboard_password(password)
-    return password
-
-
-def csrf_headers(extra=None):
-    headers = {"X-CSRF-Token": TEST_CSRF_TOKEN}
-    if extra:
-        headers.update(extra)
-    return headers
-
-
-def fetch_csrf_token(session_client, path="/admin/customers"):
-    if not BASE_URL:
-        return TEST_CSRF_TOKEN
-    response = session_client.get(f"{BASE_URL}{path}")
-    assert response.status_code == 200
-    match = re.search(r'name="csrf-token" content="([^"]+)"', response.text)
-    assert match
-    return match.group(1)
-
-
-def ensure_logged_in():
-    if BASE_URL:
-        import requests
-        session = requests.Session()
-        response = session.post(
-            f"{BASE_URL}/login/admin",
-            data={"username": LOGIN_USERNAME, "password": ensure_known_admin_password()},
-            allow_redirects=False,
-        )
-        assert response.status_code in (302, 303)
-        return session
-    with client.session_transaction() as session_data:
-        session_data["logged_in"] = True
-        session_data["username"] = "admin"
-        session_data["role"] = "admin"
-        session_data["device_id"] = None
-        session_data["csrf_token"] = TEST_CSRF_TOKEN
-    return client
-
-
-def make_admin_client():
-    admin_client = app.test_client()
-    with admin_client.session_transaction() as session_data:
-        session_data["logged_in"] = True
-        session_data["username"] = "admin"
-        session_data["role"] = "admin"
-        session_data["device_id"] = None
-        session_data["csrf_token"] = TEST_CSRF_TOKEN
-    return admin_client
-
-
-def make_customer_client(device_id):
-    customer_client = app.test_client()
-    with customer_client.session_transaction() as session_data:
-        session_data["logged_in"] = True
-        session_data["username"] = device_id
-        session_data["role"] = "customer"
-        session_data["device_id"] = device_id
-        session_data["csrf_token"] = TEST_CSRF_TOKEN
-    return customer_client
-
-def get_response():
-    session_client = ensure_logged_in()
-    if BASE_URL:
-        response = session_client.get(f"{BASE_URL}/last")
-        assert response.status_code == 200
-        return response.json()
-    response = session_client.get("/last")
-    assert response.status_code == 200
-    return response.get_json()
-
-
-def get_json(path, params=None):
-    session_client = ensure_logged_in()
-    if BASE_URL:
-        response = session_client.get(f"{BASE_URL}{path}", params=params)
-        assert response.status_code == 200
-        return response.json()
-    response = session_client.get(path, query_string=params)
-    assert response.status_code == 200
-    return response.get_json()
-
-
-def ensure_device_snapshot():
-    payload = {
-        "level": 48.0,
-        "motor": "OFF",
-        "mode": "AUTO",
-        "simulator": "OFF",
-        "runtime": "0h 0m",
-        "current_runtime": "0m 0s",
-        "last_runtime": "0m 0s",
-        "fill_time": "--",
-        "leak": "NO",
-        "pump_failure": "NO",
-        "abnormal": "NO",
-        "drip": "NO",
-        "slow_leak": "NO",
-        "pipe_leak": "NO",
-        "ai_usage_rate": 0.5,
-        "tomorrow_prediction": 10.0,
-        "dry_run": "NO",
-        "wifi": "ONLINE",
-        "wifi_rssi": -52,
-        "sensor": "OK",
-        "sensor_info": "HC-SR04 CONNECTED",
-        "sensor_distance_cm": 61.5,
-        "tank_height_cm": 120.0,
-        "tank_capacity_liters": 1000.0,
-        "auto_status": "Auto waiting",
-        "auto_status_tone": "info",
-        "auto_timer": "Waiting for start",
-        "tank_health": 93.0,
-        "free_heap": 30000,
-        "uptime_s": 321,
-        "lower_tank_level": None,
-        "lower_sensor": "DISABLED",
-        "lower_sensor_info": "Lower sensor disabled",
-        "lower_sensor_distance_cm": None,
-        "device_local_url": "http://192.168.1.50",
-        "firmware_version": "1.1.0",
-        "reset_reason": "Software/System restart",
-    }
-    response = client.post("/status", json=payload, headers=device_headers())
-    assert response.status_code == 200
-    return get_response()["device_id"]
-
-
-def mobile_auth_headers(role="admin", username="admin", device_id=None):
-    token = server_module.issue_mobile_token(
-        {
-            "role": role,
-            "username": username,
-            "device_id": device_id,
-        }
-    )
-    return {"Authorization": f"Bearer {token}"}
+from tests.ui_test_support import (
+    BASE_URL,
+    TEST_CSRF_TOKEN,
+    build_status_payload,
+    client,
+    csrf_headers,
+    default_test_device_id,
+    device_headers,
+    ensure_device_snapshot,
+    ensure_known_admin_password,
+    ensure_logged_in,
+    fetch_csrf_token,
+    get_json,
+    get_response,
+    make_admin_client,
+    make_customer_client,
+    mobile_auth_headers,
+)
 
 
 class DummyForecastModel:
@@ -315,7 +171,7 @@ def seed_forecast_history(device_id, rows=36, step_minutes=15, base_level=78.0, 
 
 
 def test_load_dashboard_snapshot_uses_short_cache(monkeypatch):
-    device_id = next(iter(DEVICE_KEY_MAP))
+    device_id = default_test_device_id()
     server_module.dashboard_snapshot_cache.clear()
     calls = {"count": 0}
 
@@ -334,58 +190,24 @@ def test_load_dashboard_snapshot_uses_short_cache(monkeypatch):
 
 
 def test_device_status_clears_snapshot_cache_after_new_telemetry():
-    device_id = next(iter(DEVICE_KEY_MAP))
+    device_id = default_test_device_id()
+    active_mode = server_module.get_device_source_mode()
     server_module.dashboard_snapshot_cache.clear()
-    server_module.dashboard_snapshot_cache[device_id] = {
+    server_module.dashboard_snapshot_cache[f"{active_mode}:{device_id}"] = {
         "created_at": time.time(),
         "payload": {"device_id": device_id, "level": 10.0},
     }
-    server_module.dashboard_snapshot_cache["__latest__"] = {
+    server_module.dashboard_snapshot_cache[f"{active_mode}:__latest__"] = {
         "created_at": time.time(),
         "payload": {"device_id": device_id, "level": 10.0},
     }
 
-    payload = {
-        "level": 52.5,
-        "motor": "OFF",
-        "mode": "AUTO",
-        "simulator": "OFF",
-        "source_tank_simulator": "OFF",
-        "runtime": "0h 0m",
-        "current_runtime": "0m 0s",
-        "last_runtime": "0m 0s",
-        "fill_time": "--",
-        "leak": "NO",
-        "pump_failure": "NO",
-        "abnormal": "NO",
-        "drip": "NO",
-        "slow_leak": "NO",
-        "pipe_leak": "NO",
-        "ai_usage_rate": 0.5,
-        "tomorrow_prediction": 10.0,
-        "dry_run": "NO",
-        "wifi": "ONLINE",
-        "wifi_rssi": -52,
-        "sensor": "OK",
-        "sensor_info": "HC-SR04 CONNECTED",
-        "sensor_distance_cm": 61.5,
-        "tank_height_cm": 120.0,
-        "tank_capacity_liters": 1000.0,
-        "auto_status": "Auto waiting",
-        "auto_status_tone": "info",
-        "auto_timer": "Waiting for start",
-        "tank_health": 93.0,
-        "free_heap": 30000,
-        "uptime_s": 321,
-        "device_local_url": "http://192.168.1.50",
-        "firmware_version": "1.1.0",
-        "reset_reason": "Software/System restart",
-    }
+    payload = build_status_payload(device_id=device_id, level=52.5)
     response = client.post("/status", json=payload, headers=device_headers(device_id))
 
     assert response.status_code == 200
-    assert device_id not in server_module.dashboard_snapshot_cache
-    assert "__latest__" not in server_module.dashboard_snapshot_cache
+    assert f"{active_mode}:{device_id}" not in server_module.dashboard_snapshot_cache
+    assert f"{active_mode}:__latest__" not in server_module.dashboard_snapshot_cache
 
 
 def test_login_required_redirect():
@@ -490,41 +312,17 @@ def test_device_status_accepts_wildcard_registered_device_id(monkeypatch):
         [{"pattern": "swt-node-*", "prefix": "swt-node-", "key": device_key}],
     )
 
-    payload = {
-        "level": 54.0,
-        "motor": "OFF",
-        "mode": "AUTO",
-        "simulator": "OFF",
-        "source_tank_simulator": "OFF",
-        "runtime": "0h 0m",
-        "current_runtime": "0m 0s",
-        "last_runtime": "0m 0s",
-        "fill_time": "--",
-        "leak": "NO",
-        "pump_failure": "NO",
-        "abnormal": "NO",
-        "drip": "NO",
-        "slow_leak": "NO",
-        "pipe_leak": "NO",
-        "ai_usage_rate": 0.4,
-        "tomorrow_prediction": 11.0,
-        "dry_run": "NO",
-        "wifi": "ONLINE",
-        "wifi_rssi": -50,
-        "sensor": "OK",
-        "sensor_info": "HC-SR04 CONNECTED",
-        "sensor_distance_cm": 59.0,
-        "tank_height_cm": 120.0,
-        "tank_capacity_liters": 1000.0,
-        "auto_status": "Auto waiting",
-        "auto_status_tone": "info",
-        "auto_timer": "Waiting for start",
-        "tank_health": 92.0,
-        "free_heap": 30500,
-        "uptime_s": 111,
-        "firmware_version": "1.1.0",
-        "reset_reason": "Power on",
-    }
+    payload = build_status_payload(
+        level=54.0,
+        ai_usage_rate=0.4,
+        tomorrow_prediction=11.0,
+        wifi_rssi=-50,
+        sensor_distance_cm=59.0,
+        tank_health=92.0,
+        free_heap=30500,
+        uptime_s=111,
+        reset_reason="Power on",
+    )
     response = client.post(
         "/status",
         json=payload,
@@ -545,55 +343,40 @@ def test_device_status_accepts_wildcard_registered_device_id(monkeypatch):
 
 
 def test_device_status_accepts_valid_credentials_and_persists_device_metadata():
-    payload = {
-        "level": 51.2,
-        "motor": "OFF",
-        "mode": "AUTO",
-        "simulator": "OFF",
-        "runtime": "0h 0m",
-        "current_runtime": "0m 0s",
-        "last_runtime": "0m 0s",
-        "fill_time": "--",
-        "leak": "NO",
-        "pump_failure": "NO",
-        "abnormal": "NO",
-        "drip": "NO",
-        "slow_leak": "NO",
-        "pipe_leak": "NO",
-        "ai_usage_rate": 0.7,
-        "tomorrow_prediction": 12.3,
-        "dry_run": "NO",
-        "wifi": "ONLINE",
-        "wifi_rssi": -48,
-        "sensor": "OK",
-        "sensor_info": "HC-SR04 CONNECTED",
-        "sensor_distance_cm": 58.2,
-        "tank_height_cm": 120.0,
-        "tank_capacity_liters": 1000.0,
-        "auto_status": "Auto waiting",
-        "auto_status_tone": "info",
-        "auto_timer": "Waiting for start",
-        "tank_health": 91.0,
-        "free_heap": 31000,
-        "uptime_s": 123,
-        "lower_tank_level": None,
-        "lower_sensor": "DISABLED",
-        "lower_sensor_info": "Lower sensor disabled",
-        "lower_sensor_distance_cm": None,
-        "device_local_url": "http://192.168.1.50",
-        "channel_mode": "both",
-        "telemetry_service": "ON",
-        "command_service": "ON",
-        "ota_service": "ON",
-        "lower_tank_service": "OFF",
-        "firmware_version": "1.1.0",
-        "reset_reason": "Software/System restart",
-    }
-    response = client.post("/status", json=payload, headers=device_headers())
+    device_id = default_test_device_id()
+    payload = build_status_payload(
+        device_id=device_id,
+        level=51.2,
+        ai_usage_rate=0.7,
+        tomorrow_prediction=12.3,
+        wifi_rssi=-48,
+        sensor_distance_cm=58.2,
+        tank_health=91.0,
+        free_heap=31000,
+        uptime_s=123,
+        channel_mode="both",
+        telemetry_service="ON",
+        command_service="ON",
+        ota_service="ON",
+        lower_tank_service="OFF",
+    )
+    response = client.post("/status", json=payload, headers=device_headers(device_id))
     assert response.status_code == 200
 
-    data = get_response()
-    assert data["device_id"] == next(iter(DEVICE_KEY_MAP))
+    with get_db() as db:
+        data = db.execute(
+            """
+            SELECT device_id, firmware_version, reset_reason, channel_mode,
+                   telemetry_service, command_service, ota_service,
+                   lower_tank_service, device_local_url
+            FROM tank_data
+            WHERE device_id = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+    assert data["device_id"] == device_id
     assert data["firmware_version"] == "1.1.0"
     assert data["reset_reason"] == "Software/System restart"
     assert data["channel_mode"] == "both"
@@ -625,41 +408,16 @@ def test_mobile_last_redacts_private_network_fields():
 
 
 def test_device_history_is_retained_across_firmware_updates_for_same_device():
-    device_id = next(iter(DEVICE_KEY_MAP))
-    first_payload = {
-        "level": 42.5,
-        "motor": "OFF",
-        "mode": "AUTO",
-        "simulator": "OFF",
-        "runtime": "0h 0m",
-        "current_runtime": "0m 0s",
-        "last_runtime": "0m 0s",
-        "fill_time": "--",
-        "leak": "NO",
-        "pump_failure": "NO",
-        "abnormal": "NO",
-        "drip": "NO",
-        "slow_leak": "NO",
-        "pipe_leak": "NO",
-        "ai_usage_rate": 0.5,
-        "tomorrow_prediction": 9.0,
-        "dry_run": "NO",
-        "wifi": "ONLINE",
-        "wifi_rssi": -50,
-        "sensor": "OK",
-        "sensor_info": "HC-SR04 CONNECTED",
-        "sensor_distance_cm": 60.0,
-        "tank_height_cm": 120.0,
-        "tank_capacity_liters": 1000.0,
-        "auto_status": "Auto waiting",
-        "auto_status_tone": "info",
-        "auto_timer": "Waiting for start",
-        "tank_health": 92.0,
-        "free_heap": 30000,
-        "uptime_s": 100,
-        "firmware_version": "1.1.0",
-        "reset_reason": "Software/System restart",
-    }
+    device_id = default_test_device_id()
+    first_payload = build_status_payload(
+        device_id=device_id,
+        level=42.5,
+        tomorrow_prediction=9.0,
+        wifi_rssi=-50,
+        sensor_distance_cm=60.0,
+        tank_health=92.0,
+        uptime_s=100,
+    )
     second_payload = dict(first_payload)
     second_payload.update(
         {
@@ -699,7 +457,7 @@ def test_device_command_requires_valid_credentials():
     response = client.get("/device/command")
     assert response.status_code == 401
 
-    queue_command("AUTO", target_device=next(iter(DEVICE_KEY_MAP)))
+    queue_command("AUTO", target_device=default_test_device_id())
     good = client.get("/device/command", headers=device_headers())
     assert good.status_code == 200
     assert good.get_json()["command"] == "AUTO"
@@ -708,7 +466,7 @@ def test_device_command_requires_valid_credentials():
 
 
 def test_device_command_queue_keeps_latest_pending_command_per_device():
-    target_device = next(iter(DEVICE_KEY_MAP))
+    target_device = default_test_device_id()
     with get_db() as db:
         db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (target_device,))
 
@@ -1384,8 +1142,15 @@ def test_customer_dashboard_hides_admin_only_panels():
     assert "Return To Auto" in body
     assert "Main Tank" in body
     assert "Source Tank" in body
+    assert "Sync status" in body
+    assert "Pump mode" in body
+    assert "Status Summary" in body
+    assert "Current Use Trend" in body
+    assert "compact-action" in body
     assert 'id="actionHint"' in body
     assert "customer-home-wide" not in body
+    assert "Home Status" not in body
+    assert "Device Forecast" not in body
     assert "Enable Main Simulator" not in body
     assert "Disable Main Simulator" not in body
     assert "Enable Source Simulator" not in body
@@ -2281,7 +2046,7 @@ def test_status_keeps_only_latest_snapshot_when_history_is_disabled(monkeypatch)
     if BASE_URL:
         pytest.skip("Minimal-history storage test is skipped against shared BASE_URL deployments.")
 
-    device_id = next(iter(DEVICE_KEY_MAP))
+    device_id = default_test_device_id()
     monkeypatch.setattr(server_module, "TELEMETRY_HISTORY_ENABLED", False)
 
     with get_db() as db:
@@ -2348,7 +2113,7 @@ def test_status_caps_rows_per_device_when_history_limit_is_enabled(monkeypatch):
     if BASE_URL:
         pytest.skip("Per-device history cap test is skipped against shared BASE_URL deployments.")
 
-    device_id = next(iter(DEVICE_KEY_MAP))
+    device_id = default_test_device_id()
     monkeypatch.setattr(server_module, "TELEMETRY_HISTORY_ENABLED", True)
     monkeypatch.setattr(server_module, "MAX_TELEMETRY_ROWS_PER_DEVICE", 2)
 
@@ -2411,7 +2176,7 @@ def test_status_prunes_old_auxiliary_rows_while_ingesting(monkeypatch):
     if BASE_URL:
         pytest.skip("Retention-pruning test is skipped against shared BASE_URL deployments.")
 
-    device_id = next(iter(DEVICE_KEY_MAP))
+    device_id = default_test_device_id()
     monkeypatch.setattr(server_module, "DEVICE_COMMAND_RETENTION_DAYS", 1)
     monkeypatch.setattr(server_module, "OPS_ALERT_RETENTION_DAYS", 1)
     monkeypatch.setattr(server_module, "OPS_AUDIT_RETENTION_DAYS", 1)

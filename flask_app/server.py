@@ -30,40 +30,24 @@ from jinja2 import TemplateNotFound
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
-
-
-def parse_simple_dotenv(dotenv_path):
-    values = {}
-    try:
-        with dotenv_path.open("r", encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                if not key:
-                    continue
-                value = value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-                    value = value[1:-1]
-                values[key] = value
-    except OSError:
-        return {}
-    return values
+from flask_app.runtime_utils import (
+    db_parent_is_writable,
+    env_flag as runtime_env_flag,
+    load_dotenv_values,
+    normalize_db_path as runtime_normalize_db_path,
+    normalize_http_base_url as runtime_normalize_http_base_url,
+    parse_simple_dotenv,
+)
 
 
 def load_local_env_files():
     module_root = Path(__file__).resolve().parent
     project_root = module_root.parent
-    original_keys = set(os.environ)
-    loaded_keys = set()
-    for dotenv_path in (project_root / ".env", module_root / ".env", project_root / "device.env"):
-        for key, value in parse_simple_dotenv(dotenv_path).items():
-            if key in original_keys and key not in loaded_keys:
-                continue
-            os.environ[key] = value
-            loaded_keys.add(key)
+    load_dotenv_values(
+        (project_root / ".env", module_root / ".env", project_root / "device.env"),
+        environ=os.environ,
+        preserve_existing=True,
+    )
 
 
 load_local_env_files()
@@ -92,31 +76,15 @@ RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
 
 
 def normalize_db_path(raw_path):
-    db_path = Path(raw_path).expanduser()
-    if not db_path.is_absolute():
-        db_path = PROJECT_ROOT / db_path
-    return db_path
+    return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
 
 
 def normalize_http_base_url(value):
-    text = str(value or "").strip()
-    if not text:
-        return None
-    if "://" not in text:
-        text = f"http://{text}"
-
-    parsed = urlparse(text)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return None
-
-    return f"{parsed.scheme}://{parsed.netloc}"
+    return runtime_normalize_http_base_url(value)
 
 
 def env_flag(name, default=False):
-    raw_value = os.environ.get(name)
-    if raw_value is None or str(raw_value).strip() == "":
-        return default
-    return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
+    return runtime_env_flag(name, default=default, environ=os.environ)
 
 
 def strip_ip_address_fields(payload, keep_device_local_url=False):
@@ -127,20 +95,6 @@ def strip_ip_address_fields(payload, keep_device_local_url=False):
     if not keep_device_local_url:
         cleaned["device_local_url"] = None
     return cleaned
-
-
-def db_parent_is_writable(db_path):
-    parent = db_path.parent
-    probe = parent
-    while not probe.exists() and probe != probe.parent:
-        probe = probe.parent
-    try:
-        if not os.access(probe, os.W_OK):
-            return False
-        parent.mkdir(parents=True, exist_ok=True)
-        return True
-    except OSError:
-        return False
 
 
 def is_render_persistent_db_path(db_path):
@@ -1040,13 +994,12 @@ LOGIN_TEMPLATE_FALLBACK = """<!DOCTYPE html>
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--primary);margin:0 0 10px}.title{font-size:34px;font-weight:700;margin:0 0 8px}.muted{margin:0 0 18px;color:var(--muted);line-height:1.5}
 form{display:grid;gap:14px}.group{display:grid;gap:6px}.group label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.22);background:rgba(8,17,31,.78);color:var(--text)}
-button{border:none;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:12px 16px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:12px 16px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
+button{border:none;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;justify-self:start}
+a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
 .error{padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.24);color:#fecaca}
 .hint{margin-top:14px;font-size:13px;color:var(--muted)}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+@media (max-width:560px){button,a{width:100%;justify-content:center}.row{display:grid}.row a{width:100%}}
 </style>
 </head>
 <body>
@@ -1054,12 +1007,9 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
     <div class="eyebrow">Smart Water Tank</div>
     <h1 class="title">{{ login_title }}</h1>
     <p class="muted">{{ login_description }}</p>
-    <h1 class="title">{{ login_title }}</h1>
-    <p class="muted">{{ login_description }}</p>
     {% if error %}
     <div class="error">{{ error }}</div>
     {% endif %}
-    <form method="post" action="{{ login_action }}">
     <form method="post" action="{{ login_action }}">
         <input type="hidden" name="next" value="{{ next_url }}">
         <div class="group">
@@ -1072,10 +1022,6 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
         </div>
         <button type="submit">Sign In</button>
     </form>
-    <div class="row">
-        <a href="{{ switch_href }}">{{ switch_label }}</a>
-    </div>
-    <div class="hint">{% if login_mode == "admin" %}Use the admin dashboard account here. Customers should sign in from the customer page with their exact device ID.{% else %}Customer usernames must exactly match the registered device_id, for example swt-000-000-000-001.{% endif %}</div>
     <div class="row">
         <a href="{{ switch_href }}">{{ switch_label }}</a>
     </div>
