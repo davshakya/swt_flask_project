@@ -42,6 +42,14 @@ services:
         value: 1000
       - key: REQUIRE_RENDER_PERSISTENT_DB
         value: false
+      - key: SWT_DEVICE_SOURCE_MODE
+        value: real
+      - key: RESET_DEVICE_SOURCE_MODE_ON_BOOT
+        value: true
+      - key: SEED_VIRTUAL_DEVICE_ENVS
+        value: false
+      - key: PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT
+        value: true
       - key: LOG_LEVEL
         value: warning
       - key: GUNICORN_ACCESS_LOG_ENABLED

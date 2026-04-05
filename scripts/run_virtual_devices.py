@@ -533,8 +533,14 @@ class VirtualDevice:
         return ((self.config.usage_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters) * 100.0
 
     def source_recovery_percent_per_hour(self) -> float:
+        # Keep the source tank in a steady auto refill/drain cycle even when older env files
+        # still use a recovery rate that is too low to sustain the default main-tank usage.
+        recovery_liters_per_hour = max(
+            self.config.source_recovery_liters_per_hour,
+            self.config.usage_liters_per_hour,
+        )
         return (
-            (self.config.source_recovery_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters
+            (recovery_liters_per_hour * self.config.time_scale) / self.config.tank_capacity_liters
         ) * 100.0
 
     def set_note(self, text: str, tone: str = "info", ttl_seconds: float = 25.0) -> None:
@@ -1084,7 +1090,7 @@ def build_parser(environ: Any = None) -> argparse.ArgumentParser:
     parser.add_argument(
         "--source-recovery-liters-per-hour",
         type=float,
-        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=18.0, environ=environ),
+        default=env_float("SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR", default=34.0, environ=environ),
     )
     parser.add_argument(
         "--time-scale",

@@ -136,6 +136,9 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_URL`: Optional fixed device URL used when building firmware update redirects.
 - `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/run_virtual_devices.py`.
+- `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
+- `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
+- `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
 
 ### Storage and retention
 
@@ -324,6 +327,8 @@ The emulator automatically scans `tests/virtual_devices/*.env` and starts one vi
 Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
 
 Virtual devices stay on the local Flask server by default. `scripts/run_virtual_devices.py` uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, and otherwise falls back to `http://127.0.0.1:8000/`; it does not fall back to `SWT_CLOUD_BASE_URL`.
+
+On Render/cloud deployments, Flask now ignores `tests/virtual_device*.env` for registration by default and purges those configured virtual-device records on boot, so the shared cloud server stays focused on the real device configuration.
 
 If you want separate steps for fleet testing, generate the env files first:
 

@@ -463,6 +463,9 @@ DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERV
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
+SEED_VIRTUAL_DEVICE_ENVS = env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
+RESET_DEVICE_SOURCE_MODE_ON_BOOT = env_flag("RESET_DEVICE_SOURCE_MODE_ON_BOOT", default=IS_RENDER)
 CONTROL_POLICY = "AUTO_PROTECTED"
 DEFAULT_DEVICE_SOURCE_MODE = (
     DEVICE_SOURCE_VIRTUAL
@@ -886,6 +889,17 @@ def relative_to_project_or_str(path):
         return str(path)
 
 
+def configured_virtual_device_ids():
+    seen_device_ids = set()
+    for env_path in iter_virtual_device_env_paths():
+        env_values = parse_simple_dotenv(env_path)
+        normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
+        if not normalized_device_id or normalized_device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(normalized_device_id)
+        yield normalized_device_id
+
+
 def seed_registered_devices_from_configuration():
     seeded_device_ids = set()
     ignored_device_ids = list_ignored_device_ids()
@@ -905,21 +919,72 @@ def seed_registered_devices_from_configuration():
         )
         seeded_device_ids.add(normalized_device_id)
 
-    for env_path in iter_virtual_device_env_paths():
-        env_values = parse_simple_dotenv(env_path)
-        normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
-        if (
-            not normalized_device_id
-            or normalized_device_id in seeded_device_ids
-            or normalized_device_id in ignored_device_ids
-        ):
-            continue
-        remember_registered_device(
-            normalized_device_id,
-            registration_source="virtual_device_env",
-            key_rule=relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
-        )
-        seeded_device_ids.add(normalized_device_id)
+    if SEED_VIRTUAL_DEVICE_ENVS:
+        for env_path in iter_virtual_device_env_paths():
+            env_values = parse_simple_dotenv(env_path)
+            normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
+            if (
+                not normalized_device_id
+                or normalized_device_id in seeded_device_ids
+                or normalized_device_id in ignored_device_ids
+            ):
+                continue
+            remember_registered_device(
+                normalized_device_id,
+                registration_source="virtual_device_env",
+                key_rule=relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
+            )
+            seeded_device_ids.add(normalized_device_id)
+
+
+def purge_configured_virtual_device_records():
+    if not PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT:
+        return {"device_ids": 0}
+
+    virtual_device_ids = list(configured_virtual_device_ids())
+    if not virtual_device_ids:
+        return {"device_ids": 0}
+
+    deleted_counts = {
+        "device_ids": len(virtual_device_ids),
+        "customer_accounts": 0,
+        "registered_devices": 0,
+        "tank_data": 0,
+        "device_command_queue": 0,
+        "ops_alerts": 0,
+        "ops_audit_log": 0,
+        "ignored_devices": 0,
+    }
+
+    with get_db() as db:
+        for normalized_device_id in virtual_device_ids:
+            deleted_counts["customer_accounts"] += int(
+                db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["registered_devices"] += int(
+                db.execute("DELETE FROM registered_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["tank_data"] += int(
+                db.execute("DELETE FROM tank_data WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["device_command_queue"] += int(
+                db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ops_alerts"] += int(
+                db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ops_audit_log"] += int(
+                db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ignored_devices"] += int(
+                db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+
+    for normalized_device_id in virtual_device_ids:
+        forget_registered_device_touch(normalized_device_id)
+        clear_runtime_caches(normalized_device_id)
+
+    return deleted_counts
 
 
 def delete_known_device(device_id):
@@ -2772,6 +2837,13 @@ def init_db():
             """
         )
 
+    maybe_reset_device_source_mode_on_boot()
+    deleted_counts = purge_configured_virtual_device_records()
+    if deleted_counts.get("device_ids"):
+        logger.info(
+            "Purged %s configured virtual devices from startup database state.",
+            deleted_counts["device_ids"],
+        )
     seed_registered_devices_from_configuration()
     logger.info("Database initialization complete")
 
@@ -2802,6 +2874,20 @@ def set_app_setting(key, value):
 def delete_app_setting(key):
     with get_db() as db:
         db.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+
+
+def maybe_reset_device_source_mode_on_boot():
+    if not RESET_DEVICE_SOURCE_MODE_ON_BOOT:
+        return
+    current_mode = get_app_setting(DEVICE_SOURCE_MODE_SETTING)
+    if normalize_device_source(current_mode, default=DEFAULT_DEVICE_SOURCE_MODE) == DEFAULT_DEVICE_SOURCE_MODE:
+        return
+    set_app_setting(DEVICE_SOURCE_MODE_SETTING, DEFAULT_DEVICE_SOURCE_MODE)
+    clear_runtime_caches()
+    logger.info(
+        "Device source mode reset to %s from startup configuration.",
+        DEFAULT_DEVICE_SOURCE_MODE,
+    )
 
 
 def get_device_source_mode():

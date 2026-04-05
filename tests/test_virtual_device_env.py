@@ -219,6 +219,39 @@ def test_virtual_device_time_scale_accelerates_fill_and_drain():
     assert fast_fill.level > slow_fill.level
 
 
+def test_virtual_device_main_and_source_tanks_keep_auto_cycling_with_legacy_source_recovery():
+    config = virtual_device.build_config_from_env(
+        {
+            "SWT_VIRTUAL_DEVICE_ID": "swt-cycle-001",
+            "SWT_VIRTUAL_DEVICE_KEY": "cycle-key",
+            "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
+            "SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK": "true",
+            "SWT_VIRTUAL_DEVICE_SOURCE_RECOVERY_LITERS_PER_HOUR": "18",
+        }
+    )
+
+    device = virtual_device.VirtualDevice(config)
+    motor_transitions = 0
+    main_levels = [device.level]
+    source_levels = [device.source_level]
+
+    for _step in range(24 * 60):
+        previous_motor = device.motor_on
+        device.update_simulation(60.0, services_online=True)
+        if device.motor_on != previous_motor:
+            motor_transitions += 1
+        main_levels.append(device.level)
+        source_levels.append(device.source_level)
+
+    source_series = [level for level in source_levels if level is not None]
+
+    assert motor_transitions >= 6
+    assert max(main_levels) - min(main_levels) >= 50.0
+    assert max(source_series) - min(source_series) >= 50.0
+    assert device.level > 20.0
+    assert device.source_level is not None and device.source_level > config.source_min_run_percent
+
+
 def test_sync_virtual_device_envs_to_local_registry_restores_deleted_devices(tmp_path):
     (tmp_path / "device.env").write_text("DB_FILE=data/test.db\n", encoding="utf-8")
 

@@ -1986,6 +1986,40 @@ def test_admin_customers_page_registers_virtual_device_env_entries(tmp_path, mon
     assert row["registration_source"] == "virtual_device_env"
 
 
+def test_admin_customers_page_skips_virtual_device_env_entries_when_seeding_is_disabled(tmp_path, monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual-device env registration UI test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-virtual-admin-disabled-010"
+    with get_db() as db:
+        db.execute("DELETE FROM registered_devices WHERE device_id = ?", (device_id,))
+
+    tests_root = tmp_path / "tests"
+    virtual_devices_dir = tests_root / "virtual_devices"
+    virtual_devices_dir.mkdir(parents=True)
+    (virtual_devices_dir / "device-010.env").write_text(
+        f"SWT_VIRTUAL_DEVICE_ID={device_id}\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(server_module, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "SEED_VIRTUAL_DEVICE_ENVS", False)
+
+    admin_client = make_admin_client()
+    response = admin_client.get("/admin/customers")
+    assert response.status_code == 200
+
+    body = response.get_data(as_text=True)
+    assert device_id not in body
+
+    with get_db() as db:
+        row = db.execute(
+            "SELECT registration_source FROM registered_devices WHERE device_id = ?",
+            (device_id,),
+        ).fetchone()
+    assert row is None
+
+
 def test_admin_delete_known_device_removes_device_records():
     if BASE_URL:
         pytest.skip("Admin delete-known-device test is skipped against shared BASE_URL deployments.")
@@ -2108,6 +2142,88 @@ def test_admin_delete_known_device_hides_virtual_env_device_until_readded(tmp_pa
         ignored_row = db.execute("SELECT note FROM ignored_devices WHERE device_id = ?", (device_id,)).fetchone()
     assert ignored_row
     assert ignored_row["note"] == "admin_delete"
+
+
+def test_purge_configured_virtual_device_records_removes_virtual_device_rows(tmp_path, monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual-device purge test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-virtual-purge-001"
+    tests_root = tmp_path / "tests"
+    virtual_devices_dir = tests_root / "virtual_devices"
+    virtual_devices_dir.mkdir(parents=True)
+    (virtual_devices_dir / "device-001.env").write_text(
+        f"SWT_VIRTUAL_DEVICE_ID={device_id}\n",
+        encoding="utf-8",
+    )
+
+    temp_db_path = tmp_path / "data" / "purge-virtual-devices.db"
+    monkeypatch.setattr(server_module, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "DB_PATH", temp_db_path)
+    monkeypatch.setattr(server_module, "DB_FILE", str(temp_db_path))
+    monkeypatch.setattr(server_module, "SEED_VIRTUAL_DEVICE_ENVS", False)
+    monkeypatch.setattr(server_module, "PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", False)
+    server_module.init_db()
+
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
+            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            """,
+            (device_id, "Virtual Purge Device", generate_password_hash("VirtualPurge2026!")),
+        )
+        db.execute(
+            """
+            INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
+            VALUES (?, 'virtual_device_env', 'tests/virtual_devices/device-001.env', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute("INSERT INTO tank_data(device_id, created_at) VALUES (?, CURRENT_TIMESTAMP)", (device_id,))
+        db.execute("INSERT INTO device_command_queue(target_device, command) VALUES (?, ?)", (device_id, "AUTO"))
+        db.execute(
+            """
+            INSERT INTO ops_alerts(device_id, kind, severity, message, active, created_at, updated_at)
+            VALUES (?, 'virtual_cleanup', 'warning', 'cleanup me', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+        db.execute(
+            """
+            INSERT INTO ops_audit_log(actor, action, target_type, target_id, device_id, details, created_at)
+            VALUES ('admin', 'seed_virtual_device', 'device', ?, ?, '{}', CURRENT_TIMESTAMP)
+            """,
+            (device_id, device_id),
+        )
+        db.execute(
+            """
+            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+            VALUES (?, 'seed_virtual_device', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (device_id,),
+        )
+
+    monkeypatch.setattr(server_module, "PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", True)
+    deleted_counts = server_module.purge_configured_virtual_device_records()
+
+    assert deleted_counts["device_ids"] == 1
+    assert deleted_counts["customer_accounts"] == 1
+    assert deleted_counts["registered_devices"] == 1
+    assert deleted_counts["tank_data"] == 1
+    assert deleted_counts["device_command_queue"] == 1
+    assert deleted_counts["ops_alerts"] == 1
+    assert deleted_counts["ops_audit_log"] == 1
+    assert deleted_counts["ignored_devices"] == 1
+
+    with get_db() as db:
+        assert db.execute("SELECT 1 FROM customer_accounts WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM registered_devices WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM tank_data WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM device_command_queue WHERE target_device = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM ops_alerts WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM ops_audit_log WHERE device_id = ?", (device_id,)).fetchone() is None
+        assert db.execute("SELECT 1 FROM ignored_devices WHERE device_id = ?", (device_id,)).fetchone() is None
 
 
 def test_admin_device_dashboard_redirects_to_device_detail():
