@@ -461,6 +461,7 @@ DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER e
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
+DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
 CONTROL_POLICY = "AUTO_PROTECTED"
 DEFAULT_DEVICE_SOURCE_MODE = (
@@ -503,6 +504,7 @@ MQTT_KEEPALIVE_SEC = max(15, env_int("MQTT_KEEPALIVE_SEC", 30))
 MQTT_QOS = max(0, min(2, env_int("MQTT_QOS", 1)))
 MQTT_COMMAND_RETAIN = os.environ.get("MQTT_COMMAND_RETAIN", "true").lower() in {"1", "true", "yes", "on"}
 REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS = max(0, env_int("REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 30))
+ALERT_TOUCH_INTERVAL_SECONDS = max(0, env_int("ALERT_TOUCH_INTERVAL_SECONDS", 30))
 
 
 APP_LOG_LEVEL_NAME = (os.environ.get("APP_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or ("warning" if IS_RENDER else "info")).strip().upper()
@@ -513,6 +515,7 @@ logger = logging.getLogger("tank_server")
 relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
+db_prune_lock = threading.Lock()
 relay_state = {
     "last_success_at": None,
     "last_error_at": None,
@@ -524,6 +527,8 @@ mqtt_client = None
 mqtt_started = False
 registered_device_touch_lock = threading.Lock()
 registered_device_touch_cache = {}
+alert_touch_lock = threading.Lock()
+alert_touch_cache = {}
 mqtt_state = {
     "enabled": MQTT_ENABLED and bool(MQTT_BROKER_HOST),
     "connected": False,
@@ -536,6 +541,11 @@ db_maintenance_state = {
     "last_reason": None,
     "last_error": None,
     "last_total_bytes": 0,
+}
+db_prune_state = {
+    "last_run_at": 0.0,
+    "last_pruned_rows": 0,
+    "last_error": None,
 }
 
 
@@ -716,6 +726,7 @@ def remember_ignored_device(device_id, note=None):
             (normalized_device_id, str(note or "").strip() or None),
         )
     forget_registered_device_touch(normalized_device_id)
+    forget_alert_touches_for_device(normalized_device_id)
 
 
 def forget_ignored_device(device_id):
@@ -761,6 +772,61 @@ def forget_registered_device_touch(device_id):
 def database_is_locked_error(exc):
     message = str(exc or "").strip().lower()
     return "database is locked" in message or "database table is locked" in message or "database is busy" in message
+
+
+def alert_touch_key(kind, device_id=None):
+    normalized_kind = str(kind or "").strip().lower()
+    normalized_device_id = normalize_device_id(device_id) or ""
+    return normalized_kind, normalized_device_id
+
+
+def should_skip_alert_touch(kind, severity, message, device_id=None, active=True):
+    if ALERT_TOUCH_INTERVAL_SECONDS <= 0:
+        return False
+    cache_key = alert_touch_key(kind, device_id)
+    now = time.monotonic()
+    with alert_touch_lock:
+        cached = alert_touch_cache.get(cache_key)
+        if not cached:
+            return False
+        if cached.get("severity") != severity:
+            return False
+        if cached.get("message") != message:
+            return False
+        if bool(cached.get("active")) != bool(active):
+            return False
+        return (now - float(cached.get("touched_at") or 0.0)) < ALERT_TOUCH_INTERVAL_SECONDS
+
+
+def note_alert_touch(kind, severity, message, device_id=None, active=True):
+    cache_key = alert_touch_key(kind, device_id)
+    with alert_touch_lock:
+        alert_touch_cache[cache_key] = {
+            "severity": severity,
+            "message": message,
+            "active": bool(active),
+            "touched_at": time.monotonic(),
+        }
+
+
+def forget_alert_touch(kind, device_id=None):
+    cache_key = alert_touch_key(kind, device_id)
+    with alert_touch_lock:
+        alert_touch_cache.pop(cache_key, None)
+
+
+def forget_alert_touches_for_device(device_id=None):
+    if device_id is None:
+        with alert_touch_lock:
+            alert_touch_cache.clear()
+        return
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with alert_touch_lock:
+        doomed_keys = [key for key in alert_touch_cache if key[1] == normalized_device_id]
+        for key in doomed_keys:
+            alert_touch_cache.pop(key, None)
 
 
 def remember_registered_device(device_id, registration_source, key_rule=None, best_effort=False):
@@ -936,11 +1002,13 @@ def clear_runtime_caches(device_id=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         dashboard_snapshot_cache.clear()
+        forget_alert_touches_for_device()
         return
     for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
         dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
+    forget_alert_touches_for_device(normalized_device_id)
 
 
 def current_user_role():
@@ -1980,6 +2048,53 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
     return pruned
 
 
+def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
+    now = time.time()
+    if (
+        not force
+        and DB_PRUNE_MIN_INTERVAL_SECONDS > 0
+        and (now - float(db_prune_state.get("last_run_at") or 0.0)) < DB_PRUNE_MIN_INTERVAL_SECONDS
+    ):
+        return {}
+
+    if not db_prune_lock.acquire(blocking=False):
+        return {}
+
+    try:
+        now = time.time()
+        if (
+            not force
+            and DB_PRUNE_MIN_INTERVAL_SECONDS > 0
+            and (now - float(db_prune_state.get("last_run_at") or 0.0)) < DB_PRUNE_MIN_INTERVAL_SECONDS
+        ):
+            return {}
+
+        with get_db() as db:
+            cursor = db.cursor()
+            pruned = prune_retained_rows(
+                cursor,
+                device_id=device_id,
+                latest_row_id=latest_row_id,
+            )
+
+        pruned_rows = sum(int(value or 0) for value in pruned.values())
+        db_prune_state.update(
+            {
+                "last_run_at": now,
+                "last_pruned_rows": pruned_rows,
+                "last_error": None,
+            }
+        )
+        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows)
+        return pruned
+    except Exception as exc:
+        db_prune_state["last_error"] = str(exc)
+        logger.warning("Retention prune failed: %s", exc)
+        return {}
+    finally:
+        db_prune_lock.release()
+
+
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
     if not DB_MAINTENANCE_ENABLED and not force:
         return False
@@ -2080,7 +2195,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
 
-    pruned_counts = {}
+    latest_row_id = None
     with get_db() as db:
         cursor = db.cursor()
         cursor.execute(
@@ -2152,14 +2267,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("lower_tank_service"),
             ),
         )
-        pruned_counts = prune_retained_rows(
-            cursor,
-            device_id=cleaned.get("device_id"),
-            latest_row_id=cursor.lastrowid,
-        )
+        latest_row_id = cursor.lastrowid
 
-    pruned_rows = sum(int(value or 0) for value in pruned_counts.values())
-    maybe_maintain_database(reason="telemetry-ingest", pruned_rows=pruned_rows)
+    maybe_prune_retained_rows(
+        device_id=cleaned.get("device_id"),
+        latest_row_id=latest_row_id,
+    )
     clear_runtime_caches(cleaned.get("device_id"))
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
@@ -4101,28 +4214,66 @@ def fetch_audit_events(limit=30, device_id=None):
     return events
 
 
-def set_alert(kind, severity, message, device_id=None, active=True):
-    with get_db() as db:
-        existing = db.execute(
-            """
-            SELECT id, active, message, severity
-            FROM ops_alerts
-            WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '')
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (kind, device_id),
-        ).fetchone()
+def set_alert(kind, severity, message, device_id=None, active=True, best_effort=False):
+    normalized_device_id = normalize_device_id(device_id)
+    if should_skip_alert_touch(
+        kind,
+        severity,
+        message,
+        device_id=normalized_device_id,
+        active=active,
+    ):
+        return
 
-        if active:
-            if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
-                db.execute(
-                    "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (existing["id"],),
+    webhook_payload = None
+    try:
+        with get_db() as db:
+            existing = db.execute(
+                """
+                SELECT id, active, message, severity
+                FROM ops_alerts
+                WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '')
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (kind, normalized_device_id),
+            ).fetchone()
+
+            if active:
+                if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
+                    db.execute(
+                        "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (existing["id"],),
+                    )
+                    note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+                    return
+
+                if existing and int(existing["active"]) == 1:
+                    db.execute(
+                        """
+                        UPDATE ops_alerts
+                        SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (existing["id"],),
+                    )
+
+                cursor = db.execute(
+                    """
+                    INSERT INTO ops_alerts (device_id, kind, severity, message, active)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    (normalized_device_id, kind, severity, message),
                 )
-                return
-
-            if existing and int(existing["active"]) == 1:
+                webhook_payload = {
+                    "id": cursor.lastrowid,
+                    "device_id": normalized_device_id,
+                    "kind": kind,
+                    "severity": severity,
+                    "message": message,
+                    "active": True,
+                }
+            elif existing and int(existing["active"]) == 1:
                 db.execute(
                     """
                     UPDATE ops_alerts
@@ -4131,39 +4282,25 @@ def set_alert(kind, severity, message, device_id=None, active=True):
                     """,
                     (existing["id"],),
                 )
-
-            cursor = db.execute(
-                """
-                INSERT INTO ops_alerts (device_id, kind, severity, message, active)
-                VALUES (?, ?, ?, ?, 1)
-                """,
-                (device_id, kind, severity, message),
+    except sqlite3.OperationalError as exc:
+        if best_effort and database_is_locked_error(exc):
+            note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+            logger.warning(
+                "Skipping alert bookkeeping for %s/%s because the SQLite database is busy.",
+                str(kind or "").strip() or "alert",
+                normalized_device_id or "global",
             )
-            alert_id = cursor.lastrowid
-            send_alert_webhook({
-                "id": alert_id,
-                "device_id": device_id,
-                "kind": kind,
-                "severity": severity,
-                "message": message,
-                "active": True,
-            })
             return
+        raise
 
-        if existing and int(existing["active"]) == 1:
-            db.execute(
-                """
-                UPDATE ops_alerts
-                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                (existing["id"],),
-            )
+    note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+    if webhook_payload:
+        send_alert_webhook(webhook_payload)
 
 
 def evaluate_snapshot_alerts(snapshot):
     if not snapshot:
-        set_alert("telemetry_stale", "danger", "No telemetry has been received yet.", active=True)
+        set_alert("telemetry_stale", "danger", "No telemetry has been received yet.", active=True, best_effort=True)
         return
 
     device_id = snapshot.get("device_id")
@@ -4174,6 +4311,7 @@ def evaluate_snapshot_alerts(snapshot):
         f"Telemetry is stale for device {device_id or 'unknown device'}.",
         device_id=device_id,
         active=stale,
+        best_effort=True,
     )
     set_alert(
         "pump_failure",
@@ -4181,6 +4319,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Pump failure reported by firmware.",
         device_id=device_id,
         active=bool_flag(snapshot.get("pump_failure")),
+        best_effort=True,
     )
     set_alert(
         "dry_run",
@@ -4188,6 +4327,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Dry-run protection triggered.",
         device_id=device_id,
         active=bool_flag(snapshot.get("dry_run")),
+        best_effort=True,
     )
     leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak"))
     set_alert(
@@ -4196,6 +4336,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Leak-related alert reported by firmware.",
         device_id=device_id,
         active=leak_active,
+        best_effort=True,
     )
     sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""}
     set_alert(
@@ -4204,6 +4345,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Main tank sensor needs attention.",
         device_id=device_id,
         active=sensor_bad,
+        best_effort=True,
     )
 
 

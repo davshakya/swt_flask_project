@@ -405,6 +405,140 @@ def test_remember_registered_device_best_effort_ignores_locked_database(monkeypa
     server_module.forget_registered_device_touch(device_id)
 
 
+def test_set_alert_throttles_repeated_identical_updates(monkeypatch):
+    class DummyCursor:
+        def __init__(self, row=None, lastrowid=None):
+            self._row = row
+            self.lastrowid = lastrowid
+
+        def fetchone(self):
+            return self._row
+
+    class RecordingDb:
+        def __init__(self):
+            self.execute_calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params):
+            self.execute_calls.append((query, params))
+            compact_query = " ".join(str(query).split())
+            if "SELECT id, active, message, severity FROM ops_alerts" in compact_query:
+                return DummyCursor(row=None)
+            if "INSERT INTO ops_alerts" in compact_query:
+                return DummyCursor(lastrowid=101)
+            return DummyCursor()
+
+    device_id = "swt-node-alert-touch"
+    recorder = RecordingDb()
+    monkeypatch.setattr(server_module, "ALERT_TOUCH_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "get_db", lambda: recorder)
+    monkeypatch.setattr(server_module, "send_alert_webhook", lambda payload: None)
+    server_module.forget_alert_touches_for_device(device_id)
+
+    server_module.set_alert(
+        "telemetry_stale",
+        "danger",
+        "Telemetry is stale for device swt-node-alert-touch.",
+        device_id=device_id,
+        active=True,
+    )
+    server_module.set_alert(
+        "telemetry_stale",
+        "danger",
+        "Telemetry is stale for device swt-node-alert-touch.",
+        device_id=device_id,
+        active=True,
+    )
+
+    assert len(recorder.execute_calls) == 2
+    assert recorder.execute_calls[0][1] == ("telemetry_stale", device_id)
+    assert recorder.execute_calls[1][1] == (device_id, "telemetry_stale", "danger", "Telemetry is stale for device swt-node-alert-touch.")
+    server_module.forget_alert_touches_for_device(device_id)
+
+
+def test_evaluate_snapshot_alerts_best_effort_ignores_locked_database(monkeypatch):
+    class LockedDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, _query, _params):
+            raise sqlite3.OperationalError("database is locked")
+
+    device_id = "swt-node-alert-lock"
+    monkeypatch.setattr(server_module, "ALERT_TOUCH_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "get_db", lambda: LockedDb())
+    monkeypatch.setattr(server_module, "send_alert_webhook", lambda payload: None)
+    server_module.forget_alert_touches_for_device(device_id)
+
+    server_module.evaluate_snapshot_alerts(
+        {
+            "device_id": device_id,
+            "telemetry_status": "stale",
+            "pump_failure": "NO",
+            "dry_run": "NO",
+            "leak": "NO",
+            "drip": "NO",
+            "slow_leak": "NO",
+            "pipe_leak": "NO",
+            "sensor": "OK",
+        }
+    )
+
+    cached = server_module.alert_touch_cache.get(("telemetry_stale", device_id))
+    assert cached is not None
+    assert cached["active"] is True
+    assert cached["severity"] == "danger"
+    server_module.forget_alert_touches_for_device(device_id)
+
+
+def test_maybe_prune_retained_rows_throttles_repeated_runs(monkeypatch):
+    class DummyDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            return object()
+
+    prune_calls = []
+    maintenance_calls = []
+    original_state = dict(server_module.db_prune_state)
+    monkeypatch.setattr(server_module, "DB_PRUNE_MIN_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "get_db", lambda: DummyDb())
+    monkeypatch.setattr(
+        server_module,
+        "prune_retained_rows",
+        lambda cursor, device_id=None, latest_row_id=None: (
+            prune_calls.append((device_id, latest_row_id)) or {"tank_data_retention": 1}
+        ),
+    )
+    monkeypatch.setattr(
+        server_module,
+        "maybe_maintain_database",
+        lambda reason="periodic", pruned_rows=0, force=False: maintenance_calls.append((reason, pruned_rows, force)),
+    )
+    server_module.db_prune_state.update({"last_run_at": 0.0, "last_pruned_rows": 0, "last_error": None})
+
+    first = server_module.maybe_prune_retained_rows(device_id="swt-node-01", latest_row_id=101)
+    second = server_module.maybe_prune_retained_rows(device_id="swt-node-01", latest_row_id=102)
+
+    assert first == {"tank_data_retention": 1}
+    assert second == {}
+    assert prune_calls == [("swt-node-01", 101)]
+    assert maintenance_calls == [("telemetry-retention", 1, False)]
+    server_module.db_prune_state.update(original_state)
+
+
 def test_device_status_accepts_valid_credentials_and_persists_device_metadata():
     device_id = default_test_device_id()
     payload = build_status_payload(

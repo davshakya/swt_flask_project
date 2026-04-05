@@ -1,6 +1,26 @@
 import os
 
-from flask_app.runtime_utils import env_flag, env_int
+
+def env_flag(name, default=False):
+    raw_value = os.environ.get(name)
+    if raw_value is None or str(raw_value).strip() == "":
+        return default
+    return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def env_int(name, default):
+    raw_value = os.environ.get(name)
+    if raw_value is None:
+        return default
+
+    text = str(raw_value).strip()
+    if not text:
+        return default
+
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return default
 
 
 bind = f"0.0.0.0:{env_int('PORT', 8000)}"
