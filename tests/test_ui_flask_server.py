@@ -342,6 +342,69 @@ def test_device_status_accepts_wildcard_registered_device_id(monkeypatch):
     assert server_module.relay_headers_for_device(device_id)["X-Device-Key"] == device_key
 
 
+def test_remember_registered_device_throttles_repeated_updates(monkeypatch):
+    class RecordingDb:
+        def __init__(self):
+            self.execute_calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, query, params):
+            self.execute_calls.append((query, params))
+            return self
+
+    device_id = "swt-node-touch-test"
+    recorder = RecordingDb()
+    monkeypatch.setattr(server_module, "REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "device_is_ignored", lambda device_id, ignored_device_ids=None: False)
+    monkeypatch.setattr(server_module, "get_db", lambda: recorder)
+    server_module.forget_registered_device_touch(device_id)
+
+    server_module.remember_registered_device(device_id, "device_keys_exact", key_rule=device_id)
+    server_module.remember_registered_device(device_id, "device_keys_exact", key_rule=device_id)
+    server_module.remember_registered_device(device_id, "device_keys_wildcard", key_rule="swt-node-*")
+
+    assert len(recorder.execute_calls) == 2
+    assert recorder.execute_calls[0][1] == (device_id, "device_keys_exact", device_id)
+    assert recorder.execute_calls[1][1] == (device_id, "device_keys_wildcard", "swt-node-*")
+    server_module.forget_registered_device_touch(device_id)
+
+
+def test_remember_registered_device_best_effort_ignores_locked_database(monkeypatch):
+    class LockedDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def execute(self, _query, _params):
+            raise sqlite3.OperationalError("database is locked")
+
+    device_id = "swt-node-lock-test"
+    monkeypatch.setattr(server_module, "REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "device_is_ignored", lambda device_id, ignored_device_ids=None: False)
+    monkeypatch.setattr(server_module, "get_db", lambda: LockedDb())
+    server_module.forget_registered_device_touch(device_id)
+
+    server_module.remember_registered_device(
+        device_id,
+        "device_keys_exact",
+        key_rule=device_id,
+        best_effort=True,
+    )
+
+    cached = server_module.registered_device_touch_cache.get(device_id)
+    assert cached is not None
+    assert cached["registration_source"] == "device_keys_exact"
+    assert cached["key_rule"] == device_id
+    server_module.forget_registered_device_touch(device_id)
+
+
 def test_device_status_accepts_valid_credentials_and_persists_device_metadata():
     device_id = default_test_device_id()
     payload = build_status_payload(

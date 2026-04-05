@@ -502,6 +502,7 @@ MQTT_TOPIC_PREFIX = os.environ.get("MQTT_TOPIC_PREFIX", "swt").strip().strip("/"
 MQTT_KEEPALIVE_SEC = max(15, env_int("MQTT_KEEPALIVE_SEC", 30))
 MQTT_QOS = max(0, min(2, env_int("MQTT_QOS", 1)))
 MQTT_COMMAND_RETAIN = os.environ.get("MQTT_COMMAND_RETAIN", "true").lower() in {"1", "true", "yes", "on"}
+REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS = max(0, env_int("REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 30))
 
 
 APP_LOG_LEVEL_NAME = (os.environ.get("APP_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or ("warning" if IS_RENDER else "info")).strip().upper()
@@ -521,6 +522,8 @@ relay_state = {
 mqtt_lock = threading.Lock()
 mqtt_client = None
 mqtt_started = False
+registered_device_touch_lock = threading.Lock()
+registered_device_touch_cache = {}
 mqtt_state = {
     "enabled": MQTT_ENABLED and bool(MQTT_BROKER_HOST),
     "connected": False,
@@ -712,6 +715,7 @@ def remember_ignored_device(device_id, note=None):
             """,
             (normalized_device_id, str(note or "").strip() or None),
         )
+    forget_registered_device_touch(normalized_device_id)
 
 
 def forget_ignored_device(device_id):
@@ -722,23 +726,73 @@ def forget_ignored_device(device_id):
         db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
 
 
-def remember_registered_device(device_id, registration_source, key_rule=None):
+def should_skip_registered_device_touch(device_id, registration_source, key_rule):
+    if REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS <= 0:
+        return False
+    now = time.monotonic()
+    with registered_device_touch_lock:
+        cached = registered_device_touch_cache.get(device_id)
+        if not cached:
+            return False
+        if cached.get("registration_source") != registration_source:
+            return False
+        if cached.get("key_rule") != key_rule:
+            return False
+        return (now - float(cached.get("touched_at") or 0.0)) < REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS
+
+
+def note_registered_device_touch(device_id, registration_source, key_rule):
+    with registered_device_touch_lock:
+        registered_device_touch_cache[device_id] = {
+            "registration_source": registration_source,
+            "key_rule": key_rule,
+            "touched_at": time.monotonic(),
+        }
+
+
+def forget_registered_device_touch(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with registered_device_touch_lock:
+        registered_device_touch_cache.pop(normalized_device_id, None)
+
+
+def database_is_locked_error(exc):
+    message = str(exc or "").strip().lower()
+    return "database is locked" in message or "database table is locked" in message or "database is busy" in message
+
+
+def remember_registered_device(device_id, registration_source, key_rule=None, best_effort=False):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id or device_is_ignored(normalized_device_id):
         return
-    with get_db() as db:
-        db.execute(
-            """
-            INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT(device_id) DO UPDATE SET
-                registration_source=excluded.registration_source,
-                key_rule=excluded.key_rule,
-                last_seen_at=CURRENT_TIMESTAMP,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (normalized_device_id, registration_source, key_rule),
-        )
+    if should_skip_registered_device_touch(normalized_device_id, registration_source, key_rule):
+        return
+    try:
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    registration_source=excluded.registration_source,
+                    key_rule=excluded.key_rule,
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, registration_source, key_rule),
+            )
+    except sqlite3.OperationalError as exc:
+        if best_effort and database_is_locked_error(exc):
+            note_registered_device_touch(normalized_device_id, registration_source, key_rule)
+            logger.warning(
+                "Skipping registered device bookkeeping for %s because the SQLite database is busy.",
+                normalized_device_id,
+            )
+            return
+        raise
+    note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
 
 def iter_virtual_device_env_paths():
@@ -849,6 +903,7 @@ def delete_known_device(device_id):
             ).rowcount or 0
         )
 
+    forget_registered_device_touch(normalized_device_id)
     clear_runtime_caches(normalized_device_id)
 
     return deleted_counts
@@ -1601,6 +1656,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         normalized_device_id,
         registration_source=f"device_keys_{matched_rule['kind']}",
         key_rule=matched_rule.get("pattern"),
+        best_effort=True,
     )
     return True, normalized_device_id, None, None
 
