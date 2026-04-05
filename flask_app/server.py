@@ -638,7 +638,11 @@ def parse_device_key_wildcard_rules(value):
 
 
 def configured_device_auth_enabled():
-    return bool(DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES)
+    if DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES or LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+        return True
+    if SEED_VIRTUAL_DEVICE_ENVS and refresh_configured_virtual_device_auth():
+        return True
+    return False
 
 
 def find_matching_device_key_rule(device_id):
@@ -663,6 +667,18 @@ def find_matching_device_key_rule(device_id):
                 "prefix": rule["prefix"],
                 "key": rule["key"],
             }
+
+    expected = LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(normalized_device_id)
+    if not expected and SEED_VIRTUAL_DEVICE_ENVS:
+        refresh_configured_virtual_device_auth()
+        expected = LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(normalized_device_id)
+    if expected:
+        return {
+            "kind": "virtual_env",
+            "pattern": LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES.get(normalized_device_id, normalized_device_id),
+            "prefix": normalized_device_id,
+            "key": expected,
+        }
     return None
 
 
@@ -900,6 +916,28 @@ def configured_virtual_device_ids():
         yield normalized_device_id
 
 
+def configured_virtual_device_auth_entries():
+    if not SEED_VIRTUAL_DEVICE_ENVS:
+        return {}
+
+    auth_entries = {}
+    for env_path in iter_virtual_device_env_paths():
+        env_values = parse_simple_dotenv(env_path)
+        normalized_device_id = str(env_values.get("SWT_VIRTUAL_DEVICE_ID") or "").strip()
+        device_key = str(
+            env_values.get("SWT_VIRTUAL_DEVICE_KEY")
+            or env_values.get("SWT_DEVICE_API_KEY")
+            or ""
+        ).strip()
+        if not normalized_device_id or not device_key or normalized_device_id in auth_entries:
+            continue
+        auth_entries[normalized_device_id] = {
+            "key": device_key,
+            "key_rule": relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
+        }
+    return auth_entries
+
+
 def seed_registered_devices_from_configuration():
     seeded_device_ids = set()
     ignored_device_ids = list_ignored_device_ids()
@@ -1042,6 +1080,29 @@ def delete_known_device(device_id):
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
 DEVICE_KEY_WILDCARD_RULES = parse_device_key_wildcard_rules(DEVICE_KEYS)
+LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
+LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
+    device_id: entry["key"]
+    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+}
+LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
+    device_id: entry["key_rule"]
+    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+}
+
+
+def refresh_configured_virtual_device_auth():
+    global LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES, LOCAL_VIRTUAL_DEVICE_AUTH_MAP, LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES
+    LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
+    LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
+        device_id: entry["key"]
+        for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+    }
+    LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
+        device_id: entry["key_rule"]
+        for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+    }
+    return len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP)
 
 
 def device_keys_look_default():
@@ -6495,6 +6556,11 @@ if app.secret_key == DEFAULT_APP_SECRET_KEY:
     logger.warning("APP_SECRET_KEY is using the default value. Change it before production.")
 if DEVICE_KEYS_SOURCE != "default":
     logger.info("Device key registry loaded from %s.", DEVICE_KEYS_SOURCE)
+if LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+    logger.info(
+        "Loaded %s local virtual device auth entries from env files.",
+        len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP),
+    )
 if device_keys_look_default():
     logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
 start_relay_drain_worker()

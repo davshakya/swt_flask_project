@@ -324,7 +324,7 @@ python scripts/run_virtual_devices.py
 
 The emulator automatically scans `tests/virtual_devices/*.env` and starts one virtual device per file. This lets one script process simulate multiple devices at once.
 
-Make sure each virtual device ID/key pair is also registered in Flask through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`; otherwise that device will be rejected with `403`.
+Local Flask runs now auto-load the device ID/key pairs from those `tests/virtual_devices/*.env` files for API auth when `SEED_VIRTUAL_DEVICE_ENVS=true`, so the default generated fleet can poll `/device/command` without extra `SWT_DEVICE_KEYS` setup. If you point the emulator at env files outside that local test directory or another backend, register those IDs manually through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`.
 
 Virtual devices stay on the local Flask server by default. `scripts/run_virtual_devices.py` uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, and otherwise falls back to `http://127.0.0.1:8000/`; it does not fall back to `SWT_CLOUD_BASE_URL`.
 

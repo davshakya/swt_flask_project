@@ -342,6 +342,69 @@ def test_device_status_accepts_wildcard_registered_device_id(monkeypatch):
     assert server_module.relay_headers_for_device(device_id)["X-Device-Key"] == device_key
 
 
+def test_device_command_accepts_virtual_device_env_auth(tmp_path, monkeypatch):
+    if BASE_URL:
+        pytest.skip("Virtual-device auth test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-virtual-auth-011"
+    device_key = "VirtualKey2026!"
+    virtual_devices_dir = tmp_path / "tests" / "virtual_devices"
+    virtual_devices_dir.mkdir(parents=True)
+    env_path = virtual_devices_dir / "device-011.env"
+    env_path.write_text(
+        f"SWT_VIRTUAL_DEVICE_ID={device_id}\n"
+        f"SWT_VIRTUAL_DEVICE_KEY={device_key}\n",
+        encoding="utf-8",
+    )
+
+    with get_db() as db:
+        db.execute("DELETE FROM registered_devices WHERE device_id = ?", (device_id,))
+
+    original_entries = {
+        configured_id: dict(entry)
+        for configured_id, entry in server_module.LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+    }
+    original_map = dict(server_module.LOCAL_VIRTUAL_DEVICE_AUTH_MAP)
+    original_key_rules = dict(server_module.LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES)
+
+    monkeypatch.setattr(server_module, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(server_module, "SEED_VIRTUAL_DEVICE_ENVS", True)
+
+    try:
+        assert server_module.LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(device_id) is None
+        assert device_id not in server_module.DEVICE_KEY_MAP
+
+        response = client.get(
+            "/device/command",
+            headers={
+                "X-Device-Id": device_id,
+                "X-Device-Key": device_key,
+                "X-Device-Source": "virtual",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.get_json()["command"] is None
+        assert server_module.LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(device_id) == device_key
+        matched_rule = server_module.find_matching_device_key_rule(device_id)
+        assert matched_rule is not None
+        assert matched_rule["kind"] == "virtual_env"
+        assert matched_rule["pattern"] == str(Path("tests/virtual_devices/device-011.env"))
+
+        with get_db() as db:
+            row = db.execute(
+                "SELECT registration_source, key_rule FROM registered_devices WHERE device_id = ?",
+                (device_id,),
+            ).fetchone()
+        assert row is not None
+        assert row["registration_source"] == "device_keys_virtual_env"
+        assert row["key_rule"] == str(Path("tests/virtual_devices/device-011.env"))
+    finally:
+        server_module.LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = original_entries
+        server_module.LOCAL_VIRTUAL_DEVICE_AUTH_MAP = original_map
+        server_module.LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = original_key_rules
+
+
 def test_remember_registered_device_throttles_repeated_updates(monkeypatch):
     class RecordingDb:
         def __init__(self):
