@@ -34,6 +34,10 @@ tests/virtual_devices/*.env
 
 # Runtime data and local databases
 data/
+data/tank.db
+tests/data/test-runtime/*.db
+tests/data/test-runtime/*.db-shm
+tests/data/test-runtime/*.db-wal
 *.db
 *.db-shm
 *.db-wal
