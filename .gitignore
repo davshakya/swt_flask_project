@@ -1,0 +1,51 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Test and tool caches
+.pytest_cache/
+.pytest-tmp/
+.tmp/
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local environment and secrets
+.env
+device.env
+flask_app/.env
+tests/virtual_device.env
+tests/virtual_devices/*.env
+
+# Runtime data and local databases
+data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+
+# Generated test/runtime artifacts
+tests/data/test-runtime/
+tests/virtual_devices/generated/
+
+# ML and build artifacts
+artifacts/
+*.pkl
+build/
+dist/
+*.egg-info/
