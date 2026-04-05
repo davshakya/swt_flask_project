@@ -1850,6 +1850,37 @@ def sanitize_payload(payload):
     return cleaned
 
 
+SOURCE_TANK_ALIAS_FIELDS = {
+    "lower_tank_level": ("source_tank_level", "source_level"),
+    "lower_sensor": ("source_tank_sensor", "source_sensor"),
+    "lower_sensor_info": ("source_tank_sensor_info", "source_sensor_info"),
+    "lower_sensor_distance_cm": ("source_tank_sensor_distance_cm", "source_sensor_distance_cm"),
+    "lower_tank_service": ("source_tank_service", "source_service"),
+}
+
+
+def apply_source_tank_aliases(payload, include_aliases=False):
+    if payload is None:
+        return payload
+
+    for canonical_key, alias_keys in SOURCE_TANK_ALIAS_FIELDS.items():
+        canonical_value = payload.get(canonical_key)
+        if canonical_value in (None, "", "null"):
+            for alias_key in alias_keys:
+                alias_value = payload.get(alias_key)
+                if alias_value not in (None, "", "null"):
+                    payload[canonical_key] = alias_value
+                    canonical_value = alias_value
+                    break
+
+        if include_aliases:
+            if canonical_key in payload or any(alias_key in payload for alias_key in alias_keys):
+                for alias_key in alias_keys:
+                    payload[alias_key] = canonical_value
+
+    return payload
+
+
 def collect_database_file_sizes(db_path=None):
     base_path = normalize_db_path(str(db_path or DB_FILE))
     paths = {
@@ -2038,6 +2069,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned.pop("device_key", None)
     cleaned.pop("simulator", None)
     cleaned.pop("source_tank_simulator", None)
+    apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
@@ -3301,6 +3333,7 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["command_service"] = normalize_service_state(data.get("command_service"))
     data["ota_service"] = normalize_service_state(data.get("ota_service"))
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
+    apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
     try:
@@ -3389,7 +3422,7 @@ def load_dataframe(start_dt, end_exclusive, device_id=None):
     source_clause, source_params = device_source_where_clause()
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
-               pump_failure, dry_run, wifi, wifi_rssi, sensor,
+               pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
         WHERE created_at >= ? AND created_at < ?
@@ -3477,7 +3510,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
 
 
 def build_empty_snapshot_payload(device_id=None):
-    return {
+    payload = {
         "level": 0,
         "mode": "AUTO",
         "device_source": get_device_source_mode(),
@@ -3510,6 +3543,7 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_sensor_distance_cm": None,
         "lower_water_available_label": "--",
     }
+    return apply_source_tank_aliases(payload, include_aliases=True)
 
 
 def load_dashboard_snapshot(device_id=None):
@@ -4335,7 +4369,7 @@ def fetch_device_history(device_id, limit=48):
     with get_db() as db:
         rows = db.execute(
             f"""
-            SELECT level, motor, sensor, wifi_rssi, created_at
+            SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
             FROM tank_data
             WHERE device_id = ?
               AND {source_clause}
@@ -4350,6 +4384,8 @@ def fetch_device_history(device_id, limit=48):
             {
                 "time": format_timestamp(row["created_at"]),
                 "level": row["level"],
+                "lower_tank_level": row["lower_tank_level"],
+                "source_tank_level": row["lower_tank_level"],
                 "motor": row["motor"],
                 "sensor": row["sensor"],
                 "wifi_rssi": row["wifi_rssi"],
@@ -5940,7 +5976,7 @@ def history():
         if scoped_device_id:
             rows = db.execute(
                 f"""
-                SELECT level, ai_usage_rate, created_at
+                SELECT level, lower_tank_level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
                   AND device_id = ?
@@ -5958,7 +5994,7 @@ def history():
         else:
             rows = db.execute(
                 f"""
-                SELECT level, ai_usage_rate, created_at
+                SELECT level, lower_tank_level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
                   AND {source_clause}
@@ -5972,6 +6008,8 @@ def history():
         [
             {
                 "level": row["level"],
+                "lower_tank_level": row["lower_tank_level"],
+                "source_tank_level": row["lower_tank_level"],
                 "ai_usage_rate": row["ai_usage_rate"],
                 "time": format_timestamp(row["created_at"])
             }

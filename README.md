@@ -113,7 +113,7 @@ Values already present in the real process environment are preserved. Among the 
 
 - system environment variables win
 - `device.env` can override values loaded from `.env` files
-- per-device files in `tests/virtual_devices/*.env` can override shared values, but only for `scripts/virtual_device.py`
+- per-device files in `tests/virtual_devices/*.env` can override shared values, but only for `scripts/run_virtual_devices.py`
 
 To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_devices/*.env`.
 
@@ -135,7 +135,7 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_URL`: Optional fixed device URL used when building firmware update redirects.
-- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/virtual_device.py`.
+- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/run_virtual_devices.py`.
 
 ### Storage and retention
 
@@ -316,7 +316,7 @@ Recommended flow:
 4. Run:
 
 ```powershell
-python scripts/virtual_device.py
+python scripts/run_virtual_devices.py
 ```
 
 The emulator automatically scans `tests/virtual_devices/*.env` and starts one virtual device per file. This lets one script process simulate multiple devices at once.
@@ -335,13 +335,13 @@ Then start feeding live telemetry from those env files:
 python scripts/run_virtual_devices.py
 ```
 
-`run_virtual_devices.py` looks in `tests/virtual_devices/generated/` first, then falls back to `tests/virtual_devices/`.
+`run_virtual_devices.py` now handles both flows: it looks in `tests/virtual_devices/generated/` first, then falls back to `tests/virtual_devices/`.
 If those device IDs were deleted from the local admin page earlier, generating or running the env files restores them in the local admin registry automatically.
 
-If you still want the old one-step flow, `virtual_device.py` can create a batch and run it immediately with `--device_count`:
+If you want the one-step flow, `run_virtual_devices.py` can still create a batch and run it immediately with `--device_count`:
 
 ```powershell
-python scripts/virtual_device.py --base-url http://127.0.0.1:8000/ --device_count 10
+python scripts/run_virtual_devices.py --base-url http://127.0.0.1:8000/ --device_count 10
 ```
 
 That command creates numbered env files under `tests/virtual_devices/generated/` and then runs exactly those generated devices in one process.
@@ -357,10 +357,10 @@ Use `tests/virtual_devices/device-template.env.example` as the starting point fo
 If you want to target specific files instead of the whole directory, you can pass `--env-file` more than once:
 
 ```powershell
-python scripts/virtual_device.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
+python scripts/run_virtual_devices.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
 ```
 
-The dedicated fleet runner also accepts explicit files:
+You can also point the single script at explicit files:
 
 ```powershell
 python scripts/run_virtual_devices.py --env-file tests/virtual_devices/generated/device-001.env --env-file tests/virtual_devices/generated/device-002.env

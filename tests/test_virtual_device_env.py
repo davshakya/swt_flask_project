@@ -8,9 +8,8 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-import virtual_device
+import run_virtual_devices as virtual_device
 import generate_virtual_device_envs
-import run_virtual_devices
 
 
 def test_load_local_env_files_prefers_tests_virtual_device_env(tmp_path):
@@ -135,6 +134,28 @@ def test_build_configs_from_env_paths_applies_override_env(tmp_path):
     assert configs[0].run_seconds == 15.0
 
 
+def test_virtual_device_payload_includes_source_tank_aliases():
+    config = virtual_device.build_config_from_env(
+        {
+            "SWT_VIRTUAL_DEVICE_ID": "swt-source-001",
+            "SWT_VIRTUAL_DEVICE_KEY": "source-key",
+            "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
+            "SWT_VIRTUAL_DEVICE_START_SOURCE_LEVEL_PERCENT": "71.5",
+            "SWT_VIRTUAL_DEVICE_ENABLE_SOURCE_TANK": "true",
+        }
+    )
+
+    device = virtual_device.VirtualDevice(config)
+    payload = device.build_payload(online=True)
+
+    assert payload["lower_tank_level"] == 71.5
+    assert payload["source_tank_level"] == 71.5
+    assert payload["source_tank_sensor"] == payload["lower_sensor"]
+    assert payload["source_tank_sensor_info"] == payload["lower_sensor_info"]
+    assert payload["source_tank_sensor_distance_cm"] == payload["lower_sensor_distance_cm"]
+    assert payload["source_tank_service"] == payload["lower_tank_service"] == "ON"
+
+
 def test_sync_virtual_device_envs_to_local_registry_restores_deleted_devices(tmp_path):
     (tmp_path / "device.env").write_text("DB_FILE=data/test.db\n", encoding="utf-8")
 
@@ -188,20 +209,52 @@ def test_sync_virtual_device_envs_to_local_registry_restores_deleted_devices(tmp
     ]
 
 
-def test_run_virtual_devices_build_override_env_normalizes_values():
-    args = run_virtual_devices.build_parser().parse_args(
-        [
-            "--base-url", "127.0.0.1:8000",
-            "--run-seconds", "20",
-        ]
-    )
+def test_virtual_device_build_override_env_normalizes_explicit_values():
+    argv = [
+        "--base-url", "127.0.0.1:8000",
+        "--run-seconds", "20",
+    ]
+    args = virtual_device.build_parser().parse_args(argv)
 
-    overrides = run_virtual_devices.build_override_env(args)
+    overrides = virtual_device.build_override_env(args, argv=argv)
 
     assert overrides == {
         "SWT_VIRTUAL_DEVICE_BASE_URL": "http://127.0.0.1:8000/",
         "SWT_VIRTUAL_DEVICE_RUN_SECONDS": "20.0",
     }
+
+
+def test_virtual_device_build_override_env_skips_defaults_without_cli_flags():
+    args = virtual_device.build_parser().parse_args([])
+
+    overrides = virtual_device.build_override_env(args, argv=[])
+
+    assert overrides == {}
+
+
+def test_resolve_virtual_device_env_paths_prefers_generated_dir(monkeypatch, tmp_path):
+    virtual_dir = tmp_path / "tests" / "virtual_devices"
+    generated_dir = virtual_dir / "generated"
+    generated_dir.mkdir(parents=True)
+    virtual_dir.mkdir(exist_ok=True)
+    generated_env = generated_dir / "device-001.env"
+    fallback_env = virtual_dir / "device-002.env"
+    generated_env.write_text("SWT_VIRTUAL_DEVICE_ID=swt-generated-001\n", encoding="utf-8")
+    fallback_env.write_text("SWT_VIRTUAL_DEVICE_ID=swt-fallback-002\n", encoding="utf-8")
+
+    monkeypatch.setattr(virtual_device, "DEFAULT_GENERATED_VIRTUAL_DEVICE_ENV_DIR", generated_dir)
+    monkeypatch.setattr(virtual_device, "DEFAULT_VIRTUAL_DEVICE_ENV_DIR", virtual_dir)
+    monkeypatch.setattr(virtual_device, "LEGACY_VIRTUAL_DEVICE_ENV_PATH", tmp_path / "tests" / "virtual_device.env")
+
+    args = virtual_device.build_parser().parse_args([])
+    resolved = virtual_device.resolve_virtual_device_env_paths(
+        args,
+        cli_overrides_present=False,
+        argv=[],
+        environ={},
+    )
+
+    assert resolved == [generated_env]
 
 
 def test_generate_virtual_device_envs_module_exposes_main():

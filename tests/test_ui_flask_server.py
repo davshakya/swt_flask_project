@@ -2201,6 +2201,72 @@ def test_history_endpoint():
     if data:
         assert "time" in data[0]
         assert "level" in data[0]
+        assert "source_tank_level" in data[0]
+
+
+def test_status_accepts_source_tank_aliases_and_history_returns_them():
+    if BASE_URL:
+        pytest.skip("Source-tank alias ingestion test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-source-alias-001"
+    server_module.clear_runtime_caches(device_id)
+    with get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    payload = {
+        "device_id": device_id,
+        "device_source": server_module.get_device_source_mode(),
+        "level": 48.0,
+        "motor": "OFF",
+        "mode": "AUTO",
+        "runtime": "0h 0m",
+        "current_runtime": "0m 0s",
+        "last_runtime": "0m 0s",
+        "fill_time": "--",
+        "leak": "NO",
+        "pump_failure": "NO",
+        "abnormal": "NO",
+        "drip": "NO",
+        "slow_leak": "NO",
+        "pipe_leak": "NO",
+        "ai_usage_rate": 0.5,
+        "tomorrow_prediction": 10.0,
+        "dry_run": "NO",
+        "wifi": "ONLINE",
+        "wifi_rssi": -52,
+        "sensor": "OK",
+        "sensor_info": "HC-SR04 CONNECTED",
+        "sensor_distance_cm": 61.5,
+        "tank_height_cm": 120.0,
+        "tank_capacity_liters": 1000.0,
+        "auto_status": "Auto waiting",
+        "auto_status_tone": "info",
+        "auto_timer": "Waiting for start",
+        "tank_health": 93.0,
+        "free_heap": 30000,
+        "uptime_s": 321,
+        "source_tank_level": 73.5,
+        "source_tank_sensor": "OK",
+        "source_tank_sensor_info": "Source tank healthy",
+        "source_tank_sensor_distance_cm": 44.2,
+        "source_tank_service": "ON",
+        "device_local_url": "http://192.168.1.50",
+        "firmware_version": "1.1.0",
+        "reset_reason": "Software/System restart",
+    }
+
+    server_module.process_telemetry_payload(payload, transport="test")
+
+    snapshot = server_module.fetch_device_snapshot(device_id)
+    assert snapshot["lower_tank_level"] == 73.5
+    assert snapshot["source_tank_level"] == 73.5
+    assert snapshot["lower_tank_service"] == "ON"
+    assert snapshot["source_tank_service"] == "ON"
+
+    data = get_json("/history", params={"days": 1, "device_id": device_id})
+    assert data
+    assert data[-1]["lower_tank_level"] == 73.5
+    assert data[-1]["source_tank_level"] == 73.5
 
 
 def test_analytics_endpoint():

@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import logging
 
-import virtual_device
+import run_virtual_devices as virtual_device
 
 
 def main() -> int:
