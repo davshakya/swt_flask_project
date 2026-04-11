@@ -8,8 +8,8 @@ This project is beyond lab-only status, but it still needs deliberate rollout co
 
 As the repo stands today:
 
-- firmware, Flask, Android, simulation, and OTA flows are implemented
-- automated tests exist for Flask, ML helpers, and the external simulator
+- firmware, Flask, Android, and OTA flows are implemented
+- automated tests exist for Flask and ML helpers
 - Render deployment wiring exists with persistent disk support
 - pilot and support workflows still need disciplined execution before scale
 

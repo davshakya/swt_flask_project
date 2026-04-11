@@ -87,7 +87,7 @@ Ask for these first:
 - inspect mounting height and splash conditions
 - inspect HC-SR04 wiring
 - confirm echo line protection
-- compare simulator mode vs live sensor mode
+- compare the dashboard reading against a manual tank-level check
 
 ### Motor does not start or stop as expected
 

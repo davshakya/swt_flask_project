@@ -7,25 +7,25 @@
 <title>Device Detail</title>
 {% include '_pwa_head.html' %}
 <style>
- :root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.88);--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 24%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 26%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(248,252,252,.88);--button-line:rgba(19,78,94,.14)}
+:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.9);--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 24%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 26%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(248,252,252,.92);--button-line:rgba(19,78,94,.14)}
 @media (prefers-color-scheme: dark){
-:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.88);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(12,29,39,.88);--button-line:rgba(154,202,221,.16)}
+:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(12,29,39,.9);--button-line:rgba(154,202,221,.16)}
 }
-*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg);transition:background .3s ease,color .3s ease}a{color:inherit}
-.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:28px 0 44px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.grid{display:grid;gap:16px}.hero{display:grid;gap:18px;grid-template-columns:repeat(2,minmax(0,1fr))}.metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.list li{padding:14px 15px;border-radius:18px;background:var(--list-bg);border:1px solid var(--line)}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.value{font-size:28px;font-weight:800;letter-spacing:-.03em}.sub{color:var(--muted);margin-top:8px;line-height:1.55}.badge{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}.ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.btn{display:inline-block;padding:11px 15px;border-radius:15px;border:1px solid var(--button-line);text-decoration:none;font-weight:800}.timeline li strong{display:block;margin-bottom:4px}.meta{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
-@media (max-width:900px){.hero{grid-template-columns:1fr}}
+*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:inherit}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:28px 0 44px;display:grid;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:32px;line-height:1.1}.hero-title p{margin:8px 0 0;color:var(--muted);line-height:1.5}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 15px;border-radius:15px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit}.summary-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.summary-card{padding:18px;border-radius:22px;border:1px solid var(--line);background:rgba(255,255,255,.22)}.summary-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:8px;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5}.content-grid{display:grid;gap:16px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:16px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.2)}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:8px;font-size:22px;font-weight:800;line-height:1.2}.detail-note{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.55}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.5}.list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.list li{padding:14px 15px;border-radius:18px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.hidden-section{display:none!important}
+@media (max-width:960px){.content-grid{grid-template-columns:1fr}}
+@media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 </style>
 </head>
 <body>
 <div class="shell">
     <div class="panel">
         <div class="eyebrow">Device Detail</div>
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
-            <div>
-                <h1 style="margin:0">{{ device_id }}</h1>
-                <div id="headline" class="sub">Loading live device status...</div>
+        <div class="hero-head">
+            <div class="hero-title">
+                <h1>{{ device_id }}</h1>
+                <p id="headline">Loading live device status...</p>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <div class="hero-actions">
                 {% if is_admin %}
                 <a class="btn" href="/devices/{{ device_id }}/firmware/update" target="_blank" rel="noopener">Firmware Update</a>
                 {% endif %}
@@ -35,122 +35,215 @@
         </div>
     </div>
 
-    <section class="hero" style="margin-top:16px">
-        <div class="panel">
-            <div class="eyebrow">Current Snapshot</div>
-            <div class="grid metrics">
-                <div><div class="sub">Telemetry</div><div id="telemetry" class="value">--</div></div>
-                <div><div class="sub">Level</div><div id="level" class="value">--</div></div>
-                <div><div class="sub">Pump</div><div id="motor" class="value">--</div></div>
-                <div><div class="sub">Mode</div><div id="mode" class="value">--</div></div>
-                <div><div class="sub">Firmware</div><div id="firmware" class="value">--</div></div>
-                <div><div class="sub">Last Reset</div><div id="resetReason" class="value">--</div></div>
-                <div><div class="sub">Last Sync</div><div id="lastSync" class="value">--</div></div>
-            </div>
+    <section class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-label">Tank Level</div>
+            <div id="level" class="summary-value">--</div>
+            <div id="levelNote" class="summary-note">Waiting for telemetry.</div>
         </div>
-        <div class="panel">
-            <div class="eyebrow">Active Alerts</div>
-            <ul id="alerts" class="list"></ul>
+        <div class="summary-card">
+            <div class="summary-label">Available Water</div>
+            <div id="availableWater" class="summary-value">--</div>
+            <div id="availableWaterNote" class="summary-note">Capacity information will appear here.</div>
         </div>
-    </section>
-
-    <section class="hero" style="margin-top:16px">
-        <div class="panel">
-            <div class="eyebrow">Bridge Services</div>
-            <div class="grid metrics">
-                <div><div class="sub">Channel Mode</div><div id="channelMode" class="value">--</div></div>
-                <div><div class="sub">Telemetry Service</div><div id="telemetryService" class="value">--</div></div>
-                <div><div class="sub">Command Service</div><div id="commandService" class="value">--</div></div>
-                <div><div class="sub">OTA Service</div><div id="otaService" class="value">--</div></div>
-                <div id="lowerTankServiceCard"><div class="sub">Lower Tank Service</div><div id="lowerTankService" class="value">--</div></div>
-            </div>
+        <div class="summary-card">
+            <div class="summary-label">Pump</div>
+            <div id="motor" class="summary-value">--</div>
+            <div id="pumpNote" class="summary-note">Current motor state.</div>
         </div>
-        <div class="panel">
-            <div class="eyebrow">Diagnostics</div>
-            <div class="grid metrics">
-                <div><div class="sub">Main Sensor</div><div id="sensorInfo" class="value">--</div></div>
-                <div id="lowerSensorInfoCard"><div class="sub">Source Sensor</div><div id="lowerSensorInfo" class="value">--</div></div>
-                <div id="lowerLevelCard"><div class="sub">Source Level</div><div id="lowerLevel" class="value">--</div></div>
-                <div><div class="sub">Dry Run</div><div id="dryRun" class="value">--</div></div>
-                <div><div class="sub">Main Simulator</div><div id="simulator" class="value">--</div></div>
-                <div id="sourceSimulatorCard"><div class="sub">Source Simulator</div><div id="sourceSimulator" class="value">--</div></div>
-                <div><div class="sub">Signal</div><div id="signalQuality" class="value">--</div></div>
-                <div><div class="sub">Uptime</div><div id="uptime" class="value">--</div></div>
-                <div><div class="sub">Free Heap</div><div id="freeHeap" class="value">--</div></div>
-            </div>
+        <div class="summary-card">
+            <div class="summary-label">Mode</div>
+            <div id="mode" class="summary-value">--</div>
+            <div id="modeNote" class="summary-note">Auto or manual control.</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-label">Connection</div>
+            <div id="connection" class="summary-value">--</div>
+            <div id="connectionNote" class="summary-note">Last update will appear here.</div>
         </div>
     </section>
 
-    <section class="hero" style="margin-top:16px">
+    <section class="content-grid">
         <div class="panel">
-            <div class="eyebrow">Recent History</div>
-            <ul id="history" class="list timeline"></ul>
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">Overview</div>
+                    <p>Only the most useful customer-facing status is shown here.</p>
+                </div>
+            </div>
+            <div class="detail-grid" style="margin-top:16px">
+                <div class="detail-card wide">
+                    <div class="detail-label">System Status</div>
+                    <div id="autoStatus" class="detail-value">--</div>
+                    <div id="autoTimer" class="detail-note">--</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Sensor</div>
+                    <div id="sensorStatus" class="detail-value">--</div>
+                    <div id="sensorInfo" class="detail-note">--</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Signal</div>
+                    <div id="signalQuality" class="detail-value">--</div>
+                    <div id="signalInfo" class="detail-note">--</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Tank Health</div>
+                    <div id="healthStatus" class="detail-value">--</div>
+                    <div id="healthReason" class="detail-note">--</div>
+                </div>
+                <div class="detail-card">
+                    <div class="detail-label">Last Update</div>
+                    <div id="lastSync" class="detail-value">--</div>
+                    <div id="lastSyncNote" class="detail-note">--</div>
+                </div>
+                <div id="sourceCard" class="detail-card hidden-section">
+                    <div class="detail-label">Source Tank</div>
+                    <div id="sourceLevel" class="detail-value">--</div>
+                    <div id="sourceInfo" class="detail-note">--</div>
+                </div>
+            </div>
         </div>
+
         <div class="panel">
-            <div class="eyebrow">Audit Trail</div>
-            <ul id="audit" class="list timeline"></ul>
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">Current Warnings</div>
+                    <p>Showing up to the last 10 active alerts for this device.</p>
+                </div>
+                <div id="alertCount" class="status-pill tone-info">0 alerts</div>
+            </div>
+            <ul id="alerts" class="list" style="margin-top:16px"></ul>
         </div>
+    </section>
+
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Recent Events</div>
+                <p>Showing the last 10 important events and alarms for this device.</p>
+            </div>
+        </div>
+        <ul id="events" class="list" style="margin-top:16px"></ul>
     </section>
 </div>
 
 <script>
 const DEVICE_ID={{ device_id|tojson }};
 const localeTools=window.swtLocale||{};
-function badgeTone(severity){const value=String(severity||"").toLowerCase();if(value==="danger"||value==="critical")return"bad";if(value==="warning"||value==="warn")return"warn";return"ok";}
-function setText(id, value){document.getElementById(id).textContent=value??"--";}
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
   if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
   const raw=String(value??"").trim();
   return raw||fallback;
 }
-function upperLabel(value){const text=String(value||"").trim();return text?text.toUpperCase():"--";}
-function yesNoLabel(value){return String(value||"").toUpperCase()==="YES"?"YES":"NO";}
-function setVisible(id, visible){
-  const el=document.getElementById(id);
-  if(!el)return;
-  el.style.display=visible?"":"none";
+function setText(id,value){const node=document.getElementById(id);if(node)node.textContent=value??"--";}
+function setHtml(id,value){const node=document.getElementById(id);if(node)node.innerHTML=value??"--";}
+function setClassName(id,className){const node=document.getElementById(id);if(node)node.className=className;}
+function formatPercent(value){return value===undefined||value===null?"--":`${Number(value).toFixed(1)}%`;}
+function formatLiters(value){return value===undefined||value===null?"--":`${Number(value).toFixed(1)} L`;}
+function titleCase(value){
+  const text=String(value||"").trim().replace(/[-_]/g," ");
+  if(!text)return"--";
+  return text.split(/\s+/).map((part)=>part.charAt(0).toUpperCase()+part.slice(1).toLowerCase()).join(" ");
 }
-function renderList(id, items, emptyText, formatter){
-  const root=document.getElementById(id);root.innerHTML="";
-  if(!items.length){const li=document.createElement("li");li.textContent=emptyText;root.appendChild(li);return;}
-  items.forEach((item)=>{const li=document.createElement("li");li.innerHTML=formatter(item);root.appendChild(li);});
+function telemetryLabel(value){
+  const raw=String(value||"").trim().toLowerCase();
+  if(raw==="live")return"Online";
+  if(raw==="recent")return"Online";
+  if(raw==="stale"||raw==="offline")return"Offline";
+  if(raw==="no-data")return"No Data";
+  return titleCase(raw);
+}
+function telemetryTone(value){
+  const raw=String(value||"").trim().toLowerCase();
+  if(raw==="live"||raw==="recent")return"tone-ok";
+  if(raw==="stale"||raw==="offline")return"tone-bad";
+  return"tone-warn";
+}
+function severityTone(value){
+  const raw=String(value||"").trim().toLowerCase();
+  if(raw==="danger"||raw==="critical"||raw==="error")return"tone-bad";
+  if(raw==="warning"||raw==="warn")return"tone-warn";
+  if(raw==="success"||raw==="ok")return"tone-ok";
+  return"tone-info";
+}
+function firstReason(reasons,fallback="--"){
+  if(Array.isArray(reasons)&&reasons.length)return String(reasons[0]||fallback);
+  return fallback;
+}
+function setVisible(id,visible){
+  const node=document.getElementById(id);
+  if(!node)return;
+  node.classList.toggle("hidden-section",!visible);
+}
+function renderList(id,items,emptyText,formatter){
+  const root=document.getElementById(id);
+  if(!root)return;
+  root.innerHTML="";
+  if(!items.length){
+    const li=document.createElement("li");
+    li.innerHTML=`<div class="helper-text">${emptyText}</div>`;
+    root.appendChild(li);
+    return;
+  }
+  items.forEach((item)=>{
+    const li=document.createElement("li");
+    li.innerHTML=formatter(item);
+    root.appendChild(li);
+  });
 }
 async function loadDevice(){
   const response=await fetch(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,{cache:"no-store"});
   const data=await response.json();
-  if(!response.ok){document.getElementById("headline").textContent=data.error||"Unable to load device.";return;}
+  if(!response.ok){
+    setText("headline",data.error||"Unable to load device.");
+    return;
+  }
   const snapshot=data.snapshot||{};
   const systemStatus=data.system_status||{};
-  const sourceMonitoringActive=String(snapshot.source_tank_simulator||"").toUpperCase()==="ON"||String(systemStatus.lower_tank_service||snapshot.lower_tank_service||"").toUpperCase()==="ON";
-  document.getElementById("headline").textContent=`Telemetry ${snapshot.telemetry_status||"--"} | Sensor ${snapshot.sensor||"--"} | Wi-Fi ${snapshot.wifi||"--"} | Channel ${systemStatus.channel_mode||snapshot.channel_mode||"--"}`;
-  setVisible("lowerTankServiceCard",sourceMonitoringActive);
-  setVisible("lowerSensorInfoCard",sourceMonitoringActive);
-  setVisible("lowerLevelCard",sourceMonitoringActive);
-  setVisible("sourceSimulatorCard",sourceMonitoringActive);
-  setText("telemetry", snapshot.telemetry_status||"--");
-  setText("level", snapshot.level!==undefined&&snapshot.level!==null?`${Number(snapshot.level).toFixed(1)}%`:"--");
-  setText("motor", snapshot.motor||"--");
-  setText("mode", snapshot.mode||"--");
-  setText("firmware", snapshot.firmware_version||"--");
-  setText("resetReason", snapshot.reset_reason||"--");
-  setText("lastSync", formatLocaleDateTime(snapshot.last_sync_at));
-  setText("channelMode", upperLabel(systemStatus.channel_mode||snapshot.channel_mode));
-  setText("telemetryService", upperLabel(systemStatus.telemetry_service||snapshot.telemetry_service));
-  setText("commandService", upperLabel(systemStatus.command_service||snapshot.command_service));
-  setText("otaService", upperLabel(systemStatus.ota_service||snapshot.ota_service));
-  setText("lowerTankService", upperLabel(systemStatus.lower_tank_service||snapshot.lower_tank_service));
-  setText("sensorInfo", snapshot.sensor_info||"--");
-  setText("lowerSensorInfo", snapshot.lower_sensor_info||"--");
-  setText("lowerLevel", snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null?`${Number(snapshot.lower_tank_level).toFixed(1)}%`:"--");
-  setText("dryRun", yesNoLabel(snapshot.dry_run));
-  setText("simulator", upperLabel(snapshot.simulator));
-  setText("sourceSimulator", upperLabel(snapshot.source_tank_simulator));
-  setText("signalQuality", systemStatus.signal_quality||snapshot.signal_quality||"--");
-  setText("uptime", systemStatus.uptime_label||snapshot.uptime_label||"--");
-  setText("freeHeap", systemStatus.free_heap_label||snapshot.free_heap_label||"--");
-  renderList("alerts", data.alerts||[], "No active alerts for this device.", (alert)=>`<strong>${alert.kind||"Alert"}</strong> <span class="badge ${badgeTone(alert.severity)}">${alert.severity||"info"}</span><div>${alert.message||"--"}</div><div class="meta">${formatLocaleDateTime(alert.updated_at||alert.created_at)}</div>`);
-  renderList("history", data.history||[], "No recent history.", (entry)=>`<strong>${formatLocaleDateTime(entry.time)}</strong><div>Level ${entry.level??"--"}% | Motor ${entry.motor||"--"} | Sensor ${entry.sensor||"--"} | RSSI ${entry.wifi_rssi??"--"}</div>`);
-  renderList("audit", data.audit||[], "No audit entries for this device.", (entry)=>`<strong>${entry.action||"event"}</strong><div>${entry.actor||"unknown"} updated ${entry.target_type||"item"} ${entry.target_id||""}</div><div class="meta">${formatLocaleDateTime(entry.created_at)}</div>`);
+  const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
+  const lastSync=snapshot.last_sync_at;
+  const level=formatPercent(snapshot.level);
+  const availableWater=formatLiters(snapshot.remaining_liters);
+  const capacityLiters=snapshot.capacity_liters??systemStatus.capacity_liters;
+  const signal=snapshot.signal_quality||systemStatus.signal_quality||"--";
+  const sourceMonitoringActive=String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON"||snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null;
+
+  setText("headline",`${telemetryLabel(telemetry)} status | Last update ${formatLocaleDateTime(lastSync)} | Sensor ${snapshot.sensor||"--"} | Signal ${signal}`);
+  setText("level",level);
+  setText("levelNote",snapshot.level!==undefined&&snapshot.level!==null?`${formatLiters(snapshot.remaining_liters)} available right now.`:"Waiting for water-level telemetry.");
+  setText("availableWater",availableWater);
+  setText("availableWaterNote",capacityLiters!==undefined&&capacityLiters!==null?`Out of ${formatLiters(capacityLiters)} total tank capacity.`:"Capacity information unavailable.");
+  setText("motor",titleCase(snapshot.motor));
+  setText("pumpNote",String(snapshot.motor||"").toUpperCase()==="ON"?"The pump is currently running.":"The pump is currently stopped.");
+  setText("mode",titleCase(snapshot.mode));
+  setText("modeNote",String(snapshot.mode||"").toUpperCase()==="MANUAL"?"Manual control is active.":"Automatic control is active.");
+  setText("connection",telemetryLabel(telemetry));
+  setText("connectionNote",`Last updated ${formatLocaleDateTime(lastSync)}.`);
+
+  setText("autoStatus",snapshot.auto_status||"--");
+  setText("autoTimer",snapshot.auto_timer||"");
+  setText("sensorStatus",titleCase(snapshot.sensor));
+  setText("sensorInfo",snapshot.sensor_info||"--");
+  setText("signalQuality",signal);
+  setText("signalInfo",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`Wi-Fi ${snapshot.wifi||"--"} • RSSI ${snapshot.wifi_rssi}`:`Wi-Fi ${snapshot.wifi||"--"}`);
+  setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
+  setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
+  setText("lastSync",formatLocaleDateTime(lastSync));
+  setText("lastSyncNote",`${telemetryLabel(telemetry)} • ${titleCase(snapshot.mode)} mode • ${titleCase(snapshot.motor)} pump`);
+  setVisible("sourceCard",sourceMonitoringActive);
+  if(sourceMonitoringActive){
+    setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
+    setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
+  }
+
+  renderList("alerts",data.alerts||[],"No active warnings or alarms for this device.",(alert)=>`<div class="list-item-head"><div class="list-title">${alert.message||alert.kind||"Alert"}</div><span class="status-pill ${severityTone(alert.severity)}">${titleCase(alert.severity||"info")}</span></div><div class="list-meta">${formatLocaleDateTime(alert.updated_at||alert.created_at)}</div>`);
+  renderList("events",data.events||[],"No recent events for this device.",(entry)=>`<div class="list-item-head"><div class="list-title">${entry.message||"Event"}</div><span class="status-pill ${severityTone(entry.severity)}">${titleCase(entry.severity||"info")}</span></div><div class="list-meta">${formatLocaleDateTime(entry.time)}</div>`);
+
+  setText("alertCount",`${(data.alerts||[]).length} alert${(data.alerts||[]).length===1?"":"s"}`);
+  setClassName("alertCount",`status-pill ${severityTone((data.alerts||[])[0]?.severity||((data.alerts||[]).length?"warning":"info"))}`);
+  const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
+  setClassName("connection",connectionClass);
 }
 loadDevice();
 setInterval(loadDevice,10000);
@@ -158,5 +251,3 @@ setInterval(loadDevice,10000);
 {% include '_pwa_install.html' %}
 </body>
 </html>
-
-

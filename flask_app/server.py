@@ -30,40 +30,26 @@ from jinja2 import TemplateNotFound
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
-
-
-def parse_simple_dotenv(dotenv_path):
-    values = {}
-    try:
-        with dotenv_path.open("r", encoding="utf-8") as handle:
-            for raw_line in handle:
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, value = line.split("=", 1)
-                key = key.strip()
-                if not key:
-                    continue
-                value = value.strip()
-                if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-                    value = value[1:-1]
-                values[key] = value
-    except OSError:
-        return {}
-    return values
+from flask_app.runtime_utils import (
+    db_parent_is_writable,
+    env_float,
+    env_int,
+    env_flag as runtime_env_flag,
+    load_dotenv_values,
+    normalize_db_path as runtime_normalize_db_path,
+    normalize_http_base_url as runtime_normalize_http_base_url,
+    parse_simple_dotenv,
+)
 
 
 def load_local_env_files():
     module_root = Path(__file__).resolve().parent
     project_root = module_root.parent
-    original_keys = set(os.environ)
-    loaded_keys = set()
-    for dotenv_path in (project_root / ".env", module_root / ".env", project_root / "device.env"):
-        for key, value in parse_simple_dotenv(dotenv_path).items():
-            if key in original_keys and key not in loaded_keys:
-                continue
-            os.environ[key] = value
-            loaded_keys.add(key)
+    load_dotenv_values(
+        (project_root / ".env", module_root / ".env", project_root / "device.env"),
+        environ=os.environ,
+        preserve_existing=True,
+    )
 
 
 load_local_env_files()
@@ -78,8 +64,12 @@ TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
+DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
+DEVICE_SOURCE_REAL = "real"
+DEVICE_SOURCE_VIRTUAL = "virtual"
+DEVICE_SOURCE_HEADER = "X-Device-Source"
 IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
@@ -88,31 +78,15 @@ RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
 
 
 def normalize_db_path(raw_path):
-    db_path = Path(raw_path).expanduser()
-    if not db_path.is_absolute():
-        db_path = PROJECT_ROOT / db_path
-    return db_path
+    return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
 
 
 def normalize_http_base_url(value):
-    text = str(value or "").strip()
-    if not text:
-        return None
-    if "://" not in text:
-        text = f"http://{text}"
-
-    parsed = urlparse(text)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        return None
-
-    return f"{parsed.scheme}://{parsed.netloc}"
+    return runtime_normalize_http_base_url(value)
 
 
 def env_flag(name, default=False):
-    raw_value = os.environ.get(name)
-    if raw_value is None or str(raw_value).strip() == "":
-        return default
-    return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
+    return runtime_env_flag(name, default=default, environ=os.environ)
 
 
 def strip_ip_address_fields(payload, keep_device_local_url=False):
@@ -123,20 +97,6 @@ def strip_ip_address_fields(payload, keep_device_local_url=False):
     if not keep_device_local_url:
         cleaned["device_local_url"] = None
     return cleaned
-
-
-def db_parent_is_writable(db_path):
-    parent = db_path.parent
-    probe = parent
-    while not probe.exists() and probe != probe.parent:
-        probe = probe.parent
-    try:
-        if not os.access(probe, os.W_OK):
-            return False
-        parent.mkdir(parents=True, exist_ok=True)
-        return True
-    except OSError:
-        return False
 
 
 def is_render_persistent_db_path(db_path):
@@ -317,7 +277,7 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
     "SESSION_COOKIE_SECURE",
     "true" if IS_RENDER else "false"
 ).lower() not in {"0", "false", "no"}
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=int(os.environ.get("SESSION_LIFETIME_HOURS", "12")))
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
 
 
@@ -488,31 +448,40 @@ LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip(
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
 DEVICE_KEYS, DEVICE_KEYS_SOURCE = resolve_device_key_registry()
-TANK_CAPACITY_LITERS = float(os.environ.get("TANK_CAPACITY_LITERS", "1000"))
-STALE_AFTER_SECONDS = int(os.environ.get("DATA_STALE_AFTER_SECONDS", "180"))
-DATA_RETENTION_DAYS = max(1, int(os.environ.get("DATA_RETENTION_DAYS", "7")))
+TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
+STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
+DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 7))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
-MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, int(os.environ.get("MAX_TELEMETRY_ROWS_PER_DEVICE", "65000")))
-DEVICE_COMMAND_RETENTION_DAYS = max(1, int(os.environ.get("DEVICE_COMMAND_RETENTION_DAYS", "7")))
-OPS_ALERT_RETENTION_DAYS = max(1, int(os.environ.get("OPS_ALERT_RETENTION_DAYS", "30")))
-OPS_AUDIT_RETENTION_DAYS = max(1, int(os.environ.get("OPS_AUDIT_RETENTION_DAYS", "30")))
+MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
+DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
+OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
+OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
-DB_TARGET_SIZE_MB = max(0.0, float(os.environ.get("DB_TARGET_SIZE_MB", "256" if IS_RENDER else "0")))
+DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
-DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, int(os.environ.get("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", "900" if IS_RENDER else "3600")))
-DB_WAL_AUTOCHECKPOINT_PAGES = max(100, int(os.environ.get("DB_WAL_AUTOCHECKPOINT_PAGES", "1000")))
+DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
+DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
+DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
+SEED_VIRTUAL_DEVICE_ENVS = env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
+RESET_DEVICE_SOURCE_MODE_ON_BOOT = env_flag("RESET_DEVICE_SOURCE_MODE_ON_BOOT", default=IS_RENDER)
 CONTROL_POLICY = "AUTO_PROTECTED"
-MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, int(os.environ.get("MOBILE_TOKEN_MAX_AGE_HOURS", "168")) * 3600)
+DEFAULT_DEVICE_SOURCE_MODE = (
+    DEVICE_SOURCE_VIRTUAL
+    if str(os.environ.get("SWT_DEVICE_SOURCE_MODE", DEVICE_SOURCE_REAL)).strip().lower() == DEVICE_SOURCE_VIRTUAL
+    else DEVICE_SOURCE_REAL
+)
+MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
 dashboard_snapshot_cache = {}
 level_forecast_model_cache = {}
-SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, float(os.environ.get("SNAPSHOT_CACHE_TTL_SECONDS", "2.0")))
-ANALYTICS_MAX_GAP_MINUTES = int(os.environ.get("ANALYTICS_MAX_GAP_MINUTES", "20"))
-ANALYTICS_MAX_LEVEL_DELTA_PCT = float(os.environ.get("ANALYTICS_MAX_LEVEL_DELTA_PCT", "25"))
-ANALYTICS_MIN_BASELINE_USAGE_PCT = float(os.environ.get("ANALYTICS_MIN_BASELINE_USAGE_PCT", "1.0"))
-ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = float(os.environ.get("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", "0.05"))
+SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
+ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
+ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
+ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
+ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
 DEFAULT_LEVEL_FORECAST_MODEL_PATH = PROJECT_ROOT / "artifacts" / "level_forecast_model.pkl"
 DEFAULT_SHARED_CLOUD_BASE_URL = normalize_http_base_url(os.environ.get("SWT_CLOUD_BASE_URL")) or "https://smart-water-tank-v1.onrender.com"
@@ -520,8 +489,8 @@ DEFAULT_RELAY_STATUS_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_UR
 DEFAULT_RELAY_COMMAND_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_URL}/device/command"
 RELAY_STATUS_URLS = os.environ.get("RELAY_STATUS_URLS", DEFAULT_RELAY_STATUS_URLS)
 RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_URLS)
-RELAY_TIMEOUT_SEC = float(os.environ.get("RELAY_TIMEOUT_SEC", "25"))
-RELAY_CONNECT_TIMEOUT_SEC = float(os.environ.get("RELAY_CONNECT_TIMEOUT_SEC", "5"))
+RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
+RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
@@ -530,13 +499,15 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 WHATSAPP_WEBHOOK_URL = os.environ.get("WHATSAPP_WEBHOOK_URL", "").strip()
 MQTT_ENABLED = os.environ.get("MQTT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER_HOST", "").strip()
-MQTT_BROKER_PORT = int(os.environ.get("MQTT_BROKER_PORT", "1883"))
+MQTT_BROKER_PORT = env_int("MQTT_BROKER_PORT", 1883)
 MQTT_USERNAME = os.environ.get("MQTT_USERNAME", "").strip()
 MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
 MQTT_TOPIC_PREFIX = os.environ.get("MQTT_TOPIC_PREFIX", "swt").strip().strip("/")
-MQTT_KEEPALIVE_SEC = max(15, int(os.environ.get("MQTT_KEEPALIVE_SEC", "30")))
-MQTT_QOS = max(0, min(2, int(os.environ.get("MQTT_QOS", "1"))))
+MQTT_KEEPALIVE_SEC = max(15, env_int("MQTT_KEEPALIVE_SEC", 30))
+MQTT_QOS = max(0, min(2, env_int("MQTT_QOS", 1)))
 MQTT_COMMAND_RETAIN = os.environ.get("MQTT_COMMAND_RETAIN", "true").lower() in {"1", "true", "yes", "on"}
+REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS = max(0, env_int("REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 30))
+ALERT_TOUCH_INTERVAL_SECONDS = max(0, env_int("ALERT_TOUCH_INTERVAL_SECONDS", 30))
 
 
 APP_LOG_LEVEL_NAME = (os.environ.get("APP_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or ("warning" if IS_RENDER else "info")).strip().upper()
@@ -547,6 +518,7 @@ logger = logging.getLogger("tank_server")
 relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
+db_prune_lock = threading.Lock()
 relay_state = {
     "last_success_at": None,
     "last_error_at": None,
@@ -556,6 +528,10 @@ relay_state = {
 mqtt_lock = threading.Lock()
 mqtt_client = None
 mqtt_started = False
+registered_device_touch_lock = threading.Lock()
+registered_device_touch_cache = {}
+alert_touch_lock = threading.Lock()
+alert_touch_cache = {}
 mqtt_state = {
     "enabled": MQTT_ENABLED and bool(MQTT_BROKER_HOST),
     "connected": False,
@@ -568,6 +544,11 @@ db_maintenance_state = {
     "last_reason": None,
     "last_error": None,
     "last_total_bytes": 0,
+}
+db_prune_state = {
+    "last_run_at": 0.0,
+    "last_pruned_rows": 0,
+    "last_error": None,
 }
 
 
@@ -657,7 +638,11 @@ def parse_device_key_wildcard_rules(value):
 
 
 def configured_device_auth_enabled():
-    return bool(DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES)
+    if DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES or LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+        return True
+    if SEED_VIRTUAL_DEVICE_ENVS and refresh_configured_virtual_device_auth():
+        return True
+    return False
 
 
 def find_matching_device_key_rule(device_id):
@@ -682,6 +667,18 @@ def find_matching_device_key_rule(device_id):
                 "prefix": rule["prefix"],
                 "key": rule["key"],
             }
+
+    expected = LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(normalized_device_id)
+    if not expected and SEED_VIRTUAL_DEVICE_ENVS:
+        refresh_configured_virtual_device_auth()
+        expected = LOCAL_VIRTUAL_DEVICE_AUTH_MAP.get(normalized_device_id)
+    if expected:
+        return {
+            "kind": "virtual_env",
+            "pattern": LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES.get(normalized_device_id, normalized_device_id),
+            "prefix": normalized_device_id,
+            "key": expected,
+        }
     return None
 
 
@@ -704,27 +701,408 @@ def list_registered_device_ids(limit=200):
     return [normalize_device_id(row["device_id"]) for row in rows if normalize_device_id(row["device_id"])]
 
 
-def remember_registered_device(device_id, registration_source, key_rule=None):
+def list_ignored_device_ids(limit=None):
+    query = """
+        SELECT device_id
+        FROM ignored_devices
+        ORDER BY updated_at DESC, device_id ASC
+    """
+    params = ()
+    if limit is not None:
+        query += " LIMIT ?"
+        params = (limit,)
+    with get_db() as db:
+        rows = db.execute(query, params).fetchall()
+    return {
+        normalize_device_id(row["device_id"])
+        for row in rows
+        if normalize_device_id(row["device_id"])
+    }
+
+
+def device_is_ignored(device_id, ignored_device_ids=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return False
+    if ignored_device_ids is None:
+        ignored_device_ids = list_ignored_device_ids()
+    return normalized_device_id in ignored_device_ids
+
+
+def remember_ignored_device(device_id, note=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return
     with get_db() as db:
         db.execute(
             """
-            INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
-                registration_source=excluded.registration_source,
-                key_rule=excluded.key_rule,
-                last_seen_at=CURRENT_TIMESTAMP,
+                note=excluded.note,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, registration_source, key_rule),
+            (normalized_device_id, str(note or "").strip() or None),
         )
+    forget_registered_device_touch(normalized_device_id)
+    forget_alert_touches_for_device(normalized_device_id)
+
+
+def forget_ignored_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
+
+
+def should_skip_registered_device_touch(device_id, registration_source, key_rule):
+    if REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS <= 0:
+        return False
+    now = time.monotonic()
+    with registered_device_touch_lock:
+        cached = registered_device_touch_cache.get(device_id)
+        if not cached:
+            return False
+        if cached.get("registration_source") != registration_source:
+            return False
+        if cached.get("key_rule") != key_rule:
+            return False
+        return (now - float(cached.get("touched_at") or 0.0)) < REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS
+
+
+def note_registered_device_touch(device_id, registration_source, key_rule):
+    with registered_device_touch_lock:
+        registered_device_touch_cache[device_id] = {
+            "registration_source": registration_source,
+            "key_rule": key_rule,
+            "touched_at": time.monotonic(),
+        }
+
+
+def forget_registered_device_touch(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with registered_device_touch_lock:
+        registered_device_touch_cache.pop(normalized_device_id, None)
+
+
+def database_is_locked_error(exc):
+    message = str(exc or "").strip().lower()
+    return "database is locked" in message or "database table is locked" in message or "database is busy" in message
+
+
+def alert_touch_key(kind, device_id=None):
+    normalized_kind = str(kind or "").strip().lower()
+    normalized_device_id = normalize_device_id(device_id) or ""
+    return normalized_kind, normalized_device_id
+
+
+def should_skip_alert_touch(kind, severity, message, device_id=None, active=True):
+    if ALERT_TOUCH_INTERVAL_SECONDS <= 0:
+        return False
+    cache_key = alert_touch_key(kind, device_id)
+    now = time.monotonic()
+    with alert_touch_lock:
+        cached = alert_touch_cache.get(cache_key)
+        if not cached:
+            return False
+        if cached.get("severity") != severity:
+            return False
+        if cached.get("message") != message:
+            return False
+        if bool(cached.get("active")) != bool(active):
+            return False
+        return (now - float(cached.get("touched_at") or 0.0)) < ALERT_TOUCH_INTERVAL_SECONDS
+
+
+def note_alert_touch(kind, severity, message, device_id=None, active=True):
+    cache_key = alert_touch_key(kind, device_id)
+    with alert_touch_lock:
+        alert_touch_cache[cache_key] = {
+            "severity": severity,
+            "message": message,
+            "active": bool(active),
+            "touched_at": time.monotonic(),
+        }
+
+
+def forget_alert_touch(kind, device_id=None):
+    cache_key = alert_touch_key(kind, device_id)
+    with alert_touch_lock:
+        alert_touch_cache.pop(cache_key, None)
+
+
+def forget_alert_touches_for_device(device_id=None):
+    if device_id is None:
+        with alert_touch_lock:
+            alert_touch_cache.clear()
+        return
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with alert_touch_lock:
+        doomed_keys = [key for key in alert_touch_cache if key[1] == normalized_device_id]
+        for key in doomed_keys:
+            alert_touch_cache.pop(key, None)
+
+
+def remember_registered_device(device_id, registration_source, key_rule=None, best_effort=False):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id or device_is_ignored(normalized_device_id):
+        return
+    if should_skip_registered_device_touch(normalized_device_id, registration_source, key_rule):
+        return
+    try:
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO registered_devices(device_id, registration_source, key_rule, first_seen_at, last_seen_at, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    registration_source=excluded.registration_source,
+                    key_rule=excluded.key_rule,
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, registration_source, key_rule),
+            )
+    except sqlite3.OperationalError as exc:
+        if best_effort and database_is_locked_error(exc):
+            note_registered_device_touch(normalized_device_id, registration_source, key_rule)
+            logger.warning(
+                "Skipping registered device bookkeeping for %s because the SQLite database is busy.",
+                normalized_device_id,
+            )
+            return
+        raise
+    note_registered_device_touch(normalized_device_id, registration_source, key_rule)
+
+
+def iter_virtual_device_env_paths():
+    tests_root = PROJECT_ROOT / "tests"
+    seen = set()
+    candidates = [
+        tests_root / "virtual_device.env",
+    ]
+    virtual_devices_dir = tests_root / "virtual_devices"
+    if virtual_devices_dir.exists():
+        candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
+
+    for path in candidates:
+        resolved = str(path.resolve()) if path.exists() else str(path)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield path
+
+
+def relative_to_project_or_str(path):
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def configured_virtual_device_ids():
+    seen_device_ids = set()
+    for env_path in iter_virtual_device_env_paths():
+        env_values = parse_simple_dotenv(env_path)
+        normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
+        if not normalized_device_id or normalized_device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(normalized_device_id)
+        yield normalized_device_id
+
+
+def configured_virtual_device_auth_entries():
+    if not SEED_VIRTUAL_DEVICE_ENVS:
+        return {}
+
+    auth_entries = {}
+    for env_path in iter_virtual_device_env_paths():
+        env_values = parse_simple_dotenv(env_path)
+        normalized_device_id = str(env_values.get("SWT_VIRTUAL_DEVICE_ID") or "").strip()
+        device_key = str(
+            env_values.get("SWT_VIRTUAL_DEVICE_KEY")
+            or env_values.get("SWT_DEVICE_API_KEY")
+            or ""
+        ).strip()
+        if not normalized_device_id or not device_key or normalized_device_id in auth_entries:
+            continue
+        auth_entries[normalized_device_id] = {
+            "key": device_key,
+            "key_rule": relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
+        }
+    return auth_entries
+
+
+def seed_registered_devices_from_configuration():
+    seeded_device_ids = set()
+    ignored_device_ids = list_ignored_device_ids()
+
+    for device_id in sorted(DEVICE_KEY_MAP.keys()):
+        normalized_device_id = normalize_device_id(device_id)
+        if (
+            not normalized_device_id
+            or normalized_device_id in seeded_device_ids
+            or normalized_device_id in ignored_device_ids
+        ):
+            continue
+        remember_registered_device(
+            normalized_device_id,
+            registration_source="configured_device_keys",
+            key_rule=normalized_device_id,
+        )
+        seeded_device_ids.add(normalized_device_id)
+
+    if SEED_VIRTUAL_DEVICE_ENVS:
+        for env_path in iter_virtual_device_env_paths():
+            env_values = parse_simple_dotenv(env_path)
+            normalized_device_id = normalize_device_id(env_values.get("SWT_VIRTUAL_DEVICE_ID"))
+            if (
+                not normalized_device_id
+                or normalized_device_id in seeded_device_ids
+                or normalized_device_id in ignored_device_ids
+            ):
+                continue
+            remember_registered_device(
+                normalized_device_id,
+                registration_source="virtual_device_env",
+                key_rule=relative_to_project_or_str(env_path) if env_path.exists() else str(env_path),
+            )
+            seeded_device_ids.add(normalized_device_id)
+
+
+def purge_configured_virtual_device_records():
+    if not PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT:
+        return {"device_ids": 0}
+
+    virtual_device_ids = list(configured_virtual_device_ids())
+    if not virtual_device_ids:
+        return {"device_ids": 0}
+
+    deleted_counts = {
+        "device_ids": len(virtual_device_ids),
+        "customer_accounts": 0,
+        "registered_devices": 0,
+        "tank_data": 0,
+        "device_command_queue": 0,
+        "ops_alerts": 0,
+        "ops_audit_log": 0,
+        "ignored_devices": 0,
+    }
+
+    with get_db() as db:
+        for normalized_device_id in virtual_device_ids:
+            deleted_counts["customer_accounts"] += int(
+                db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["registered_devices"] += int(
+                db.execute("DELETE FROM registered_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["tank_data"] += int(
+                db.execute("DELETE FROM tank_data WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["device_command_queue"] += int(
+                db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ops_alerts"] += int(
+                db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ops_audit_log"] += int(
+                db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["ignored_devices"] += int(
+                db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+
+    for normalized_device_id in virtual_device_ids:
+        forget_registered_device_touch(normalized_device_id)
+        clear_runtime_caches(normalized_device_id)
+
+    return deleted_counts
+
+
+def delete_known_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+
+    deleted_counts = {
+        "customer_accounts": 0,
+        "registered_devices": 0,
+        "tank_data": 0,
+        "device_command_queue": 0,
+        "ops_alerts": 0,
+        "ops_audit_log": 0,
+        "ignored_devices": 0,
+    }
+
+    with get_db() as db:
+        deleted_counts["customer_accounts"] = int(
+            db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["registered_devices"] = int(
+            db.execute("DELETE FROM registered_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["tank_data"] = int(
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["device_command_queue"] = int(
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ops_alerts"] = int(
+            db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ops_audit_log"] = int(
+            db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["ignored_devices"] = int(
+            db.execute(
+                """
+                INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+                VALUES (?, 'admin_delete', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    note=excluded.note,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id,),
+            ).rowcount or 0
+        )
+
+    forget_registered_device_touch(normalized_device_id)
+    clear_runtime_caches(normalized_device_id)
+
+    return deleted_counts
 
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
 DEVICE_KEY_WILDCARD_RULES = parse_device_key_wildcard_rules(DEVICE_KEYS)
+LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
+LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
+    device_id: entry["key"]
+    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+}
+LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
+    device_id: entry["key_rule"]
+    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+}
+
+
+def refresh_configured_virtual_device_auth():
+    global LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES, LOCAL_VIRTUAL_DEVICE_AUTH_MAP, LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES
+    LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
+    LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
+        device_id: entry["key"]
+        for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+    }
+    LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
+        device_id: entry["key_rule"]
+        for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
+    }
+    return len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP)
 
 
 def device_keys_look_default():
@@ -738,14 +1116,25 @@ def normalize_device_id(value):
     return str(value or "").strip()
 
 
+def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
+    raw = str(value or "").strip().lower()
+    if raw in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        return raw
+    return default
+
+
 def clear_runtime_caches(device_id=None):
     analytics_cache.clear()
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         dashboard_snapshot_cache.clear()
+        forget_alert_touches_for_device()
         return
-    dashboard_snapshot_cache.pop(normalized_device_id, None)
-    dashboard_snapshot_cache.pop("__latest__", None)
+    for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
+        dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
+    dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
+    dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
+    forget_alert_touches_for_device(normalized_device_id)
 
 
 def current_user_role():
@@ -762,6 +1151,42 @@ def current_customer_device_id():
     if current_user_role() != "customer":
         return None
     return normalize_device_id(session.get("device_id"))
+
+
+def current_customer_account():
+    device_id = current_customer_device_id()
+    if not device_id:
+        return None
+    return fetch_customer_account(device_id)
+
+
+def current_customer_cloud_feed_enabled():
+    if current_user_role() != "customer":
+        return True
+    account = current_customer_account()
+    if not account:
+        return False
+    return int(account.get("cloud_feed_enabled", 1) or 0) == 1
+
+
+def customer_cloud_feed_error_message():
+    return "Cloud feed is disabled for this customer account. Contact the admin to enable it."
+
+
+def customer_cloud_feed_block_response():
+    if current_user_role() != "customer" or current_customer_cloud_feed_enabled():
+        return None
+    return jsonify(
+        {
+            "error": customer_cloud_feed_error_message(),
+            "cloud_feed_enabled": False,
+        }
+    ), 403
+
+
+def customer_cloud_feed_abort_if_disabled():
+    if current_user_role() == "customer" and not current_customer_cloud_feed_enabled():
+        abort(403, description=customer_cloud_feed_error_message())
 
 
 def current_actor_username():
@@ -820,13 +1245,12 @@ LOGIN_TEMPLATE_FALLBACK = """<!DOCTYPE html>
 .eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--primary);margin:0 0 10px}.title{font-size:34px;font-weight:700;margin:0 0 8px}.muted{margin:0 0 18px;color:var(--muted);line-height:1.5}
 form{display:grid;gap:14px}.group{display:grid;gap:6px}.group label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.22);background:rgba(8,17,31,.78);color:var(--text)}
-button{border:none;border-radius:12px;padding:12px 16px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:12px 16px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:12px 16px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
+button{border:none;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;justify-self:start}
+a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
 .error{padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.24);color:#fecaca}
 .hint{margin-top:14px;font-size:13px;color:var(--muted)}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+@media (max-width:560px){button,a{width:100%;justify-content:center}.row{display:grid}.row a{width:100%}}
 </style>
 </head>
 <body>
@@ -834,12 +1258,9 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
     <div class="eyebrow">Smart Water Tank</div>
     <h1 class="title">{{ login_title }}</h1>
     <p class="muted">{{ login_description }}</p>
-    <h1 class="title">{{ login_title }}</h1>
-    <p class="muted">{{ login_description }}</p>
     {% if error %}
     <div class="error">{{ error }}</div>
     {% endif %}
-    <form method="post" action="{{ login_action }}">
     <form method="post" action="{{ login_action }}">
         <input type="hidden" name="next" value="{{ next_url }}">
         <div class="group">
@@ -852,10 +1273,6 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
         </div>
         <button type="submit">Sign In</button>
     </form>
-    <div class="row">
-        <a href="{{ switch_href }}">{{ switch_label }}</a>
-    </div>
-    <div class="hint">{% if login_mode == "admin" %}Use the admin dashboard account here. Customers should sign in from the customer page with their exact device ID.{% else %}Customer usernames must exactly match the registered device_id, for example swt-000-000-000-001.{% endif %}</div>
     <div class="row">
         <a href="{{ switch_href }}">{{ switch_label }}</a>
     </div>
@@ -1133,7 +1550,150 @@ a{border:1px solid rgba(148,163,184,.24);color:var(--text)}
     )
 
 
-def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query=""):
+def fetch_active_alert_device_ids():
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT DISTINCT device_id
+            FROM ops_alerts
+            WHERE active = 1
+              AND COALESCE(device_id, '') != ''
+            """
+        ).fetchall()
+    return {
+        normalize_device_id(row["device_id"])
+        for row in rows
+        if normalize_device_id(row["device_id"])
+    }
+
+
+def admin_device_is_online(device):
+    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent"}
+
+
+def admin_telemetry_status_label(value):
+    normalized = str(value or "").strip().lower()
+    if normalized == "live":
+        return "Live"
+    if normalized == "recent":
+        return "Recent"
+    if normalized == "stale":
+        return "Stale"
+    if normalized == "no-data":
+        return "No data"
+    return normalized.replace("-", " ").title() if normalized else "--"
+
+
+def alert_severity_rank(value):
+    normalized = str(value or "").strip().lower()
+    if normalized == "danger":
+        return 3
+    if normalized == "warning":
+        return 2
+    if normalized == "success":
+        return 1
+    return 0
+
+
+def fetch_active_alert_summaries(device_ids=None):
+    normalized_device_ids = [
+        item
+        for item in (normalize_device_id(value) for value in (device_ids or []))
+        if item
+    ]
+    query = """
+        SELECT device_id, severity, message, updated_at, id
+        FROM ops_alerts
+        WHERE active = 1
+          AND COALESCE(device_id, '') != ''
+    """
+    params = []
+    if normalized_device_ids:
+        placeholders = ",".join("?" for _ in normalized_device_ids)
+        query += f" AND device_id IN ({placeholders})"
+        params.extend(normalized_device_ids)
+    query += " ORDER BY updated_at DESC, id DESC"
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    summaries = {}
+    for row in rows:
+        device_id = normalize_device_id(row["device_id"])
+        if not device_id:
+            continue
+        entry = summaries.setdefault(
+            device_id,
+            {
+                "active_alert_count": 0,
+                "latest_alert_message": None,
+                "latest_alert_severity": "info",
+                "latest_alert_updated_at": None,
+                "highest_alert_severity": "info",
+            },
+        )
+        entry["active_alert_count"] += 1
+        severity = str(row["severity"] or "info").strip().lower() or "info"
+        if entry["latest_alert_message"] is None:
+            entry["latest_alert_message"] = row["message"]
+            entry["latest_alert_severity"] = severity
+            entry["latest_alert_updated_at"] = row["updated_at"]
+        if alert_severity_rank(severity) > alert_severity_rank(entry["highest_alert_severity"]):
+            entry["highest_alert_severity"] = severity
+    return summaries
+
+
+def build_admin_device_entry(device_id, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
+    payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
+    return {
+        "device_id": normalized_device_id,
+        "level": payload.get("level"),
+        "firmware_version": payload.get("firmware_version"),
+        "reset_reason": payload.get("reset_reason"),
+        "last_sync_at": payload.get("last_sync_at"),
+        "telemetry_status": payload.get("telemetry_status"),
+        "channel_mode": payload.get("channel_mode"),
+        "telemetry_service": payload.get("telemetry_service"),
+        "command_service": payload.get("command_service"),
+        "ota_service": payload.get("ota_service"),
+        "lower_tank_service": payload.get("lower_tank_service"),
+        "wifi": payload.get("wifi"),
+        "wifi_rssi": payload.get("wifi_rssi"),
+        "sensor": payload.get("sensor"),
+        "motor": payload.get("motor"),
+        "mode": payload.get("mode"),
+        "registered_account": False,
+        "account_active": False,
+        "cloud_feed_enabled": False,
+    }
+
+
+def build_admin_device_summary(available_devices):
+    alert_device_ids = fetch_active_alert_device_ids()
+    seen_device_ids = set()
+    online_devices = 0
+
+    for device in available_devices:
+        normalized_device_id = normalize_device_id(device.get("device_id"))
+        if not normalized_device_id or normalized_device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(normalized_device_id)
+        if admin_device_is_online(device):
+            online_devices += 1
+
+    total_registered_devices = len(seen_device_ids)
+    warning_alert_devices = len(seen_device_ids.intersection(alert_device_ids))
+    offline_devices = max(0, total_registered_devices - online_devices)
+
+    return {
+        "total_registered_devices": total_registered_devices,
+        "online_devices": online_devices,
+        "offline_devices": offline_devices,
+        "warning_alert_devices": warning_alert_devices,
+    }
+
+
+def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
     return render_template(
         "admin_customers.html",
         accounts=accounts,
@@ -1141,113 +1701,91 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary or build_admin_device_summary(available_devices),
+        global_alerts=fetch_filtered_alerts(limit=10),
         persistence_warnings=auth_persistence_warnings(),
     )
 
 
 def build_admin_known_devices(accounts, available_devices):
+    seed_registered_devices_from_configuration()
+    ignored_device_ids = list_ignored_device_ids()
     merged = {}
 
     for device in available_devices:
         normalized_device_id = normalize_device_id(device.get("device_id"))
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
-        merged[normalized_device_id] = dict(device)
+        merged[normalized_device_id] = build_admin_device_entry(normalized_device_id, snapshot=dict(device))
 
     for account in accounts:
         normalized_device_id = normalize_device_id(account.get("device_id"))
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["display_name"] = account.get("display_name") or entry.get("display_name")
         entry["registered_account"] = True
+        entry["account_active"] = int(account.get("active", 1) or 0) == 1
+        entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
 
     for device_id in list_registered_device_ids(limit=200):
         normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["server_registered"] = True
 
     for device_id in sorted(DEVICE_KEY_MAP.keys()):
         normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id:
+        if not normalized_device_id or normalized_device_id in ignored_device_ids:
             continue
 
         entry = merged.get(normalized_device_id)
         if entry is None:
-            snapshot = build_empty_snapshot_payload(normalized_device_id)
-            entry = {
-                "device_id": normalized_device_id,
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
+            entry = build_admin_device_entry(normalized_device_id)
             merged[normalized_device_id] = entry
 
         entry["server_registered"] = True
 
+    alert_summaries = fetch_active_alert_summaries(merged.keys())
+    for device_id, entry in merged.items():
+        online = admin_device_is_online(entry)
+        telemetry_status = str(entry.get("telemetry_status") or "").strip().lower()
+        alert_summary = alert_summaries.get(device_id, {})
+        active_alert_count = int(alert_summary.get("active_alert_count") or 0)
+        entry["admin_status"] = "online" if online else "offline"
+        entry["admin_status_label"] = "Online" if online else "Offline"
+        entry["telemetry_status_label"] = admin_telemetry_status_label(telemetry_status)
+        entry["status_sort_value"] = 0 if online else 1
+        entry["active_alert_count"] = active_alert_count
+        entry["warning_alert_label"] = "Clear" if active_alert_count == 0 else f"{active_alert_count} active"
+        entry["latest_alert_message"] = alert_summary.get("latest_alert_message") or "No active alerts."
+        entry["latest_alert_severity"] = (
+            alert_summary.get("highest_alert_severity")
+            or alert_summary.get("latest_alert_severity")
+            or "info"
+        )
+        entry["cloud_feed_label"] = (
+            "Enabled"
+            if entry.get("registered_account") and entry.get("cloud_feed_enabled")
+            else "Disabled"
+            if entry.get("registered_account")
+            else "Not set"
+        )
+
     return sorted(
         merged.values(),
-        key=lambda item: (
-            0 if item.get("registered_account") or item.get("server_registered") else 1,
-            str(item.get("device_id") or "").lower(),
-        ),
+        key=lambda item: str(item.get("device_id") or "").lower(),
     )
 
 
@@ -1312,6 +1850,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         normalized_device_id,
         registration_source=f"device_keys_{matched_rule['kind']}",
         key_rule=matched_rule.get("pattern"),
+        best_effort=True,
     )
     return True, normalized_device_id, None, None
 
@@ -1431,7 +1970,7 @@ def build_level_forecast_payload(device_id):
         raise RuntimeError(f"ML forecasting helpers could not be imported: {exc}") from exc
 
     with get_db() as db:
-        raw = query_device_forecast_rows(db, normalized_device_id)
+        raw = query_device_forecast_rows(db, normalized_device_id, device_source=get_device_source_mode())
     prediction = predict_latest_level(raw, artifact)
 
     metrics = {}
@@ -1507,6 +2046,37 @@ def sanitize_payload(payload):
         # Fallback to string for unknown types
         cleaned[key] = str(value)
     return cleaned
+
+
+SOURCE_TANK_ALIAS_FIELDS = {
+    "lower_tank_level": ("source_tank_level", "source_level"),
+    "lower_sensor": ("source_tank_sensor", "source_sensor"),
+    "lower_sensor_info": ("source_tank_sensor_info", "source_sensor_info"),
+    "lower_sensor_distance_cm": ("source_tank_sensor_distance_cm", "source_sensor_distance_cm"),
+    "lower_tank_service": ("source_tank_service", "source_service"),
+}
+
+
+def apply_source_tank_aliases(payload, include_aliases=False):
+    if payload is None:
+        return payload
+
+    for canonical_key, alias_keys in SOURCE_TANK_ALIAS_FIELDS.items():
+        canonical_value = payload.get(canonical_key)
+        if canonical_value in (None, "", "null"):
+            for alias_key in alias_keys:
+                alias_value = payload.get(alias_key)
+                if alias_value not in (None, "", "null"):
+                    payload[canonical_key] = alias_value
+                    canonical_value = alias_value
+                    break
+
+        if include_aliases:
+            if canonical_key in payload or any(alias_key in payload for alias_key in alias_keys):
+                for alias_key in alias_keys:
+                    payload[alias_key] = canonical_value
+
+    return payload
 
 
 def collect_database_file_sizes(db_path=None):
@@ -1604,6 +2174,53 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
     return pruned
 
 
+def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
+    now = time.time()
+    if (
+        not force
+        and DB_PRUNE_MIN_INTERVAL_SECONDS > 0
+        and (now - float(db_prune_state.get("last_run_at") or 0.0)) < DB_PRUNE_MIN_INTERVAL_SECONDS
+    ):
+        return {}
+
+    if not db_prune_lock.acquire(blocking=False):
+        return {}
+
+    try:
+        now = time.time()
+        if (
+            not force
+            and DB_PRUNE_MIN_INTERVAL_SECONDS > 0
+            and (now - float(db_prune_state.get("last_run_at") or 0.0)) < DB_PRUNE_MIN_INTERVAL_SECONDS
+        ):
+            return {}
+
+        with get_db() as db:
+            cursor = db.cursor()
+            pruned = prune_retained_rows(
+                cursor,
+                device_id=device_id,
+                latest_row_id=latest_row_id,
+            )
+
+        pruned_rows = sum(int(value or 0) for value in pruned.values())
+        db_prune_state.update(
+            {
+                "last_run_at": now,
+                "last_pruned_rows": pruned_rows,
+                "last_error": None,
+            }
+        )
+        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows)
+        return pruned
+    except Exception as exc:
+        db_prune_state["last_error"] = str(exc)
+        logger.warning("Retention prune failed: %s", exc)
+        return {}
+    finally:
+        db_prune_lock.release()
+
+
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
     if not DB_MAINTENANCE_ENABLED and not force:
         return False
@@ -1695,12 +2312,16 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
+    cleaned.pop("simulator", None)
+    cleaned.pop("source_tank_simulator", None)
+    apply_source_tank_aliases(cleaned)
+    cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
 
-    pruned_counts = {}
+    latest_row_id = None
     with get_db() as db:
         cursor = db.cursor()
         cursor.execute(
@@ -1714,7 +2335,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 ai_usage_rate, tomorrow_prediction,
                 dry_run,
                 wifi, wifi_rssi, sensor,
-                simulator, source_tank_simulator, sensor_info, sensor_distance_cm,
+                device_source,
+                sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
                 auto_status, auto_status_tone, auto_timer,
                 tank_health, free_heap, uptime_s,
@@ -1722,7 +2344,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 cleaned.get("level"),
@@ -1744,8 +2366,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("wifi"),
                 cleaned.get("wifi_rssi"),
                 cleaned.get("sensor"),
-                cleaned.get("simulator"),
-                cleaned.get("source_tank_simulator"),
+                cleaned.get("device_source"),
                 cleaned.get("sensor_info"),
                 cleaned.get("sensor_distance_cm"),
                 cleaned.get("tank_height_cm"),
@@ -1772,14 +2393,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("lower_tank_service"),
             ),
         )
-        pruned_counts = prune_retained_rows(
-            cursor,
-            device_id=cleaned.get("device_id"),
-            latest_row_id=cursor.lastrowid,
-        )
+        latest_row_id = cursor.lastrowid
 
-    pruned_rows = sum(int(value or 0) for value in pruned_counts.values())
-    maybe_maintain_database(reason="telemetry-ingest", pruned_rows=pruned_rows)
+    maybe_prune_retained_rows(
+        device_id=cleaned.get("device_id"),
+        latest_row_id=latest_row_id,
+    )
     clear_runtime_caches(cleaned.get("device_id"))
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
@@ -1790,10 +2409,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_id"),
     )
 
-    alert_snapshot = dict(cleaned)
-    alert_snapshot["telemetry_status"] = "fresh"
-    evaluate_snapshot_alerts(alert_snapshot)
-    relay_status_async(cleaned)
+    if cleaned.get("device_source") == get_device_source_mode():
+        alert_snapshot = dict(cleaned)
+        alert_snapshot["telemetry_status"] = "fresh"
+        evaluate_snapshot_alerts(alert_snapshot)
+        if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
+            relay_status_async(cleaned)
     return cleaned
 
 
@@ -1809,8 +2430,7 @@ def get_db():
 def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
-        "simulator": "TEXT",
-        "source_tank_simulator": "TEXT",
+        "device_source": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -1840,6 +2460,81 @@ def ensure_tank_data_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE tank_data ADD COLUMN {column} {definition}")
+
+
+def rebuild_tank_data_without_simulator_columns(cursor):
+    existing = [row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()]
+    obsolete = {"simulator", "source_tank_simulator"}
+    if not set(existing).intersection(obsolete):
+        return
+
+    preserved_columns = [column for column in existing if column not in obsolete]
+    if not preserved_columns:
+        return
+
+    preserved_sql = ", ".join(preserved_columns)
+    logger.info("Removing obsolete simulator telemetry columns from tank_data")
+    cursor.execute("ALTER TABLE tank_data RENAME TO tank_data_legacy")
+    cursor.execute(
+        """
+        CREATE TABLE tank_data(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            level REAL,
+            motor TEXT,
+            mode TEXT,
+            runtime REAL,
+            current_runtime REAL,
+            last_runtime REAL,
+            fill_time REAL,
+            leak TEXT,
+            pump_failure TEXT,
+            abnormal TEXT,
+            drip TEXT,
+            slow_leak TEXT,
+            pipe_leak TEXT,
+            ai_usage_rate REAL,
+            tomorrow_prediction REAL,
+            dry_run TEXT,
+            wifi TEXT,
+            wifi_rssi INTEGER,
+            sensor TEXT,
+            device_source TEXT,
+            sensor_info TEXT,
+            sensor_distance_cm REAL,
+            tank_height_cm REAL,
+            tank_capacity_liters REAL,
+            auto_status TEXT,
+            auto_status_tone TEXT,
+            auto_timer TEXT,
+            tank_health REAL,
+            free_heap INTEGER,
+            uptime_s INTEGER,
+            lower_tank_level REAL,
+            lower_sensor TEXT,
+            lower_sensor_info TEXT,
+            lower_sensor_distance_cm REAL,
+            device_id TEXT,
+            firmware_version TEXT,
+            reset_reason TEXT,
+            source_ip TEXT,
+            device_local_url TEXT,
+            channel_mode TEXT,
+            telemetry_service TEXT,
+            command_service TEXT,
+            ota_service TEXT,
+            lower_tank_service TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        f"""
+        INSERT INTO tank_data ({preserved_sql})
+        SELECT {preserved_sql}
+        FROM tank_data_legacy
+        """
+    )
+    cursor.execute("DROP TABLE tank_data_legacy")
 
 
 def ensure_relay_queue_table(cursor):
@@ -1927,11 +2622,26 @@ def ensure_customer_accounts_table(cursor):
             display_name TEXT,
             password_hash TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
+            cloud_feed_enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+
+
+def ensure_customer_accounts_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(customer_accounts)").fetchall()}
+    required = {
+        "display_name": "TEXT",
+        "active": "INTEGER NOT NULL DEFAULT 1",
+        "cloud_feed_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE customer_accounts ADD COLUMN {column} {definition}")
 
 
 def ensure_registered_devices_table(cursor):
@@ -1943,6 +2653,19 @@ def ensure_registered_devices_table(cursor):
             key_rule TEXT,
             first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def ensure_ignored_devices_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS ignored_devices(
+            device_id TEXT PRIMARY KEY,
+            note TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -2004,15 +2727,16 @@ def seed_bootstrap_customer_accounts(cursor):
         password_hash = str(item.get("password_hash") or "").strip()
         display_name = str(item.get("display_name") or "").strip() or None
         active = 1 if int(item.get("active", 1) or 0) == 1 else 0
+        cloud_feed_enabled = 1 if int(item.get("cloud_feed_enabled", 1) or 0) == 1 else 0
         if not normalized_device_id or not password_hash:
             continue
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
-            (normalized_device_id, display_name, password_hash, active),
+            (normalized_device_id, display_name, password_hash, active, cloud_feed_enabled),
         )
         seeded_count += 1
     if seeded_count:
@@ -2033,8 +2757,8 @@ def seed_default_customer_accounts(cursor):
     for device_id, display_name in DEFAULT_CUSTOMER_ACCOUNTS:
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
             (device_id, display_name, password_hash),
@@ -2082,8 +2806,7 @@ def init_db():
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
-                simulator TEXT,
-                source_tank_simulator TEXT,
+                device_source TEXT,
                 sensor_info TEXT,
                 sensor_distance_cm REAL,
                 tank_height_cm REAL,
@@ -2113,6 +2836,7 @@ def init_db():
             """
         )
         ensure_tank_data_columns(cursor)
+        rebuild_tank_data_without_simulator_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_alerts_table(cursor)
@@ -2120,7 +2844,9 @@ def init_db():
         ensure_app_settings_table(cursor)
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
+        ensure_customer_accounts_columns(cursor)
         ensure_registered_devices_table(cursor)
+        ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
         cursor.execute(
@@ -2165,7 +2891,21 @@ def init_db():
             ON registered_devices(last_seen_at, device_id)
             """
         )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_ignored_devices_updated
+            ON ignored_devices(updated_at, device_id)
+            """
+        )
 
+    maybe_reset_device_source_mode_on_boot()
+    deleted_counts = purge_configured_virtual_device_records()
+    if deleted_counts.get("device_ids"):
+        logger.info(
+            "Purged %s configured virtual devices from startup database state.",
+            deleted_counts["device_ids"],
+        )
+    seed_registered_devices_from_configuration()
     logger.info("Database initialization complete")
 
 
@@ -2195,6 +2935,71 @@ def set_app_setting(key, value):
 def delete_app_setting(key):
     with get_db() as db:
         db.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+
+
+def maybe_reset_device_source_mode_on_boot():
+    if not RESET_DEVICE_SOURCE_MODE_ON_BOOT:
+        return
+    current_mode = get_app_setting(DEVICE_SOURCE_MODE_SETTING)
+    if normalize_device_source(current_mode, default=DEFAULT_DEVICE_SOURCE_MODE) == DEFAULT_DEVICE_SOURCE_MODE:
+        return
+    set_app_setting(DEVICE_SOURCE_MODE_SETTING, DEFAULT_DEVICE_SOURCE_MODE)
+    clear_runtime_caches()
+    logger.info(
+        "Device source mode reset to %s from startup configuration.",
+        DEFAULT_DEVICE_SOURCE_MODE,
+    )
+
+
+def get_device_source_mode():
+    configured = get_app_setting(DEVICE_SOURCE_MODE_SETTING, DEFAULT_DEVICE_SOURCE_MODE)
+    return normalize_device_source(configured, default=DEFAULT_DEVICE_SOURCE_MODE)
+
+
+def set_device_source_mode(mode):
+    normalized_mode = normalize_device_source(mode, default=None)
+    if normalized_mode not in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        raise ValueError("device source mode must be 'real' or 'virtual'")
+    set_app_setting(DEVICE_SOURCE_MODE_SETTING, normalized_mode)
+    clear_runtime_caches()
+    return normalized_mode
+
+
+def parse_explicit_device_source(value):
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return None
+    if raw in {DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL}:
+        return raw
+    raise ValueError("device_source must be 'real' or 'virtual'")
+
+
+def resolve_request_device_source(payload=None):
+    payload = payload or {}
+    header_source = parse_explicit_device_source(request.headers.get(DEVICE_SOURCE_HEADER))
+    payload_source = parse_explicit_device_source(payload.get("device_source"))
+    if header_source and payload_source and header_source != payload_source:
+        raise ValueError("device_source does not match X-Device-Source header")
+    return header_source or payload_source or DEVICE_SOURCE_REAL
+
+
+def active_device_source_conflict_response(request_source):
+    active_mode = get_device_source_mode()
+    return (
+        jsonify(
+            {
+                "error": f"{request_source} device source is inactive while backend mode is {active_mode}",
+                "device_source": request_source,
+                "device_source_mode": active_mode,
+            }
+        ),
+        409,
+    )
+
+
+def device_source_where_clause(column="device_source", mode=None):
+    normalized_mode = normalize_device_source(mode, default=get_device_source_mode())
+    return f"COALESCE({column}, '{DEVICE_SOURCE_REAL}') = ?", [normalized_mode]
 
 
 def ensure_app_secret_key_persisted():
@@ -2271,7 +3076,7 @@ def fetch_customer_account(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, display_name, password_hash, active, created_at, updated_at
+            SELECT device_id, display_name, password_hash, active, cloud_feed_enabled, created_at, updated_at
             FROM customer_accounts
             WHERE device_id = ?
             """,
@@ -2284,7 +3089,7 @@ def list_customer_accounts(limit=100):
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT device_id, display_name, active, created_at, updated_at
+            SELECT device_id, display_name, active, cloud_feed_enabled, created_at, updated_at
             FROM customer_accounts
             ORDER BY updated_at DESC, device_id ASC
             LIMIT ?
@@ -2294,26 +3099,48 @@ def list_customer_accounts(limit=100):
     return [dict(row) for row in rows]
 
 
-def upsert_customer_account(device_id, password, display_name=None):
+def customer_cloud_feed_enabled(device_id):
+    account = fetch_customer_account(device_id)
+    if not account:
+        return False
+    return int(account.get("cloud_feed_enabled", 1) or 0) == 1
+
+
+def upsert_customer_account(device_id, password, display_name=None, active=None, cloud_feed_enabled=None):
     normalized_device_id = normalize_device_id(device_id)
     normalized_display_name = str(display_name or "").strip()
     if not normalized_device_id:
         raise ValueError("device_id is required")
     if not password or len(password) < 6:
         raise ValueError("password must be at least 6 characters")
+    existing = fetch_customer_account(normalized_device_id)
     password_hash = generate_password_hash(password)
+    resolved_active = 1 if active is None and not existing else (1 if int(active if active is not None else existing.get("active", 1) or 0) == 1 else 0)
+    resolved_cloud_feed_enabled = (
+        1
+        if cloud_feed_enabled is None and not existing
+        else (1 if int(cloud_feed_enabled if cloud_feed_enabled is not None else existing.get("cloud_feed_enabled", 1) or 0) == 1 else 0)
+    )
     with get_db() as db:
+        db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
         db.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, updated_at)
-            VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
+            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 display_name=excluded.display_name,
                 password_hash=excluded.password_hash,
-                active=1,
+                active=excluded.active,
+                cloud_feed_enabled=excluded.cloud_feed_enabled,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, normalized_display_name or None, password_hash),
+            (
+                normalized_device_id,
+                normalized_display_name or None,
+                password_hash,
+                resolved_active,
+                resolved_cloud_feed_enabled,
+            ),
         )
     return fetch_customer_account(normalized_device_id)
 
@@ -2326,7 +3153,43 @@ def update_customer_password(device_id, password):
         account["device_id"],
         password,
         display_name=account.get("display_name"),
+        active=account.get("active", 1),
+        cloud_feed_enabled=account.get("cloud_feed_enabled", 1),
     )
+
+
+def update_customer_account_profile(device_id, display_name=None, active=None, cloud_feed_enabled=None):
+    account = fetch_customer_account(device_id)
+    if not account:
+        raise ValueError("customer account not found")
+
+    resolved_display_name = account.get("display_name") if display_name is None else (str(display_name).strip() or None)
+    resolved_active = 1 if int(active if active is not None else account.get("active", 1) or 0) == 1 else 0
+    resolved_cloud_feed_enabled = (
+        1
+        if int(cloud_feed_enabled if cloud_feed_enabled is not None else account.get("cloud_feed_enabled", 1) or 0) == 1
+        else 0
+    )
+
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE customer_accounts
+            SET display_name = ?,
+                active = ?,
+                cloud_feed_enabled = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE device_id = ?
+            """,
+            (
+                resolved_display_name,
+                resolved_active,
+                resolved_cloud_feed_enabled,
+                account["device_id"],
+            ),
+        )
+
+    return fetch_customer_account(account["device_id"])
 
 
 def authenticate_dashboard_user(username, password):
@@ -2348,6 +3211,7 @@ def authenticate_dashboard_user(username, password):
         "username": normalized_username,
         "device_id": normalized_username,
         "display_name": customer.get("display_name") or normalized_username,
+        "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
     }
 
 
@@ -2387,7 +3251,13 @@ def resolve_mobile_user():
     device_id = normalize_device_id(payload.get("device_id"))
 
     if role == "admin" and username == LOGIN_USERNAME:
-        user = {"role": "admin", "username": username, "device_id": None, "display_name": "Administrator"}
+        user = {
+            "role": "admin",
+            "username": username,
+            "device_id": None,
+            "display_name": "Administrator",
+            "cloud_feed_enabled": True,
+        }
     elif role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
@@ -2398,6 +3268,7 @@ def resolve_mobile_user():
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
+            "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
         }
     else:
         g.mobile_user = None
@@ -2427,6 +3298,18 @@ def current_mobile_scope_device_id(requested_device_id=None):
     if normalized_requested and scoped_device_id and normalized_requested != scoped_device_id:
         abort(403)
     return scoped_device_id or normalized_requested or None
+
+
+def mobile_customer_cloud_feed_block_response():
+    user = resolve_mobile_user()
+    if not user or user.get("role") != "customer" or user.get("cloud_feed_enabled", True):
+        return None
+    return jsonify(
+        {
+            "error": customer_cloud_feed_error_message(),
+            "cloud_feed_enabled": False,
+        }
+    ), 403
 
 def now_utc():
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -2597,17 +3480,21 @@ def calculate_health(snapshot=None, leak_events=0, motor_cycles=0, consumption_r
 
 
 def fetch_latest_row(db):
+    clause, params = device_source_where_clause()
     return db.execute(
-        """
+        f"""
         SELECT *
         FROM tank_data
+        WHERE {clause}
         ORDER BY created_at DESC, id DESC
         LIMIT 1
-        """
+        """,
+        tuple(params),
     ).fetchone()
 
 
 def recent_counts(db, limit=200):
+    clause, params = device_source_where_clause()
     motor_cycles = db.execute(
         f"""
         SELECT COUNT(*) FROM (
@@ -2616,13 +3503,15 @@ def recent_counts(db, limit=200):
             FROM (
                 SELECT id, motor
                 FROM tank_data
+                WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
             )
             ORDER BY id
         )
         WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
-        """
+        """,
+        tuple(params),
     ).fetchone()[0]
 
     leak_events = db.execute(
@@ -2633,13 +3522,15 @@ def recent_counts(db, limit=200):
             FROM (
                 SELECT id, pipe_leak
                 FROM tank_data
+                WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
             )
             ORDER BY id
         )
         WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
-        """
+        """,
+        tuple(params),
     ).fetchone()[0]
 
     return motor_cycles, leak_events
@@ -2660,10 +3551,10 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    simulator = str(data.get("simulator", "OFF")).upper()
-    data["simulator"] = simulator if simulator in {"ON", "OFF"} else "OFF"
-    source_tank_simulator = str(data.get("source_tank_simulator", "OFF")).upper()
-    data["source_tank_simulator"] = source_tank_simulator if source_tank_simulator in {"ON", "OFF"} else "OFF"
+    data.pop("simulator", None)
+    data.pop("source_tank_simulator", None)
+    data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
+    data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
     data["capacity_liters"] = round(capacity_liters, 1)
     data["tank_capacity_liters"] = round(capacity_liters, 1)
@@ -2706,6 +3597,7 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["command_service"] = normalize_service_state(data.get("command_service"))
     data["ota_service"] = normalize_service_state(data.get("ota_service"))
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
+    apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
     try:
@@ -2791,14 +3683,16 @@ def load_dataframe(start_dt, end_exclusive, device_id=None):
     if pd_local is None:
         raise RuntimeError("Pandas unavailable")
 
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
-               pump_failure, dry_run, wifi, wifi_rssi, sensor,
+               pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
         WHERE created_at >= ? AND created_at < ?
-    """
-    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)]
+          AND """
+    query += source_clause
+    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params]
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
         query += " AND device_id = ?"
@@ -2880,11 +3774,11 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
 
 
 def build_empty_snapshot_payload(device_id=None):
-    return {
+    payload = {
         "level": 0,
         "mode": "AUTO",
-        "simulator": "OFF",
-        "source_tank_simulator": "OFF",
+        "device_source": get_device_source_mode(),
+        "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
         "remaining_liters": 0,
@@ -2913,11 +3807,13 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_sensor_distance_cm": None,
         "lower_water_available_label": "--",
     }
+    return apply_source_tank_aliases(payload, include_aliases=True)
 
 
 def load_dashboard_snapshot(device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    cache_key = normalized_device_id or "__latest__"
+    active_mode = get_device_source_mode()
+    cache_key = f"{active_mode}:{normalized_device_id or '__latest__'}"
     if SNAPSHOT_CACHE_TTL_SECONDS > 0:
         cached = dashboard_snapshot_cache.get(cache_key)
         if cached and (time.time() - cached["created_at"] < SNAPSHOT_CACHE_TTL_SECONDS):
@@ -2957,6 +3853,8 @@ def build_system_status_payload(snapshot, device_id=None):
         "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
         "seconds_since_sync": snapshot.get("seconds_since_sync") if snapshot else None,
         "telemetry_status": snapshot.get("telemetry_status") if snapshot else "no-data",
+        "device_source": snapshot.get("device_source") if snapshot else get_device_source_mode(),
+        "device_source_mode": get_device_source_mode(),
         "signal_quality": snapshot.get("signal_quality") if snapshot else "Unknown",
         "device_id": snapshot.get("device_id") if snapshot else None,
         "firmware_version": snapshot.get("firmware_version") if snapshot else None,
@@ -2992,6 +3890,8 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
         "registered_devices": registered_device_ids,
         "latest_snapshot": {
             "device_id": snapshot.get("device_id") if snapshot else None,
+            "device_source": snapshot.get("device_source") if snapshot else get_device_source_mode(),
+            "device_source_mode": get_device_source_mode(),
             "firmware_version": snapshot.get("firmware_version") if snapshot else None,
             "reset_reason": snapshot.get("reset_reason") if snapshot else None,
             "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
@@ -3034,6 +3934,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 
 def build_db_summary_payload():
     file_sizes = collect_database_file_sizes()
+    active_mode = get_device_source_mode()
     with get_db() as db:
         telemetry_row = db.execute(
             """
@@ -3083,6 +3984,7 @@ def build_db_summary_payload():
         },
         "analytics": {
             "history_enabled": TELEMETRY_HISTORY_ENABLED,
+            "device_source_mode": active_mode,
             "retention_days": DATA_RETENTION_DAYS,
             "max_rows_per_device": MAX_TELEMETRY_ROWS_PER_DEVICE,
             "graphs_ready": TELEMETRY_HISTORY_ENABLED and telemetry_rows >= 2,
@@ -3123,7 +4025,13 @@ def build_db_summary_payload():
 
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    cache_key = (start_dt.strftime(DATE_ONLY_FORMAT), end_exclusive.strftime(DATE_ONLY_FORMAT), normalized_device_id or "*")
+    active_mode = get_device_source_mode()
+    cache_key = (
+        start_dt.strftime(DATE_ONLY_FORMAT),
+        end_exclusive.strftime(DATE_ONLY_FORMAT),
+        normalized_device_id or "*",
+        active_mode,
+    )
     cached = analytics_cache.get(cache_key)
     if cached and (time.time() - cached["created_at"] < 30):
         return cached["payload"]
@@ -3300,14 +4208,17 @@ def build_events(limit=12, device_id=None):
         return []
 
     normalized_device_id = normalize_device_id(device_id)
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, sensor, wifi, created_at
         FROM tank_data
+        WHERE 
     """
-    params = []
+    query += source_clause
+    params = list(source_params)
     if normalized_device_id:
-        query += " WHERE device_id = ?"
+        query += " AND device_id = ?"
         params.append(normalized_device_id)
     query += " ORDER BY created_at DESC, id DESC LIMIT 240"
     with get_db() as db:
@@ -3450,28 +4361,66 @@ def fetch_audit_events(limit=30, device_id=None):
     return events
 
 
-def set_alert(kind, severity, message, device_id=None, active=True):
-    with get_db() as db:
-        existing = db.execute(
-            """
-            SELECT id, active, message, severity
-            FROM ops_alerts
-            WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '')
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (kind, device_id),
-        ).fetchone()
+def set_alert(kind, severity, message, device_id=None, active=True, best_effort=False):
+    normalized_device_id = normalize_device_id(device_id)
+    if should_skip_alert_touch(
+        kind,
+        severity,
+        message,
+        device_id=normalized_device_id,
+        active=active,
+    ):
+        return
 
-        if active:
-            if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
-                db.execute(
-                    "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (existing["id"],),
+    webhook_payload = None
+    try:
+        with get_db() as db:
+            existing = db.execute(
+                """
+                SELECT id, active, message, severity
+                FROM ops_alerts
+                WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '')
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (kind, normalized_device_id),
+            ).fetchone()
+
+            if active:
+                if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
+                    db.execute(
+                        "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (existing["id"],),
+                    )
+                    note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+                    return
+
+                if existing and int(existing["active"]) == 1:
+                    db.execute(
+                        """
+                        UPDATE ops_alerts
+                        SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (existing["id"],),
+                    )
+
+                cursor = db.execute(
+                    """
+                    INSERT INTO ops_alerts (device_id, kind, severity, message, active)
+                    VALUES (?, ?, ?, ?, 1)
+                    """,
+                    (normalized_device_id, kind, severity, message),
                 )
-                return
-
-            if existing and int(existing["active"]) == 1:
+                webhook_payload = {
+                    "id": cursor.lastrowid,
+                    "device_id": normalized_device_id,
+                    "kind": kind,
+                    "severity": severity,
+                    "message": message,
+                    "active": True,
+                }
+            elif existing and int(existing["active"]) == 1:
                 db.execute(
                     """
                     UPDATE ops_alerts
@@ -3480,39 +4429,25 @@ def set_alert(kind, severity, message, device_id=None, active=True):
                     """,
                     (existing["id"],),
                 )
-
-            cursor = db.execute(
-                """
-                INSERT INTO ops_alerts (device_id, kind, severity, message, active)
-                VALUES (?, ?, ?, ?, 1)
-                """,
-                (device_id, kind, severity, message),
+    except sqlite3.OperationalError as exc:
+        if best_effort and database_is_locked_error(exc):
+            note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+            logger.warning(
+                "Skipping alert bookkeeping for %s/%s because the SQLite database is busy.",
+                str(kind or "").strip() or "alert",
+                normalized_device_id or "global",
             )
-            alert_id = cursor.lastrowid
-            send_alert_webhook({
-                "id": alert_id,
-                "device_id": device_id,
-                "kind": kind,
-                "severity": severity,
-                "message": message,
-                "active": True,
-            })
             return
+        raise
 
-        if existing and int(existing["active"]) == 1:
-            db.execute(
-                """
-                UPDATE ops_alerts
-                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-                """,
-                (existing["id"],),
-            )
+    note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
+    if webhook_payload:
+        send_alert_webhook(webhook_payload)
 
 
 def evaluate_snapshot_alerts(snapshot):
     if not snapshot:
-        set_alert("telemetry_stale", "danger", "No telemetry has been received yet.", active=True)
+        set_alert("telemetry_stale", "danger", "No telemetry has been received yet.", active=True, best_effort=True)
         return
 
     device_id = snapshot.get("device_id")
@@ -3523,6 +4458,7 @@ def evaluate_snapshot_alerts(snapshot):
         f"Telemetry is stale for device {device_id or 'unknown device'}.",
         device_id=device_id,
         active=stale,
+        best_effort=True,
     )
     set_alert(
         "pump_failure",
@@ -3530,6 +4466,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Pump failure reported by firmware.",
         device_id=device_id,
         active=bool_flag(snapshot.get("pump_failure")),
+        best_effort=True,
     )
     set_alert(
         "dry_run",
@@ -3537,6 +4474,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Dry-run protection triggered.",
         device_id=device_id,
         active=bool_flag(snapshot.get("dry_run")),
+        best_effort=True,
     )
     leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak"))
     set_alert(
@@ -3545,6 +4483,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Leak-related alert reported by firmware.",
         device_id=device_id,
         active=leak_active,
+        best_effort=True,
     )
     sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""}
     set_alert(
@@ -3553,6 +4492,7 @@ def evaluate_snapshot_alerts(snapshot):
         "Main tank sensor needs attention.",
         device_id=device_id,
         active=sensor_bad,
+        best_effort=True,
     )
 
 
@@ -3620,16 +4560,21 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT *
         FROM tank_data
         WHERE id IN (
             SELECT MAX(id)
             FROM tank_data
+            WHERE 
+    """
+    query += source_clause
+    query += """
             GROUP BY COALESCE(device_id, '')
         )
     """
-    params = []
+    params = list(source_params)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
         query += f" AND COALESCE(device_id, '') IN ({placeholders})"
@@ -3642,30 +4587,7 @@ def fetch_device_inventory(limit=20, device_ids=None):
     inventory = []
     for row in rows:
         snapshot = enrich_snapshot(dict(row))
-        inventory.append(
-            {
-                "device_id": snapshot.get("device_id") or "unassigned",
-                "firmware_version": snapshot.get("firmware_version"),
-                "reset_reason": snapshot.get("reset_reason"),
-                "last_sync_at": snapshot.get("last_sync_at"),
-                "telemetry_status": snapshot.get("telemetry_status"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "channel_mode": snapshot.get("channel_mode"),
-                "telemetry_service": snapshot.get("telemetry_service"),
-                "command_service": snapshot.get("command_service"),
-                "ota_service": snapshot.get("ota_service"),
-                "lower_tank_service": snapshot.get("lower_tank_service"),
-                "wifi": snapshot.get("wifi"),
-                "wifi_rssi": snapshot.get("wifi_rssi"),
-                "sensor": snapshot.get("sensor"),
-                "motor": snapshot.get("motor"),
-                "mode": snapshot.get("mode"),
-            }
-        )
+        inventory.append(build_admin_device_entry(snapshot.get("device_id") or "unassigned", snapshot=snapshot))
     return inventory
 
 
@@ -3673,21 +4595,23 @@ def fetch_device_snapshot(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
-            """
+            f"""
             SELECT *
             FROM tank_data
             WHERE device_id = ?
+              AND {source_clause}
             ORDER BY created_at DESC, id DESC
             LIMIT 1
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()
         if not row:
             return None
         motor_cycles = db.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM (
                 SELECT motor,
                        LAG(motor) OVER (ORDER BY id) AS prev_motor
@@ -3695,6 +4619,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, motor
                     FROM tank_data
                     WHERE device_id = ?
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 )
@@ -3702,10 +4627,10 @@ def fetch_device_snapshot(device_id):
             )
             WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
         leak_events = db.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM (
                 SELECT pipe_leak,
                        LAG(pipe_leak) OVER (ORDER BY id) AS prev_pipe_leak
@@ -3713,6 +4638,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, pipe_leak
                     FROM tank_data
                     WHERE device_id = ?
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 )
@@ -3720,7 +4646,7 @@ def fetch_device_snapshot(device_id):
             )
             WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
             """,
-            (normalized_device_id,),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
     return enrich_snapshot(dict(row), motor_cycles, leak_events)
 
@@ -3732,16 +4658,18 @@ def fetch_device_history(device_id, limit=48):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return []
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         rows = db.execute(
-            """
-            SELECT level, motor, sensor, wifi_rssi, created_at
+            f"""
+            SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
             FROM tank_data
             WHERE device_id = ?
+              AND {source_clause}
             ORDER BY created_at DESC, id DESC
             LIMIT ?
             """,
-            (normalized_device_id, limit),
+            (normalized_device_id, *source_params, limit),
         ).fetchall()
     history = []
     for row in reversed(rows):
@@ -3749,6 +4677,8 @@ def fetch_device_history(device_id, limit=48):
             {
                 "time": format_timestamp(row["created_at"]),
                 "level": row["level"],
+                "lower_tank_level": row["lower_tank_level"],
+                "source_tank_level": row["lower_tank_level"],
                 "motor": row["motor"],
                 "sensor": row["sensor"],
                 "wifi_rssi": row["wifi_rssi"],
@@ -3758,9 +4688,18 @@ def fetch_device_history(device_id, limit=48):
 
 
 def latest_device_id():
+    source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
-            "SELECT device_id FROM tank_data WHERE device_id IS NOT NULL AND device_id != '' ORDER BY id DESC LIMIT 1"
+            f"""
+            SELECT device_id
+            FROM tank_data
+            WHERE device_id IS NOT NULL AND device_id != ''
+              AND {source_clause}
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            tuple(source_params),
         ).fetchone()
     return row["device_id"] if row else None
 
@@ -4146,7 +5085,13 @@ def drain_relay_queue(max_items=3):
             )
 
 
-def fetch_cloud_command(device_id=None):
+def cloud_relay_enabled_for_device_source(device_source):
+    return normalize_device_source(device_source, default=DEVICE_SOURCE_REAL) == DEVICE_SOURCE_REAL
+
+
+def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
+    if not cloud_relay_enabled_for_device_source(device_source):
+        return None
     if not RELAY_COMMAND_URL_LIST:
         return None
     for url in RELAY_COMMAND_URL_LIST:
@@ -4174,7 +5119,9 @@ def fetch_cloud_command(device_id=None):
     return None
 
 
-def acknowledge_relay_command(device_id, command_id):
+def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE_REAL):
+    if not cloud_relay_enabled_for_device_source(device_source):
+        return False
     if not RELAY_COMMAND_URL_LIST:
         return False
 
@@ -4389,6 +5336,9 @@ def stop_mqtt_bridge():
 @login_required
 @csrf_protect
 def motor_on():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     return queue_command("ON", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
@@ -4396,6 +5346,9 @@ def motor_on():
 @login_required
 @csrf_protect
 def motor_off():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
@@ -4403,6 +5356,9 @@ def motor_off():
 @login_required
 @csrf_protect
 def motor_auto():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     payload = queue_command("AUTO", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
     payload["message"] = "AUTO command queued for the device."
     return payload
@@ -4412,6 +5368,9 @@ def motor_auto():
 @login_required
 @csrf_protect
 def sensor_calibrate():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     payload = queue_command("CALIBRATE", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
     payload["message"] = "Sensor calibration request queued."
     return payload
@@ -4421,6 +5380,9 @@ def sensor_calibrate():
 @login_required
 @csrf_protect
 def sensor_configure():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     height_cm = request.values.get("height_cm", type=float)
     capacity_liters = request.values.get("capacity_liters", type=float)
     target_device = current_scope_device_id(request.values.get("device_id", type=str))
@@ -4475,6 +5437,7 @@ def mobile_auth_login():
             "username": authenticated_user.get("username"),
             "device_id": authenticated_user.get("device_id"),
             "display_name": authenticated_user.get("display_name"),
+            "cloud_feed_enabled": authenticated_user.get("cloud_feed_enabled", True),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
     })
@@ -4485,6 +5448,9 @@ def mobile_auth_login():
 def mobile_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
     audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     snapshot = load_dashboard_snapshot(scoped_device_id)
@@ -4505,6 +5471,9 @@ def mobile_bootstrap():
 @app.route("/api/mobile/analytics")
 @mobile_auth_required
 def mobile_analytics():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     try:
         start_dt, end_exclusive, label = resolve_date_window()
@@ -4572,6 +5541,7 @@ def mobile_account_password():
                     "username": username,
                     "device_id": device_id,
                     "display_name": updated_account.get("display_name") or device_id,
+                    "cloud_feed_enabled": int(updated_account.get("cloud_feed_enabled", 1) or 0) == 1,
                 },
             }
         )
@@ -4582,6 +5552,9 @@ def mobile_account_password():
 @app.route("/api/mobile/last")
 @mobile_auth_required
 def mobile_last():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     if not snapshot:
@@ -4592,18 +5565,27 @@ def mobile_last():
 @app.route("/api/mobile/motor/on", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_on():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response("ON", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
 
 
 @app.route("/api/mobile/motor/off", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_off():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
 
 
 @app.route("/api/mobile/motor/auto", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_auto():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response(
         "AUTO",
         target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
@@ -4614,6 +5596,9 @@ def mobile_motor_auto():
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])
 @mobile_auth_required
 def mobile_sensor_calibrate():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     return mobile_queue_command_response(
         "CALIBRATE",
         target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
@@ -4624,6 +5609,9 @@ def mobile_sensor_calibrate():
 @app.route("/api/mobile/sensor/configure", methods=["POST"])
 @mobile_auth_required
 def mobile_sensor_configure():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     data = request.get_json(silent=True) or {}
     height_cm = data.get("height_cm")
     capacity_liters = data.get("capacity_liters")
@@ -4652,6 +5640,9 @@ def mobile_sensor_configure():
 @app.route("/api/mobile/device/status")
 @mobile_auth_required
 def mobile_device_status():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     return jsonify({
@@ -4663,6 +5654,13 @@ def mobile_device_status():
 
 @app.route("/device/command")
 def get_command():
+    try:
+        request_source = resolve_request_device_source()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if request_source != get_device_source_mode():
+        return active_device_source_conflict_response(request_source)
+
     auth_ok, auth_payload, auth_status = authenticate_device_request()
     if not auth_ok:
         return auth_payload, auth_status
@@ -4676,21 +5674,32 @@ def get_command():
             "command_source": "queue",
             "control_policy": CONTROL_POLICY,
             "device_id": device_id,
+            "device_source": request_source,
+            "device_source_mode": get_device_source_mode(),
         }
 
-    relay_payload = fetch_cloud_command(device_id) or {}
+    relay_payload = fetch_cloud_command(device_id, device_source=request_source) or {}
     return {
         "command": relay_payload.get("command"),
         "command_id": relay_payload.get("command_id"),
         "command_source": "relay" if relay_payload.get("command") else None,
         "control_policy": CONTROL_POLICY,
         "device_id": device_id,
+        "device_source": request_source,
+        "device_source_mode": get_device_source_mode(),
     }
 
 
 @app.route("/device/command/ack", methods=["POST"])
 def acknowledge_device_command():
     payload = request.get_json(silent=True) or {}
+    try:
+        request_source = resolve_request_device_source(payload)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if request_source != get_device_source_mode():
+        return active_device_source_conflict_response(request_source)
+
     auth_ok, auth_payload, auth_status = authenticate_device_request(payload)
     if not auth_ok:
         return auth_payload, auth_status
@@ -4700,7 +5709,7 @@ def acknowledge_device_command():
     command_source = str(payload.get("command_source") or "queue").strip().lower()
 
     if command_source == "relay":
-        acknowledged = acknowledge_relay_command(device_id, command_id)
+        acknowledged = acknowledge_relay_command(device_id, command_id, device_source=request_source)
     else:
         acknowledged = acknowledge_queued_command_id(device_id, command_id)
         if acknowledged:
@@ -4712,6 +5721,8 @@ def acknowledge_device_command():
         "command_id": command_id,
         "command_source": command_source,
         "device_id": device_id,
+        "device_source": request_source,
+        "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
     }, status_code
 
@@ -4783,13 +5794,17 @@ def account_password():
 def render_dashboard_page(selected_device_id=None):
     scoped_dashboard_device_id = current_scope_device_id(selected_device_id)
     logger.info("Dashboard opened")
+    customer_cloud_feed = current_customer_cloud_feed_enabled()
     return render_template(
         "index.html",
         is_admin=is_admin_user(),
         viewer_role=current_user_role(),
         viewer_device_id=current_customer_device_id(),
+        viewer_display_name=(current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
         selected_device_id=scoped_dashboard_device_id,
-        can_control=is_logged_in(),
+        cloud_feed_enabled=customer_cloud_feed,
+        cloud_feed_error=customer_cloud_feed_error_message() if current_user_role() == "customer" and not customer_cloud_feed else "",
+        can_control=is_logged_in() and (is_admin_user() or customer_cloud_feed),
     )
 
 
@@ -4824,6 +5839,7 @@ def admin_customers():
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
@@ -4833,6 +5849,7 @@ def admin_customers():
         error=error,
         success=success,
         search_query=search_query,
+        device_summary=device_summary,
     )
 
 
@@ -4842,6 +5859,7 @@ def admin_customers():
 def admin_customer_password_reset(device_id):
     error = None
     success = None
+    search_query = request.values.get("q", "", type=str) or ""
     new_password = request.form.get("password", "")
     account = fetch_customer_account(device_id)
 
@@ -4871,12 +5889,158 @@ def admin_customer_password_reset(device_id):
         accounts=accounts,
         available_devices=fetch_device_inventory(limit=100),
     )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
     return render_customer_admin_page(
-        accounts=accounts,
-        available_devices=available_devices,
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
         error=error,
         success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/edit", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_customer_edit(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    display_name = request.form.get("display_name", "")
+    account = fetch_customer_account(device_id)
+
+    if not account:
+        error = f"Customer account not found for {normalize_device_id(device_id) or 'that device'}."
+    else:
+        try:
+            updated_account = update_customer_account_profile(
+                account["device_id"],
+                display_name=display_name,
+            )
+            log_audit_event(
+                actor=current_actor_username(),
+                action="update_customer_profile",
+                target_type="customer_account",
+                target_id=updated_account["device_id"],
+                device_id=updated_account["device_id"],
+                details={"display_name": updated_account.get("display_name")},
+            )
+            success = f"Customer name updated for {updated_account['device_id']}."
+        except ValueError as exc:
+            error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/cloud-feed", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_customer_cloud_feed(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    desired_value = request.form.get("cloud_feed_enabled", "")
+    account = fetch_customer_account(device_id)
+
+    if not account:
+        error = f"Customer account not found for {normalize_device_id(device_id) or 'that device'}."
+    else:
+        enable_cloud_feed = str(desired_value or "").strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
+        updated_account = update_customer_account_profile(
+            account["device_id"],
+            cloud_feed_enabled=1 if enable_cloud_feed else 0,
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="set_customer_cloud_feed",
+            target_type="customer_account",
+            target_id=updated_account["device_id"],
+            device_id=updated_account["device_id"],
+            details={"cloud_feed_enabled": bool(enable_cloud_feed)},
+        )
+        success = (
+            f"Cloud feed enabled for {updated_account['device_id']}."
+            if enable_cloud_feed
+            else f"Cloud feed disabled for {updated_account['device_id']}."
+        )
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/delete", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_delete_known_device(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    try:
+        deleted_counts = delete_known_device(normalized_device_id)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="delete_known_device",
+            target_type="device",
+            target_id=normalized_device_id,
+            details=deleted_counts,
+        )
+        success = f"Deleted device {normalized_device_id} from admin records."
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
     )
 
 
@@ -4912,6 +6076,44 @@ def admin_db_summary():
     return jsonify(build_db_summary_payload())
 
 
+@app.route("/admin/device-source-mode", methods=["GET", "POST"])
+@admin_required
+@csrf_protect
+def admin_device_source_mode():
+    if request.method == "GET":
+        return jsonify(
+            {
+                "device_source_mode": get_device_source_mode(),
+                "allowed_modes": [DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL],
+            }
+        )
+
+    data = request.get_json(silent=True) or {}
+    requested_mode = data.get("device_source_mode")
+    if requested_mode is None:
+        requested_mode = request.form.get("device_source_mode")
+    try:
+        normalized_mode = set_device_source_mode(requested_mode)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    actor = current_actor_username()
+    log_audit_event(
+        actor=actor,
+        action="set_device_source_mode",
+        target_type="backend_setting",
+        target_id=DEVICE_SOURCE_MODE_SETTING,
+        details={"device_source_mode": normalized_mode},
+    )
+    return jsonify(
+        {
+            "status": "updated",
+            "device_source_mode": normalized_mode,
+            "allowed_modes": [DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL],
+        }
+    )
+
+
 @app.route("/admin/dashboard/<device_id>")
 @admin_required
 def admin_device_dashboard(device_id):
@@ -4927,6 +6129,7 @@ def customer_dashboard():
 @app.route("/devices/<device_id>")
 @login_required
 def device_detail_page(device_id):
+    customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     return render_template("device_detail.html", device_id=scoped_device_id, is_admin=is_admin_user())
 
@@ -4934,6 +6137,7 @@ def device_detail_page(device_id):
 @app.route("/firmware/update")
 @login_required
 def firmware_update_redirect():
+    customer_cloud_feed_abort_if_disabled()
     device_id = current_scope_device_id(request.args.get("device_id", type=str)) or latest_device_id()
     target_url = build_device_update_url(device_id)
     if not target_url:
@@ -4954,6 +6158,7 @@ def firmware_update_redirect():
 @app.route("/devices/<device_id>/firmware/update")
 @login_required
 def device_firmware_update_redirect(device_id):
+    customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     target_url = build_device_update_url(scoped_device_id)
     if not target_url:
@@ -4974,13 +6179,17 @@ def device_firmware_update_redirect(device_id):
 @app.route("/devices/<device_id>/status")
 @login_required
 def device_detail_status(device_id):
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         return jsonify({"error": "device not found"}), 404
-    alerts = fetch_filtered_alerts(limit=20, device_id=scoped_device_id)
-    audit = fetch_audit_events(limit=20, device_id=scoped_device_id)
-    history = fetch_device_history(scoped_device_id, limit=48)
+    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
+    audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
+    history = fetch_device_history(scoped_device_id, limit=10)
+    events = build_events(limit=10, device_id=scoped_device_id)
     return jsonify(
         {
             "device_id": scoped_device_id,
@@ -4990,6 +6199,7 @@ def device_detail_status(device_id):
             "alerts": alerts,
             "audit": audit,
             "history": history,
+            "events": events,
         }
     )
 
@@ -5002,12 +6212,17 @@ def status():
             "status": "running",
             "version": API_VERSION,
             "swt_version": SWT_VERSION,
+            "device_source_mode": get_device_source_mode(),
         })
 
     data = request.get_json(silent=True)
     if not data:
         logger.warning("Invalid JSON received")
         return jsonify({"error": "invalid json"}), 400
+    try:
+        data["device_source"] = resolve_request_device_source(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     auth_ok, auth_payload, auth_status = authenticate_device_request(data)
     if not auth_ok:
@@ -5021,7 +6236,9 @@ def status():
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "server_status": "running",
-        "control_policy": CONTROL_POLICY
+        "control_policy": CONTROL_POLICY,
+        "device_source": data["device_source"],
+        "device_source_mode": get_device_source_mode(),
     })
 
 
@@ -5029,6 +6246,9 @@ def status():
 @login_required
 def last():
     logger.info("Fetching last status")
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5042,7 +6262,11 @@ def history():
         return jsonify([])
 
     logger.info("Fetching history")
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
+    source_clause, source_params = device_source_where_clause()
 
     try:
         start_dt, end_exclusive, _label = resolve_date_window()
@@ -5052,11 +6276,12 @@ def history():
     with get_db() as db:
         if scoped_device_id:
             rows = db.execute(
-                """
-                SELECT level, ai_usage_rate, created_at
+                f"""
+                SELECT level, lower_tank_level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
                   AND device_id = ?
+                  AND {source_clause}
                 ORDER BY created_at ASC, id ASC
                 LIMIT 800
                 """,
@@ -5064,24 +6289,28 @@ def history():
                     start_dt.strftime(TIMESTAMP_FORMAT),
                     end_exclusive.strftime(TIMESTAMP_FORMAT),
                     scoped_device_id,
+                    *source_params,
                 ),
             ).fetchall()
         else:
             rows = db.execute(
-                """
-                SELECT level, ai_usage_rate, created_at
+                f"""
+                SELECT level, lower_tank_level, ai_usage_rate, created_at
                 FROM tank_data
                 WHERE created_at >= ? AND created_at < ?
+                  AND {source_clause}
                 ORDER BY created_at ASC, id ASC
                 LIMIT 800
                 """,
-                (start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT))
+                (start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params)
             ).fetchall()
 
     return jsonify(
         [
             {
                 "level": row["level"],
+                "lower_tank_level": row["lower_tank_level"],
+                "source_tank_level": row["lower_tank_level"],
                 "ai_usage_rate": row["ai_usage_rate"],
                 "time": format_timestamp(row["created_at"])
             }
@@ -5098,13 +6327,17 @@ def health():
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
-        "control_policy": CONTROL_POLICY
+        "control_policy": CONTROL_POLICY,
+        "device_source_mode": get_device_source_mode(),
     }
 
 
 @app.route("/device/status")
 @login_required
 def device_status():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     if not snapshot_has_live_device_data(snapshot):
@@ -5118,6 +6351,9 @@ def device_status():
 @app.route("/system/status")
 @login_required
 def system_status():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5138,12 +6374,16 @@ def relay_health():
         "last_error": relay_state.get("last_error"),
         "last_status_code": relay_state.get("last_status_code"),
         "pending_count": pending,
+        "device_source_mode": get_device_source_mode(),
     })
 
 
 @app.route("/monitoring/alerts")
 @login_required
 def monitoring_alerts():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     refresh_operational_alerts(load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None)
     limit = max(1, min(request.args.get("limit", default=20, type=int), 100))
@@ -5174,6 +6414,9 @@ def monitoring_alert_resolve(alert_id):
 @app.route("/monitoring/summary")
 @login_required
 def monitoring_summary():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
@@ -5183,6 +6426,9 @@ def monitoring_summary():
 @app.route("/monitoring/audit")
 @login_required
 def monitoring_audit():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     limit = max(1, min(request.args.get("limit", default=30, type=int), 100))
     device_id = current_scope_device_id(request.args.get("device_id", type=str))
     return jsonify(fetch_audit_events(limit=limit, device_id=device_id))
@@ -5191,6 +6437,9 @@ def monitoring_audit():
 @app.route("/events")
 @login_required
 def events():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     limit = max(1, min(request.args.get("limit", default=12, type=int), 30))
     return jsonify(build_events(limit, device_id=current_scope_device_id(request.args.get("device_id", type=str))))
 
@@ -5199,6 +6448,9 @@ def events():
 @login_required
 def dashboard_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
@@ -5210,7 +6462,12 @@ def dashboard_bootstrap():
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
             "events": build_events(event_limit, device_id=scoped_device_id),
             "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
-            "viewer": {"role": current_user_role(), "device_id": scoped_device_id},
+            "viewer": {
+                "role": current_user_role(),
+                "device_id": scoped_device_id,
+                "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
+                "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
+            },
         }
     )
 
@@ -5218,6 +6475,9 @@ def dashboard_bootstrap():
 @app.route("/analytics")
 @login_required
 def analytics():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     try:
         start_dt, end_exclusive, label = resolve_date_window()
@@ -5296,6 +6556,11 @@ if app.secret_key == DEFAULT_APP_SECRET_KEY:
     logger.warning("APP_SECRET_KEY is using the default value. Change it before production.")
 if DEVICE_KEYS_SOURCE != "default":
     logger.info("Device key registry loaded from %s.", DEVICE_KEYS_SOURCE)
+if LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+    logger.info(
+        "Loaded %s local virtual device auth entries from env files.",
+        len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP),
+    )
 if device_keys_look_default():
     logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
 start_relay_drain_worker()

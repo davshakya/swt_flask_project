@@ -52,6 +52,8 @@ PowerShell:
 ```powershell
 Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
+New-Item -ItemType Directory -Force tests\virtual_devices | Out-Null
+Copy-Item tests\virtual_devices\device-template.env.example tests\virtual_devices\device-002.env
 ```
 
 ### 2. Edit the copied files before first run
@@ -111,8 +113,9 @@ Values already present in the real process environment are preserved. Among the 
 
 - system environment variables win
 - `device.env` can override values loaded from `.env` files
+- per-device files in `tests/virtual_devices/*.env` can override shared values, but only for `scripts/run_virtual_devices.py`
 
-To avoid confusion, keep backend-only settings in `flask_app/.env` and shared device credentials in `device.env`.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_devices/*.env`.
 
 ## Important Environment Variables
 
@@ -132,6 +135,10 @@ To avoid confusion, keep backend-only settings in `flask_app/.env` and shared de
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_URL`: Optional fixed device URL used when building firmware update redirects.
+- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/run_virtual_devices.py`.
+- `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
+- `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
+- `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
 
 ### Storage and retention
 
@@ -185,10 +192,10 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| `/status` | `GET` | Basic API status/version response |
-| `/status` | `POST` | Receive and store device telemetry |
-| `/device/command` | `GET` | Device polls for queued or relayed commands |
-| `/device/command/ack` | `POST` | Device acknowledges command delivery |
+| `/status` | `GET` | Basic API status/version response and active `device_source_mode` |
+| `/status` | `POST` | Receive and store device telemetry; devices may send `X-Device-Source: real|virtual` |
+| `/device/command` | `GET` | Device polls for queued or relayed commands for the active source mode |
+| `/device/command/ack` | `POST` | Device acknowledges command delivery for the active source mode |
 
 ### Monitoring and data endpoints
 
@@ -205,6 +212,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/events` | Recent event feed | Session |
 | `/relay/health` | Relay queue and relay connectivity summary | Admin |
 | `/admin/db-summary` | DB size/retention/row summary | Admin |
+| `/admin/device-source-mode` | Get or set the active backend `device_source_mode` | Admin |
 | `/ml/predict` | Forecast payload for a device | Session |
 
 ### Mobile API
@@ -294,6 +302,89 @@ python scripts/cleanup_single_device_db.py --db-path data/tank.db --keep-device-
 
 By default, the script creates a timestamped backup before deleting rows.
 
+### Run the virtual device emulator
+
+The emulator behaves like the MCU and is useful for Flask-side testing:
+
+- sends telemetry to `/status`
+- polls `/device/command`
+- acknowledges `/device/command/ack`
+- simulates relay/service connect-disconnect periods
+
+Recommended flow:
+
+1. Set `SWT_DEVICE_SOURCE_MODE=virtual` in `device.env`.
+2. Configure one or more device files in `tests/virtual_devices/`.
+3. Start Flask.
+4. Run:
+
+```powershell
+python scripts/run_virtual_devices.py
+```
+
+The emulator automatically scans `tests/virtual_devices/*.env` and starts one virtual device per file. This lets one script process simulate multiple devices at once.
+
+Local Flask runs now auto-load the device ID/key pairs from those `tests/virtual_devices/*.env` files for API auth when `SEED_VIRTUAL_DEVICE_ENVS=true`, so the default generated fleet can poll `/device/command` without extra `SWT_DEVICE_KEYS` setup. If you point the emulator at env files outside that local test directory or another backend, register those IDs manually through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`.
+
+Virtual devices stay on the local Flask server by default. `scripts/run_virtual_devices.py` uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, and otherwise falls back to `http://127.0.0.1:8000/`; it does not fall back to `SWT_CLOUD_BASE_URL`.
+
+On Render/cloud deployments, Flask now ignores `tests/virtual_device*.env` for registration by default and purges those configured virtual-device records on boot, so the shared cloud server stays focused on the real device configuration.
+
+If you want separate steps for fleet testing, generate the env files first:
+
+```powershell
+python scripts/generate_virtual_device_envs.py --base-url http://127.0.0.1:8000/ --device_count 10
+```
+
+Then start feeding live telemetry from those env files:
+
+```powershell
+python scripts/run_virtual_devices.py
+```
+
+`run_virtual_devices.py` now handles both flows: it looks in `tests/virtual_devices/generated/` first, then falls back to `tests/virtual_devices/`.
+If those device IDs were deleted from the local admin page earlier, generating or running the env files restores them in the local admin registry automatically.
+
+If you want the one-step flow, `run_virtual_devices.py` can still create a batch and run it immediately with `--device_count`:
+
+```powershell
+python scripts/run_virtual_devices.py --base-url http://127.0.0.1:8000/ --device_count 10
+```
+
+That command creates numbered env files under `tests/virtual_devices/generated/` and then runs exactly those generated devices in one process.
+
+Suggested layout:
+
+- `tests/virtual_devices/device-001.env`
+- `tests/virtual_devices/device-002.env`
+- `tests/virtual_devices/device-003.env`
+
+Use `tests/virtual_devices/device-template.env.example` as the starting point for each additional device file.
+
+If you want to target specific files instead of the whole directory, you can pass `--env-file` more than once:
+
+```powershell
+python scripts/run_virtual_devices.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
+```
+
+You can also point the single script at explicit files:
+
+```powershell
+python scripts/run_virtual_devices.py --env-file tests/virtual_devices/generated/device-001.env --env-file tests/virtual_devices/generated/device-002.env
+```
+
+If you pass explicit per-device CLI flags like `--device-id` or `--device-key`, the script falls back to classic single-device mode and does not auto-scan the directory.
+
+When `--device_count` is used, the generated devices all share the same `SWT_VIRTUAL_DEVICE_KEY` by default, and the script prints a suggested wildcard `SWT_DEVICE_KEYS=...` rule for Flask.
+
+Helpful options:
+
+- `--run-seconds 120`
+- `--connected-seconds 90 --disconnected-seconds 30`
+- `--no-enable-source-tank`
+
+If you want to switch modes without restarting Flask, `GET/POST /admin/device-source-mode` is available for admin sessions. `POST` uses the normal CSRF protection.
+
 ## Deployment Guidance
 
 This repository already includes:
@@ -343,4 +434,4 @@ For rollout and support work, see:
 4. Decide whether relay URLs should be blank for local testing.
 5. Start the server and sign in at `/login/admin`.
 6. Confirm `/health` and `/admin/db-summary` look correct.
-7. Send one test telemetry payload from a device or simulator and verify it appears in `/last`.
+7. Send one test telemetry payload from a device and verify it appears in `/last`.
