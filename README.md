@@ -153,6 +153,10 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `DB_TARGET_SIZE_MB`: Soft database size target used by maintenance logic.
 - `DB_MAINTENANCE_MIN_INTERVAL_SECONDS`: Minimum spacing between maintenance runs.
 - `DB_WAL_AUTOCHECKPOINT_PAGES`: WAL checkpoint tuning.
+- `TEMP_DB_SIZE_GUARD_ENABLED`: Temporary safety flag that skips post-retention maintenance when nothing was pruned and the database is still under the configured size target.
+- `TEMP_HARD_DB_CAP_ENABLED`: Temporary hard-cap flag that trims the oldest telemetry rows when the database stays above the configured size target.
+- `TEMP_HARD_DB_CAP_BATCH_ROWS`: Number of oldest telemetry rows to remove per hard-cap batch while preserving the newest row for each device.
+- `TEMP_HARD_DB_CAP_MAX_BATCHES`: Maximum hard-cap cleanup batches to run in one pass before giving up and logging that the DB is still over target.
 - `REQUIRE_RENDER_PERSISTENT_DB`: If `true`, startup fails on Render unless `/var/data/tank.db` is active.
 
 ### Relay, notifications, and MQTT

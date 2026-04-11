@@ -462,6 +462,10 @@ DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
+TEMP_DB_SIZE_GUARD_ENABLED = env_flag("TEMP_DB_SIZE_GUARD_ENABLED", default=False)
+TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
+TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
+TEMP_HARD_DB_CAP_MAX_BATCHES = max(1, env_int("TEMP_HARD_DB_CAP_MAX_BATCHES", 24))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
 SEED_VIRTUAL_DEVICE_ENVS = env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
 PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
@@ -544,11 +548,16 @@ db_maintenance_state = {
     "last_reason": None,
     "last_error": None,
     "last_total_bytes": 0,
+    "last_skip_at": 0.0,
+    "last_skip_reason": None,
 }
 db_prune_state = {
     "last_run_at": 0.0,
     "last_pruned_rows": 0,
     "last_error": None,
+    "last_size_cap_rows": 0,
+    "last_size_cap_batches": 0,
+    "last_size_cap_remaining_pressure": False,
 }
 
 
@@ -2099,6 +2108,88 @@ def collect_database_file_sizes(db_path=None):
     return sizes
 
 
+def database_size_pressure(file_sizes=None):
+    sizes = file_sizes or collect_database_file_sizes()
+    return DB_TARGET_SIZE_BYTES > 0 and int(sizes.get("total_bytes") or 0) >= DB_TARGET_SIZE_BYTES
+
+
+def retention_maintenance_skip_reason(pruned_rows=0, force=False):
+    if force or not TEMP_DB_SIZE_GUARD_ENABLED or pruned_rows > 0:
+        return None
+    if DB_TARGET_SIZE_BYTES <= 0:
+        return "retention-noop-no-target-size"
+    if not database_size_pressure():
+        return "retention-noop-under-target-size"
+    return None
+
+
+def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
+    cursor.execute(
+        """
+        DELETE FROM tank_data
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id
+                FROM tank_data
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM tank_data
+                    GROUP BY COALESCE(device_id, '')
+                )
+                ORDER BY created_at ASC, id ASC
+                LIMIT ?
+            )
+        )
+        """,
+        (max(1, int(batch_rows or TEMP_HARD_DB_CAP_BATCH_ROWS)),),
+    )
+    return max(0, int(cursor.rowcount or 0))
+
+
+def maybe_prune_telemetry_size_cap(force=False):
+    if not TEMP_HARD_DB_CAP_ENABLED and not force:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+    if DB_TARGET_SIZE_BYTES <= 0:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+
+    current_sizes = collect_database_file_sizes()
+    remaining_pressure = database_size_pressure(current_sizes)
+    if not remaining_pressure and not force:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+
+    total_rows = 0
+    batches = 0
+    while remaining_pressure and batches < TEMP_HARD_DB_CAP_MAX_BATCHES:
+        with get_db() as db:
+            deleted_rows = prune_telemetry_batch_for_size_cap(
+                db.cursor(),
+                batch_rows=TEMP_HARD_DB_CAP_BATCH_ROWS,
+            )
+        if deleted_rows <= 0:
+            break
+
+        total_rows += deleted_rows
+        batches += 1
+        maybe_maintain_database(reason="telemetry-size-cap", pruned_rows=deleted_rows, force=True)
+        current_sizes = collect_database_file_sizes()
+        remaining_pressure = database_size_pressure(current_sizes)
+
+    if remaining_pressure:
+        logger.warning(
+            "Telemetry size cap did not fully reach target: pruned_rows=%s batches=%s total_bytes=%s target_bytes=%s",
+            total_rows,
+            batches,
+            current_sizes["total_bytes"],
+            DB_TARGET_SIZE_BYTES,
+        )
+
+    return {
+        "rows": total_rows,
+        "batches": batches,
+        "remaining_pressure": remaining_pressure,
+    }
+
+
 def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
     pruned = {}
 
@@ -2203,14 +2294,33 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
                 latest_row_id=latest_row_id,
             )
 
+        size_cap_result = maybe_prune_telemetry_size_cap(force=force)
+        size_cap_rows = int(size_cap_result.get("rows") or 0)
+        if size_cap_rows > 0:
+            pruned["tank_data_size_cap"] = size_cap_rows
+
         pruned_rows = sum(int(value or 0) for value in pruned.values())
         db_prune_state.update(
             {
                 "last_run_at": now,
                 "last_pruned_rows": pruned_rows,
                 "last_error": None,
+                "last_size_cap_rows": size_cap_rows,
+                "last_size_cap_batches": int(size_cap_result.get("batches") or 0),
+                "last_size_cap_remaining_pressure": bool(size_cap_result.get("remaining_pressure")),
             }
         )
+        if int(size_cap_result.get("batches") or 0) > 0:
+            return pruned
+        skip_reason = retention_maintenance_skip_reason(pruned_rows=pruned_rows, force=force)
+        if skip_reason:
+            db_maintenance_state.update(
+                {
+                    "last_skip_at": now,
+                    "last_skip_reason": skip_reason,
+                }
+            )
+            return pruned
         maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows)
         return pruned
     except Exception as exc:
@@ -2227,7 +2337,7 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 
     now = time.time()
     before_sizes = collect_database_file_sizes()
-    size_pressure = DB_TARGET_SIZE_BYTES > 0 and before_sizes["total_bytes"] >= DB_TARGET_SIZE_BYTES
+    size_pressure = database_size_pressure(before_sizes)
     if (
         not force
         and pruned_rows <= 0
@@ -2242,7 +2352,7 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
     try:
         now = time.time()
         before_sizes = collect_database_file_sizes()
-        size_pressure = DB_TARGET_SIZE_BYTES > 0 and before_sizes["total_bytes"] >= DB_TARGET_SIZE_BYTES
+        size_pressure = database_size_pressure(before_sizes)
         if (
             not force
             and pruned_rows <= 0
@@ -2283,10 +2393,13 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
                 "last_reason": reason,
                 "last_error": None,
                 "last_total_bytes": after_sizes["total_bytes"],
+                "last_skip_at": 0.0,
+                "last_skip_reason": None,
             }
         )
         if pruned_rows > 0 or size_pressure or after_sizes["total_bytes"] != before_sizes["total_bytes"]:
-            logger.warning(
+            log_fn = logger.warning if size_pressure else logger.info
+            log_fn(
                 "Database maintenance (%s): pruned_rows=%s total_bytes=%s->%s target_bytes=%s",
                 reason,
                 pruned_rows,
@@ -2301,6 +2414,8 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
                 "last_run_at": time.time(),
                 "last_reason": reason,
                 "last_error": str(exc),
+                "last_skip_at": 0.0,
+                "last_skip_reason": None,
             }
         )
         logger.warning("Database maintenance failed (%s): %s", reason, exc)
@@ -4012,6 +4127,10 @@ def build_db_summary_payload():
             "target_size_bytes": DB_TARGET_SIZE_BYTES,
             "min_interval_seconds": DB_MAINTENANCE_MIN_INTERVAL_SECONDS,
             "wal_autocheckpoint_pages": DB_WAL_AUTOCHECKPOINT_PAGES,
+            "temporary_size_guard_enabled": TEMP_DB_SIZE_GUARD_ENABLED,
+            "temporary_hard_size_cap_enabled": TEMP_HARD_DB_CAP_ENABLED,
+            "hard_size_cap_batch_rows": TEMP_HARD_DB_CAP_BATCH_ROWS,
+            "hard_size_cap_max_batches": TEMP_HARD_DB_CAP_MAX_BATCHES,
             "device_command_retention_days": DEVICE_COMMAND_RETENTION_DAYS,
             "ops_alert_retention_days": OPS_ALERT_RETENTION_DAYS,
             "ops_audit_retention_days": OPS_AUDIT_RETENTION_DAYS,
@@ -4019,6 +4138,11 @@ def build_db_summary_payload():
             "last_reason": db_maintenance_state.get("last_reason"),
             "last_error": db_maintenance_state.get("last_error"),
             "last_total_bytes": db_maintenance_state.get("last_total_bytes"),
+            "last_skip_at_epoch": db_maintenance_state.get("last_skip_at"),
+            "last_skip_reason": db_maintenance_state.get("last_skip_reason"),
+            "last_size_cap_pruned_rows": db_prune_state.get("last_size_cap_rows"),
+            "last_size_cap_batches": db_prune_state.get("last_size_cap_batches"),
+            "last_size_cap_remaining_pressure": db_prune_state.get("last_size_cap_remaining_pressure"),
         },
     }
 

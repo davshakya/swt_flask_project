@@ -602,6 +602,188 @@ def test_maybe_prune_retained_rows_throttles_repeated_runs(monkeypatch):
     server_module.db_prune_state.update(original_state)
 
 
+def test_maybe_prune_retained_rows_skips_noop_maintenance_when_temp_size_guard_enabled(monkeypatch):
+    class DummyDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            return object()
+
+    maintenance_calls = []
+    original_prune_state = dict(server_module.db_prune_state)
+    original_maintenance_state = dict(server_module.db_maintenance_state)
+    monkeypatch.setattr(server_module, "TEMP_DB_SIZE_GUARD_ENABLED", True)
+    monkeypatch.setattr(server_module, "DB_TARGET_SIZE_BYTES", 1024)
+    monkeypatch.setattr(server_module, "DB_PRUNE_MIN_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "get_db", lambda: DummyDb())
+    monkeypatch.setattr(
+        server_module,
+        "prune_retained_rows",
+        lambda cursor, device_id=None, latest_row_id=None: {"tank_data_retention": 0},
+    )
+    monkeypatch.setattr(
+        server_module,
+        "collect_database_file_sizes",
+        lambda db_path=None: {"main_bytes": 128, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 128},
+    )
+    monkeypatch.setattr(
+        server_module,
+        "maybe_maintain_database",
+        lambda reason="periodic", pruned_rows=0, force=False: maintenance_calls.append((reason, pruned_rows, force)),
+    )
+    server_module.db_prune_state.update({"last_run_at": 0.0, "last_pruned_rows": 0, "last_error": None})
+    server_module.db_maintenance_state.update({"last_skip_at": 0.0, "last_skip_reason": None})
+
+    result = server_module.maybe_prune_retained_rows(device_id="swt-node-01", latest_row_id=101)
+
+    assert result == {"tank_data_retention": 0}
+    assert maintenance_calls == []
+    assert server_module.db_maintenance_state["last_skip_reason"] == "retention-noop-under-target-size"
+    assert server_module.db_maintenance_state["last_skip_at"] > 0
+    server_module.db_prune_state.update(original_prune_state)
+    server_module.db_maintenance_state.update(original_maintenance_state)
+
+
+def test_maybe_prune_telemetry_size_cap_drops_oldest_rows_and_preserves_latest_snapshot(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Telemetry size-cap DB mutation test is skipped against shared BASE_URL deployments.")
+
+    primary_device_id = f"{default_test_device_id()}-sizecap-primary"
+    secondary_device_id = f"{default_test_device_id()}-sizecap-secondary"
+    maintenance_calls = []
+    temp_db_path = server_module.PROJECT_ROOT / "data" / f"size-cap-test-{time.time_ns()}.db"
+
+    def open_temp_db():
+        conn = sqlite3.connect(temp_db_path, timeout=20, check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    try:
+        with open_temp_db() as db:
+            db.execute(
+                """
+                CREATE TABLE tank_data(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    level REAL,
+                    motor TEXT,
+                    mode TEXT,
+                    device_source TEXT,
+                    device_id TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            for created_at, device_id, level in (
+                ("2026-01-01 00:00:01", primary_device_id, 10.0),
+                ("2026-01-01 00:00:02", primary_device_id, 20.0),
+                ("2026-01-01 00:00:03", primary_device_id, 30.0),
+                ("2026-01-01 00:00:04", secondary_device_id, 40.0),
+                ("2026-01-01 00:00:05", secondary_device_id, 50.0),
+            ):
+                db.execute(
+                    """
+                    INSERT INTO tank_data(level, motor, mode, device_source, device_id, created_at)
+                    VALUES (?, 'OFF', 'AUTO', ?, ?, ?)
+                    """,
+                    (level, server_module.DEVICE_SOURCE_REAL, device_id, created_at),
+                )
+
+        size_samples = iter(
+            [
+                {"main_bytes": 8192, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 8192},
+                {"main_bytes": 256, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 256},
+            ]
+        )
+        monkeypatch.setattr(server_module, "get_db", open_temp_db)
+        monkeypatch.setattr(server_module, "TEMP_HARD_DB_CAP_ENABLED", True)
+        monkeypatch.setattr(server_module, "DB_TARGET_SIZE_BYTES", 1024)
+        monkeypatch.setattr(server_module, "TEMP_HARD_DB_CAP_BATCH_ROWS", 10)
+        monkeypatch.setattr(server_module, "TEMP_HARD_DB_CAP_MAX_BATCHES", 2)
+        monkeypatch.setattr(
+            server_module,
+            "collect_database_file_sizes",
+            lambda db_path=None: next(size_samples, {"main_bytes": 256, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 256}),
+        )
+        monkeypatch.setattr(
+            server_module,
+            "maybe_maintain_database",
+            lambda reason="periodic", pruned_rows=0, force=False: maintenance_calls.append((reason, pruned_rows, force)) or True,
+        )
+
+        result = server_module.maybe_prune_telemetry_size_cap()
+
+        with open_temp_db() as db:
+            remaining_rows = db.execute(
+                """
+                SELECT device_id, level, created_at
+                FROM tank_data
+                WHERE device_id IN (?, ?)
+                ORDER BY device_id ASC, created_at ASC, id ASC
+                """,
+                (primary_device_id, secondary_device_id),
+            ).fetchall()
+
+        assert result == {"rows": 3, "batches": 1, "remaining_pressure": False}
+        assert maintenance_calls == [("telemetry-size-cap", 3, True)]
+        assert [(row["device_id"], row["level"], row["created_at"]) for row in remaining_rows] == [
+            (primary_device_id, 30.0, "2026-01-01 00:00:03"),
+            (secondary_device_id, 50.0, "2026-01-01 00:00:05"),
+        ]
+    finally:
+        for suffix in ("", "-shm", "-wal"):
+            candidate = Path(f"{temp_db_path}{suffix}")
+            if candidate.exists():
+                try:
+                    candidate.unlink()
+                except OSError:
+                    pass
+
+
+def test_maybe_prune_retained_rows_skips_extra_maintenance_after_size_cap(monkeypatch):
+    class DummyDb:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def cursor(self):
+            return object()
+
+    maintenance_calls = []
+    original_prune_state = dict(server_module.db_prune_state)
+    monkeypatch.setattr(server_module, "DB_PRUNE_MIN_INTERVAL_SECONDS", 60)
+    monkeypatch.setattr(server_module, "get_db", lambda: DummyDb())
+    monkeypatch.setattr(
+        server_module,
+        "prune_retained_rows",
+        lambda cursor, device_id=None, latest_row_id=None: {"tank_data_retention": 0},
+    )
+    monkeypatch.setattr(
+        server_module,
+        "maybe_prune_telemetry_size_cap",
+        lambda force=False: {"rows": 5, "batches": 1, "remaining_pressure": False},
+    )
+    monkeypatch.setattr(
+        server_module,
+        "maybe_maintain_database",
+        lambda reason="periodic", pruned_rows=0, force=False: maintenance_calls.append((reason, pruned_rows, force)),
+    )
+    server_module.db_prune_state.update({"last_run_at": 0.0, "last_pruned_rows": 0, "last_error": None})
+
+    result = server_module.maybe_prune_retained_rows(device_id="swt-node-01", latest_row_id=101)
+
+    assert result == {"tank_data_retention": 0, "tank_data_size_cap": 5}
+    assert maintenance_calls == []
+    assert server_module.db_prune_state["last_size_cap_rows"] == 5
+    assert server_module.db_prune_state["last_size_cap_batches"] == 1
+    server_module.db_prune_state.update(original_prune_state)
+
+
 def test_device_status_accepts_valid_credentials_and_persists_device_metadata():
     device_id = default_test_device_id()
     payload = build_status_payload(
@@ -1580,6 +1762,8 @@ def test_admin_db_summary_reports_live_table_counts():
     assert payload["database"]["path_source"] == server_module.DB_PATH_SOURCE
     assert "file_sizes_bytes" in payload["database"]
     assert payload["maintenance"]["target_size_bytes"] == server_module.DB_TARGET_SIZE_BYTES
+    assert payload["maintenance"]["temporary_size_guard_enabled"] == server_module.TEMP_DB_SIZE_GUARD_ENABLED
+    assert payload["maintenance"]["temporary_hard_size_cap_enabled"] == server_module.TEMP_HARD_DB_CAP_ENABLED
     assert payload["maintenance"]["device_command_retention_days"] == server_module.DEVICE_COMMAND_RETENTION_DAYS
     assert payload["tables"]["tank_data"]["rows"] == int(tank_row["row_count"])
     assert payload["tables"]["tank_data"]["latest_created_at"] == tank_row["latest_created_at"]

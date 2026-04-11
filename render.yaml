@@ -40,6 +40,14 @@ services:
         value: 900
       - key: DB_WAL_AUTOCHECKPOINT_PAGES
         value: 1000
+      - key: TEMP_DB_SIZE_GUARD_ENABLED
+        value: true
+      - key: TEMP_HARD_DB_CAP_ENABLED
+        value: true
+      - key: TEMP_HARD_DB_CAP_BATCH_ROWS
+        value: 2000
+      - key: TEMP_HARD_DB_CAP_MAX_BATCHES
+        value: 24
       - key: REQUIRE_RENDER_PERSISTENT_DB
         value: false
       - key: SWT_DEVICE_SOURCE_MODE
