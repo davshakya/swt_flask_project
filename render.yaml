@@ -65,4 +65,8 @@ services:
       - key: WEB_CONCURRENCY
         value: 1
       - key: GUNICORN_THREADS
-        value: 4
+        value: 2
+      - key: GUNICORN_MAX_REQUESTS
+        value: 250
+      - key: GUNICORN_MAX_REQUESTS_JITTER
+        value: 25

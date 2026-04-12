@@ -2662,6 +2662,123 @@ def test_analytics_endpoint():
     assert "alerts" in data
 
 
+def test_analytics_endpoint_compacts_large_series(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Analytics compaction test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-analytics-compact-001"
+    base_time = datetime.now(timezone.utc) - timedelta(hours=6)
+
+    server_module.analytics_cache.clear()
+    monkeypatch.setattr(server_module, "ANALYTICS_LEVEL_SERIES_MAX_POINTS", 40)
+    monkeypatch.setattr(server_module, "ANALYTICS_MOTOR_SERIES_MAX_POINTS", 20)
+
+    with get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        for index in range(180):
+            created_at = (base_time + timedelta(minutes=2 * index)).strftime(server_module.TIMESTAMP_FORMAT)
+            level = max(12.0, 92.0 - (index * 0.32))
+            motor = "ON" if index % 14 in {0, 1, 2} else "OFF"
+            db.execute(
+                """
+                INSERT INTO tank_data(
+                    level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
+                    pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
+                    ai_usage_rate, tomorrow_prediction, device_source, device_id, created_at
+                )
+                VALUES (?, ?, 'AUTO', 'NO', 'NO', 'NO', 'NO',
+                        'NO', 'NO', 'ONLINE', -54, 'OK', NULL,
+                        0.55, 9.0, ?, ?, ?)
+                """,
+                (
+                    level,
+                    motor,
+                    server_module.get_device_source_mode(),
+                    device_id,
+                    created_at,
+                ),
+            )
+
+    response = make_admin_client().get(f"/analytics?days=1&device_id={device_id}")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert len(payload["levels"]["time"]) == len(payload["levels"]["values"])
+    assert len(payload["levels"]["time"]) <= 40
+    assert len(payload["motor"]["time"]) == len(payload["motor"]["values"])
+    assert len(payload["motor"]["time"]) <= 20
+
+    with get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+    server_module.analytics_cache.clear()
+
+
+def test_analytics_csv_export_endpoint_contains_all_four_reports():
+    if BASE_URL:
+        pytest.skip("Analytics CSV export test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-analytics-export-001"
+    base_time = datetime.now(timezone.utc) - timedelta(hours=3)
+    rows = [
+        (base_time, 82.0, "OFF"),
+        (base_time + timedelta(hours=1), 74.5, "ON"),
+        (base_time + timedelta(hours=2), 68.0, "OFF"),
+    ]
+
+    server_module.analytics_cache.clear()
+    with get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        for created_at, level, motor in rows:
+            db.execute(
+                """
+                INSERT INTO tank_data(
+                    level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
+                    pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
+                    ai_usage_rate, tomorrow_prediction, device_source, device_id, created_at
+                )
+                VALUES (?, ?, 'AUTO', 'NO', 'NO', 'NO', 'NO',
+                        'NO', 'NO', 'ONLINE', -52, 'OK', NULL,
+                        0.5, 10.0, ?, ?, ?)
+                """,
+                (
+                    level,
+                    motor,
+                    server_module.get_device_source_mode(),
+                    device_id,
+                    created_at.strftime(server_module.TIMESTAMP_FORMAT),
+                ),
+            )
+
+    admin_client = make_admin_client()
+    response = admin_client.get(f"/analytics/export.csv?days=1&device_id={device_id}")
+
+    assert response.status_code == 200
+    assert response.headers["Content-Type"].startswith("text/csv")
+    assert "attachment;" in response.headers["Content-Disposition"]
+    body = response.get_data(as_text=True)
+    assert "report_type,report_title,device_id,range_label" in body
+    assert "tank_level_history" in body
+    assert "daily_water_use" in body
+    assert "hourly_water_pattern" in body
+    assert "pump_activity" in body
+    assert device_id in body
+
+    with get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+    server_module.analytics_cache.clear()
+
+
+def test_dashboard_contains_analytics_csv_download_link():
+    customer_client = make_customer_client(default_test_device_id())
+
+    response = customer_client.get("/customer/dashboard")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="analyticsDownloadLink"' in body
+    assert "/analytics/export.csv" in body
+
+
 def test_status_keeps_only_latest_snapshot_when_history_is_disabled(monkeypatch):
     if BASE_URL:
         pytest.skip("Minimal-history storage test is skipped against shared BASE_URL deployments.")

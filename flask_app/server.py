@@ -2,8 +2,10 @@ import atexit
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import base64
+import csv
 import hashlib
 import ipaddress
+import io
 import json
 import logging
 import os
@@ -24,6 +26,7 @@ try:
 except Exception:
     mqtt = None
 from flask import Flask, abort, g, jsonify, redirect, render_template, render_template_string, request, send_from_directory, session, url_for
+from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from jinja2 import TemplateNotFound
@@ -486,6 +489,10 @@ ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
+ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
+ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
+ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 720 if IS_RENDER else 1440))
+ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
 DEFAULT_LEVEL_FORECAST_MODEL_PATH = PROJECT_ROOT / "artifacts" / "level_forecast_model.pkl"
 DEFAULT_SHARED_CLOUD_BASE_URL = normalize_http_base_url(os.environ.get("SWT_CLOUD_BASE_URL")) or "https://smart-water-tank-v1.onrender.com"
@@ -3793,11 +3800,7 @@ def resolve_date_window():
     return start_dt, end_exclusive, label
 
 
-def load_dataframe(start_dt, end_exclusive, device_id=None):
-    pd_local = get_pandas()
-    if pd_local is None:
-        raise RuntimeError("Pandas unavailable")
-
+def build_analytics_query(start_dt, end_exclusive, device_id=None):
     source_clause, source_params = device_source_where_clause()
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
@@ -3813,13 +3816,129 @@ def load_dataframe(start_dt, end_exclusive, device_id=None):
         query += " AND device_id = ?"
         params.append(normalized_device_id)
     query += " ORDER BY created_at ASC, id ASC"
+    return query, tuple(params)
 
-    with get_db() as db:
-        return pd_local.read_sql(
-            query,
-            db,
-            params=tuple(params),
-        )
+
+def evenly_spaced_indices(item_count, sample_count):
+    if item_count <= 0 or sample_count <= 0:
+        return []
+    if sample_count >= item_count:
+        return list(range(item_count))
+    if sample_count == 1:
+        return [0]
+
+    step = (item_count - 1) / float(sample_count - 1)
+    selected = []
+    last_index = -1
+    for offset in range(sample_count):
+        index = int(round(offset * step))
+        if index <= last_index:
+            index = min(item_count - 1, last_index + 1)
+        selected.append(index)
+        last_index = index
+    return selected
+
+
+def pick_series_indices(candidates, sample_count):
+    if sample_count <= 0:
+        return []
+    if sample_count >= len(candidates):
+        return list(candidates)
+    return [candidates[index] for index in evenly_spaced_indices(len(candidates), sample_count)]
+
+
+def downsample_series(time_values, value_values, max_points, preserve_nulls=False):
+    safe_times = list(time_values or [])
+    safe_values = list(value_values or [])
+    size = min(len(safe_times), len(safe_values))
+    if max_points <= 0 or size <= max_points:
+        return safe_times[:size], safe_values[:size]
+
+    mandatory = {0, size - 1}
+    if preserve_nulls:
+        mandatory.update(index for index, value in enumerate(safe_values[:size]) if value is None)
+
+    if len(mandatory) >= max_points:
+        final_indices = pick_series_indices(sorted(mandatory), max_points)
+    else:
+        remaining = [index for index in range(size) if index not in mandatory]
+        final_indices = sorted(mandatory.union(pick_series_indices(remaining, max_points - len(mandatory))))
+
+    return [safe_times[index] for index in final_indices], [safe_values[index] for index in final_indices]
+
+
+def compact_motor_series(time_values, value_values):
+    safe_times = list(time_values or [])
+    safe_values = list(value_values or [])
+    size = min(len(safe_times), len(safe_values))
+    if size <= 0:
+        return [], []
+
+    compact_times = []
+    compact_values = []
+    last_state = None
+    for index in range(size):
+        raw_value = safe_values[index]
+        if raw_value is None or raw_value == "":
+            compact_times.append(safe_times[index])
+            compact_values.append(None)
+            last_state = None
+            continue
+
+        current_state = 1 if int(raw_value) == 1 else 0
+        if last_state is None or current_state != last_state:
+            compact_times.append(safe_times[index])
+            compact_values.append(current_state)
+            last_state = current_state
+
+    tail_value = safe_values[size - 1]
+    if tail_value is None or tail_value == "":
+        normalized_tail = None
+    else:
+        normalized_tail = 1 if int(tail_value) == 1 else 0
+
+    if compact_times[-1] != safe_times[size - 1]:
+        compact_times.append(safe_times[size - 1])
+        compact_values.append(normalized_tail)
+
+    return compact_times, compact_values
+
+
+def read_cached_analytics(cache_key, now_ts=None):
+    if ANALYTICS_CACHE_TTL_SECONDS <= 0:
+        return None
+
+    current_time = time.time() if now_ts is None else now_ts
+    expired_keys = [
+        key
+        for key, cached in analytics_cache.items()
+        if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS
+    ]
+    for key in expired_keys:
+        analytics_cache.pop(key, None)
+
+    cached = analytics_cache.get(cache_key)
+    if not cached:
+        return None
+    if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS:
+        analytics_cache.pop(cache_key, None)
+        return None
+    return cached.get("payload")
+
+
+def store_cached_analytics(cache_key, payload, now_ts=None):
+    if ANALYTICS_CACHE_TTL_SECONDS <= 0:
+        return payload
+
+    current_time = time.time() if now_ts is None else now_ts
+    analytics_cache.pop(cache_key, None)
+    analytics_cache[cache_key] = {"created_at": current_time, "payload": payload}
+
+    if len(analytics_cache) > ANALYTICS_CACHE_MAX_ENTRIES:
+        overflow = len(analytics_cache) - ANALYTICS_CACHE_MAX_ENTRIES
+        for key in list(analytics_cache)[:overflow]:
+            analytics_cache.pop(key, None)
+    return payload
 
 
 def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
@@ -4156,85 +4275,127 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         normalized_device_id or "*",
         active_mode,
     )
-    cached = analytics_cache.get(cache_key)
-    if cached and (time.time() - cached["created_at"] < 30):
-        return cached["payload"]
+    now_ts = time.time()
+    cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
+    if cached_payload is not None:
+        return cached_payload
 
     if not TELEMETRY_HISTORY_ENABLED:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
         payload["alerts"] = ["Analytics history is disabled on this deployment."]
-        analytics_cache[cache_key] = {"created_at": time.time(), "payload": payload}
-        return payload
+        return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
-    pd_local = get_pandas()
-    if pd_local is None:
+    query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
+    gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
+    daily_usage = {}
+    hourly_usage = [0.0] * 24
+    level_times = []
+    level_values = []
+    motor_times = []
+    motor_values = []
+    row_count = 0
+    level_total = 0.0
+    level_min = None
+    level_max = None
+    motor_cycles = 0
+    leak_events = 0
+    total_usage = 0.0
+    valid_hours = 0.0
+    prev_created_at = None
+    prev_level = None
+    prev_motor = "OFF"
+    latest_row = None
+
+    with get_db() as db:
+        for row in db.execute(query, params):
+            created_at = parse_timestamp(row["created_at"])
+            if created_at is None:
+                continue
+
+            row_count += 1
+            timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
+            level = safe_float(row["level"], 0.0)
+            motor = str(row["motor"] or "").upper()
+            pipe_leak = str(row["pipe_leak"] or "").upper()
+
+            level_total += level
+            level_min = level if level_min is None else min(level_min, level)
+            level_max = level if level_max is None else max(level_max, level)
+
+            delta_hours = 0.0
+            gap_break = False
+            if prev_created_at is not None:
+                delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
+                gap_break = delta_hours > gap_threshold_hours
+
+            drop = 0.0 if prev_level is None else level - prev_level
+            valid_drop = (
+                (not gap_break)
+                and (drop < -0.05)
+                and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
+            )
+            usage = abs(drop) if valid_drop else 0.0
+            total_usage += usage
+            if not gap_break:
+                valid_hours += delta_hours
+
+            date_key = created_at.date().isoformat()
+            daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
+            hourly_usage[created_at.hour] += usage
+
+            level_times.append(timestamp_label)
+            level_values.append(None if gap_break else level)
+            motor_times.append(timestamp_label)
+            motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
+
+            if motor == "ON" and prev_motor != "ON":
+                motor_cycles += 1
+            if pipe_leak == "YES":
+                leak_events += 1
+
+            latest_row = dict(row)
+            latest_row["created_at"] = created_at
+            latest_row["level"] = level
+            latest_row["motor"] = motor
+            latest_row["pipe_leak"] = pipe_leak
+
+            prev_created_at = created_at
+            prev_level = level
+            prev_motor = motor
+
+    if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
-        payload["alerts"] = ["Analytics unavailable on this server."]
-        analytics_cache[cache_key] = {"created_at": time.time(), "payload": payload}
-        return payload
+        return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
-    df = load_dataframe(start_dt, end_exclusive, normalized_device_id)
-    if df.empty or len(df) < 2:
-        payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
-        analytics_cache[cache_key] = {"created_at": time.time(), "payload": payload}
-        return payload
-
-    df["created_at"] = pd_local.to_datetime(df["created_at"])
-    df["level"] = pd_local.to_numeric(df["level"], errors="coerce").fillna(0)
-    df["motor"] = df["motor"].astype(str).str.upper()
-    df["pipe_leak"] = df["pipe_leak"].astype(str).str.upper()
-    df["motor_prev"] = df["motor"].shift(1).fillna("OFF")
-    df["date"] = df["created_at"].dt.date
-    df["hour"] = df["created_at"].dt.hour
-    df["delta_hours"] = df["created_at"].diff().dt.total_seconds().div(3600).fillna(0)
-    df["gap_break"] = df["delta_hours"] > (ANALYTICS_MAX_GAP_MINUTES / 60.0)
-    df["drop"] = df["level"].diff().fillna(0)
-    df["valid_drop"] = (
-        (~df["gap_break"])
-        & (df["drop"] < -0.05)
-        & (df["drop"].abs() <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-    )
-    df["usage"] = 0.0
-    df.loc[df["valid_drop"], "usage"] = df.loc[df["valid_drop"], "drop"].abs()
-    df["level_plot"] = df["level"]
-    df.loc[df["gap_break"], "level_plot"] = None
-    df["motor_plot"] = df["motor"].map({"ON": 1, "OFF": 0}).fillna(0)
-    df.loc[df["gap_break"], "motor_plot"] = None
-
-    motor_cycles = int(((df["motor"] == "ON") & (df["motor_prev"] != "ON")).sum())
-    leak_events = int((df["pipe_leak"] == "YES").sum())
-    total_usage = float(df["usage"].sum())
-    valid_hours = float(df.loc[~df["gap_break"], "delta_hours"].clip(lower=0).sum())
-    consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0
+    consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
     if consumption_rate < ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR:
-        consumption_rate = 0
-    current_level = float(df["level"].iloc[-1])
+        consumption_rate = 0.0
+    current_level = float(prev_level)
     empty_prediction = current_level / consumption_rate if consumption_rate > 0 else None
-    daily = df.groupby("date")["usage"].sum()
-    pattern = df.groupby("hour")["usage"].sum()
+    daily_dates = list(daily_usage.keys())
+    daily_values = list(daily_usage.values())
 
-    peak_day = str(daily.idxmax()) if not daily.empty else "--"
-    lowest_day = str(daily.idxmin()) if not daily.empty else "--"
-    peak_value = float(daily.max()) if not daily.empty else 0
-    lowest_value = float(daily.min()) if not daily.empty else 0
-    avg_daily_usage = float(daily.mean()) if not daily.empty else 0
+    peak_day = max(daily_usage, key=daily_usage.get) if daily_usage else "--"
+    lowest_day = min(daily_usage, key=daily_usage.get) if daily_usage else "--"
+    peak_value = float(daily_usage.get(peak_day, 0.0)) if daily_usage else 0.0
+    lowest_value = float(daily_usage.get(lowest_day, 0.0)) if daily_usage else 0.0
+    avg_daily_usage = float(sum(daily_values) / len(daily_values)) if daily_values else 0.0
 
-    latest_day = str(daily.index[-1]) if len(daily.index) >= 1 else "--"
-    previous_day = str(daily.index[-2]) if len(daily.index) >= 2 else "--"
-    latest_day_usage = float(daily.iloc[-1]) if len(daily) >= 1 else 0
-    previous_day_usage = float(daily.iloc[-2]) if len(daily) >= 2 else 0
+    latest_day = str(daily_dates[-1]) if daily_dates else "--"
+    previous_day = str(daily_dates[-2]) if len(daily_dates) >= 2 else "--"
+    latest_day_usage = float(daily_values[-1]) if daily_values else 0.0
+    previous_day_usage = float(daily_values[-2]) if len(daily_values) >= 2 else 0.0
     if previous_day_usage >= ANALYTICS_MIN_BASELINE_USAGE_PCT:
         usage_change_pct = ((latest_day_usage - previous_day_usage) / previous_day_usage) * 100
     else:
         usage_change_pct = None
 
-    latest_row = df.iloc[-1].to_dict()
-    latest_row["seconds_since_sync"] = int((now_utc() - latest_row["created_at"].to_pydatetime()).total_seconds())
+    latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
     health = calculate_health(
         snapshot=latest_row,
         leak_events=leak_events,
         motor_cycles=motor_cycles,
-        consumption_rate=consumption_rate
+        consumption_rate=consumption_rate,
     )
 
     alerts = []
@@ -4251,6 +4412,20 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     if not alerts:
         alerts.append("System is stable for the selected range.")
 
+    level_times, level_values = downsample_series(
+        level_times,
+        level_values,
+        ANALYTICS_LEVEL_SERIES_MAX_POINTS,
+        preserve_nulls=True,
+    )
+    motor_times, motor_values = compact_motor_series(motor_times, motor_values)
+    motor_times, motor_values = downsample_series(
+        motor_times,
+        motor_values,
+        ANALYTICS_MOTOR_SERIES_MAX_POINTS,
+        preserve_nulls=True,
+    )
+
     payload = {
         "range": {
             "label": label,
@@ -4258,11 +4433,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "end_date": (end_exclusive - timedelta(days=1)).strftime(DATE_ONLY_FORMAT),
         },
         "insights": {
-            "avg_level": round(float(df["level"].mean()), 2),
+            "avg_level": round(level_total / row_count, 2),
             "empty_prediction": round(float(empty_prediction), 2) if empty_prediction is not None else None,
             "health": health["score"],
-            "max_level": round(float(df["level"].max()), 2),
-            "min_level": round(float(df["level"].min()), 2),
+            "max_level": round(float(level_max if level_max is not None else 0.0), 2),
+            "min_level": round(float(level_min if level_min is not None else 0.0), 2),
             "motor_cycles": motor_cycles,
             "consumption_rate": round(float(consumption_rate), 2),
             "leak_events": leak_events,
@@ -4273,40 +4448,170 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "lowest_usage_value": round(lowest_value, 2),
             "latest_day_usage": round(latest_day_usage, 2),
             "previous_day_usage": round(previous_day_usage, 2),
-            "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None
+            "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "health": health,
         "daily": {
-            "dates": [str(item) for item in daily.index],
-            "values": [round(float(value), 2) for value in daily.values]
+            "dates": daily_dates,
+            "values": [round(float(value), 2) for value in daily_values],
         },
         "pattern": {
             "hours": list(range(24)),
-            "values": [round(float(pattern.get(hour, 0)), 2) for hour in range(24)]
+            "values": [round(float(value), 2) for value in hourly_usage],
         },
         "levels": {
-            "time": [timestamp.strftime(TIMESTAMP_FORMAT) for timestamp in df["created_at"]],
-            "values": [round(float(value), 2) if pd_local.notna(value) else None for value in df["level_plot"]]
+            "time": level_times,
+            "values": [round(float(value), 2) if value is not None else None for value in level_values],
         },
         "motor": {
-            "time": [timestamp.strftime(TIMESTAMP_FORMAT) for timestamp in df["created_at"]],
-            "values": [int(value) if pd_local.notna(value) else None for value in df["motor_plot"]]
+            "time": motor_times,
+            "values": [int(value) if value is not None else None for value in motor_values],
         },
         "comparison": {
             "latest_day": latest_day,
             "latest_day_usage": round(latest_day_usage, 2),
             "previous_day": previous_day,
             "previous_day_usage": round(previous_day_usage, 2),
-            "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None
+            "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "prediction": {
-            "tomorrow_usage": round(avg_daily_usage * 1.05, 2)
+            "tomorrow_usage": round(avg_daily_usage * 1.05, 2),
         },
-        "alerts": alerts
+        "alerts": alerts,
     }
 
-    analytics_cache[cache_key] = {"created_at": time.time(), "payload": payload}
-    return payload
+    return store_cached_analytics(cache_key, payload, now_ts=now_ts)
+
+
+def analytics_csv_filename_token(value, fallback):
+    cleaned = "".join(ch.lower() if str(ch).isalnum() else "-" for ch in str(value or ""))
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned.strip("-") or fallback
+
+
+def build_analytics_csv_filename(payload, device_id=None):
+    range_info = payload.get("range") or {}
+    device_token = analytics_csv_filename_token(device_id, "all-devices")
+    start_token = analytics_csv_filename_token(range_info.get("start_date"), now_utc().strftime(DATE_ONLY_FORMAT))
+    end_token = analytics_csv_filename_token(range_info.get("end_date"), start_token)
+    return f"smart-water-tank-analytics-{device_token}-{start_token}-to-{end_token}.csv"
+
+
+def format_analytics_csv_value(value, digits=2):
+    if value is None or value == "":
+        return ""
+    try:
+        return f"{float(value):.{digits}f}"
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def build_analytics_csv_rows(payload, device_id=None):
+    range_info = payload.get("range") or {}
+    shared = {
+        "device_id": normalize_device_id(device_id) or "",
+        "range_label": str(range_info.get("label") or ""),
+        "start_date": str(range_info.get("start_date") or ""),
+        "end_date": str(range_info.get("end_date") or ""),
+    }
+    rows = []
+
+    def append_series(report_type, report_title, x_values, y_values, unit, label_builder=None):
+        safe_x = list(x_values or [])
+        safe_y = list(y_values or [])
+        row_count = min(len(safe_x), len(safe_y))
+        if row_count <= 0:
+            rows.append(
+                {
+                    **shared,
+                    "report_type": report_type,
+                    "report_title": report_title,
+                    "row_index": 1,
+                    "x_value": "",
+                    "y_value": "",
+                    "value_label": "No data",
+                    "unit": unit,
+                }
+            )
+            return
+
+        for index, (x_value, y_value) in enumerate(zip(safe_x[:row_count], safe_y[:row_count]), start=1):
+            rows.append(
+                {
+                    **shared,
+                    "report_type": report_type,
+                    "report_title": report_title,
+                    "row_index": index,
+                    "x_value": x_value,
+                    "y_value": "" if y_value is None else y_value,
+                    "value_label": (
+                        label_builder(x_value, y_value)
+                        if callable(label_builder)
+                        else format_analytics_csv_value(y_value)
+                    ),
+                    "unit": unit,
+                }
+            )
+
+    append_series(
+        "tank_level_history",
+        "Tank Level History",
+        (payload.get("levels") or {}).get("time") or [],
+        (payload.get("levels") or {}).get("values") or [],
+        "percent",
+        label_builder=lambda _x, y: format_analytics_csv_value(y),
+    )
+    append_series(
+        "daily_water_use",
+        "Daily Water Use",
+        (payload.get("daily") or {}).get("dates") or [],
+        (payload.get("daily") or {}).get("values") or [],
+        "percent",
+        label_builder=lambda _x, y: format_analytics_csv_value(y),
+    )
+    append_series(
+        "hourly_water_pattern",
+        "24-Hour Water Pattern",
+        [
+            f"{int(hour):02d}:00" if str(hour).strip() not in {"", "None"} else ""
+            for hour in ((payload.get("pattern") or {}).get("hours") or [])
+        ],
+        (payload.get("pattern") or {}).get("values") or [],
+        "percent",
+        label_builder=lambda _x, y: format_analytics_csv_value(y),
+    )
+    append_series(
+        "pump_activity",
+        "Pump Activity",
+        (payload.get("motor") or {}).get("time") or [],
+        (payload.get("motor") or {}).get("values") or [],
+        "state",
+        label_builder=lambda _x, y: "ON" if str(y) == "1" else "OFF" if str(y) == "0" else "",
+    )
+    return rows
+
+
+def build_analytics_csv_payload(payload, device_id=None):
+    fieldnames = [
+        "report_type",
+        "report_title",
+        "device_id",
+        "range_label",
+        "start_date",
+        "end_date",
+        "row_index",
+        "x_value",
+        "y_value",
+        "value_label",
+        "unit",
+    ]
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames)
+    writer.writeheader()
+    for row in build_analytics_csv_rows(payload, device_id=device_id):
+        writer.writerow(row)
+    return buffer.getvalue()
 
 
 def device_status_from_snapshot(snapshot):
@@ -6611,6 +6916,28 @@ def analytics():
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
     return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+
+
+@app.route("/analytics/export.csv")
+@login_required
+def analytics_csv_export():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
+    scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
+    try:
+        start_dt, end_exclusive, label = resolve_date_window()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    csv_payload = build_analytics_csv_payload(payload, device_id=scoped_device_id)
+    filename = build_analytics_csv_filename(payload, device_id=scoped_device_id)
+    return Response(
+        csv_payload,
+        mimetype="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.route("/ml/predict")
