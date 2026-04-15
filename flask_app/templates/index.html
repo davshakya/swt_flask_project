@@ -437,6 +437,11 @@ const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Nu
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
 const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&!Number.isNaN(Number(value));}
+function hasMeaningfulAnalyticsData(data){
+    if(!data||typeof data!=="object")return false;
+    return [["levels","time"],["daily","dates"],["motor","time"],["pattern","values"]].some(([section,key])=>Array.isArray(data?.[section]?.[key])&&data[section][key].length>0);
+}
 function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
 function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
@@ -680,18 +685,22 @@ function updateCustomerSpotlightCards({snapshot=state.data.snapshot,system=state
     setText("customerPumpPlanNote",pumpPlanNote);
     applyStatusTone("customerPumpPlanNow",currentMode==="MANUAL"?"warn":"ok");
 
-    const usageNow=analytics?.prediction?.tomorrow_usage!==undefined&&analytics?.prediction?.tomorrow_usage!==null
+    const analyticsReady=hasMeaningfulAnalyticsData(analytics);
+    const liveUsageRate=fmtRatePerHour(snapshot.ai_usage_rate);
+    const usageNow=analyticsReady&&hasDisplayNumber(analytics?.prediction?.tomorrow_usage)
         ?fmtUsage(analytics.prediction.tomorrow_usage)
-        :fmtRatePerHour(snapshot.ai_usage_rate);
-    const usageNote=analytics?.insights
-        ?`Average daily use is ${fmtUsage(analytics.insights.avg_daily_usage)} with ${analytics.alerts?.[0]||"stable household demand."}`
-        :`${fmtRatePerHour(snapshot.ai_usage_rate)} is the live device estimate right now.`;
+        :liveUsageRate;
+    const usageNote=analyticsReady
+        ?`Average daily use is ${fmtUsage(analytics.insights?.avg_daily_usage)} with ${analytics.alerts?.[0]||"stable household demand."}`
+        :liveUsageRate!=="--"
+            ?`${liveUsageRate} is the live device estimate right now.`
+            :"Water-use guidance will appear after enough device history is collected.";
     setText("customerUsageNow",usageNow);
     setText("customerUsageNote",usageNote);
     const usageChange=Number(analytics?.comparison?.change_pct);
     applyStatusTone(
         "customerUsageNow",
-        analytics?.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange)
+        analyticsReady&&analytics?.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange)
             ?Math.abs(usageChange)>=15?"warn":"ok"
             :""
     );
@@ -992,29 +1001,36 @@ function renderSystemStatus(system){
 }
 
 function renderAnalytics(data){
+    const analyticsReady=hasMeaningfulAnalyticsData(data);
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
-    document.getElementById("avg_daily_usage").textContent=fmtUsage(data.insights?.avg_daily_usage);
-    document.getElementById("avg_daily_usage_text").textContent=`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`;
-    document.getElementById("peak_usage_day").textContent=formatLocaleDate(data.insights?.peak_usage_day);
-    document.getElementById("peak_usage_value").textContent=fmtUsage(data.insights?.peak_usage_value);
-    document.getElementById("lowest_usage_day").textContent=formatLocaleDate(data.insights?.lowest_usage_day);
-    document.getElementById("lowest_usage_value").textContent=fmtUsage(data.insights?.lowest_usage_value);
+    document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsage(data.insights?.avg_daily_usage):"--";
+    document.getElementById("avg_daily_usage_text").textContent=analyticsReady&&String(data.comparison?.latest_day||"").trim()&&String(data.comparison?.latest_day||"").trim()!=="--"
+        ?`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`
+        :"Waiting for enough history to compare daily usage.";
+    document.getElementById("peak_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.peak_usage_day):"--";
+    document.getElementById("peak_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.peak_usage_value):"--";
+    document.getElementById("lowest_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.lowest_usage_day):"--";
+    document.getElementById("lowest_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.lowest_usage_value):"--";
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
-    const hasChange=changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
+    const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
     document.getElementById("usage_change").textContent=hasChange?`${changeNumber>0?"+":""}${changeNumber.toFixed(1)}%`:"--";
     document.getElementById("usage_change_text").textContent=hasChange
         ?`${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} previous day`
         :"Previous-day baseline too small for a meaningful comparison.";
-    document.getElementById("avg_level").textContent=fmtPct(data.insights?.avg_level);
-    document.getElementById("min_max_level").textContent=`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`;
-    document.getElementById("time_empty").textContent=fmtHours(data.insights?.empty_prediction);
-    document.getElementById("consumption_rate").textContent=`${Number(data.insights?.consumption_rate||0).toFixed(2)}%/hr`;
-    document.getElementById("ai_tomorrow_usage").textContent=fmtUsage(data.prediction?.tomorrow_usage);
+    document.getElementById("avg_level").textContent=analyticsReady?fmtPct(data.insights?.avg_level):"--";
+    document.getElementById("min_max_level").textContent=analyticsReady
+        ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
+        :"Waiting for enough history.";
+    document.getElementById("time_empty").textContent=analyticsReady?fmtHours(data.insights?.empty_prediction):"--";
+    document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
+        ?fmtRatePerHour(data.insights?.consumption_rate)
+        :"--";
+    document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
     document.getElementById("timeToEmpty").textContent=fmtHours(data.insights?.empty_prediction);
     const health=document.getElementById("healthReasons");health.innerHTML="";(data.health?.reasons||["No health issues found."]).forEach((reason)=>{const li=document.createElement("li");li.textContent=reason;health.appendChild(li);});
     const alerts=document.getElementById("alerts");alerts.innerHTML="";(data.alerts||[]).forEach((text)=>{const li=document.createElement("li");li.textContent=text;alerts.appendChild(li);});
-    const insights=[];if(hasChange&&changeNumber>15)insights.push("Usage has increased noticeably. Check for extra consumption or leakage.");if(Number(data.insights?.motor_cycles||0)>12)insights.push("Motor cycling is high. Adjust auto-start and auto-stop thresholds.");if(Number(data.insights?.avg_level||0)<40)insights.push("Tank stays low for long periods. Consider filling earlier in the day.");if(Number(data.prediction?.tomorrow_usage||0)>Number(data.insights?.avg_daily_usage||0))insights.push("Tomorrow usage is forecast above the current daily average.");if(!insights.length)insights.push("Usage pattern looks stable for the selected range.");
+    const insights=[];if(!analyticsReady)insights.push("Water-use guidance will appear after enough history is collected.");else{if(hasChange&&changeNumber>15)insights.push("Usage has increased noticeably. Check for extra consumption or leakage.");if(Number(data.insights?.motor_cycles||0)>12)insights.push("Motor cycling is high. Adjust auto-start and auto-stop thresholds.");if(Number(data.insights?.avg_level||0)<40)insights.push("Tank stays low for long periods. Consider filling earlier in the day.");if(Number(data.prediction?.tomorrow_usage||0)>Number(data.insights?.avg_daily_usage||0))insights.push("Tomorrow usage is forecast above the current daily average.");if(!insights.length)insights.push("Usage pattern looks stable for the selected range.");}
     const ai=document.getElementById("ai_insights");ai.innerHTML="";insights.forEach((text)=>{const li=document.createElement("li");li.textContent=text;ai.appendChild(li);});
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     drawAnalyticsCharts(data);

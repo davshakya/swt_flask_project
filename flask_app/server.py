@@ -6900,11 +6900,11 @@ def admin_customer_services(device_id):
     else:
         updated_config = upsert_device_service_config(
             normalized_device_id,
-            source_tank_monitoring_enabled=request.form.get("source_tank_monitoring_enabled"),
-            ai_analysis_enabled=request.form.get("ai_analysis_enabled"),
+            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            ai_analysis_enabled=("ai_analysis_enabled" in request.form),
             cloud_feed_mode=request.form.get("cloud_feed_mode"),
-            buzzer_enabled=request.form.get("buzzer_enabled"),
-            led_display_enabled=request.form.get("led_display_enabled"),
+            buzzer_enabled=("buzzer_enabled" in request.form),
+            led_display_enabled=("led_display_enabled" in request.form),
         )
         queued_command = build_device_service_command(updated_config)
         queue_result = queue_command(queued_command, target_device=normalized_device_id)

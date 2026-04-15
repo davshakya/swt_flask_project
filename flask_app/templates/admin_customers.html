@@ -79,6 +79,21 @@
 .warning.hero-warning,.message.error,.message.success{margin-top:0}
 .empty-state{padding:18px;border-radius:18px;background:rgba(255,255,255,.56);border:1px dashed var(--admin-border)}
 .focus-note{font-size:12px;color:var(--admin-text-soft);line-height:1.55}
+.admin-control-room.modal-open{overflow:hidden}
+.service-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:70;margin:0;border:none}
+.service-modal.is-open{display:flex}
+.service-modal-backdrop{position:absolute;inset:0;background:rgba(7,27,36,.5);backdrop-filter:blur(4px)}
+.service-modal-dialog{position:relative;z-index:1;width:min(980px,calc(100vw - 32px));max-height:min(88vh,920px);overflow:auto;padding:22px;border-radius:28px;border:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 34px 80px rgba(7,36,47,.34)}
+.service-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
+.service-modal-copy{display:grid;gap:6px}
+.service-modal-title{margin:0;font-size:1.45rem;letter-spacing:-.03em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
+.service-modal-note{margin:0;color:var(--admin-text-soft);line-height:1.6}
+.service-modal-close{min-height:42px;padding:10px 14px;border-radius:14px;border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
+.service-modal .service-form{gap:16px}
+.service-modal .service-toolbar{align-items:flex-start}
+.service-modal .service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.service-modal .service-group{padding:16px}
+.service-form-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 @keyframes admin-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .admin-control-room .panel{animation:admin-rise .42s ease both}
 @media (prefers-color-scheme: dark){
@@ -87,6 +102,7 @@
 .hero-focus-card p,.section-helper,.summary-caption,.device-helper,.focus-note{color:var(--admin-text-soft)}
 .action-links a,.action-links button{background:rgba(120,218,231,.08);color:var(--admin-accent-strong)}
 .service-group,.service-preset{background:rgba(10,27,37,.74)}
+.service-modal-dialog,.service-modal-close{background:rgba(10,27,37,.9)}
 .empty-state{background:rgba(10,27,37,.64)}
 }
 @media (max-width:1180px){
@@ -101,6 +117,10 @@
 .admin-control-room .summary-grid{grid-template-columns:1fr}
 .searchControls{grid-template-columns:1fr}
 .table-toolbar{align-items:flex-start}
+.service-modal{padding:16px}
+.service-modal-dialog{width:min(100%,calc(100vw - 20px));padding:18px}
+.service-modal-head,.service-toolbar,.service-form-footer{flex-direction:column;align-items:stretch}
+.service-modal .service-grid{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -394,61 +414,73 @@
                                         <button type="submit" class="danger">Delete</button>
                                     </form>
                                 </div>
-                                <div id="services_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <div class="service-toolbar">
-                                            <div class="service-live-note">Cloud mode: <strong>{{ device.cloud_feed_mode_label or "Disabled" }}</strong> | Live device services: Source {{ device.lower_tank_service or "UNKNOWN" }}, Buzzer {{ device.buzzer_service or "UNKNOWN" }}, LED {{ device.led_display_service or "UNKNOWN" }}</div>
-                                            <div class="row">
-                                                <button class="service-preset" type="button" data-service-preset="all-on">Enable All</button>
-                                                <button class="service-preset" type="button" data-service-preset="all-off">Disable All</button>
+                                <div id="services_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="services_title_{{ loop.index }}" hidden>
+                                    <div class="service-modal-backdrop" data-panel-dismiss></div>
+                                    <div class="service-modal-dialog">
+                                        <div class="service-modal-head">
+                                            <div class="service-modal-copy">
+                                                <div class="eyebrow">Service Controls</div>
+                                                <h3 id="services_title_{{ loop.index }}" class="service-modal-title">Manage Services For {{ device.device_id }}</h3>
+                                                <p class="service-modal-note">{% if device.display_name %}{{ device.display_name }}{% else %}No customer name is saved for this device yet.{% endif %}</p>
+                                                <div class="service-live-note">Cloud mode: <strong>{{ device.cloud_feed_mode_label or "Disabled" }}</strong> | Live device services: Source {{ device.lower_tank_service or "UNKNOWN" }}, Buzzer {{ device.buzzer_service or "UNKNOWN" }}, LED {{ device.led_display_service or "UNKNOWN" }}</div>
                                             </div>
+                                            <button type="button" class="service-modal-close" data-panel-dismiss>Close</button>
                                         </div>
-                                        <div class="service-grid">
-                                            <fieldset class="service-group">
-                                                <legend>Monitoring</legend>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
-                                                    <span><strong>Source Tank Monitoring</strong><small>Use lower/source tank readings for visibility and safer pump decisions.</small></span>
-                                                </label>
-                                            </fieldset>
-                                            <fieldset class="service-group">
-                                                <legend>AI Features</legend>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
-                                                    <span><strong>AI Analysis</strong><small>Keep analytics and advanced cloud insights ready when Full Features mode is active.</small></span>
-                                                </label>
-                                            </fieldset>
-                                            <fieldset class="service-group">
-                                                <legend>Cloud Settings</legend>
-                                                <label class="service-option">
-                                                    <input type="radio" name="cloud_feed_mode" value="off" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
-                                                    <span><strong>Cloud Feed Disabled</strong><small>Blocks customer cloud access for this device.</small></span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="radio" name="cloud_feed_mode" value="basic" {% if device.cloud_feed_mode == "basic" %}checked{% endif %}>
-                                                    <span><strong>Cloud Feed Without AI</strong><small>Allows remote customer access without advanced AI features.</small></span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="radio" name="cloud_feed_mode" value="full" {% if device.cloud_feed_mode == "full" %}checked{% endif %}>
-                                                    <span><strong>Cloud Feed With Full Features</strong><small>Enables remote access together with the saved AI feature preference.</small></span>
-                                                </label>
-                                            </fieldset>
-                                            <fieldset class="service-group">
-                                                <legend>Hardware Controls</legend>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
-                                                    <span><strong>Buzzer</strong><small>Allow device-side audible alerts.</small></span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
-                                                    <span><strong>LED Display</strong><small>Keep the on-device LED level indicator active.</small></span>
-                                                </label>
-                                            </fieldset>
-                                        </div>
-                                        <div class="row">
-                                            <button type="submit">Save Services</button>
-                                        </div>
-                                    </form>
+                                        <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                            <div class="service-toolbar">
+                                                <div class="service-live-note">Customer access follows the cloud mode you save here. Device-side source, buzzer, and LED changes apply on the next command poll.</div>
+                                                <div class="row">
+                                                    <button class="service-preset" type="button" data-service-preset="all-on">Enable All</button>
+                                                    <button class="service-preset" type="button" data-service-preset="all-off">Disable All</button>
+                                                </div>
+                                            </div>
+                                            <div class="service-grid">
+                                                <fieldset class="service-group">
+                                                    <legend>Monitoring</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
+                                                        <span><strong>Source Tank Monitoring</strong><small>Use lower/source tank readings for visibility and safer pump decisions.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>AI Features</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
+                                                        <span><strong>AI Analysis</strong><small>Keep analytics and advanced cloud insights ready when Full Features mode is active.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>Cloud Settings</legend>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="off" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed Disabled</strong><small>Blocks customer cloud access for this device.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="basic" {% if device.cloud_feed_mode == "basic" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed Without AI</strong><small>Allows remote customer access without advanced AI features.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="full" {% if device.cloud_feed_mode == "full" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed With Full Features</strong><small>Enables remote access together with the saved AI feature preference.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>Hardware Controls</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
+                                                        <span><strong>Buzzer</strong><small>Allow device-side audible alerts.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
+                                                        <span><strong>LED Display</strong><small>Keep the on-device LED level indicator active.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                            </div>
+                                            <div class="service-form-footer">
+                                                <button type="submit">Save Services</button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                                 {% if device.registered_account %}
                                 <div id="edit_shell_{{ loop.index }}" class="inline-panel" hidden>
@@ -605,17 +637,32 @@
 
     const inlinePanels = Array.from(document.querySelectorAll(".inline-panel"));
     const panelToggles = Array.from(document.querySelectorAll("[data-panel-toggle]"));
+    const panelDismissers = Array.from(document.querySelectorAll("[data-panel-dismiss]"));
+
+    function isModalPanel(panel) {
+        return !!panel && panel.dataset.panelMode === "modal";
+    }
+
+    function updateBodyModalState() {
+        const modalOpen = inlinePanels.some((panel) => isModalPanel(panel) && !panel.hidden);
+        document.body.classList.toggle("modal-open", modalOpen);
+    }
+
+    function panelToggleFor(panel) {
+        return panelToggles.find((item) => item.getAttribute("aria-controls") === panel.id);
+    }
 
     function setPanelState(panel, open) {
         if (!panel) return;
         panel.hidden = !open;
         panel.classList.toggle("is-open", open);
-        const toggle = panelToggles.find((item) => item.getAttribute("aria-controls") === panel.id);
+        const toggle = panelToggleFor(panel);
         if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
         if (open) {
-            const inputNode = panel.querySelector("input");
+            const inputNode = panel.querySelector('input:not([type="hidden"]), button, select, textarea, a[href]');
             if (inputNode) inputNode.focus();
         }
+        updateBodyModalState();
     }
 
     inlinePanels.forEach((panel) => setPanelState(panel, false));
@@ -629,6 +676,23 @@
             });
             setPanelState(panel, shouldOpen);
         });
+    });
+    panelDismissers.forEach((node) => {
+        node.addEventListener("click", (event) => {
+            event.preventDefault();
+            const panel = node.closest(".inline-panel");
+            setPanelState(panel, false);
+            const toggle = panel ? panelToggleFor(panel) : null;
+            if (toggle) toggle.focus();
+        });
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        const openModal = inlinePanels.find((panel) => isModalPanel(panel) && !panel.hidden);
+        if (!openModal) return;
+        setPanelState(openModal, false);
+        const toggle = panelToggleFor(openModal);
+        if (toggle) toggle.focus();
     });
 
     function applyServicePreset(form, preset) {

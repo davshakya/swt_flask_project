@@ -1648,6 +1648,9 @@ def test_customer_dashboard_hides_admin_only_panels():
     assert "Pump mode" in body
     assert "Status Summary" in body
     assert "Current Use Trend" in body
+    assert 'id="customerAvailabilityNow"' in body
+    assert 'id="customerUsageNow"' in body
+    assert 'id="customerConnectionNow"' in body
     assert "compact-action" in body
     assert 'id="actionHint"' in body
     assert "customer-home-wide" not in body
@@ -2111,9 +2114,9 @@ def test_admin_customers_page_removes_separate_known_devices_section():
     assert 'data-device-sort="alerts"' in body
 
 
-def test_admin_customer_page_can_edit_name_and_toggle_cloud_feed():
+def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
     if BASE_URL:
-        pytest.skip("Admin customer edit/cloud-feed test is skipped against shared BASE_URL deployments.")
+        pytest.skip("Admin customer service-management test is skipped against shared BASE_URL deployments.")
 
     device_id = "swt-admin-cloud-edit-001"
     upsert_customer_account(
@@ -2128,8 +2131,9 @@ def test_admin_customer_page_can_edit_name_and_toggle_cloud_feed():
     assert page.status_code == 200
     page_body = page.get_data(as_text=True)
     assert "Edit Name" in page_body
-    assert "Enable Cloud" in page_body
-    assert "Disable Cloud" not in page_body
+    assert "Manage Services" in page_body
+    assert 'data-panel-mode="modal"' in page_body
+    assert 'class="service-modal-title"' in page_body
 
     edit_response = admin_client.post(
         f"/admin/customers/{device_id}/edit",
@@ -2144,23 +2148,39 @@ def test_admin_customer_page_can_edit_name_and_toggle_cloud_feed():
     assert f"Customer name updated for {device_id}." in edit_body
     assert "Updated Owner" in edit_body
 
-    toggle_response = admin_client.post(
-        f"/admin/customers/{device_id}/cloud-feed",
+    queued_commands = []
+    monkeypatch.setattr(
+        server_module,
+        "queue_command",
+        lambda command, target_device=None: queued_commands.append((command, target_device)) or {"queued": True},
+    )
+
+    service_response = admin_client.post(
+        f"/admin/customers/{device_id}/services",
         data={
             "csrf_token": TEST_CSRF_TOKEN,
             "q": device_id,
-            "cloud_feed_enabled": "1",
+            "source_tank_monitoring_enabled": "1",
+            "cloud_feed_mode": "basic",
         },
     )
-    assert toggle_response.status_code == 200
-    toggle_body = toggle_response.get_data(as_text=True)
-    assert f"Cloud feed enabled for {device_id}." in toggle_body
-    assert "Disable Cloud" in toggle_body
+    assert service_response.status_code == 200
+    service_body = service_response.get_data(as_text=True)
+    assert f"Service settings saved for {device_id}." in service_body
+    assert "Manage Services" in service_body
 
     account = server_module.fetch_customer_account(device_id)
     assert account
     assert account["display_name"] == "Updated Owner"
     assert int(account["cloud_feed_enabled"]) == 1
+
+    service_config = server_module.fetch_device_service_config(device_id)
+    assert service_config["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_BASIC
+    assert service_config["source_tank_monitoring_enabled"] is True
+    assert service_config["ai_analysis_enabled"] is False
+    assert service_config["buzzer_enabled"] is False
+    assert service_config["led_display_enabled"] is False
+    assert queued_commands == [("SERVICECFG:1:0:0", device_id)]
 
 
 def test_customer_dashboard_shows_cloud_feed_disabled_state():
