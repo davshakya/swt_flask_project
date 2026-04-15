@@ -1176,17 +1176,39 @@ def current_customer_account():
     return fetch_customer_account(device_id)
 
 
+def current_customer_service_config():
+    if current_user_role() != "customer":
+        return None
+    device_id = current_customer_device_id()
+    if not device_id:
+        return None
+    return fetch_device_service_config(device_id, account=current_customer_account())
+
+
 def current_customer_cloud_feed_enabled():
     if current_user_role() != "customer":
         return True
-    account = current_customer_account()
-    if not account:
+    service_config = current_customer_service_config()
+    if not service_config:
         return False
-    return int(account.get("cloud_feed_enabled", 1) or 0) == 1
+    return bool(service_config.get("cloud_feed_enabled", False))
+
+
+def current_customer_ai_analysis_enabled():
+    if current_user_role() != "customer":
+        return True
+    service_config = current_customer_service_config()
+    if not service_config:
+        return False
+    return bool(service_config.get("effective_ai_analysis_enabled", False))
 
 
 def customer_cloud_feed_error_message():
     return "Cloud feed is disabled for this customer account. Contact the admin to enable it."
+
+
+def customer_ai_analysis_error_message():
+    return "AI analysis is disabled for this device. Ask the admin to switch Cloud Feed to Full Features."
 
 
 def customer_cloud_feed_block_response():
@@ -1196,6 +1218,17 @@ def customer_cloud_feed_block_response():
         {
             "error": customer_cloud_feed_error_message(),
             "cloud_feed_enabled": False,
+        }
+    ), 403
+
+
+def customer_ai_analysis_block_response():
+    if current_user_role() != "customer" or current_customer_ai_analysis_enabled():
+        return None
+    return jsonify(
+        {
+            "error": customer_ai_analysis_error_message(),
+            "ai_analysis_enabled": False,
         }
     ), 403
 
@@ -1673,6 +1706,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "command_service": payload.get("command_service"),
         "ota_service": payload.get("ota_service"),
         "lower_tank_service": payload.get("lower_tank_service"),
+        "buzzer_service": payload.get("buzzer_service"),
+        "led_display_service": payload.get("led_display_service"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -1727,6 +1762,7 @@ def build_admin_known_devices(accounts, available_devices):
     seed_registered_devices_from_configuration()
     ignored_device_ids = list_ignored_device_ids()
     merged = {}
+    accounts_by_device = {}
 
     for device in available_devices:
         normalized_device_id = normalize_device_id(device.get("device_id"))
@@ -1748,6 +1784,7 @@ def build_admin_known_devices(accounts, available_devices):
         entry["registered_account"] = True
         entry["account_active"] = int(account.get("active", 1) or 0) == 1
         entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
+        accounts_by_device[normalized_device_id] = account
 
     for device_id in list_registered_device_ids(limit=200):
         normalized_device_id = normalize_device_id(device_id)
@@ -1773,11 +1810,17 @@ def build_admin_known_devices(accounts, available_devices):
 
         entry["server_registered"] = True
 
+    service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
+
     alert_summaries = fetch_active_alert_summaries(merged.keys())
     for device_id, entry in merged.items():
         online = admin_device_is_online(entry)
         telemetry_status = str(entry.get("telemetry_status") or "").strip().lower()
         alert_summary = alert_summaries.get(device_id, {})
+        service_config = service_configs.get(device_id) or default_device_service_config(
+            device_id,
+            account=accounts_by_device.get(device_id),
+        )
         active_alert_count = int(alert_summary.get("active_alert_count") or 0)
         entry["admin_status"] = "online" if online else "offline"
         entry["admin_status_label"] = "Online" if online else "Offline"
@@ -1791,12 +1834,13 @@ def build_admin_known_devices(accounts, available_devices):
             or alert_summary.get("latest_alert_severity")
             or "info"
         )
-        entry["cloud_feed_label"] = (
-            "Enabled"
-            if entry.get("registered_account") and entry.get("cloud_feed_enabled")
-            else "Disabled"
-            if entry.get("registered_account")
-            else "Not set"
+        entry.update(service_config)
+        entry["service_profile_tone"] = (
+            "info"
+            if service_config.get("cloud_feed_mode") == DEVICE_SERVICE_CLOUD_FEED_FULL
+            else "warning"
+            if service_config.get("cloud_feed_mode") == DEVICE_SERVICE_CLOUD_FEED_BASIC
+            else "clear"
         )
 
     return sorted(
@@ -2464,9 +2508,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 tank_health, free_heap, uptime_s,
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
-                channel_mode, telemetry_service, command_service, ota_service, lower_tank_service
+                channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
+                buzzer_service, led_display_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """,
             (
                 cleaned.get("level"),
@@ -2513,6 +2558,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 cleaned.get("command_service"),
                 cleaned.get("ota_service"),
                 cleaned.get("lower_tank_service"),
+                cleaned.get("buzzer_service"),
+                cleaned.get("led_display_service"),
             ),
         )
         latest_row_id = cursor.lastrowid
@@ -2577,6 +2624,8 @@ def ensure_tank_data_columns(cursor):
         "command_service": "TEXT",
         "ota_service": "TEXT",
         "lower_tank_service": "TEXT",
+        "buzzer_service": "TEXT",
+        "led_display_service": "TEXT",
     }
 
     for column, definition in required.items():
@@ -2645,6 +2694,8 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             command_service TEXT,
             ota_service TEXT,
             lower_tank_service TEXT,
+            buzzer_service TEXT,
+            led_display_service TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -2764,6 +2815,39 @@ def ensure_customer_accounts_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE customer_accounts ADD COLUMN {column} {definition}")
+
+
+def ensure_device_service_configs_table(cursor):
+    cursor.execute(
+        f"""
+        CREATE TABLE IF NOT EXISTS device_service_configs(
+            device_id TEXT PRIMARY KEY,
+            source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+            ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
+            cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
+            buzzer_enabled INTEGER NOT NULL DEFAULT 1,
+            led_display_enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def ensure_device_service_configs_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
+    required = {
+        "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
+        "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+        "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE device_service_configs ADD COLUMN {column} {definition}")
 
 
 def ensure_registered_devices_table(cursor):
@@ -2967,6 +3051,8 @@ def init_db():
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
         ensure_customer_accounts_columns(cursor)
+        ensure_device_service_configs_table(cursor)
+        ensure_device_service_configs_columns(cursor)
         ensure_registered_devices_table(cursor)
         ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
@@ -3011,6 +3097,12 @@ def init_db():
             """
             CREATE INDEX IF NOT EXISTS idx_registered_devices_last_seen
             ON registered_devices(last_seen_at, device_id)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_device_service_configs_updated
+            ON device_service_configs(updated_at, device_id)
             """
         )
         cursor.execute(
@@ -3236,10 +3328,11 @@ def upsert_customer_account(device_id, password, display_name=None, active=None,
     if not password or len(password) < 6:
         raise ValueError("password must be at least 6 characters")
     existing = fetch_customer_account(normalized_device_id)
+    default_service_config = fetch_device_service_config(normalized_device_id, account=existing)
     password_hash = generate_password_hash(password)
     resolved_active = 1 if active is None and not existing else (1 if int(active if active is not None else existing.get("active", 1) or 0) == 1 else 0)
     resolved_cloud_feed_enabled = (
-        1
+        (1 if default_service_config.get("cloud_feed_mode") != DEVICE_SERVICE_CLOUD_FEED_OFF else 0)
         if cloud_feed_enabled is None and not existing
         else (1 if int(cloud_feed_enabled if cloud_feed_enabled is not None else existing.get("cloud_feed_enabled", 1) or 0) == 1 else 0)
     )
@@ -3314,6 +3407,250 @@ def update_customer_account_profile(device_id, display_name=None, active=None, c
     return fetch_customer_account(account["device_id"])
 
 
+DEVICE_SERVICE_CLOUD_FEED_OFF = "off"
+DEVICE_SERVICE_CLOUD_FEED_BASIC = "basic"
+DEVICE_SERVICE_CLOUD_FEED_FULL = "full"
+DEVICE_SERVICE_CLOUD_MODE_LABELS = {
+    DEVICE_SERVICE_CLOUD_FEED_OFF: "Disabled",
+    DEVICE_SERVICE_CLOUD_FEED_BASIC: "Without AI",
+    DEVICE_SERVICE_CLOUD_FEED_FULL: "With Full Features",
+}
+
+
+def normalize_device_service_cloud_mode(value, default=DEVICE_SERVICE_CLOUD_FEED_FULL):
+    raw = str(value or "").strip().lower()
+    if raw in DEVICE_SERVICE_CLOUD_MODE_LABELS:
+        return raw
+    return default
+
+
+def boolish_enabled(value, default=True):
+    if value is None:
+        return bool(default)
+    if isinstance(value, bool):
+        return value
+    raw = str(value).strip().lower()
+    if raw in {"1", "true", "yes", "on", "enable", "enabled"}:
+        return True
+    if raw in {"0", "false", "no", "off", "disable", "disabled"}:
+        return False
+    return bool(default)
+
+
+def serialize_device_service_config(device_id, payload=None, account=None):
+    payload = payload or {}
+    normalized_device_id = normalize_device_id(device_id or payload.get("device_id"))
+    account_cloud_feed_enabled = True
+    if account is not None:
+        account_cloud_feed_enabled = int(account.get("cloud_feed_enabled", 1) or 0) == 1
+
+    cloud_feed_mode = normalize_device_service_cloud_mode(
+        payload.get("cloud_feed_mode"),
+        default=DEVICE_SERVICE_CLOUD_FEED_FULL if account_cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF,
+    )
+    source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
+    ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
+    buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
+    led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
+    effective_cloud_feed_enabled = cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF and account_cloud_feed_enabled
+    effective_ai_analysis_enabled = (
+        ai_analysis_enabled
+        and cloud_feed_mode == DEVICE_SERVICE_CLOUD_FEED_FULL
+        and effective_cloud_feed_enabled
+    )
+    hardware_enabled_count = int(buzzer_enabled) + int(led_display_enabled)
+    cloud_note = "Customer cloud access starts after an account is created."
+    if account is not None:
+        cloud_note = (
+            "Remote customer access is enabled."
+            if effective_cloud_feed_enabled
+            else "Customer cloud access is disabled for this device."
+        )
+    ai_label = "On" if effective_ai_analysis_enabled else ("Saved" if ai_analysis_enabled else "Off")
+    return {
+        "device_id": normalized_device_id,
+        "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
+        "ai_analysis_enabled": ai_analysis_enabled,
+        "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
+        "cloud_feed_mode": cloud_feed_mode,
+        "cloud_feed_mode_label": DEVICE_SERVICE_CLOUD_MODE_LABELS.get(cloud_feed_mode, "Unknown"),
+        "cloud_feed_enabled": effective_cloud_feed_enabled,
+        "cloud_note": cloud_note,
+        "buzzer_enabled": buzzer_enabled,
+        "led_display_enabled": led_display_enabled,
+        "hardware_enabled_count": hardware_enabled_count,
+        "hardware_enabled_label": f"{hardware_enabled_count}/2 hardware controls active",
+        "service_profile_hint": (
+            f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
+            f" • AI {ai_label}"
+            f" • Buzzer {'On' if buzzer_enabled else 'Off'}"
+            f" • LED {'On' if led_display_enabled else 'Off'}"
+        ),
+    }
+
+
+def default_device_service_config(device_id=None, account=None):
+    cloud_feed_enabled = True
+    if account is not None:
+        cloud_feed_enabled = int(account.get("cloud_feed_enabled", 1) or 0) == 1
+    return serialize_device_service_config(
+        device_id,
+        {
+            "source_tank_monitoring_enabled": True,
+            "ai_analysis_enabled": True,
+            "cloud_feed_mode": (
+                DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
+            ),
+            "buzzer_enabled": True,
+            "led_display_enabled": True,
+        },
+        account=account,
+    )
+
+
+def fetch_device_service_config(device_id, account=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return default_device_service_config(device_id, account=account)
+    resolved_account = account if account is not None else fetch_customer_account(normalized_device_id)
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+                   cloud_feed_mode, buzzer_enabled, led_display_enabled,
+                   created_at, updated_at
+            FROM device_service_configs
+            WHERE device_id = ?
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+    if not row:
+        return default_device_service_config(normalized_device_id, account=resolved_account)
+    return serialize_device_service_config(normalized_device_id, dict(row), account=resolved_account)
+
+
+def list_device_service_configs(device_ids=None, accounts_by_device=None):
+    normalized_device_ids = [
+        item for item in (normalize_device_id(value) for value in (device_ids or [])) if item
+    ]
+    accounts_by_device = accounts_by_device or {}
+    query = (
+        """
+        SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+               cloud_feed_mode, buzzer_enabled, led_display_enabled,
+               created_at, updated_at
+        FROM device_service_configs
+        """
+    )
+    params = []
+    if normalized_device_ids:
+        placeholders = ",".join("?" for _ in normalized_device_ids)
+        query += f" WHERE device_id IN ({placeholders})"
+        params.extend(normalized_device_ids)
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+    configs = {
+        normalize_device_id(row["device_id"]): serialize_device_service_config(
+            row["device_id"],
+            dict(row),
+            account=accounts_by_device.get(normalize_device_id(row["device_id"])),
+        )
+        for row in rows
+    }
+    if normalized_device_ids:
+        for normalized_device_id in normalized_device_ids:
+            configs.setdefault(
+                normalized_device_id,
+                default_device_service_config(
+                    normalized_device_id,
+                    account=accounts_by_device.get(normalized_device_id),
+                ),
+            )
+    return configs
+
+
+def upsert_device_service_config(
+    device_id,
+    source_tank_monitoring_enabled=None,
+    ai_analysis_enabled=None,
+    cloud_feed_mode=None,
+    buzzer_enabled=None,
+    led_display_enabled=None,
+):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+
+    account = fetch_customer_account(normalized_device_id)
+    existing = fetch_device_service_config(normalized_device_id, account=account)
+    resolved_source_tank_monitoring_enabled = boolish_enabled(
+        source_tank_monitoring_enabled,
+        default=existing.get("source_tank_monitoring_enabled", True),
+    )
+    resolved_ai_analysis_enabled = boolish_enabled(
+        ai_analysis_enabled,
+        default=existing.get("ai_analysis_enabled", True),
+    )
+    resolved_buzzer_enabled = boolish_enabled(
+        buzzer_enabled,
+        default=existing.get("buzzer_enabled", True),
+    )
+    resolved_led_display_enabled = boolish_enabled(
+        led_display_enabled,
+        default=existing.get("led_display_enabled", True),
+    )
+    resolved_cloud_feed_mode = normalize_device_service_cloud_mode(
+        cloud_feed_mode,
+        default=existing.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
+    )
+
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO device_service_configs(
+                device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+                cloud_feed_mode, buzzer_enabled, led_display_enabled,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
+                ai_analysis_enabled=excluded.ai_analysis_enabled,
+                cloud_feed_mode=excluded.cloud_feed_mode,
+                buzzer_enabled=excluded.buzzer_enabled,
+                led_display_enabled=excluded.led_display_enabled,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (
+                normalized_device_id,
+                1 if resolved_source_tank_monitoring_enabled else 0,
+                1 if resolved_ai_analysis_enabled else 0,
+                resolved_cloud_feed_mode,
+                1 if resolved_buzzer_enabled else 0,
+                1 if resolved_led_display_enabled else 0,
+            ),
+        )
+
+    if account:
+        desired_cloud_feed_enabled = 1 if resolved_cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF else 0
+        if int(account.get("cloud_feed_enabled", 1) or 0) != desired_cloud_feed_enabled:
+            update_customer_account_profile(
+                normalized_device_id,
+                cloud_feed_enabled=desired_cloud_feed_enabled,
+            )
+
+    return fetch_device_service_config(normalized_device_id)
+
+
+def build_device_service_command(service_config):
+    config = service_config or {}
+    return "SERVICECFG:{source}:{buzzer}:{led}".format(
+        source=1 if bool(config.get("source_tank_monitoring_enabled")) else 0,
+        buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
+        led=1 if bool(config.get("led_display_enabled")) else 0,
+    )
+
+
 def authenticate_dashboard_user(username, password):
     normalized_username = str(username or "").strip()
     if normalized_username == LOGIN_USERNAME and verify_dashboard_password(password):
@@ -3328,12 +3665,15 @@ def authenticate_dashboard_user(username, password):
         return None
     if not check_password_hash(customer.get("password_hash", ""), password or ""):
         return None
+    service_config = fetch_device_service_config(normalized_username, account=customer)
     return {
         "role": "customer",
         "username": normalized_username,
         "device_id": normalized_username,
         "display_name": customer.get("display_name") or normalized_username,
-        "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
+        "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
+        "cloud_feed_mode": service_config.get("cloud_feed_mode"),
+        "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
     }
 
 
@@ -3379,18 +3719,23 @@ def resolve_mobile_user():
             "device_id": None,
             "display_name": "Administrator",
             "cloud_feed_enabled": True,
+            "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
+            "ai_analysis_enabled": True,
         }
     elif role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
             g.mobile_user = None
             return None
+        service_config = fetch_device_service_config(device_id, account=customer)
         user = {
             "role": "customer",
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
-            "cloud_feed_enabled": int(customer.get("cloud_feed_enabled", 1) or 0) == 1,
+            "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
+            "cloud_feed_mode": service_config.get("cloud_feed_mode"),
+            "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
         }
     else:
         g.mobile_user = None
@@ -3430,6 +3775,18 @@ def mobile_customer_cloud_feed_block_response():
         {
             "error": customer_cloud_feed_error_message(),
             "cloud_feed_enabled": False,
+        }
+    ), 403
+
+
+def mobile_customer_ai_analysis_block_response():
+    user = resolve_mobile_user()
+    if not user or user.get("role") != "customer" or user.get("ai_analysis_enabled", True):
+        return None
+    return jsonify(
+        {
+            "error": customer_ai_analysis_error_message(),
+            "ai_analysis_enabled": False,
         }
     ), 403
 
@@ -3719,6 +4076,8 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["command_service"] = normalize_service_state(data.get("command_service"))
     data["ota_service"] = normalize_service_state(data.get("ota_service"))
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
+    data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
+    data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -4033,6 +4392,8 @@ def build_empty_snapshot_payload(device_id=None):
         "command_service": "UNKNOWN",
         "ota_service": "UNKNOWN",
         "lower_tank_service": "UNKNOWN",
+        "buzzer_service": "UNKNOWN",
+        "led_display_service": "UNKNOWN",
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
@@ -4098,6 +4459,8 @@ def build_system_status_payload(snapshot, device_id=None):
         "command_service": snapshot.get("command_service") if snapshot else "UNKNOWN",
         "ota_service": snapshot.get("ota_service") if snapshot else "UNKNOWN",
         "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
+        "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
+        "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -4136,6 +4499,8 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "command_service": snapshot.get("command_service") if snapshot else "UNKNOWN",
             "ota_service": snapshot.get("ota_service") if snapshot else "UNKNOWN",
             "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
+            "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
+            "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
             "wifi": snapshot.get("wifi") if snapshot else None,
             "wifi_rssi": snapshot.get("wifi_rssi") if snapshot else None,
             "sensor": snapshot.get("sensor") if snapshot else None,
@@ -5867,6 +6232,8 @@ def mobile_auth_login():
             "device_id": authenticated_user.get("device_id"),
             "display_name": authenticated_user.get("display_name"),
             "cloud_feed_enabled": authenticated_user.get("cloud_feed_enabled", True),
+            "cloud_feed_mode": authenticated_user.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
+            "ai_analysis_enabled": authenticated_user.get("ai_analysis_enabled", True),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
     })
@@ -5901,6 +6268,9 @@ def mobile_bootstrap():
 @mobile_auth_required
 def mobile_analytics():
     response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    response = mobile_customer_ai_analysis_block_response()
     if response:
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
@@ -5954,6 +6324,7 @@ def mobile_account_password():
         if not check_password_hash(account.get("password_hash", ""), current_password):
             return jsonify({"error": "Current password is incorrect."}), 400
         updated_account = update_customer_password(device_id, new_password)
+        updated_service_config = fetch_device_service_config(device_id, account=updated_account)
         log_audit_event(
             actor=username or device_id,
             action="reset_customer_password",
@@ -5970,7 +6341,9 @@ def mobile_account_password():
                     "username": username,
                     "device_id": device_id,
                     "display_name": updated_account.get("display_name") or device_id,
-                    "cloud_feed_enabled": int(updated_account.get("cloud_feed_enabled", 1) or 0) == 1,
+                    "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
+                    "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
+                    "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
                 },
             }
         )
@@ -6073,13 +6446,88 @@ def mobile_device_status():
     if response:
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    service_config = fetch_device_service_config(scoped_device_id) if scoped_device_id else None
     snapshot = load_dashboard_snapshot(scoped_device_id)
     return jsonify({
         "snapshot": strip_ip_address_fields(snapshot),
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
+        "service_config": service_config,
         "viewer": resolve_mobile_user(),
     })
+
+
+@app.route("/api/mobile/device/services", methods=["GET", "POST"])
+@mobile_auth_required
+def mobile_device_services():
+    user = resolve_mobile_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"error": "admin access required"}), 403
+
+    source_payload = request.get_json(silent=True) or {}
+    requested_device_id = (
+        source_payload.get("device_id")
+        if request.method == "POST"
+        else request.args.get("device_id", type=str)
+    )
+    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+
+    if request.method == "GET":
+        snapshot = fetch_device_snapshot(target_device)
+        return jsonify(
+            {
+                "device_id": target_device,
+                "config": fetch_device_service_config(target_device),
+                "live_services": {
+                    "source_tank_monitoring_enabled": bool(
+                        snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
+                    ),
+                    "buzzer_enabled": bool(
+                        snapshot and str(snapshot.get("buzzer_service") or "").upper() == "ON"
+                    ),
+                    "led_display_enabled": bool(
+                        snapshot and str(snapshot.get("led_display_service") or "").upper() == "ON"
+                    ),
+                },
+            }
+        )
+
+    updated_config = upsert_device_service_config(
+        target_device,
+        source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
+        ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
+        cloud_feed_mode=source_payload.get("cloud_feed_mode"),
+        buzzer_enabled=source_payload.get("buzzer_enabled"),
+        led_display_enabled=source_payload.get("led_display_enabled"),
+    )
+    command = build_device_service_command(updated_config)
+    queue_result = queue_command(command, target_device=target_device)
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="update_device_services_mobile",
+        target_type="device",
+        target_id=target_device,
+        device_id=target_device,
+        details={
+            "service_config": updated_config,
+            "queued_command": command,
+            "source": "mobile_api",
+        },
+    )
+    response_payload = {
+        "message": f"Service settings saved for {target_device}.",
+        "device_id": target_device,
+        "config": updated_config,
+        "queued_command": command,
+    }
+    if isinstance(queue_result, tuple):
+        error_payload, status_code = queue_result
+        response_payload.update({"queue_error": error_payload.get("error")})
+        return jsonify(response_payload), status_code
+    response_payload.update(queue_result)
+    return jsonify(response_payload)
 
 @app.route("/device/command")
 def get_command():
@@ -6395,22 +6843,86 @@ def admin_customer_cloud_feed(device_id):
         error = f"Customer account not found for {normalize_device_id(device_id) or 'that device'}."
     else:
         enable_cloud_feed = str(desired_value or "").strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
-        updated_account = update_customer_account_profile(
+        updated_config = upsert_device_service_config(
             account["device_id"],
-            cloud_feed_enabled=1 if enable_cloud_feed else 0,
+            cloud_feed_mode=(
+                DEVICE_SERVICE_CLOUD_FEED_FULL if enable_cloud_feed else DEVICE_SERVICE_CLOUD_FEED_OFF
+            ),
         )
+        updated_account = fetch_customer_account(account["device_id"])
         log_audit_event(
             actor=current_actor_username(),
             action="set_customer_cloud_feed",
             target_type="customer_account",
             target_id=updated_account["device_id"],
             device_id=updated_account["device_id"],
-            details={"cloud_feed_enabled": bool(enable_cloud_feed)},
+            details={
+                "cloud_feed_enabled": bool(enable_cloud_feed),
+                "cloud_feed_mode": updated_config.get("cloud_feed_mode"),
+            },
         )
         success = (
             f"Cloud feed enabled for {updated_account['device_id']}."
             if enable_cloud_feed
             else f"Cloud feed disabled for {updated_account['device_id']}."
+        )
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/services", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_customer_services(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    if not normalized_device_id:
+        error = "Choose a valid device before updating services."
+    else:
+        updated_config = upsert_device_service_config(
+            normalized_device_id,
+            source_tank_monitoring_enabled=request.form.get("source_tank_monitoring_enabled"),
+            ai_analysis_enabled=request.form.get("ai_analysis_enabled"),
+            cloud_feed_mode=request.form.get("cloud_feed_mode"),
+            buzzer_enabled=request.form.get("buzzer_enabled"),
+            led_display_enabled=request.form.get("led_display_enabled"),
+        )
+        queued_command = build_device_service_command(updated_config)
+        queue_result = queue_command(queued_command, target_device=normalized_device_id)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_services",
+            target_type="device",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details={
+                "service_config": updated_config,
+                "queued_command": queued_command,
+                "queue_result": queue_result if not isinstance(queue_result, tuple) else queue_result[0],
+            },
+        )
+        success = (
+            f"Service settings saved for {normalized_device_id}. "
+            "Device-side changes will apply on the next command poll."
         )
 
     accounts = list_customer_accounts(limit=100)
@@ -6678,6 +7190,7 @@ def device_detail_status(device_id):
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
             "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
             "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
+            "service_config": fetch_device_service_config(scoped_device_id),
             "alerts": alerts,
             "audit": audit,
             "history": history,
@@ -6949,6 +7462,12 @@ def dashboard_bootstrap():
                 "device_id": scoped_device_id,
                 "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
                 "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
+                "cloud_feed_mode": (
+                    (current_customer_service_config() or {}).get("cloud_feed_mode")
+                    if current_user_role() == "customer"
+                    else DEVICE_SERVICE_CLOUD_FEED_FULL
+                ),
+                "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
             },
         }
     )
@@ -6958,6 +7477,9 @@ def dashboard_bootstrap():
 @login_required
 def analytics():
     response = customer_cloud_feed_block_response()
+    if response:
+        return response
+    response = customer_ai_analysis_block_response()
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
@@ -6975,6 +7497,9 @@ def analytics():
 @login_required
 def analytics_csv_export():
     response = customer_cloud_feed_block_response()
+    if response:
+        return response
+    response = customer_ai_analysis_block_response()
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
@@ -6996,6 +7521,9 @@ def analytics_csv_export():
 @app.route("/ml/predict")
 @login_required
 def ml_predict():
+    response = customer_ai_analysis_block_response()
+    if response:
+        return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str)) or latest_device_id()
     if not scoped_device_id:
         return jsonify({"error": "device not found"}), 404
