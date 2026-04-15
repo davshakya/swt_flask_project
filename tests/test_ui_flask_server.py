@@ -1678,6 +1678,57 @@ def test_admin_dashboard_hides_customer_only_panels():
     assert "Back to Dashboard" not in body
 
 
+def test_admin_customers_page_shows_reboot_action_for_known_device():
+    if BASE_URL:
+        pytest.skip("Admin customers UI test is skipped against shared BASE_URL deployments.")
+
+    ensure_device_snapshot()
+    admin_client = make_admin_client()
+
+    response = admin_client.get("/admin/customers")
+    assert response.status_code == 200
+
+    body = response.get_data(as_text=True)
+    assert "Reboot Device" in body
+    assert "/reboot" in body
+
+
+def test_admin_can_queue_device_reboot_from_admin_customers_page():
+    if BASE_URL:
+        pytest.skip("Admin reboot action test is skipped against shared BASE_URL deployments.")
+
+    device_id = ensure_device_snapshot()
+    admin_client = make_admin_client()
+
+    with get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+    response = admin_client.post(
+        f"/admin/customers/{device_id}/reboot",
+        data={"q": ""},
+        headers=csrf_headers(),
+    )
+
+    assert response.status_code == 200
+    assert f"Reboot command queued for {device_id}." in response.get_data(as_text=True)
+
+    with get_db() as db:
+        queued = db.execute(
+            """
+            SELECT command, delivered_at
+            FROM device_command_queue
+            WHERE target_device = ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (device_id,),
+        ).fetchone()
+
+    assert queued is not None
+    assert queued["command"] == "REBOOT"
+    assert queued["delivered_at"] is None
+
+
 def test_admin_root_redirects_to_customer_accounts():
     if BASE_URL:
         pytest.skip("Admin root redirect test is skipped against shared BASE_URL deployments.")

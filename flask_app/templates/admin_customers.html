@@ -378,6 +378,9 @@
                             <td>
                                 <div class="action-links">
                                     <a href="/devices/{{ device.device_id }}">Device Details</a>
+                                    <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                        <button type="submit" class="danger">Reboot Device</button>
+                                    </form>
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Edit Name</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/cloud-feed" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}"><input type="hidden" name="cloud_feed_enabled" value="{{ 0 if device.cloud_feed_enabled else 1 }}">

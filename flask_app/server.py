@@ -6432,6 +6432,59 @@ def admin_customer_cloud_feed(device_id):
     )
 
 
+@app.route("/admin/customers/<device_id>/reboot", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_reboot(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    if not normalized_device_id:
+        error = "Choose a valid device before queueing a reboot."
+    else:
+        result = queue_command("REBOOT", target_device=normalized_device_id)
+        if isinstance(result, tuple):
+            payload, _status_code = result
+            error = payload.get("error") or f"Unable to queue a reboot for {normalized_device_id}."
+        else:
+            log_audit_event(
+                actor=current_actor_username(),
+                action="queue_device_reboot",
+                target_type="device",
+                target_id=normalized_device_id,
+                device_id=normalized_device_id,
+                details={
+                    "command": result.get("command"),
+                    "mqtt_delivery": result.get("mqtt_delivery"),
+                    "queued_at": result.get("queued_at"),
+                },
+            )
+            success = (
+                f"Reboot command queued for {normalized_device_id}. "
+                "The device will restart on its next command poll."
+            )
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=100),
+    )
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
 @app.route("/admin/customers/<device_id>/delete", methods=["POST"])
 @admin_required
 @csrf_protect
