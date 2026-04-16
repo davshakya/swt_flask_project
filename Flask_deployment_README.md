@@ -1,171 +1,316 @@
-# 🚀 Flask Deployment on cPanel
+# Flask Deployment on cPanel
 
-This project demonstrates how to deploy a Flask application on cPanel using Python App (Passenger WSGI).
+This file now matches this repository, not a toy `app.py` example.
 
----
+The Smart Water Tank Flask app can run on cPanel with Passenger WSGI, and the project is now prepared for deployment on `https://salewell.co.in/`.
 
-## 📁 Project Structure
+## What This Repo Uses
 
-```
-project/
-│
-├── app.py
+Important files in this project:
+
+```text
+swt_flask_project/
+├── server.py
 ├── passenger_wsgi.py
 ├── requirements.txt
-└── templates/
+├── device.env
+├── flask_app/
+│   ├── server.py
+│   ├── .env
+│   ├── templates/
+│   └── static/
 ```
 
----
+How it works:
 
-## ⚙️ Setup Instructions
+- `server.py` exposes the Flask app as `app`
+- `passenger_wsgi.py` exposes that app to Passenger as `application`
+- `requirements.txt` installs `flask_app/requirements.txt`
+- `flask_app/.env` holds backend settings
+- `device.env` holds shared device/cloud settings
 
-### 1️⃣ Create Flask App (`app.py`)
+## Recommended cPanel Layout
 
-```python
-from flask import Flask
+Use the domain root for this app:
 
-app = Flask(__name__)
+- Domain: `salewell.co.in`
+- Base URL: `/`
 
-@app.route("/")
-def home():
-    return "Flask is Working on cPanel!"
+Do not deploy this app under a subfolder like `/tankapp`.
+
+Reason:
+
+- the PWA manifest uses root-scoped paths
+- the service worker is registered at `/service-worker.js`
+- several templates link to absolute routes such as `/login/admin`
+
+Recommended server-side paths:
+
+```text
+/home/<cpanel-user>/apps/swt_flask_project
+/home/<cpanel-user>/swt_data/tank.db
 ```
 
----
+Keep the app code outside `public_html` when possible and let cPanel map the domain to the Passenger app.
 
-### 2️⃣ Configure WSGI (`passenger_wsgi.py`)
+## Files To Upload
+
+Upload the whole project folder, including:
+
+- `server.py`
+- `passenger_wsgi.py`
+- `requirements.txt`
+- `flask_app/`
+- `device.env`
+
+Do not upload:
+
+- `.venv/`
+- `__pycache__/`
+- local test databases
+
+## Passenger Entry Point
+
+This repo now includes `passenger_wsgi.py`:
 
 ```python
-import sys
 import os
+import sys
 
-sys.path.insert(0, os.path.dirname(__file__))
+PROJECT_ROOT = os.path.dirname(__file__)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
-from app import app as application
+from server import app as application
 ```
 
----
+That is the file Passenger should load.
 
-### 3️⃣ Add Dependencies (`requirements.txt`)
+## Required Configuration Files
 
-```
-Flask==2.3.3
-```
+Create these two files before first production boot:
 
----
+1. `flask_app/.env`
+2. `device.env`
 
-## 🌐 Deployment Steps (cPanel)
+Start from:
 
-1. Go to **cPanel → Python App → Create Application**
-2. Fill configuration:
+- `flask_app/.env.example`
+- `device.env.example`
 
-| Field            | Value                       |
-| ---------------- | --------------------------- |
-| Python Version   | 3.11                        |
-| Application Root | `yourdomain.com/yourfolder` |
-| Application URL  | `/`                         |
-| Startup File     | `passenger_wsgi.py`         |
-| Entry Point      | `application`               |
+### Recommended `flask_app/.env` values
 
----
+Use real secrets, not the placeholder values:
 
-### 4️⃣ Upload Files
-
-Upload your project to:
-
-```
-/home/username/yourdomain.com/yourfolder
+```dotenv
+APP_SECRET_KEY=replace-with-a-long-random-secret
+DB_FILE=/home/<cpanel-user>/swt_data/tank.db
+LOGIN_USERNAME=admin
+LOGIN_PASSWORD=replace-with-a-strong-password
+SESSION_COOKIE_SECURE=true
+SESSION_COOKIE_SAMESITE=Lax
+RELAY_STATUS_URLS=
+RELAY_COMMAND_URLS=
 ```
 
----
+Notes:
 
-### 5️⃣ Add Requirements File
+- `DB_FILE` should point to a writable persistent path
+- leave `RELAY_STATUS_URLS` and `RELAY_COMMAND_URLS` blank when `salewell.co.in` is the main backend
+- blank relay settings avoid accidental forwarding to another server or back into the same app
 
-In cPanel:
+### Recommended `device.env` values
 
-* Go to **Configuration Files**
-* Add:
-
-```
-requirements.txt
-```
-
----
-
-### 6️⃣ Install Dependencies
-
-Click:
-
-```
-Run Pip Install
+```dotenv
+SWT_DEVICE_ID=swt-000-000-000-001
+SWT_DEVICE_API_KEY=replace-with-a-real-device-key
+SWT_OTA_HOSTNAME=SmartWaterTank01
+SWT_OTA_PASSWORD=replace-with-a-real-ota-password
+SWT_LOCAL_WEB_AUTH_USERNAME=swtadmin
+SWT_LOCAL_WEB_AUTH_PASSWORD=replace-with-a-strong-local-password
+SWT_LOCAL_DEVICE_URL=http://192.168.1.50/
+SWT_CLOUD_BASE_URL=https://salewell.co.in/
+SWT_FLASK_CHANNEL_MODE=both
+SWT_DEVICE_SOURCE_MODE=real
 ```
 
----
+If you will manage multiple devices, use `DEVICE_KEYS` or `SWT_DEVICE_KEYS` in `flask_app/.env` instead of relying on only one shared device ID and key.
 
-### 7️⃣ Restart Application
+## cPanel Setup Steps
 
-Click:
+### Option A: Application Manager
 
+If your host provides `Application Manager`, use:
+
+- Application name: `salewell`
+- Deployment domain: `salewell.co.in`
+- Base application URL: `/`
+- Application path: `apps/swt_flask_project`
+- Environment: `Production`
+
+After the app is registered, make sure the app uses the repo root as the source directory.
+
+### Option B: Setup Python App / Python App
+
+Some hosts show a Python app form with startup fields. If you see those fields, use:
+
+- Python version: `3.11.14`
+- Application root: `apps/swt_flask_project`
+- Application URL domain: `salewell.co.in`
+- Application URL path: leave the path box empty
+- Startup file: `passenger_wsgi.py`
+- Entry point: `application`
+
+If the URL path field does not allow blank, use `/`.
+
+### Exact values for the cPanel screen
+
+If your cPanel page looks like the Python form with these fields:
+
+- `Python version`
+- `Application root`
+- `Application URL`
+- `Application startup file`
+- `Application Entry point`
+
+then enter exactly:
+
+| Field | Value |
+| --- | --- |
+| Python version | `3.11.14` |
+| Application root | `apps/swt_flask_project` |
+| Application URL | domain `salewell.co.in`, path box empty |
+| Application startup file | `passenger_wsgi.py` |
+| Application Entry point | `application` |
+
+Important:
+
+- `Application root` is relative to your cPanel home directory
+- the app files should end up in `/home/<cpanel-user>/apps/swt_flask_project/`
+- this setup makes `https://salewell.co.in/` serve the Flask app
+- do not set the startup file to `server.py`; use `passenger_wsgi.py`
+
+### Environment variables section in cPanel
+
+For this repository, the cleanest setup is:
+
+- leave the cPanel `Environment variables` section empty
+- create `flask_app/.env` and `device.env` in the app folder instead
+
+This project already loads those files automatically on startup.
+
+## Install Dependencies
+
+Install packages from the project root:
+
+```bash
+pip install -r requirements.txt
 ```
-Restart App
+
+The root `requirements.txt` already points to:
+
+```text
+-r flask_app/requirements.txt
 ```
 
----
+If your cPanel UI has a dependency install button such as `Run Pip Install` or `Enable Dependencies`, run it after upload.
 
-## ✅ Verify Deployment
+## Folder Preparation
 
-Open your browser:
+Before the first restart, make sure these paths exist on the server:
 
-```
-https://yourdomain.com/
-```
-
-Expected output:
-
-```
-Flask is Working on cPanel!
+```text
+/home/<cpanel-user>/apps/swt_flask_project/
+/home/<cpanel-user>/swt_data/
 ```
 
----
+Then place the SQLite database at:
 
-## ❗ Common Issues & Fixes
-
-| Issue                | Fix                              |
-| -------------------- | -------------------------------- |
-| 500 Error            | Check `stderr.log`               |
-| ModuleNotFoundError  | Install dependencies             |
-| Wrong WSGI config    | Fix `passenger_wsgi.py`          |
-| Pip Install disabled | Add `requirements.txt` in config |
-| Infinite loop error  | Remove `imp.load_source`         |
-
----
-
-## 🔥 Important Notes
-
-* Do NOT use `imp.load_source`
-* Do NOT use "Run Script" for pip install
-* Do NOT click "Create" again after setup
-* Always restart app after changes
-
----
-
-## 📌 Summary
-
-```
-Upload → Create App → Fix WSGI → Add requirements → Install → Restart → Done
+```text
+/home/<cpanel-user>/swt_data/tank.db
 ```
 
----
+## Restart The App
 
-## 🚀 Next Improvements
+After config or code changes:
 
-* Add HTML templates (`render_template`)
-* Build REST APIs
-* Connect database (MySQL / SQLite)
-* Deploy full production app
+- use the cPanel restart button if available
+- or touch `tmp/restart.txt` inside the app root
 
----
+Passenger only reloads the app after a restart signal.
 
-## 👨‍💻 Author
+## First URLs To Test
 
-Devendra Shakya
+Open these after deployment:
+
+- `https://salewell.co.in/health`
+- `https://salewell.co.in/login/admin`
+- `https://salewell.co.in/login/customer`
+
+Healthy signs:
+
+- `/health` returns a success response
+- admin login page opens
+- templates and static files load correctly
+
+## Quick Create Checklist
+
+1. In cPanel, create the Python app with the values listed above.
+2. Upload the repo into `/home/<cpanel-user>/apps/swt_flask_project/`.
+3. Create `/home/<cpanel-user>/swt_data/`.
+4. Add `flask_app/.env`.
+5. Add `device.env`.
+6. Install dependencies with `pip install -r requirements.txt`.
+7. Restart the app.
+8. Open `https://salewell.co.in/health`.
+
+## Important Production Notes
+
+- keep `SESSION_COOKIE_SECURE=true` because the site should run on HTTPS
+- replace every `change-me` value before first launch
+- back up the SQLite database regularly
+- keep `DB_FILE` on persistent storage
+- install `requirements-ml.txt` only if you want `/ml/predict`
+
+## Common Problems
+
+### 500 Internal Server Error
+
+Check:
+
+- `stderr.log` in the app directory
+- missing environment variables
+- missing dependencies
+- wrong Passenger startup file
+
+### Login opens but session does not persist
+
+Check:
+
+- `APP_SECRET_KEY` is set
+- `SESSION_COOKIE_SECURE=true`
+- the site is actually loading over `https://salewell.co.in`
+
+### State disappears after restart
+
+Check:
+
+- `DB_FILE` points to a persistent folder
+- the SQLite folder is writable
+- `APP_SECRET_KEY` is stable and not changing between restarts
+
+### Device telemetry does not reach the dashboard
+
+Check:
+
+- `SWT_DEVICE_ID`
+- `SWT_DEVICE_API_KEY`
+- `SWT_CLOUD_BASE_URL=https://salewell.co.in/`
+- whether the device is posting to `/status`
+
+## Deployment Summary
+
+```text
+Upload repo -> create Passenger app -> set flask_app/.env and device.env ->
+install requirements -> restart app -> test /health and /login/admin
+```
