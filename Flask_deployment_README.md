@@ -53,6 +53,12 @@ Recommended server-side paths:
 
 Keep the app code outside `public_html` when possible and let cPanel map the domain to the Passenger app.
 
+Important:
+
+- the remote upload folder must match the `Application root` you configure in cPanel
+- this guide uses `apps/swt_flask_project` as the recommended cPanel application root
+- if your FTP hosting layout requires a different folder such as `salewell.co.in/swt_flask`, use that same folder consistently in both cPanel and your upload command
+
 ## Files To Upload
 
 Upload the whole project folder, including:
@@ -68,6 +74,52 @@ Do not upload:
 - `.venv/`
 - `__pycache__/`
 - local test databases
+
+## Upload With The Python FTPS Script
+
+This repo now includes a Python uploader:
+
+- [scripts/upload_repo_ftps.py](/d:/SWT_PROJECT/swt_flask_project/scripts/upload_repo_ftps.py)
+
+Current built-in defaults:
+
+- FTP server: `ftp.salewell.co.in`
+- Port: `21`
+- Username: `swt_flask@salewell.co.in`
+- Protocol: explicit FTPS
+- Compatibility mode: FTPS certificate validation is disabled by default because this host presented a certificate hostname mismatch during testing
+- Remote root default: empty
+- With an empty remote root, files upload into the FTP account's current login directory
+
+Run it from the project root:
+
+```powershell
+python .\scripts\upload_repo_ftps.py "your-ftp-password"
+```
+
+Dry run:
+
+```powershell
+python .\scripts\upload_repo_ftps.py "your-ftp-password" --dry-run
+```
+
+If your cPanel `Application root` is `apps/swt_flask_project`, override the remote folder when uploading:
+
+```powershell
+python .\scripts\upload_repo_ftps.py "your-ftp-password" --remote-root apps/swt_flask_project
+```
+
+If your server certificate starts working correctly later and you want normal FTPS validation again:
+
+```powershell
+python .\scripts\upload_repo_ftps.py "your-ftp-password" --secure-ftps
+```
+
+Security note:
+
+- passing a password on the command line can expose it in shell history
+- using an environment variable or prompt is safer, but the script supports a positional password for convenience
+- if `DEFAULT_REMOTE_ROOT = ""`, keep it that way unless you explicitly want uploads to go into a subfolder
 
 ## Passenger Entry Point
 
@@ -256,13 +308,14 @@ Healthy signs:
 ## Quick Create Checklist
 
 1. In cPanel, create the Python app with the values listed above.
-2. Upload the repo into `/home/<cpanel-user>/apps/swt_flask_project/`.
-3. Create `/home/<cpanel-user>/swt_data/`.
-4. Add `flask_app/.env`.
-5. Add `device.env`.
-6. Install dependencies with `pip install -r requirements.txt`.
-7. Restart the app.
-8. Open `https://salewell.co.in/health`.
+2. Upload the repo into the same folder you configured as the cPanel `Application root`.
+3. Recommended path: `/home/<cpanel-user>/apps/swt_flask_project/`.
+4. Create `/home/<cpanel-user>/swt_data/`.
+5. Add `flask_app/.env`.
+6. Add `device.env`.
+7. Install dependencies with `pip install -r requirements.txt`.
+8. Restart the app.
+9. Open `https://salewell.co.in/health`.
 
 ## Important Production Notes
 
