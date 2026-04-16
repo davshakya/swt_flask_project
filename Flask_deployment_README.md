@@ -25,7 +25,7 @@ How it works:
 
 - `server.py` exposes the Flask app as `app`
 - `passenger_wsgi.py` exposes that app to Passenger as `application`
-- `requirements.txt` installs `flask_app/requirements.txt`
+- `requirements.txt` is the single dependency file for the whole project
 - `flask_app/.env` holds backend settings
 - `device.env` holds shared device/cloud settings
 
@@ -121,22 +121,15 @@ Security note:
 - using an environment variable or prompt is safer, but the script supports a positional password for convenience
 - if `DEFAULT_REMOTE_ROOT = ""`, keep it that way unless you explicitly want uploads to go into a subfolder
 
-## Passenger Entry Point
+## cPanel Startup Target
 
-This repo now includes `passenger_wsgi.py`:
+For this cPanel setup, use the root [server.py](/d:/SWT_PROJECT/swt_flask_project/server.py) file directly.
 
-```python
-import os
-import sys
+Why:
 
-PROJECT_ROOT = os.path.dirname(__file__)
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
-
-from server import app as application
-```
-
-That is the file Passenger should load.
+- `server.py` already exposes the Flask WSGI app as `app`
+- using `passenger_wsgi.py` as the cPanel startup target caused a recursive self-load on this host
+- the stable cPanel values for this project are `server.py` and `app`
 
 ## Required Configuration Files
 
@@ -210,8 +203,8 @@ Some hosts show a Python app form with startup fields. If you see those fields, 
 - Application root: `apps/swt_flask_project`
 - Application URL domain: `salewell.co.in`
 - Application URL path: leave the path box empty
-- Startup file: `passenger_wsgi.py`
-- Entry point: `application`
+- Startup file: `server.py`
+- Entry point: `app`
 
 If the URL path field does not allow blank, use `/`.
 
@@ -232,15 +225,16 @@ then enter exactly:
 | Python version | `3.11.14` |
 | Application root | `apps/swt_flask_project` |
 | Application URL | domain `salewell.co.in`, path box empty |
-| Application startup file | `passenger_wsgi.py` |
-| Application Entry point | `application` |
+| Application startup file | `server.py` |
+| Application Entry point | `app` |
 
 Important:
 
 - `Application root` is relative to your cPanel home directory
 - the app files should end up in `/home/<cpanel-user>/apps/swt_flask_project/`
 - this setup makes `https://salewell.co.in/` serve the Flask app
-- do not set the startup file to `server.py`; use `passenger_wsgi.py`
+- do not set the startup file to `passenger_wsgi.py` for this host; use `server.py`
+- do not set the entry point to `application`; use `app`
 
 ### Environment variables section in cPanel
 
@@ -257,12 +251,6 @@ Install packages from the project root:
 
 ```bash
 pip install -r requirements.txt
-```
-
-The root `requirements.txt` already points to:
-
-```text
--r flask_app/requirements.txt
 ```
 
 If your cPanel UI has a dependency install button such as `Run Pip Install` or `Enable Dependencies`, run it after upload.
@@ -323,7 +311,7 @@ Healthy signs:
 - replace every `change-me` value before first launch
 - back up the SQLite database regularly
 - keep `DB_FILE` on persistent storage
-- install `requirements-ml.txt` only if you want `/ml/predict`
+- `requirements.txt` already includes the dependency needed by `/ml/predict`
 
 ## Common Problems
 
@@ -335,6 +323,7 @@ Check:
 - missing environment variables
 - missing dependencies
 - wrong Passenger startup file
+- if the log shows `imp.load_source(... 'passenger_wsgi.py')` repeating, switch cPanel to `server.py` with entry point `app`
 
 ### Login opens but session does not persist
 

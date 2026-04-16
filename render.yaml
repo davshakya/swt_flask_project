@@ -3,7 +3,7 @@ services:
     name: smart-water-tank
     runtime: python
     plan: starter
-    buildCommand: pip install -r flask_app/requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn server:app --config flask_app/gunicorn.conf.py
     autoDeploy: true
     healthCheckPath: /health

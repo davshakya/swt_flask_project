@@ -1,1 +1,9 @@
--r flask_app/requirements.txt
+Flask
+pymysql
+pandas
+numpy
+gunicorn
+flask_cors
+requests
+paho-mqtt
+scikit-learn>=1.4,<1.7

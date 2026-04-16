@@ -1992,7 +1992,7 @@ def load_level_forecast_artifact(force_reload=False):
             artifact = load_forecast_artifact(artifact_path)
         except ModuleNotFoundError as exc:
             raise RuntimeError(
-                "ML dependencies are unavailable. Install them with: pip install -r requirements-ml.txt",
+                "ML dependencies are unavailable. Install them with: pip install -r requirements.txt",
             ) from exc
         except ImportError as exc:
             raise RuntimeError(f"ML forecasting helpers could not be imported: {exc}") from exc
@@ -2024,7 +2024,7 @@ def build_level_forecast_payload(device_id):
         from flask_app.ml_forecasting import predict_latest_level, query_device_forecast_rows
     except ModuleNotFoundError as exc:
         raise RuntimeError(
-            "ML dependencies are unavailable. Install them with: pip install -r requirements-ml.txt",
+            "ML dependencies are unavailable. Install them with: pip install -r requirements.txt",
         ) from exc
     except ImportError as exc:
         raise RuntimeError(f"ML forecasting helpers could not be imported: {exc}") from exc
