@@ -26,8 +26,7 @@ This backend is only one part of the wider Smart Water Tank stack. The shared `d
 | `flask_app/static/` | PWA manifest, service worker, icons, and frontend JS |
 | `flask_app/.env.example` | Example backend environment file |
 | `device.env.example` | Example shared device identity/settings file |
-| `requirements.txt` | Root dependency entrypoint, points to `flask_app/requirements.txt` |
-| `requirements-ml.txt` | Optional ML dependencies for forecasting |
+| `requirements.txt` | Single dependency file for the whole project, including ML support |
 | `render.yaml` | Render deployment definition |
 | `Procfile` | Procfile for gunicorn-based platforms |
 | `scripts/` | Operational and data utility scripts |
@@ -79,12 +78,6 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-```
-
-Install ML extras only if you want forecasting:
-
-```powershell
-python -m pip install -r requirements-ml.txt
 ```
 
 ### 4. Run the server
@@ -153,6 +146,10 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `DB_TARGET_SIZE_MB`: Soft database size target used by maintenance logic.
 - `DB_MAINTENANCE_MIN_INTERVAL_SECONDS`: Minimum spacing between maintenance runs.
 - `DB_WAL_AUTOCHECKPOINT_PAGES`: WAL checkpoint tuning.
+- `TEMP_DB_SIZE_GUARD_ENABLED`: Temporary safety flag that skips post-retention maintenance when nothing was pruned and the database is still under the configured size target.
+- `TEMP_HARD_DB_CAP_ENABLED`: Temporary hard-cap flag that trims the oldest telemetry rows when the database stays above the configured size target.
+- `TEMP_HARD_DB_CAP_BATCH_ROWS`: Number of oldest telemetry rows to remove per hard-cap batch while preserving the newest row for each device.
+- `TEMP_HARD_DB_CAP_MAX_BATCHES`: Maximum hard-cap cleanup batches to run in one pass before giving up and logging that the DB is still over target.
 - `REQUIRE_RENDER_PERSISTENT_DB`: If `true`, startup fails on Render unless `/var/data/tank.db` is active.
 
 ### Relay, notifications, and MQTT
@@ -259,7 +256,7 @@ Important production notes:
 
 The `/ml/predict` endpoint depends on:
 
-- extra dependency install from `requirements-ml.txt`
+- the normal `requirements.txt` install
 - a trained artifact, default path: `artifacts/level_forecast_model.pkl`
 
 Train a model from existing telemetry:
@@ -397,7 +394,7 @@ Current Render wiring:
 
 - runtime: Python
 - Python version: `3.11.11`
-- build command: `pip install -r flask_app/requirements.txt`
+- build command: `pip install -r requirements.txt`
 - start command: `gunicorn server:app --config flask_app/gunicorn.conf.py`
 - health check: `/health`
 - persistent disk mount path: `/var/data`
@@ -409,7 +406,7 @@ Before deploying:
 - keep `SESSION_COOKIE_SECURE=true`
 - attach a persistent disk
 - decide whether relay URLs should be enabled in that environment
-- install `requirements-ml.txt` too if you want `/ml/predict` in production
+- `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
 ## Operational Docs
 
@@ -424,7 +421,7 @@ For rollout and support work, see:
 - Login works but session does not stick locally: Set `SESSION_COOKIE_SECURE=false` when serving over plain `http://`.
 - Graphs or analytics look empty: Confirm `TELEMETRY_HISTORY_ENABLED=true` and make sure the database has at least a few telemetry rows.
 - State disappears after restart or redeploy: Use persistent storage for `DB_FILE` and set a stable `APP_SECRET_KEY`.
-- `/ml/predict` fails with missing artifact: Install `requirements-ml.txt` and train a model with `scripts/train_level_forecast_model.py`.
+- `/ml/predict` fails with missing artifact: Make sure `requirements.txt` is installed and train a model with `scripts/train_level_forecast_model.py`.
 
 ## Recommended First-Run Checklist
 

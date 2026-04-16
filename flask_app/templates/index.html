@@ -24,7 +24,7 @@ body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text)
 .tank-wrap{text-align:center;background:var(--tank-wrap-bg);display:flex;flex-direction:column;gap:20px;height:100%}.tank-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;justify-items:stretch;align-items:start;flex:1}.tank-stack.source-hidden{grid-template-columns:1fr}.tank-block{width:100%;max-width:160px;min-width:0;justify-self:center;display:flex;flex-direction:column;align-items:center;height:100%}.tank-block.is-disabled{opacity:.58}.tank{width:100%;height:252px;margin:0 auto;border:6px solid var(--tank-shell-border);border-radius:30px;padding:12px;background:var(--tank-shell-bg)}.tank-inner{position:relative;height:100%;overflow:hidden;border-radius:18px;background:var(--tank-inner-bg)}.water{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--water-mid);transition:height .7s ease,background .3s ease}.water::before{content:"";position:absolute;top:-20px;left:-20%;width:140%;height:40px;border-radius:50%;background:var(--tank-water-top);animation:wave 4s linear infinite}@keyframes wave{from{transform:translateX(0)}to{transform:translateX(-22%)}}
 .tank-caption{margin-bottom:10px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .level{font-size:clamp(36px,3vw,44px);font-weight:800;margin-top:14px;letter-spacing:-.04em;line-height:1}.sub{color:var(--muted);margin-top:8px;line-height:1.5}.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px}.mini,.card{background:var(--card-bg);border:1px solid var(--line);border-radius:22px;padding:16px;box-shadow:var(--chip-shadow);display:flex;flex-direction:column;justify-content:flex-start;height:100%}.card .value{font-size:28px;font-weight:800;letter-spacing:-.03em}.card .subvalue{margin-top:8px;color:var(--muted);font-size:13px;line-height:1.55}.statuscopy{font-size:18px;font-weight:700;line-height:1.45}.ops-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:12px;font-weight:800}.badge.ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.badge.warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.badge.bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.alert-list li strong{display:block;font-size:13px;margin-bottom:4px}.alert-meta{color:var(--muted);font-size:12px;margin-top:5px;line-height:1.5}
-.controls,.filters,.range-buttons{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;border:none;border-radius:16px;padding:12px 18px;font-weight:800;cursor:pointer;transition:transform .2s ease,opacity .2s ease,filter .2s ease;font-family:inherit}button:hover{transform:translateY(-1px);filter:brightness(1.03)}button:disabled{opacity:.55;cursor:not-allowed;transform:none}.action-link{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border-radius:16px;font-weight:800;text-decoration:none;transition:transform .2s ease,opacity .2s ease;font-family:inherit}.action-link:hover{transform:translateY(-1px)}.compact-action,.compact-action.action-link{min-height:38px;padding:9px 14px;border-radius:14px;font-size:13px;line-height:1.1}.btn-on{background:linear-gradient(135deg,#21b573,#1a8556);color:#fff}.btn-off{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-auto{background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}.btn-calibrate{background:linear-gradient(135deg,#ffb24a,#f46b45);color:#fff;box-shadow:0 12px 24px rgba(244,107,69,.24)}.btn-calibrate:hover{filter:brightness(1.05)}.btn-lite{background:var(--button-lite-bg);color:var(--primary-deep)}.btn-outline{background:transparent;border:1px solid var(--button-outline);color:var(--text)}.active{box-shadow:0 0 0 3px var(--button-lite-ring)}
+.controls,.filters,.range-buttons{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch}button{display:inline-flex;align-items:center;justify-content:center;min-height:48px;border:none;border-radius:16px;padding:12px 18px;font-weight:800;cursor:pointer;transition:transform .2s ease,opacity .2s ease,filter .2s ease;font-family:inherit}button:hover{transform:translateY(-1px);filter:brightness(1.03)}button:disabled{opacity:.55;cursor:not-allowed;transform:none}.action-link{display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:12px 18px;border-radius:16px;font-weight:800;text-decoration:none;transition:transform .2s ease,opacity .2s ease;font-family:inherit}.action-link:hover{transform:translateY(-1px)}.action-link.is-disabled{pointer-events:none;opacity:.55;transform:none}.compact-action,.compact-action.action-link{min-height:38px;padding:9px 14px;border-radius:14px;font-size:13px;line-height:1.1}.btn-on{background:linear-gradient(135deg,#21b573,#1a8556);color:#fff}.btn-off{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-auto{background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}.btn-calibrate{background:linear-gradient(135deg,#ffb24a,#f46b45);color:#fff;box-shadow:0 12px 24px rgba(244,107,69,.24)}.btn-calibrate:hover{filter:brightness(1.05)}.btn-lite{background:var(--button-lite-bg);color:var(--primary-deep)}.btn-outline{background:transparent;border:1px solid var(--button-outline);color:var(--text)}.active{box-shadow:0 0 0 3px var(--button-lite-ring)}
 .cloud-feed-state{min-width:0}
 .glance-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}.glance-item{padding:13px 14px;border-radius:18px;background:var(--list-bg);border:1px solid var(--line);display:flex;flex-direction:column;gap:6px;min-height:108px}.glance-item span{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.glance-item strong{font-size:20px;line-height:1.15}.glance-item .detail{color:var(--muted);font-size:13px;line-height:1.45}
 input[type="date"],input[type="number"]{min-height:48px;background:var(--input-bg);border:1px solid var(--line);color:var(--text);padding:11px 13px;border-radius:14px;font-family:inherit}
@@ -37,6 +37,76 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 @media (max-width:960px){.tank-config{grid-template-columns:1fr}}
 @media (max-width:720px){.shell{width:min(100% - 18px,1380px);padding-top:20px}.pair,.settings,.tank-stack,.glance-grid{grid-template-columns:1fr}.tank-block{max-width:200px}.tank{width:200px;height:300px}.hero-actions{width:100%;align-items:stretch}.hero-toolbar{justify-content:flex-start}.live-panel,.sync-strip{width:100%}.status-row{grid-template-columns:1fr 1fr}.hero-lead{font-size:1rem}.panel{padding:18px}.brand-lockup{align-items:flex-start}.brand-logo{width:68px;height:68px;flex-basis:68px}}
 @media (max-width:560px){.hero-head h1{font-size:2.4rem}.status-row{grid-template-columns:1fr}.controls{display:grid;grid-template-columns:1fr}.controls > *{width:100%}.range-buttons,.filters{display:grid;grid-template-columns:1fr}.range-buttons > *, .filters > *{width:100%}.hero-toolbar{display:grid;grid-template-columns:1fr 1fr;width:100%}.hero-toolbar > *, .hero-toolbar form{width:100%}.hero-toolbar form button, .hero-toolbar .action-link, .hero-toolbar button{width:100%}}
+.customer-dashboard{--customer-shell-max:1440px;--customer-surface:linear-gradient(180deg,rgba(255,255,255,.94),rgba(239,248,247,.86));--customer-surface-strong:linear-gradient(180deg,rgba(255,255,255,.98),rgba(230,244,242,.92));--customer-hero-glow:radial-gradient(circle at top right,rgba(15,137,165,.18),transparent 30%),radial-gradient(circle at 12% 14%,rgba(38,180,136,.16),transparent 26%),linear-gradient(135deg,rgba(8,54,69,.08),rgba(255,255,255,0));--customer-card-shadow:0 24px 52px rgba(10,59,73,.14);--customer-feature-shadow:0 32px 70px rgba(10,59,73,.22);--customer-highlight:rgba(255,255,255,.62);--customer-track:rgba(255,255,255,.74);--customer-text-soft:#48656d;--customer-accent:#0e7d8f;--customer-accent-strong:#114e61;--customer-attention:#f59b41}
+.customer-dashboard .shell{width:min(var(--customer-shell-max),calc(100% - 34px));padding-top:32px}
+.customer-dashboard .panel{background:var(--customer-surface);box-shadow:var(--customer-card-shadow);border-color:rgba(15,84,98,.12)}
+.customer-dashboard .hero{grid-template-columns:minmax(300px,390px) minmax(0,1.22fr);gap:22px}
+.customer-dashboard .tank-wrap{background:linear-gradient(180deg,rgba(255,255,255,.56),rgba(221,240,239,.86));position:relative;overflow:hidden}
+.customer-dashboard .tank-wrap::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 22% 18%,rgba(255,255,255,.68),transparent 24%),linear-gradient(180deg,rgba(255,255,255,.14),transparent 38%);pointer-events:none}
+.customer-dashboard .tank-wrap > *{position:relative;z-index:1}
+.customer-dashboard .hero-copy{position:relative;overflow:hidden;background:var(--customer-surface-strong)}
+.customer-dashboard .hero-copy::before{content:"";position:absolute;inset:0;background:var(--customer-hero-glow);pointer-events:none}
+.customer-dashboard .hero-copy > *{position:relative;z-index:1}
+.customer-intro-line{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:rgba(14,125,143,.1);border:1px solid rgba(14,125,143,.14);font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--customer-accent-strong);margin-bottom:12px}
+.customer-dashboard .hero-head h1{max-width:14ch}
+.customer-dashboard .hero-lead{font-size:1.08rem;line-height:1.7;color:var(--customer-text-soft)}
+.customer-dashboard .brand-logo{background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(222,246,241,.76))}
+.customer-dashboard .brand-status{color:var(--customer-text-soft)}
+.customer-pulse-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.customer-pulse-card{padding:16px 16px 18px;border-radius:22px;border:1px solid rgba(15,84,98,.1);background:rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.75);display:flex;flex-direction:column;gap:8px;min-height:140px}
+.customer-pulse-card.is-featured{background:linear-gradient(135deg,rgba(12,108,126,.98),rgba(22,151,165,.88));border-color:rgba(7,80,92,.14);box-shadow:var(--customer-feature-shadow);color:#ecfdff}
+.customer-pulse-card span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--muted)}
+.customer-pulse-card strong{font-size:clamp(1.35rem,2.8vw,2rem);line-height:1.05;letter-spacing:-.04em}
+.customer-pulse-card p{margin:0;font-size:13px;line-height:1.55;color:var(--customer-text-soft)}
+.customer-pulse-card.is-featured span,.customer-pulse-card.is-featured p{color:rgba(236,253,255,.82)}
+.customer-pulse-card.is-featured strong{color:#fff}
+.customer-dashboard .status-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.customer-dashboard .status-row .chip{background:rgba(255,255,255,.6);padding:15px 16px 17px;border-radius:22px}
+.customer-dashboard .split{gap:18px}
+.customer-dashboard .split .card{background:rgba(255,255,255,.72);border-color:rgba(15,84,98,.1)}
+.customer-dashboard .controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.customer-dashboard .controls .btn-outline.action-link{display:flex}
+.customer-dashboard #actionHint,.customer-dashboard #controlSummary{padding:14px 16px;border-radius:18px;background:rgba(248,252,251,.76);border:1px solid rgba(15,84,98,.08)}
+.customer-dashboard #actionHint{margin-top:14px}
+.customer-dashboard #controlSummary{margin-top:12px}
+.customer-dashboard .glance-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.customer-dashboard .glance-item{background:rgba(245,251,250,.9);border-radius:20px;min-height:122px}
+.customer-dashboard section.panel + section.panel,.customer-dashboard .charts,.customer-dashboard .split.customer-only{margin-top:18px}
+.customer-dashboard .grid.metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.customer-dashboard .grid.metrics .card{background:rgba(255,255,255,.76)}
+.customer-dashboard .filters{align-items:center}
+.customer-dashboard .filters input[type="date"]{min-width:0}
+.customer-dashboard #analyticsDownloadLink{margin-left:auto}
+.customer-dashboard .charts .panel{background:linear-gradient(180deg,rgba(255,255,255,.9),rgba(239,248,247,.78))}
+.customer-dashboard .timeline li{background:linear-gradient(180deg,rgba(255,255,255,.78),rgba(245,251,250,.88))}
+.customer-dashboard .list li{background:rgba(248,252,251,.88)}
+.customer-dashboard .setting{background:rgba(250,253,252,.82)}
+.customer-dashboard .banner.show{box-shadow:0 18px 36px rgba(15,84,98,.12)}
+@media (prefers-color-scheme: dark){
+.customer-dashboard{--customer-surface:linear-gradient(180deg,rgba(11,29,39,.94),rgba(9,22,31,.88));--customer-surface-strong:linear-gradient(180deg,rgba(12,31,42,.98),rgba(9,24,34,.94));--customer-hero-glow:radial-gradient(circle at top right,rgba(91,210,219,.16),transparent 30%),radial-gradient(circle at 14% 16%,rgba(64,201,142,.12),transparent 28%),linear-gradient(135deg,rgba(7,19,27,.18),rgba(255,255,255,0));--customer-card-shadow:0 30px 60px rgba(0,0,0,.34);--customer-feature-shadow:0 32px 72px rgba(0,0,0,.42);--customer-highlight:rgba(255,255,255,.06);--customer-track:rgba(13,34,44,.72);--customer-text-soft:#afc8cf;--customer-accent:#71d7e6;--customer-accent-strong:#b9f7ff}
+.customer-dashboard .tank-wrap{background:linear-gradient(180deg,rgba(12,29,39,.84),rgba(6,18,26,.96))}
+.customer-dashboard .panel{border-color:rgba(148,207,221,.12)}
+.customer-intro-line{background:rgba(113,215,230,.12);border-color:rgba(113,215,230,.16);color:var(--customer-accent-strong)}
+.customer-dashboard .status-row .chip,.customer-dashboard .split .card,.customer-dashboard .grid.metrics .card,.customer-dashboard .glance-item,.customer-dashboard .list li,.customer-dashboard .setting,.customer-dashboard #actionHint,.customer-dashboard #controlSummary,.customer-pulse-card{background:rgba(10,27,37,.72)}
+.customer-pulse-card{border-color:rgba(148,207,221,.12)}
+.customer-pulse-card p,.customer-pulse-card span,.customer-dashboard .hero-lead,.customer-dashboard .brand-status{color:var(--customer-text-soft)}
+.customer-pulse-card.is-featured{background:linear-gradient(135deg,rgba(12,116,131,.98),rgba(16,82,112,.96))}
+.customer-dashboard .charts .panel{background:linear-gradient(180deg,rgba(11,29,39,.92),rgba(8,23,33,.9))}
+}
+@media (max-width:1180px){
+.customer-dashboard .hero,.customer-dashboard .split,.customer-dashboard .charts,.customer-dashboard .split.customer-only{grid-template-columns:1fr}
+.customer-pulse-grid,.customer-dashboard .grid.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+.customer-dashboard #analyticsDownloadLink{margin-left:0}
+}
+@media (max-width:760px){
+.customer-dashboard .shell{width:min(100% - 18px,var(--customer-shell-max));padding-top:22px}
+.customer-dashboard .status-row,.customer-pulse-grid,.customer-dashboard .grid.metrics,.customer-dashboard .glance-grid{grid-template-columns:1fr}
+.customer-dashboard .hero-head{gap:16px}
+.customer-dashboard .controls{grid-template-columns:1fr}
+.customer-dashboard .hero-toolbar{grid-template-columns:1fr}
+.customer-dashboard .hero-actions{width:100%;align-items:stretch}
+.customer-dashboard .hero-actions form,.customer-dashboard .hero-actions button,.customer-dashboard .hero-actions .action-link{width:100%}
+}
 </style>
 </head>
 <body class="{% if is_admin %}admin-dashboard{% else %}customer-dashboard{% endif %}">
@@ -100,10 +170,16 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                         </svg>
                     </div>
                     <div class="brand-copy">
-                        <h1>Dashboard</h1>
+                        {% if not is_admin %}
+                        <div class="customer-intro-line">Home Water View</div>
+                        {% endif %}
+                        <h1>{% if is_admin %}Dashboard{% else %}Home Water Dashboard{% endif %}</h1>
                         <div id="logoStatus" class="brand-status">Pump logo <strong>idle</strong></div>
                     {% if selected_device_id %}
                         <div class="sub" style="margin-top:10px">Viewing device <strong>{{ selected_device_id }}</strong></div>
+                    {% endif %}
+                    {% if not is_admin %}
+                        <div class="sub" style="margin-top:10px">Hello, <strong>{{ viewer_display_name or "Tank Owner" }}</strong>. Your tank summary is organized around what needs attention first.</div>
                     {% endif %}
                     </div>
                 </div>
@@ -111,7 +187,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                     <div class="mini live-panel sync-strip">
                         <div class="sync-line">
                             <span class="label">Sync</span>
-                            <strong id="refreshStatus">Connecting...</strong>
+                            <strong id="refreshStatus" aria-live="polite">Connecting...</strong>
                         </div>
                         <div id="lastUpdated" class="sync-detail">Waiting for first sync.</div>
                     </div>
@@ -128,9 +204,31 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                     </div>
                 </div>
             </div>
-            <p class="hero-lead">{% if is_admin %}See tank level, pump activity, and water-use guidance at a glance.{% else %}See tank level, pump state, sync health, and cloud access for your device.{% endif %}</p>
-            <div id="commandBanner" class="banner info"></div>
-            <div id="warningBanner" class="banner warn"></div>
+            <p id="customerHeroNarrative" class="hero-lead">{% if is_admin %}See tank level, pump activity, and water-use guidance at a glance.{% else %}See tank level, pump state, sync health, and water habits in one calmer customer view.{% endif %}</p>
+            <div class="customer-pulse-grid customer-only">
+                <article class="customer-pulse-card is-featured">
+                    <span>Available now</span>
+                    <strong id="customerAvailabilityNow">--</strong>
+                    <p id="customerAvailabilityNote">Waiting for current tank capacity and level data.</p>
+                </article>
+                <article class="customer-pulse-card">
+                    <span>Pump plan</span>
+                    <strong id="customerPumpPlanNow">--</strong>
+                    <p id="customerPumpPlanNote">Auto guidance will appear after the first sync.</p>
+                </article>
+                <article class="customer-pulse-card">
+                    <span>Use trend</span>
+                    <strong id="customerUsageNow">--</strong>
+                    <p id="customerUsageNote">Water-use pattern will appear after analytics loads.</p>
+                </article>
+                <article class="customer-pulse-card">
+                    <span>Connection</span>
+                    <strong id="customerConnectionNow">--</strong>
+                    <p id="customerConnectionNote">Waiting for live cloud and device sync status.</p>
+                </article>
+            </div>
+            <div id="commandBanner" class="banner info" role="status" aria-live="polite"></div>
+            <div id="warningBanner" class="banner warn" role="status" aria-live="polite"></div>
             <div class="status-row">
                 <div class="chip admin-only"><strong>Cloud service</strong><div id="serverStatus">--</div></div>
                 <div class="chip"><strong>Tank device</strong><div id="deviceStatus">--</div></div>
@@ -226,7 +324,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
         <div class="eyebrow">Water Habits</div>
         <div class="split" style="align-items:center">
             <div>
-                <h2>Usage trends and helpful forecasts</h2>
+                <h2>{% if is_admin %}Usage trends and helpful forecasts{% else %}How water use is changing through the week{% endif %}</h2>
                 <p id="rangeLabel" class="muted">Loading range...</p>
             </div>
             <div class="range-buttons" style="justify-content:flex-end">
@@ -240,6 +338,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <input type="date" id="endDate">
             <button class="btn-lite" onclick="applyCustomRange()">Apply Dates</button>
             <button class="btn-outline" onclick="resetFilters()">Reset</button>
+            <a id="analyticsDownloadLink" class="btn-outline action-link" href="{{ url_for('analytics_csv_export') }}" download>Download CSV</a>
         </div>
         <div class="grid metrics" style="margin-top:16px">
             <div class="card"><span class="label">Average Daily Usage</span><div id="avg_daily_usage" class="value">--</div><div id="avg_daily_usage_text" class="subvalue">--</div></div>
@@ -265,8 +364,8 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <ul id="eventTimeline" class="list timeline"></ul>
         </div>
         <div class="panel">
-            <div class="eyebrow">Health Details</div>
-            <h3>Why the system looks this way</h3>
+            <div class="eyebrow">Care Signals</div>
+            <h3>Why the tank looks this way today</h3>
             <ul id="healthReasons" class="list"></ul>
             <div style="height:14px"></div>
             <ul id="alerts" class="list"></ul>
@@ -280,8 +379,8 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <ul id="ai_insights" class="list"></ul>
         </div>
         <div class="panel">
-            <div class="eyebrow">Alerts</div>
-            <h3>Alert preferences</h3>
+            <div class="eyebrow">Preferences</div>
+            <h3>Choose how the dashboard warns you</h3>
             <div class="grid settings" style="margin-top:14px">
                 <div class="setting"><label>Low-level threshold <input id="lowThreshold" type="number" min="5" max="50"></label><span>Warn when tank drops below this percent.</span></div>
                 <div class="setting"><label>Overflow threshold <input id="overflowThreshold" type="number" min="80" max="100"></label><span>Warn when tank is near full.</span></div>
@@ -304,6 +403,7 @@ const VIEWER_ROLE={{ viewer_role|tojson }};
 const VIEWER_DISPLAY_NAME={{ viewer_display_name|tojson }};
 const CUSTOMER_CLOUD_FEED_ENABLED={{ cloud_feed_enabled|tojson }};
 const CUSTOMER_CLOUD_FEED_ERROR={{ cloud_feed_error|tojson }};
+const ANALYTICS_EXPORT_PATH={{ url_for("analytics_csv_export")|tojson }};
 const EVENT_FEED_LIMIT=5;
 const FAST_POLL_MS=10000;
 const ACTIVITY_POLL_MS=30000;
@@ -333,9 +433,15 @@ const localeTools=window.swtLocale||{};
 const fmtPct=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)}%`;
 const fmtHours=(v)=>v===null||v===undefined||Number.isNaN(Number(v))||Number(v)<=0?"--":`${Number(v).toFixed(1)} hrs`;
 const fmtUsage=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%`;
+const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)} L`;
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
 const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&!Number.isNaN(Number(value));}
+function hasMeaningfulAnalyticsData(data){
+    if(!data||typeof data!=="object")return false;
+    return [["levels","time"],["daily","dates"],["motor","time"],["pattern","values"]].some(([section,key])=>Array.isArray(data?.[section]?.[key])&&data[section][key].length>0);
+}
 function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
 function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
@@ -484,6 +590,134 @@ function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.s
     applyStatusTone("customerConnectionStatus",connectionTone);
 }
 
+function updateCustomerHeroNarrative(snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics){
+    const narrative=document.getElementById("customerHeroNarrative");
+    if(!narrative||VIEWER_ROLE!=="customer")return;
+    if(customerFeedBlocked()){
+        narrative.textContent=CUSTOMER_CLOUD_FEED_ERROR||"Cloud feed is disabled for this customer account. Live water status will resume when cloud access is enabled again.";
+        return;
+    }
+    if(!snapshot){
+        narrative.textContent="Live tank level, pump status, and water habits will appear here as soon as the device sends its next sync.";
+        return;
+    }
+
+    const systemState=system||{};
+    const levelText=fmtPct(snapshot.level);
+    const pumpText=isPumpRunning(snapshot.motor)?"the pump is currently running":"the pump is currently resting";
+    const syncText=systemState.last_sync_at?`last synced ${ago(systemState.seconds_since_sync)}`:"waiting for the first sync";
+    let trendText="usage guidance is settling.";
+    const usageChange=Number(analytics?.comparison?.change_pct);
+    if(analytics&&analytics.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange)){
+        trendText=usageChange>0
+            ?`household usage is up ${usageChange.toFixed(1)}% from the previous day`
+            :usageChange<0
+                ?`household usage is down ${Math.abs(usageChange).toFixed(1)}% from the previous day`
+                :"household usage is matching the previous day";
+    }else if(snapshot.ai_usage_rate!==undefined&&snapshot.ai_usage_rate!==null){
+        trendText=`the live draw estimate is ${fmtRatePerHour(snapshot.ai_usage_rate)}`;
+    }
+    narrative.textContent=`The tank is ${levelText} full, ${pumpText}, ${syncText}, and ${trendText}.`;
+}
+
+function updateCustomerSpotlightCards({snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics}={}){
+    if(VIEWER_ROLE!=="customer")return;
+
+    const blocked=customerFeedBlocked();
+    if(blocked){
+        setText("customerAvailabilityNow","Cloud feed off");
+        setText("customerAvailabilityNote","Enable cloud access to restore live water level and liters remaining.");
+        setText("customerPumpPlanNow","Remote control paused");
+        setText("customerPumpPlanNote","Start Pump and Stop Pump stay unavailable until cloud feed is enabled.");
+        setText("customerUsageNow","Analytics paused");
+        setText("customerUsageNote","Historical water-use guidance will resume after the feed is restored.");
+        setText("customerConnectionNow","Blocked");
+        setText("customerConnectionNote","Waiting for admin approval to resume sync.");
+        applyStatusTone("customerAvailabilityNow","warn");
+        applyStatusTone("customerPumpPlanNow","warn");
+        applyStatusTone("customerUsageNow","warn");
+        applyStatusTone("customerConnectionNow","warn");
+        updateCustomerHeroNarrative(snapshot,system,analytics);
+        return;
+    }
+
+    if(!snapshot){
+        ["customerAvailabilityNow","customerPumpPlanNow","customerUsageNow","customerConnectionNow"].forEach((id)=>applyStatusTone(id,""));
+        setText("customerAvailabilityNow","--");
+        setText("customerAvailabilityNote","Waiting for live tank level.");
+        setText("customerPumpPlanNow","--");
+        setText("customerPumpPlanNote","Pump guidance will appear after the first sync.");
+        setText("customerUsageNow","--");
+        setText("customerUsageNote","Water-use trend will appear after analytics loads.");
+        setText("customerConnectionNow","--");
+        setText("customerConnectionNote","Waiting for a fresh device update.");
+        updateCustomerHeroNarrative(snapshot,system,analytics);
+        return;
+    }
+
+    const systemState=system||{};
+    const currentMode=String(snapshot.mode||"AUTO").toUpperCase();
+    const telemetry=String(snapshot.telemetry_status||systemState.telemetry_status||"no-data").toLowerCase();
+    const availabilityNow=snapshot.water_available_label||(
+        snapshot.remaining_liters!==undefined&&snapshot.remaining_liters!==null
+            ?fmtLiters(snapshot.remaining_liters)
+            :fmtPct(snapshot.level)
+    );
+    const availabilityNote=`${fmtPct(snapshot.level)} full${snapshot.capacity_liters!==undefined&&snapshot.capacity_liters!==null?` of ${fmtLiters(snapshot.capacity_liters)}`:""}.`;
+    setText("customerAvailabilityNow",availabilityNow);
+    setText("customerAvailabilityNote",availabilityNote);
+    applyStatusTone(
+        "customerAvailabilityNow",
+        Number(snapshot.level||0)<=state.preferences.lowThreshold
+            ?"warn"
+            :Number(snapshot.level||0)>=state.preferences.overflowThreshold
+                ?"ok"
+                :""
+    );
+
+    const pumpPlanNow=currentMode==="MANUAL"?"Manual override":"Auto-protected";
+    const pumpPlanNote=snapshot.auto_status||(
+        currentMode==="MANUAL"
+            ?"Manual mode stays active until the next safe threshold."
+            :"The controller is handling starts and stops automatically."
+    );
+    setText("customerPumpPlanNow",pumpPlanNow);
+    setText("customerPumpPlanNote",pumpPlanNote);
+    applyStatusTone("customerPumpPlanNow",currentMode==="MANUAL"?"warn":"ok");
+
+    const analyticsReady=hasMeaningfulAnalyticsData(analytics);
+    const liveUsageRate=fmtRatePerHour(snapshot.ai_usage_rate);
+    const usageNow=analyticsReady&&hasDisplayNumber(analytics?.prediction?.tomorrow_usage)
+        ?fmtUsage(analytics.prediction.tomorrow_usage)
+        :liveUsageRate;
+    const usageNote=analyticsReady
+        ?`Average daily use is ${fmtUsage(analytics.insights?.avg_daily_usage)} with ${analytics.alerts?.[0]||"stable household demand."}`
+        :liveUsageRate!=="--"
+            ?`${liveUsageRate} is the live device estimate right now.`
+            :"Water-use guidance will appear after enough device history is collected.";
+    setText("customerUsageNow",usageNow);
+    setText("customerUsageNote",usageNote);
+    const usageChange=Number(analytics?.comparison?.change_pct);
+    applyStatusTone(
+        "customerUsageNow",
+        analyticsReady&&analytics?.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange)
+            ?Math.abs(usageChange)>=15?"warn":"ok"
+            :""
+    );
+
+    const connectionNow=telemetry==="stale"
+        ?"Needs attention"
+        :(systemState.signal_quality||telemetryLabel(telemetry));
+    const connectionNote=systemState.last_sync_at
+        ?`Last synced ${localizedTimeText(systemState.last_sync_at)}${snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?` with RSSI ${snapshot.wifi_rssi}.`:"."}`
+        :"Waiting for a fresh connection update.";
+    setText("customerConnectionNow",connectionNow);
+    setText("customerConnectionNote",connectionNote);
+    applyStatusTone("customerConnectionNow",telemetry==="live"||telemetry==="recent"?"ok":(telemetry==="stale"?"warn":""));
+
+    updateCustomerHeroNarrative(snapshot,systemState,analytics);
+}
+
 function banner(id,message,tone){const el=document.getElementById(id);if(!message){el.className=`banner ${tone||""}`.trim();el.classList.remove("show");el.textContent="";return;}el.className=`banner show ${tone}`;el.textContent=message;}
 function severityTone(severity){const value=String(severity||"").toLowerCase();if(value==="danger"||value==="critical")return"bad";if(value==="warning"||value==="warn")return"warn";return"ok";}
 function isPageHidden(){return document.visibilityState==="hidden";}
@@ -491,8 +725,9 @@ function setRefreshMeta(status,tone="ok",detail){state.refreshStatus=status;stat
 function markRefreshed(status){state.lastRefreshAt=Date.now();setRefreshMeta(status,"ok","Updated just now");}
 function updateRefreshClock(){if(!state.lastRefreshAt)return;setRefreshMeta(state.refreshStatus,state.refreshTone,`Updated ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);}
 function setRefreshBusy(status){if(state.lastRefreshAt){setRefreshMeta(status,"warn",`Last good update ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);return;}setRefreshMeta(status,"warn","Waiting for the first successful sync.");}
-function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));loadAnalytics({force:true});}
-function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));loadAnalytics({force:true});}
+function updateAnalyticsDownloadLink(){const link=document.getElementById("analyticsDownloadLink");if(!link)return;const blocked=customerFeedBlocked();const queryString=query();link.href=blocked?"#":(queryString?`${ANALYTICS_EXPORT_PATH}?${queryString}`:ANALYTICS_EXPORT_PATH);link.classList.toggle("is-disabled",blocked);link.setAttribute("aria-disabled",blocked?"true":"false");link.tabIndex=blocked?-1:0;}
+function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));updateAnalyticsDownloadLink();loadAnalytics({force:true});}
+function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));updateAnalyticsDownloadLink();loadAnalytics({force:true});}
 function resetFilters(){setQuickRange(7);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
 function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
@@ -614,7 +849,11 @@ function applyCloudFeedAvailability(){
         applyStatusTone("cloudFeedStatus",CUSTOMER_CLOUD_FEED_ENABLED?"ok":"warn");
     }
     setRefreshButtonDisabled(customerFeedBlocked());
-    if(!customerFeedBlocked())return;
+    updateAnalyticsDownloadLink();
+    if(!customerFeedBlocked()){
+        updateCustomerSpotlightCards();
+        return;
+    }
     banner("commandBanner",CUSTOMER_CLOUD_FEED_ERROR||"Cloud feed is disabled for this customer account.","warn");
     setText("telemetryStatus","DISABLED");
     setText("deviceStatus","Restricted");
@@ -635,6 +874,7 @@ function applyCloudFeedAvailability(){
     applyStatusTone("heroConnectionStatus","warn");
     applyStatusTone("customerConnectionStatus","warn");
     setRefreshMeta("Cloud feed disabled","warn","Waiting for admin approval.");
+    updateCustomerSpotlightCards();
 }
 
 function initCharts(){
@@ -706,6 +946,7 @@ function renderSnapshot(snapshot){
     document.getElementById("healthStatus").textContent=snapshot.tank_health_status||"--";
     document.getElementById("healthSummary").textContent=snapshot.tank_health_reasons?.[0]||"No health issues detected.";
     renderCustomerOverview(snapshot,state.data.systemStatus);
+    updateCustomerSpotlightCards({snapshot,system:state.data.systemStatus,analytics:state.data.analytics});
     document.getElementById("actionHint").textContent=sourceState.hintText;
     applyStatusTone("actionHint",sourceState.hintTone);
     ["btn_on","btn_off","btn_auto"].forEach((id)=>document.getElementById(id)?.classList.remove("active"));
@@ -754,35 +995,44 @@ function renderSystemStatus(system){
     applyStatusTone("telemetryStatus",telemetry==="live"?"ok":(telemetry==="recent"?"warn":"bad"));
     applyStatusTone("signalQuality",toneForSignalQuality(system.signal_quality));
     renderCustomerOverview(state.data.snapshot,system);
+    updateCustomerSpotlightCards({snapshot:state.data.snapshot,system,analytics:state.data.analytics});
     const capacityInput=document.getElementById("tankCapacityLiters");
     if(capacityInput&&document.activeElement!==capacityInput&&Number(system.capacity_liters)>0)capacityInput.value=Number(system.capacity_liters).toFixed(0);
 }
 
 function renderAnalytics(data){
+    const analyticsReady=hasMeaningfulAnalyticsData(data);
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
-    document.getElementById("avg_daily_usage").textContent=fmtUsage(data.insights?.avg_daily_usage);
-    document.getElementById("avg_daily_usage_text").textContent=`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`;
-    document.getElementById("peak_usage_day").textContent=formatLocaleDate(data.insights?.peak_usage_day);
-    document.getElementById("peak_usage_value").textContent=fmtUsage(data.insights?.peak_usage_value);
-    document.getElementById("lowest_usage_day").textContent=formatLocaleDate(data.insights?.lowest_usage_day);
-    document.getElementById("lowest_usage_value").textContent=fmtUsage(data.insights?.lowest_usage_value);
+    document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsage(data.insights?.avg_daily_usage):"--";
+    document.getElementById("avg_daily_usage_text").textContent=analyticsReady&&String(data.comparison?.latest_day||"").trim()&&String(data.comparison?.latest_day||"").trim()!=="--"
+        ?`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`
+        :"Waiting for enough history to compare daily usage.";
+    document.getElementById("peak_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.peak_usage_day):"--";
+    document.getElementById("peak_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.peak_usage_value):"--";
+    document.getElementById("lowest_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.lowest_usage_day):"--";
+    document.getElementById("lowest_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.lowest_usage_value):"--";
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
-    const hasChange=changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
+    const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
     document.getElementById("usage_change").textContent=hasChange?`${changeNumber>0?"+":""}${changeNumber.toFixed(1)}%`:"--";
     document.getElementById("usage_change_text").textContent=hasChange
         ?`${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} previous day`
         :"Previous-day baseline too small for a meaningful comparison.";
-    document.getElementById("avg_level").textContent=fmtPct(data.insights?.avg_level);
-    document.getElementById("min_max_level").textContent=`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`;
-    document.getElementById("time_empty").textContent=fmtHours(data.insights?.empty_prediction);
-    document.getElementById("consumption_rate").textContent=`${Number(data.insights?.consumption_rate||0).toFixed(2)}%/hr`;
-    document.getElementById("ai_tomorrow_usage").textContent=fmtUsage(data.prediction?.tomorrow_usage);
+    document.getElementById("avg_level").textContent=analyticsReady?fmtPct(data.insights?.avg_level):"--";
+    document.getElementById("min_max_level").textContent=analyticsReady
+        ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
+        :"Waiting for enough history.";
+    document.getElementById("time_empty").textContent=analyticsReady?fmtHours(data.insights?.empty_prediction):"--";
+    document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
+        ?fmtRatePerHour(data.insights?.consumption_rate)
+        :"--";
+    document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
     document.getElementById("timeToEmpty").textContent=fmtHours(data.insights?.empty_prediction);
     const health=document.getElementById("healthReasons");health.innerHTML="";(data.health?.reasons||["No health issues found."]).forEach((reason)=>{const li=document.createElement("li");li.textContent=reason;health.appendChild(li);});
     const alerts=document.getElementById("alerts");alerts.innerHTML="";(data.alerts||[]).forEach((text)=>{const li=document.createElement("li");li.textContent=text;alerts.appendChild(li);});
-    const insights=[];if(hasChange&&changeNumber>15)insights.push("Usage has increased noticeably. Check for extra consumption or leakage.");if(Number(data.insights?.motor_cycles||0)>12)insights.push("Motor cycling is high. Adjust auto-start and auto-stop thresholds.");if(Number(data.insights?.avg_level||0)<40)insights.push("Tank stays low for long periods. Consider filling earlier in the day.");if(Number(data.prediction?.tomorrow_usage||0)>Number(data.insights?.avg_daily_usage||0))insights.push("Tomorrow usage is forecast above the current daily average.");if(!insights.length)insights.push("Usage pattern looks stable for the selected range.");
+    const insights=[];if(!analyticsReady)insights.push("Water-use guidance will appear after enough history is collected.");else{if(hasChange&&changeNumber>15)insights.push("Usage has increased noticeably. Check for extra consumption or leakage.");if(Number(data.insights?.motor_cycles||0)>12)insights.push("Motor cycling is high. Adjust auto-start and auto-stop thresholds.");if(Number(data.insights?.avg_level||0)<40)insights.push("Tank stays low for long periods. Consider filling earlier in the day.");if(Number(data.prediction?.tomorrow_usage||0)>Number(data.insights?.avg_daily_usage||0))insights.push("Tomorrow usage is forecast above the current daily average.");if(!insights.length)insights.push("Usage pattern looks stable for the selected range.");}
     const ai=document.getElementById("ai_insights");ai.innerHTML="";insights.forEach((text)=>{const li=document.createElement("li");li.textContent=text;ai.appendChild(li);});
+    updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     drawAnalyticsCharts(data);
 }
 
@@ -801,7 +1051,7 @@ async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedA
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
 function startPolling(){if(customerFeedBlocked())return;setInterval(()=>refreshLive(),FAST_POLL_MS);setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS);setInterval(()=>loadAnalytics(),ANALYTICS_POLL_MS);setInterval(updateRefreshClock,15000);}
 
-function initDates(){const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);}
+function initDates(){const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);updateAnalyticsDownloadLink();}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(Date.now()-state.analyticsUpdatedAt>ANALYTICS_POLL_MS/2)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}

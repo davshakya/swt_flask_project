@@ -13,25 +13,173 @@
 }
 *{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;font-size:13px;color:var(--text);background:var(--body-bg);padding:18px}.shell{width:min(1600px,100%);margin:0 auto;display:grid;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:20px;box-shadow:var(--shadow)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.muted{color:var(--muted);line-height:1.45}.split{display:grid;gap:16px;grid-template-columns:minmax(220px,270px) minmax(0,1fr)}.group{display:grid;gap:6px}.group label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}input{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}button,a{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:14px;font-weight:800;text-decoration:none;font-family:inherit}button{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;cursor:pointer}a{border:1px solid var(--line);color:var(--text)}.row{display:flex;gap:8px;flex-wrap:wrap}.message{padding:11px 13px;border-radius:14px}.error{background:var(--error-bg);border:1px solid var(--error-line);color:var(--error-text)}.success{background:var(--ok-bg);border:1px solid var(--ok-line);color:var(--ok-text)}.warning{padding:11px 13px;border-radius:14px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-text)}.summary-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}.summary-card{padding:14px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.22)}.summary-value{font-size:24px;font-weight:800;letter-spacing:-.03em}.meta{font-size:10px;color:var(--muted);line-height:1.35}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;flex-wrap:wrap}.section-head p{margin:0}.searchBar{display:grid;gap:8px;margin:12px 0 10px}.searchControls{display:grid;gap:8px;grid-template-columns:minmax(0,1fr) auto auto;align-items:center}.searchInput{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:var(--input-bg);color:var(--text);font-family:inherit}.searchControls .clearLink{border:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff}.searchMeta{font-size:10px;color:var(--muted)}.device-helper{margin:0;font-size:10px;color:var(--muted)}.table-shell{border:1px solid var(--line);border-radius:22px;background:rgba(255,255,255,.2);overflow:auto}.device-table-shell{max-height:41rem}.alert-table-shell{max-height:18rem}.admin-table{width:100%;border-collapse:separate;border-spacing:0;min-width:1180px}.admin-table th,.admin-table td{padding:9px 10px;vertical-align:top;border-bottom:1px solid var(--line);text-align:left;font-size:11px}.admin-table thead th{position:sticky;top:0;background:rgba(233,247,248,.96);backdrop-filter:blur(14px);z-index:2;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
 @media (prefers-color-scheme: dark){.admin-table thead th{background:rgba(12,28,37,.96)}}
-.admin-table tbody tr:last-child td{border-bottom:none}.cell-main{font-weight:800;line-height:1.3}.cell-sub{margin-top:3px;font-size:10px;color:var(--muted);line-height:1.35}.device-link{border:none;padding:0;color:var(--text);font-weight:800}.device-link:hover{text-decoration:underline}.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:800}.pill-online{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-text)}.pill-offline{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-clear{background:rgba(154,202,221,.14);color:var(--muted)}.pill-warning{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}.pill-danger{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-info{background:rgba(52,185,214,.12);color:var(--primary)}.sort-button{display:inline-flex;align-items:center;gap:6px;padding:0;border:none;background:none;color:inherit;font:inherit;cursor:pointer}.sort-button::after{content:"";display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid currentColor;opacity:.32;transform:translateY(1px)}.sort-button[data-direction="desc"]::after{transform:rotate(180deg) translateY(-1px)}.sort-button.is-active{color:var(--text)}.action-links{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.action-links a,.action-links button{padding:0;border:none;background:none;color:var(--primary);font-size:11px;font-weight:800;border-radius:0}.action-links a:hover,.action-links button:hover{text-decoration:underline}.action-links .danger{color:var(--error-text)}.inline-panel{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}.inline-panel.is-open{display:block}.inline-form{display:grid;gap:8px;grid-template-columns:minmax(0,1fr) auto;align-items:end}.inline-form label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-form button{white-space:nowrap}.empty-state{padding:14px;color:var(--muted);font-size:11px}.hidden-result{display:none!important}
+.admin-table tbody tr:last-child td{border-bottom:none}.cell-main{font-weight:800;line-height:1.3}.cell-sub{margin-top:3px;font-size:10px;color:var(--muted);line-height:1.35}.device-link{border:none;padding:0;color:var(--text);font-weight:800}.device-link:hover{text-decoration:underline}.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:800}.pill-online{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-text)}.pill-offline{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-clear{background:rgba(154,202,221,.14);color:var(--muted)}.pill-warning{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}.pill-danger{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-info{background:rgba(52,185,214,.12);color:var(--primary)}.sort-button{display:inline-flex;align-items:center;gap:6px;padding:0;border:none;background:none;color:inherit;font:inherit;cursor:pointer}.sort-button::after{content:"";display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid currentColor;opacity:.32;transform:translateY(1px)}.sort-button[data-direction="desc"]::after{transform:rotate(180deg) translateY(-1px)}.sort-button.is-active{color:var(--text)}.action-links{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.action-links a,.action-links button{padding:0;border:none;background:none;color:var(--primary);font-size:11px;font-weight:800;border-radius:0}.action-links a:hover,.action-links button:hover{text-decoration:underline}.action-links .danger{color:var(--error-text)}.inline-panel{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}.inline-panel.is-open{display:block}.inline-form{display:grid;gap:8px;grid-template-columns:minmax(0,1fr) auto;align-items:end}.inline-form label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-form button{white-space:nowrap}.service-form{display:grid;gap:12px}.service-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.service-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.service-group{margin:0;padding:14px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.42)}.service-group legend{padding:0 6px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.service-option{display:flex;gap:10px;align-items:flex-start;padding:10px 0;color:var(--text);font-size:11px;line-height:1.45}.service-option+.service-option{border-top:1px solid var(--line)}.service-option input{margin-top:2px}.service-option strong{display:block;font-size:11px}.service-option small{display:block;margin-top:4px;color:var(--muted);line-height:1.45}.service-preset{border:1px solid var(--line);background:rgba(255,255,255,.78);color:var(--text)}.service-live-note{font-size:11px;color:var(--muted);line-height:1.55}.empty-state{padding:14px;color:var(--muted);font-size:11px}.hidden-result{display:none!important}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-form{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
+.admin-control-room{--admin-shell-max:1680px;--admin-surface:linear-gradient(180deg,rgba(255,255,255,.96),rgba(240,248,248,.9));--admin-panel-highlight:linear-gradient(135deg,rgba(8,58,74,.94),rgba(19,121,143,.92));--admin-card:rgba(255,255,255,.7);--admin-card-strong:rgba(255,255,255,.82);--admin-border:rgba(14,84,99,.12);--admin-shadow:0 34px 70px rgba(10,58,72,.18);--admin-text-soft:#506a73;--admin-accent:#0e8096;--admin-accent-strong:#0b5567;--admin-table-row:rgba(255,255,255,.56);--admin-table-row-hover:rgba(240,250,251,.96);--admin-match:rgba(14,128,150,.08)}
+.admin-control-room{padding:22px}
+.admin-control-room .shell{width:min(var(--admin-shell-max),100%);gap:18px}
+.admin-control-room .panel{background:var(--admin-surface);border-color:var(--admin-border);box-shadow:var(--admin-shadow);position:relative;overflow:hidden}
+.admin-control-room .panel::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at top right,rgba(14,128,150,.08),transparent 28%),radial-gradient(circle at 8% 14%,rgba(31,157,104,.08),transparent 26%);pointer-events:none}
+.admin-control-room .panel > *{position:relative;z-index:1}
+.hero-panel{padding:26px}
+.hero-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:20px;align-items:stretch}
+.hero-copy{display:flex;flex-direction:column;gap:16px}
+.hero-title{margin:0;font-size:clamp(2.3rem,4vw,3.5rem);line-height:.96;letter-spacing:-.04em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
+.hero-lead{margin:0;max-width:70ch;color:var(--admin-text-soft);font-size:1rem;line-height:1.72}
+.hero-pill-row{display:flex;gap:10px;flex-wrap:wrap}
+.hero-pill{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;background:rgba(255,255,255,.68);border:1px solid var(--admin-border);font-size:11px;letter-spacing:.12em;text-transform:uppercase;font-weight:800;color:var(--admin-accent-strong)}
+.hero-pill strong{font-size:13px;letter-spacing:0;color:var(--text)}
+.hero-actions{margin-top:auto}
+.hero-actions a,.hero-actions button{min-height:44px;padding:11px 16px;border-radius:16px}
+.hero-actions .hero-primary{background:linear-gradient(135deg,#2dbed4,#167f9a);color:#fff;border:none}
+.hero-actions .hero-secondary{background:rgba(255,255,255,.72);border:1px solid var(--admin-border);color:var(--text)}
+.hero-actions form{display:flex}
+.hero-warning-stack{display:grid;gap:10px}
+.hero-focus-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}
+.hero-focus-card{padding:18px;border-radius:24px;border:1px solid var(--admin-border);background:var(--admin-card);backdrop-filter:blur(10px);display:flex;flex-direction:column;gap:8px;min-height:148px}
+.hero-focus-card.primary{grid-column:1/-1;background:var(--admin-panel-highlight);color:#effcff;border-color:rgba(255,255,255,.08);box-shadow:0 30px 64px rgba(7,44,57,.34)}
+.hero-focus-card .eyebrow{margin:0}
+.hero-focus-card strong{font-size:clamp(1.45rem,3vw,2rem);line-height:1.02;letter-spacing:-.04em}
+.hero-focus-card p{margin:0;color:var(--admin-text-soft);line-height:1.58}
+.hero-focus-card.primary .eyebrow,.hero-focus-card.primary p{color:rgba(239,252,255,.8)}
+.hero-focus-card.primary strong{color:#fff}
+.admin-control-room .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.admin-control-room .summary-card{background:var(--admin-card);border:1px solid var(--admin-border);padding:18px 16px 16px;border-radius:24px}
+.admin-control-room .summary-value{font-size:32px}
+.summary-caption{margin-top:8px;color:var(--admin-text-soft);line-height:1.55}
+.section-panel .section-head{align-items:flex-start}
+.section-panel .section-head h2{margin:4px 0 0;font-size:1.5rem;letter-spacing:-.03em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
+.section-helper{margin:8px 0 0;color:var(--admin-text-soft);line-height:1.65;max-width:70ch}
+.section-badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.form-grid{display:grid;gap:14px;margin-top:16px}
+.form-helper-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(0,1fr));margin-top:16px}
+.form-helper-card{padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.58);border:1px solid var(--admin-border)}
+.form-helper-card strong{display:block;margin-bottom:6px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--admin-accent-strong)}
+.form-helper-card span{display:block;color:var(--admin-text-soft);line-height:1.55}
+.table-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.searchControls{grid-template-columns:minmax(0,1fr) auto auto;gap:10px}
+.searchControls button,.searchControls a{min-height:44px;padding:11px 15px;border-radius:16px}
+.searchControls .clearLink{border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
+.searchMeta{font-size:11px;line-height:1.5}
+.device-helper{font-size:11px;line-height:1.5;color:var(--admin-text-soft)}
+.table-shell{background:rgba(255,255,255,.44);border:1px solid var(--admin-border);border-radius:24px}
+.admin-table th,.admin-table td{font-size:11px;padding:11px 12px}
+.admin-table tbody tr{background:var(--admin-table-row);transition:background .18s ease,transform .18s ease}
+.admin-table tbody tr:hover{background:var(--admin-table-row-hover)}
+.device-table-row.is-match{background:color-mix(in srgb,var(--admin-match) 72%,rgba(255,255,255,.78))}
+.action-links a,.action-links button{padding:7px 10px;border-radius:999px;border:1px solid var(--admin-border);background:rgba(52,185,214,.08);color:var(--admin-accent-strong);font-size:10px;text-decoration:none}
+.action-links a:hover,.action-links button:hover{background:rgba(52,185,214,.14);text-decoration:none}
+.action-links .danger{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}
+.inline-panel{margin-top:12px;padding-top:12px;border-top:1px solid var(--admin-border)}
+.inline-form button{min-height:42px;padding:10px 14px;border-radius:14px}
+.service-group{background:rgba(255,255,255,.58);border:1px solid var(--admin-border)}
+.service-preset{border-color:var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
+.service-live-note{color:var(--admin-text-soft)}
+.warning.hero-warning,.message.error,.message.success{margin-top:0}
+.empty-state{padding:18px;border-radius:18px;background:rgba(255,255,255,.56);border:1px dashed var(--admin-border)}
+.focus-note{font-size:12px;color:var(--admin-text-soft);line-height:1.55}
+.admin-control-room.modal-open{overflow:hidden}
+.service-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:70;margin:0;border:none}
+.service-modal.is-open{display:flex}
+.service-modal-backdrop{position:absolute;inset:0;background:rgba(7,27,36,.5);backdrop-filter:blur(4px)}
+.service-modal-dialog{position:relative;z-index:1;width:min(980px,calc(100vw - 32px));max-height:min(88vh,920px);overflow:auto;padding:22px;border-radius:28px;border:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 34px 80px rgba(7,36,47,.34)}
+.service-modal-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:18px}
+.service-modal-copy{display:grid;gap:6px}
+.service-modal-title{margin:0;font-size:1.45rem;letter-spacing:-.03em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
+.service-modal-note{margin:0;color:var(--admin-text-soft);line-height:1.6}
+.service-modal-close{min-height:42px;padding:10px 14px;border-radius:14px;border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
+.service-modal .service-form{gap:16px}
+.service-modal .service-toolbar{align-items:flex-start}
+.service-modal .service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.service-modal .service-group{padding:16px}
+.service-form-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+@keyframes admin-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.admin-control-room .panel{animation:admin-rise .42s ease both}
+@media (prefers-color-scheme: dark){
+.admin-control-room{--admin-surface:linear-gradient(180deg,rgba(12,28,38,.96),rgba(10,21,30,.92));--admin-panel-highlight:linear-gradient(135deg,rgba(10,82,100,.98),rgba(12,54,80,.96));--admin-card:rgba(10,27,37,.76);--admin-card-strong:rgba(12,31,42,.84);--admin-border:rgba(151,208,221,.12);--admin-shadow:0 34px 72px rgba(0,0,0,.4);--admin-text-soft:#abc4cb;--admin-accent:#78dae7;--admin-accent-strong:#c4f8ff;--admin-table-row:rgba(10,27,37,.64);--admin-table-row-hover:rgba(13,34,44,.92);--admin-match:rgba(120,218,231,.1)}
+.admin-control-room .hero-actions .hero-secondary,.admin-control-room .searchControls .clearLink,.admin-control-room .hero-pill,.admin-control-room .form-helper-card{background:rgba(10,27,37,.74)}
+.hero-focus-card p,.section-helper,.summary-caption,.device-helper,.focus-note{color:var(--admin-text-soft)}
+.action-links a,.action-links button{background:rgba(120,218,231,.08);color:var(--admin-accent-strong)}
+.service-group,.service-preset{background:rgba(10,27,37,.74)}
+.service-modal-dialog,.service-modal-close{background:rgba(10,27,37,.9)}
+.empty-state{background:rgba(10,27,37,.64)}
+}
+@media (max-width:1180px){
+.hero-grid,.split{grid-template-columns:1fr}
+.admin-control-room .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.form-helper-grid{grid-template-columns:1fr}
+}
+@media (max-width:760px){
+.admin-control-room{padding:16px}
+.admin-control-room .summary-grid,.hero-focus-grid{grid-template-columns:1fr}
+.hero-focus-card.primary{grid-column:auto}
+.admin-control-room .summary-grid{grid-template-columns:1fr}
+.searchControls{grid-template-columns:1fr}
+.table-toolbar{align-items:flex-start}
+.service-modal{padding:16px}
+.service-modal-dialog{width:min(100%,calc(100vw - 20px));padding:18px}
+.service-modal-head,.service-toolbar,.service-form-footer{flex-direction:column;align-items:stretch}
+.service-modal .service-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
-<body>
+<body class="admin-control-room">
+{% set total_devices = device_summary.total_registered_devices or 0 %}
+{% set online_devices = device_summary.online_devices or 0 %}
+{% set offline_devices = device_summary.offline_devices or 0 %}
+{% set warning_devices = device_summary.warning_alert_devices or 0 %}
+{% set active_alert_count = global_alerts|length %}
+{% if total_devices %}
+{% set online_percent = ((online_devices * 100) / total_devices)|round(0, 'common')|int %}
+{% else %}
+{% set online_percent = 0 %}
+{% endif %}
 <div class="shell">
-    <div class="panel">
-        <div class="eyebrow">Admin</div>
-        {% for warning in persistence_warnings or [] %}
-        <div class="warning" style="margin-bottom:12px">{{ warning }}</div>
-        {% endfor %}
-        <div style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap">
-            <div>
-                <h1 style="margin:0">Admin Dashboard</h1>
+    <div class="panel hero-panel">
+        <div class="hero-grid">
+            <div class="hero-copy">
+                <div class="eyebrow">Admin</div>
+                <div>
+                    <h1 class="hero-title">Admin Dashboard</h1>
+                    <p class="hero-lead">Monitor fleet health, onboard customer logins, and move from alert triage to device action without jumping between disconnected screens.</p>
+                </div>
+                <div class="hero-pill-row">
+                    <span class="hero-pill">Registered <strong>{{ total_devices }}</strong></span>
+                    <span class="hero-pill">Online <strong>{{ online_devices }}</strong></span>
+                    <span class="hero-pill">Alerted <strong>{{ warning_devices }}</strong></span>
+                    <span class="hero-pill">Active Alerts <strong>{{ active_alert_count }}</strong></span>
+                </div>
+                {% if persistence_warnings %}
+                <div class="hero-warning-stack">
+                    {% for warning in persistence_warnings or [] %}
+                    <div class="warning hero-warning">{{ warning }}</div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <div class="row hero-actions">
+                    <a class="hero-primary" href="#add_customer_panel">Add Customer</a>
+                    <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
+                    <a class="hero-secondary" href="/account/password">Admin Password</a>
+                    <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
+                </div>
             </div>
-            <div class="row">
-                <a href="/account/password">Admin Password</a>
-                <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Logout</button></form>
+            <div class="hero-focus-grid">
+                <div class="hero-focus-card primary">
+                    <div class="eyebrow">Fleet Health</div>
+                    <strong>{{ online_percent }}% online coverage</strong>
+                    <p>{{ online_devices }} of {{ total_devices }} registered devices are online right now{% if total_devices == 0 %}; devices appear here after the first registration or check-in{% endif %}.</p>
+                </div>
+                <div class="hero-focus-card">
+                    <div class="eyebrow">Review Now</div>
+                    <strong>{% if active_alert_count %}{{ active_alert_count }} live alert{{ "" if active_alert_count == 1 else "s" }}{% elif warning_devices %}{{ warning_devices }} flagged device{{ "" if warning_devices == 1 else "s" }}{% else %}No urgent blockers{% endif %}</strong>
+                    <p>{% if global_alerts %}{{ global_alerts[0].message or "The newest alert is ready for review." }}{% elif warning_devices %}Devices with warnings are visible in the fleet table below.{% else %}The fleet is calm enough for onboarding, cleanup, and routine maintenance work.{% endif %}</p>
+                </div>
+                <div class="hero-focus-card">
+                    <div class="eyebrow">Next Move</div>
+                    <strong>{% if offline_devices %}Check {{ offline_devices }} offline device{{ "" if offline_devices == 1 else "s" }}{% else %}Keep customer access tidy{% endif %}</strong>
+                    <p>{% if offline_devices %}Use the device table to sort by status, open Device Details, and confirm whether cloud feed or sensor health needs attention.{% else %}Use Add Customer to create logins, or review cloud-feed access from the fleet table.{% endif %}</p>
+                </div>
             </div>
         </div>
     </div>
@@ -40,24 +188,36 @@
         <div class="summary-card">
             <div class="eyebrow">Total Registered Devices</div>
             <div class="summary-value">{{ device_summary.total_registered_devices }}</div>
+            <div class="summary-caption">Tracked devices with either telemetry history or configured credentials.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Online Devices</div>
             <div class="summary-value">{{ device_summary.online_devices }}</div>
+            <div class="summary-caption">Devices reporting fresh or recent telemetry right now.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Offline Devices</div>
             <div class="summary-value">{{ device_summary.offline_devices }}</div>
+            <div class="summary-caption">Devices with stale or missing telemetry that likely need follow-up.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Warning / Alert Devices</div>
             <div class="summary-value">{{ device_summary.warning_alert_devices }}</div>
+            <div class="summary-caption">Devices carrying active warnings or higher-severity operational alerts.</div>
         </div>
     </div>
 
-    <div class="panel">
+    <div class="panel section-panel">
         <div class="section-head">
-            <div class="eyebrow">Global Alerts</div>
+            <div>
+                <div class="eyebrow">Global Alerts</div>
+                <h2>Live system and device warnings</h2>
+                <p class="section-helper">Start here when the fleet needs attention. The latest alert stays visible without burying the rest of the onboarding and device-management tools.</p>
+            </div>
+            <div class="section-badges">
+                <span class="pill pill-{{ 'danger' if active_alert_count else 'clear' }}">{{ active_alert_count }} active</span>
+                <span class="pill pill-info">Newest changes stay pinned at the top</span>
+            </div>
         </div>
         <div class="table-shell alert-table-shell" style="margin-top:14px">
             <table class="admin-table">
@@ -101,15 +261,25 @@
     </div>
 
     <div class="split">
-        <div class="panel">
-            <div class="eyebrow">Add Customer</div>
+        <div class="panel section-panel" id="add_customer_panel">
+            <div class="section-head">
+                <div>
+                    <div class="eyebrow">Add Customer</div>
+                    <h2>Onboard or recover customer access</h2>
+                    <p class="section-helper">Create a customer login tied to a device ID, add a human-friendly household name, and keep the fleet list easier to scan.</p>
+                </div>
+                <div class="section-badges">
+                    <span class="pill pill-info">Device ID doubles as the username</span>
+                    <span class="pill pill-clear">Passwords can also be set inline from the fleet table</span>
+                </div>
+            </div>
             {% if error %}
-            <div class="message error">{{ error }}</div>
+            <div class="message error" style="margin-top:14px">{{ error }}</div>
             {% endif %}
             {% if success %}
-            <div class="message success">{{ success }}</div>
+            <div class="message success" style="margin-top:14px">{{ success }}</div>
             {% endif %}
-            <form method="post" action="/admin/customers" style="display:grid;gap:14px;margin-top:14px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <form method="post" action="/admin/customers" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <div class="group">
                     <label for="device_id">Device ID / Username</label>
                     <input id="device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-001" required>
@@ -126,11 +296,33 @@
                     <button type="submit">Save Customer</button>
                 </div>
             </form>
+            <div class="form-helper-grid">
+                <div class="form-helper-card">
+                    <strong>Fast Setup</strong>
+                    <span>Use the same device ID the firmware already reports so the login matches the hardware record.</span>
+                </div>
+                <div class="form-helper-card">
+                    <strong>Clear Naming</strong>
+                    <span>Add a display name like a family or property name so admins can scan the fleet table faster.</span>
+                </div>
+                <div class="form-helper-card">
+                    <strong>Inline Recovery</strong>
+                    <span>If the device already exists below, you can set or reset the password without retyping everything here.</span>
+                </div>
+            </div>
         </div>
 
-        <div class="panel">
+        <div class="panel section-panel" id="devices_panel">
             <div class="section-head">
-                <div class="eyebrow">Devices</div>
+                <div>
+                    <div class="eyebrow">Devices</div>
+                    <h2>Fleet search, sort, and action center</h2>
+                    <p class="section-helper">Search by device ID or customer name, sort by status or alerts, and open inline actions without leaving the fleet view.</p>
+                </div>
+                <div class="section-badges">
+                    <span class="pill pill-info">Open Device Details for diagnostics and controls</span>
+                    <span class="pill pill-clear">Sort by status or alerts to triage first</span>
+                </div>
             </div>
             <form method="get" action="/admin/customers" class="searchBar">
                 <label for="device_search" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800">Search Device ID</label>
@@ -139,7 +331,13 @@
                     <button id="device_search_button" type="submit">Search</button>
                     <a id="device_search_clear" class="clearLink" href="/admin/customers">Clear</a>
                 </div>
-                <div id="device_search_meta" class="searchMeta">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
+                <div class="table-toolbar">
+                    <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
+                    <div class="section-badges">
+                        <span id="device_visibility_status" class="pill pill-info">{{ available_devices|length }} visible</span>
+                        <span class="pill pill-clear">Press Escape in search to clear quickly</span>
+                    </div>
+                </div>
             </form>
 
             <div class="table-shell device-table-shell">
@@ -152,7 +350,7 @@
                             <th>Tank Level</th>
                             <th>Pump / Mode</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts / Warnings</button></th>
-                            <th>Cloud Feed</th>
+                            <th>Service Profile</th>
                             <th>Last Sync</th>
                             <th>Actions</th>
                         </tr>
@@ -197,23 +395,92 @@
                                 <div class="cell-sub">{{ device.latest_alert_message or "No active alerts." }}</div>
                             </td>
                             <td>
-                                <span class="pill pill-{{ 'info' if device.cloud_feed_enabled else 'warning' if device.registered_account else 'clear' }}">{{ device.cloud_feed_label or "Not set" }}</span>
-                                <div class="cell-sub">{% if device.registered_account %}Customer cloud access{% else %}Create account first{% endif %}</div>
+                                <span class="pill pill-{{ device.service_profile_tone or 'clear' }}">{{ device.cloud_feed_mode_label or "Disabled" }}</span>
+                                <div class="cell-sub">{{ device.service_profile_hint or "No service profile saved yet." }}{% if not device.registered_account %} • Cloud access starts after an account is created.{% endif %}</div>
                             </td>
                             <td><span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></td>
                             <td>
                                 <div class="action-links">
                                     <a href="/devices/{{ device.device_id }}">Device Details</a>
+                                    <a href="#services_shell_{{ loop.index }}" data-panel-toggle aria-controls="services_shell_{{ loop.index }}" aria-expanded="false">Manage Services</a>
+                                    <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                        <button type="submit" class="danger">Reboot Device</button>
+                                    </form>
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Edit Name</a>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/cloud-feed" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}"><input type="hidden" name="cloud_feed_enabled" value="{{ 0 if device.cloud_feed_enabled else 1 }}">
-                                        <button type="submit">{{ "Disable Cloud" if device.cloud_feed_enabled else "Enable Cloud" }}</button>
-                                    </form>
                                     {% endif %}
                                     <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">{{ "Reset Password" if device.registered_account else "Set Password" }}</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Delete</button>
                                     </form>
+                                </div>
+                                <div id="services_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="services_title_{{ loop.index }}" hidden>
+                                    <div class="service-modal-backdrop" data-panel-dismiss></div>
+                                    <div class="service-modal-dialog">
+                                        <div class="service-modal-head">
+                                            <div class="service-modal-copy">
+                                                <div class="eyebrow">Service Controls</div>
+                                                <h3 id="services_title_{{ loop.index }}" class="service-modal-title">Manage Services For {{ device.device_id }}</h3>
+                                                <p class="service-modal-note">{% if device.display_name %}{{ device.display_name }}{% else %}No customer name is saved for this device yet.{% endif %}</p>
+                                                <div class="service-live-note">Cloud mode: <strong>{{ device.cloud_feed_mode_label or "Disabled" }}</strong> | Live device services: Source {{ device.lower_tank_service or "UNKNOWN" }}, Buzzer {{ device.buzzer_service or "UNKNOWN" }}, LED {{ device.led_display_service or "UNKNOWN" }}</div>
+                                            </div>
+                                            <button type="button" class="service-modal-close" data-panel-dismiss>Close</button>
+                                        </div>
+                                        <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                            <div class="service-toolbar">
+                                                <div class="service-live-note">Customer access follows the cloud mode you save here. Device-side source, buzzer, and LED changes apply on the next command poll.</div>
+                                                <div class="row">
+                                                    <button class="service-preset" type="button" data-service-preset="all-on">Enable All</button>
+                                                    <button class="service-preset" type="button" data-service-preset="all-off">Disable All</button>
+                                                </div>
+                                            </div>
+                                            <div class="service-grid">
+                                                <fieldset class="service-group">
+                                                    <legend>Monitoring</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
+                                                        <span><strong>Source Tank Monitoring</strong><small>Use lower/source tank readings for visibility and safer pump decisions.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>AI Features</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
+                                                        <span><strong>AI Analysis</strong><small>Keep analytics and advanced cloud insights ready when Full Features mode is active.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>Cloud Settings</legend>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="off" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed Disabled</strong><small>Blocks customer cloud access for this device.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="basic" {% if device.cloud_feed_mode == "basic" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed Without AI</strong><small>Allows remote customer access without advanced AI features.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="radio" name="cloud_feed_mode" value="full" {% if device.cloud_feed_mode == "full" %}checked{% endif %}>
+                                                        <span><strong>Cloud Feed With Full Features</strong><small>Enables remote access together with the saved AI feature preference.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                                <fieldset class="service-group">
+                                                    <legend>Hardware Controls</legend>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
+                                                        <span><strong>Buzzer</strong><small>Allow device-side audible alerts.</small></span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
+                                                        <span><strong>LED Display</strong><small>Keep the on-device LED level indicator active.</small></span>
+                                                    </label>
+                                                </fieldset>
+                                            </div>
+                                            <div class="service-form-footer">
+                                                <button type="submit">Save Services</button>
+                                            </div>
+                                        </form>
+                                    </div>
                                 </div>
                                 {% if device.registered_account %}
                                 <div id="edit_shell_{{ loop.index }}" class="inline-panel" hidden>
@@ -275,6 +542,7 @@
 
     const input = document.getElementById("device_search");
     const meta = document.getElementById("device_search_meta");
+    const visibilityStatus = document.getElementById("device_visibility_status");
     const emptyDevices = document.getElementById("search_empty_devices");
     const tableBody = document.getElementById("device_table_body");
     const deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
@@ -328,6 +596,7 @@
         deviceRows.forEach((row) => {
             const matches = !query || normalizeText(row.dataset.search || "").includes(query);
             row.classList.toggle("hidden-result", !matches);
+            row.classList.toggle("is-match", !!query && matches);
             if (matches) visibleDevices += 1;
         });
 
@@ -339,12 +608,22 @@
         if (!meta) return;
         if (!query) {
             meta.textContent = `${visibleDevices} device${visibleDevices === 1 ? "" : "s"}`;
-            return;
+        } else {
+            meta.textContent = `${visibleDevices} device match${visibleDevices === 1 ? "" : "es"}`;
         }
-        meta.textContent = `${visibleDevices} device match${visibleDevices === 1 ? "" : "es"}`;
+        if (visibilityStatus) {
+            visibilityStatus.textContent = `${visibleDevices} visible`;
+        }
     }
 
     if (input) input.addEventListener("input", applyFilter);
+    if (input) {
+        input.addEventListener("keydown", (event) => {
+            if (event.key !== "Escape") return;
+            input.value = "";
+            applyFilter();
+        });
+    }
     sortButtons.forEach((button) => {
         button.addEventListener("click", () => {
             const nextKey = button.dataset.deviceSort || "device_id";
@@ -352,22 +631,38 @@
             if (currentSort.key === nextKey) currentSort.direction = currentSort.direction === "asc" ? "desc" : "asc";
             else currentSort = { key: nextKey, direction: defaultDirection };
             applySort();
+            applyFilter();
         });
     });
 
     const inlinePanels = Array.from(document.querySelectorAll(".inline-panel"));
     const panelToggles = Array.from(document.querySelectorAll("[data-panel-toggle]"));
+    const panelDismissers = Array.from(document.querySelectorAll("[data-panel-dismiss]"));
+
+    function isModalPanel(panel) {
+        return !!panel && panel.dataset.panelMode === "modal";
+    }
+
+    function updateBodyModalState() {
+        const modalOpen = inlinePanels.some((panel) => isModalPanel(panel) && !panel.hidden);
+        document.body.classList.toggle("modal-open", modalOpen);
+    }
+
+    function panelToggleFor(panel) {
+        return panelToggles.find((item) => item.getAttribute("aria-controls") === panel.id);
+    }
 
     function setPanelState(panel, open) {
         if (!panel) return;
         panel.hidden = !open;
         panel.classList.toggle("is-open", open);
-        const toggle = panelToggles.find((item) => item.getAttribute("aria-controls") === panel.id);
+        const toggle = panelToggleFor(panel);
         if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
         if (open) {
-            const inputNode = panel.querySelector("input");
+            const inputNode = panel.querySelector('input:not([type="hidden"]), button, select, textarea, a[href]');
             if (inputNode) inputNode.focus();
         }
+        updateBodyModalState();
     }
 
     inlinePanels.forEach((panel) => setPanelState(panel, false));
@@ -380,6 +675,41 @@
                 if (otherPanel !== panel) setPanelState(otherPanel, false);
             });
             setPanelState(panel, shouldOpen);
+        });
+    });
+    panelDismissers.forEach((node) => {
+        node.addEventListener("click", (event) => {
+            event.preventDefault();
+            const panel = node.closest(".inline-panel");
+            setPanelState(panel, false);
+            const toggle = panel ? panelToggleFor(panel) : null;
+            if (toggle) toggle.focus();
+        });
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        const openModal = inlinePanels.find((panel) => isModalPanel(panel) && !panel.hidden);
+        if (!openModal) return;
+        setPanelState(openModal, false);
+        const toggle = panelToggleFor(openModal);
+        if (toggle) toggle.focus();
+    });
+
+    function applyServicePreset(form, preset) {
+        if (!form) return;
+        const enableAll = preset === "all-on";
+        ["source_tank_monitoring_enabled", "ai_analysis_enabled", "buzzer_enabled", "led_display_enabled"].forEach((name) => {
+            const inputNode = form.querySelector(`[name="${name}"]`);
+            if (inputNode) inputNode.checked = enableAll;
+        });
+        const desiredMode = enableAll ? "full" : "off";
+        const desiredRadio = form.querySelector(`[name="cloud_feed_mode"][value="${desiredMode}"]`);
+        if (desiredRadio) desiredRadio.checked = true;
+    }
+
+    document.querySelectorAll("[data-service-preset]").forEach((button) => {
+        button.addEventListener("click", () => {
+            applyServicePreset(button.closest("[data-service-form]"), button.getAttribute("data-service-preset"));
         });
     });
 

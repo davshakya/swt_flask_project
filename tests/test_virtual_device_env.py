@@ -78,7 +78,7 @@ def test_build_parser_uses_virtual_device_specific_env_defaults(monkeypatch):
 def test_build_parser_ignores_shared_cloud_url_for_virtual_device_defaults(monkeypatch):
     monkeypatch.delenv("SWT_VIRTUAL_DEVICE_BASE_URL", raising=False)
     monkeypatch.delenv("SWT_LOCAL_FLASK_BASE_URL", raising=False)
-    monkeypatch.setenv("SWT_CLOUD_BASE_URL", "https://smart-water-tank-v1.onrender.com/")
+    monkeypatch.setenv("SWT_CLOUD_BASE_URL", "https://salewell.co.in/")
 
     args = virtual_device.build_parser().parse_args([])
 

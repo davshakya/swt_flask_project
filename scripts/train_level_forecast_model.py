@@ -29,7 +29,7 @@ try:
     from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 except ImportError as exc:  # pragma: no cover - handled at runtime for optional dependency
     raise SystemExit(
-        "scikit-learn is required for ML training. Install it with: pip install -r requirements-ml.txt",
+        "scikit-learn is required for ML training. Install it with: pip install -r requirements.txt",
     ) from exc
 
 
