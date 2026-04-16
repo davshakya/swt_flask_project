@@ -45,14 +45,59 @@ from flask_app.runtime_utils import (
 )
 
 
+PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
+    "change-me",
+    "replace-with-a-real",
+    "build-default",
+)
+
+
+def device_config_value_is_placeholder(value):
+    normalized_value = str(value or "").strip().lower()
+    if not normalized_value:
+        return True
+    return any(marker in normalized_value for marker in PLACEHOLDER_DEVICE_CONFIG_MARKERS)
+
+
+def load_workspace_device_env_files(project_root, environ):
+    workspace_root = project_root.parent
+    project_device_env = project_root / "device.env"
+    candidate_paths = (
+        project_device_env,
+        workspace_root / "device.env",
+        workspace_root / "swt_firmware_project" / "device.env",
+        workspace_root / "swt_android_app_project" / "device.env",
+    )
+    merged_values = {}
+    for dotenv_path in candidate_paths:
+        parsed_values = parse_simple_dotenv(dotenv_path)
+        if not parsed_values:
+            continue
+        prefer_real_override = dotenv_path == project_device_env
+        for key, value in parsed_values.items():
+            if not str(value or "").strip():
+                continue
+            current_value = merged_values.get(key)
+            if current_value is None or device_config_value_is_placeholder(current_value):
+                merged_values[key] = value
+                continue
+            if prefer_real_override and not device_config_value_is_placeholder(value):
+                merged_values[key] = value
+    for key, value in merged_values.items():
+        existing_value = environ.get(key)
+        if existing_value is None or device_config_value_is_placeholder(existing_value):
+            environ[key] = value
+
+
 def load_local_env_files():
     module_root = Path(__file__).resolve().parent
     project_root = module_root.parent
     load_dotenv_values(
-        (project_root / ".env", module_root / ".env", project_root / "device.env"),
+        (project_root / ".env", module_root / ".env"),
         environ=os.environ,
         preserve_existing=True,
     )
+    load_workspace_device_env_files(project_root, environ=os.environ)
 
 
 load_local_env_files()
