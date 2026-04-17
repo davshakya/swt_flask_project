@@ -1,8 +1,14 @@
-# Flask Deployment on cPanel
+# Smart Water Tank Flask Deployment Guide
 
-This file now matches this repository, not a toy `app.py` example.
+This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
-The Smart Water Tank Flask app can run on cPanel with Passenger WSGI, and the project is now prepared for deployment on `https://salewell.co.in/`.
+Use this file together with:
+
+- [`README.md`](README.md) for local setup, API surface, scripts, and testing
+- [`render.yaml`](render.yaml) if you are comparing cPanel deployment with the Render deployment shape
+- [`scripts/upload_repo_ftps.py`](scripts/upload_repo_ftps.py) if you are pushing code to the host over FTPS
+
+The deployment target referenced in this repo today is `https://salewell.co.in/`.
 
 ## What This Repo Uses
 
@@ -28,6 +34,19 @@ How it works:
 - `requirements.txt` is the single dependency file for the whole project
 - `flask_app/.env` holds backend settings
 - `device.env` holds shared device/cloud settings
+
+## Scope
+
+This document focuses on:
+
+- cPanel application creation
+- file placement
+- Passenger startup settings
+- environment/config files
+- dependency installation
+- restart and validation steps
+
+It does not replace the main backend README, which covers routes, background jobs, virtual devices, ML tooling, and day-to-day development.
 
 ## Recommended cPanel Layout
 
@@ -79,7 +98,7 @@ Do not upload:
 
 This repo now includes a Python uploader:
 
-- [scripts/upload_repo_ftps.py](/d:/SWT_PROJECT/swt_flask_project/scripts/upload_repo_ftps.py)
+- [`scripts/upload_repo_ftps.py`](scripts/upload_repo_ftps.py)
 
 Current built-in defaults:
 
@@ -123,7 +142,7 @@ Security note:
 
 ## cPanel Startup Target
 
-For this cPanel setup, use the root [server.py](/d:/SWT_PROJECT/swt_flask_project/server.py) file directly.
+For this cPanel setup, use the root [`server.py`](server.py) file directly.
 
 Why:
 
@@ -293,6 +312,13 @@ Healthy signs:
 - admin login page opens
 - templates and static files load correctly
 
+After the basic smoke test, also verify:
+
+- the device can post telemetry to `https://salewell.co.in/status`
+- `/api/mobile/bootstrap` responds after a successful mobile login
+- customer login works for at least one mapped device account
+- the SQLite file is being written under the persistent path you configured
+
 ## Quick Create Checklist
 
 1. In cPanel, create the Python app with the values listed above.
@@ -349,6 +375,13 @@ Check:
 - `SWT_DEVICE_API_KEY`
 - `SWT_CLOUD_BASE_URL=https://salewell.co.in/`
 - whether the device is posting to `/status`
+
+## Related Workspace Docs
+
+- Workspace overview: [`../README.md`](../README.md)
+- Backend overview: [`README.md`](README.md)
+- Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
+- Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)
 
 ## Deployment Summary
 

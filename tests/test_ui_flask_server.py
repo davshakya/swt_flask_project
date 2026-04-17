@@ -2178,6 +2178,10 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
     assert "Manage Services" in page_body
     assert 'data-panel-mode="modal"' in page_body
     assert 'class="service-modal-title"' in page_body
+    assert 'name="cloud_feed_disabled"' in page_body
+    assert 'name="cloud_feed_mode"' not in page_body
+    assert "Cloud Feed Without AI" not in page_body
+    assert "Cloud Feed With Full Features" not in page_body
 
     edit_response = admin_client.post(
         f"/admin/customers/{device_id}/edit",
@@ -2205,7 +2209,6 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
             "csrf_token": TEST_CSRF_TOKEN,
             "q": device_id,
             "source_tank_monitoring_enabled": "1",
-            "cloud_feed_mode": "basic",
         },
     )
     assert service_response.status_code == 200
@@ -2226,6 +2229,51 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
     assert service_config["buzzer_enabled"] is False
     assert service_config["led_display_enabled"] is False
     assert queued_commands == [("SERVICECFG:1:0:0", device_id)]
+
+
+def test_admin_customer_services_checkbox_cloud_disabled_maps_to_off(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Admin customer checkbox service-management test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-admin-cloud-checkbox-001"
+    upsert_customer_account(
+        device_id,
+        "CloudCheckboxPass2026!",
+        display_name="Checkbox Owner",
+        cloud_feed_enabled=1,
+    )
+    admin_client = make_admin_client()
+
+    queued_commands = []
+    monkeypatch.setattr(
+        server_module,
+        "queue_command",
+        lambda command, target_device=None: queued_commands.append((command, target_device)) or {"queued": True},
+    )
+
+    response = admin_client.post(
+        f"/admin/customers/{device_id}/services",
+        data={
+            "csrf_token": TEST_CSRF_TOKEN,
+            "q": device_id,
+            "source_tank_monitoring_enabled": "1",
+            "ai_analysis_enabled": "1",
+            "cloud_feed_disabled": "1",
+            "buzzer_enabled": "1",
+            "led_display_enabled": "1",
+        },
+    )
+
+    assert response.status_code == 200
+    service_config = server_module.fetch_device_service_config(device_id)
+    account = server_module.fetch_customer_account(device_id)
+
+    assert service_config["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_OFF
+    assert service_config["ai_analysis_enabled"] is True
+    assert service_config["effective_ai_analysis_enabled"] is False
+    assert account is not None
+    assert int(account["cloud_feed_enabled"]) == 0
+    assert queued_commands == [("SERVICECFG:1:1:1", device_id)]
 
 
 def test_service_config_prioritizes_cloud_disabled_over_saved_ai_preference():

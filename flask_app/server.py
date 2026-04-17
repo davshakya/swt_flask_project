@@ -6965,11 +6965,27 @@ def admin_customer_services(device_id):
     if not normalized_device_id:
         error = "Choose a valid device before updating services."
     else:
+        ai_analysis_enabled = "ai_analysis_enabled" in request.form
+        cloud_feed_mode = request.form.get("cloud_feed_mode")
+        if cloud_feed_mode not in {
+            DEVICE_SERVICE_CLOUD_FEED_OFF,
+            DEVICE_SERVICE_CLOUD_FEED_BASIC,
+            DEVICE_SERVICE_CLOUD_FEED_FULL,
+        }:
+            cloud_feed_mode = (
+                DEVICE_SERVICE_CLOUD_FEED_OFF
+                if "cloud_feed_disabled" in request.form
+                else (
+                    DEVICE_SERVICE_CLOUD_FEED_FULL
+                    if ai_analysis_enabled
+                    else DEVICE_SERVICE_CLOUD_FEED_BASIC
+                )
+            )
         updated_config = upsert_device_service_config(
             normalized_device_id,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            ai_analysis_enabled=("ai_analysis_enabled" in request.form),
-            cloud_feed_mode=request.form.get("cloud_feed_mode"),
+            ai_analysis_enabled=ai_analysis_enabled,
+            cloud_feed_mode=cloud_feed_mode,
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
         )
