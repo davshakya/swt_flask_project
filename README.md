@@ -4,6 +4,15 @@ This repository contains the Flask backend for the Smart Water Tank system. It r
 
 This backend is only one part of the wider Smart Water Tank stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
 
+## Workspace Context
+
+Within the wider workspace:
+
+- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
+- [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
+- [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
+- [`tests/virtual_devices/README.md`](tests/virtual_devices/README.md) explains the virtual MCU fleet used for local backend testing
+
 ## What This Project Includes
 
 - Device telemetry ingestion through `POST /status`
@@ -27,11 +36,14 @@ This backend is only one part of the wider Smart Water Tank stack. The shared `d
 | `flask_app/.env.example` | Example backend environment file |
 | `device.env.example` | Example shared device identity/settings file |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
+| `gunicorn.conf.py` | Root wrapper that loads `flask_app/gunicorn.conf.py` |
 | `render.yaml` | Render deployment definition |
 | `Procfile` | Procfile for gunicorn-based platforms |
+| `Flask_deployment_README.md` | cPanel / Passenger deployment guide |
 | `scripts/` | Operational and data utility scripts |
 | `docs/` | Production rollout and support guidance |
 | `data/` | Default local SQLite database location |
+| `tests/` | Pytest suite, startup/env parsing checks, ML tests, and virtual device fixtures |
 
 ## Runtime Flow
 
@@ -267,6 +279,26 @@ python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-ho
 
 If the artifact is missing, `/ml/predict` returns an error explaining how to train it.
 
+## Testing
+
+The backend is covered by pytest-based integration and utility tests under `tests/`.
+
+Run the main suite from the project root:
+
+```powershell
+pytest
+```
+
+Useful focused runs:
+
+```powershell
+pytest tests/test_ui_flask_server.py
+pytest tests/test_startup_env_parsing.py tests/test_virtual_device_env.py
+pytest tests/test_ml_training.py
+```
+
+For end-to-end local exercising, pair Flask with the virtual device runner documented in [`tests/virtual_devices/README.md`](tests/virtual_devices/README.md).
+
 ## Utility Scripts
 
 ### Train the forecast model
@@ -414,6 +446,7 @@ For rollout and support work, see:
 
 - [`docs/PRODUCTION_READINESS.md`](docs/PRODUCTION_READINESS.md)
 - [`docs/INSTALLER_SUPPORT_RUNBOOK.md`](docs/INSTALLER_SUPPORT_RUNBOOK.md)
+- [`Flask_deployment_README.md`](Flask_deployment_README.md)
 
 ## Troubleshooting
 
@@ -432,3 +465,9 @@ For rollout and support work, see:
 5. Start the server and sign in at `/login/admin`.
 6. Confirm `/health` and `/admin/db-summary` look correct.
 7. Send one test telemetry payload from a device and verify it appears in `/last`.
+
+## Related Workspace Projects
+
+- Workspace overview: [`../README.md`](../README.md)
+- Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
+- Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)

@@ -1,49 +1,76 @@
-Place one `.env` file per virtual device in this directory.
+# Virtual Device Fleet Directory
 
-Examples:
+This directory holds one `.env` file per emulated MCU used by the Flask-side virtual device runner.
+
+The runner documented in [`../../README.md`](../../README.md) and implemented by `scripts/run_virtual_devices.py` uses these files to simulate:
+
+- telemetry posts to `/status`
+- command polling from `/device/command`
+- command acknowledgements to `/device/command/ack`
+- source tank and relay connectivity behavior
+
+## File Layout
+
+Recommended hand-managed files:
 
 - `device-001.env`
 - `device-002.env`
 - `device-003.env`
 
-When you run:
+Starter templates:
+
+- `device-template.env.example`
+- `../virtual_device.env.example` for legacy single-device fallback mode
+
+Generated batches are usually written under `generated/`.
+
+## Discovery Rules
+
+Default runner behavior:
+
+1. look in `tests/virtual_devices/generated/`
+2. if nothing is selected there, look in `tests/virtual_devices/`
+3. start one emulator instance per `.env` file discovered
+
+You can override discovery with:
 
 ```powershell
-python scripts/run_virtual_devices.py
+python scripts/run_virtual_devices.py --env-dir tests/virtual_devices
+python scripts/run_virtual_devices.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
 ```
 
-the script checks `generated/` first, then this directory, and starts one emulator instance per `.env` file it finds.
+If you pass explicit single-device CLI flags such as `--device-id` or `--device-key`, the runner switches back to classic single-device mode instead of scanning this folder.
 
-Use [`device-template.env.example`](device-template.env.example) as the starting point for additional devices.
+## Typical Workflows
 
-The virtual-device runner stays local by default: it uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, then `http://127.0.0.1:8000/`. It does not fall back to `SWT_CLOUD_BASE_URL`.
-
-For automatic batch generation without starting the emulators yet, run:
+### Generate a fleet without starting it
 
 ```powershell
 python scripts/generate_virtual_device_envs.py --base-url http://127.0.0.1:8000/ --device_count 10
 ```
 
-That command writes generated env files under `generated/`.
-
-To feed live data from those generated devices, run:
+### Run the discovered fleet
 
 ```powershell
 python scripts/run_virtual_devices.py
 ```
 
-If you want to force this directory instead of `generated/`, pass:
-
-```powershell
-python scripts/run_virtual_devices.py --env-dir tests/virtual_devices
-```
-
-If you deleted those device IDs from the local admin page earlier, generating or running them will restore them to the local admin device list.
-
-If you still want the old one-step behavior, you can keep using:
+### Generate and run in one step
 
 ```powershell
 python scripts/run_virtual_devices.py --base-url http://127.0.0.1:8000/ --device_count 10
 ```
 
-Tank speed note: set `SWT_VIRTUAL_DEVICE_TIME_SCALE` in `tests/virtual_device.env` or a per-device `.env` file to make the emulator fill and drain faster or slower without changing telemetry timing.
+## Integration Notes
+
+- Keep Flask on `SWT_DEVICE_SOURCE_MODE=virtual` when you want the virtual fleet to be the active data source.
+- Local Flask development usually auto-registers IDs from these env files when `SEED_VIRTUAL_DEVICE_ENVS=true`.
+- Render/cloud deployments default to ignoring and purging these repo-scoped virtual-device records on boot.
+- The runner stays local by default: it uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, then `http://127.0.0.1:8000/`. It does not fall back to `SWT_CLOUD_BASE_URL`.
+- Use `SWT_VIRTUAL_DEVICE_TIME_SCALE` in a shared or per-device env file if you want the tank simulation to evolve faster than real time.
+
+## Related Files
+
+- [`../../README.md`](../../README.md)
+- [`device-template.env.example`](device-template.env.example)
+- [`../virtual_device.env.example`](../virtual_device.env.example)

@@ -14,6 +14,11 @@
 #     sys.modules[__name__] = flask_server
 
 
+import sys
+
 from flask_app import server as flask_server
 
 app = flask_server.app
+
+# Keep the root compatibility module and the real Flask module in sync.
+sys.modules[__name__] = flask_server

@@ -2286,9 +2286,7 @@ def maybe_prune_telemetry_size_cap(force=False):
     }
 
 
-def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
-    pruned = {}
-
+def prune_tank_data_retention(cursor):
     cursor.execute(
         """
         DELETE FROM tank_data
@@ -2296,7 +2294,13 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         """,
         (f"-{DATA_RETENTION_DAYS} day",),
     )
-    pruned["tank_data_retention"] = max(0, int(cursor.rowcount or 0))
+    return max(0, int(cursor.rowcount or 0))
+
+
+def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
+    pruned = {}
+
+    pruned["tank_data_retention"] = prune_tank_data_retention(cursor)
 
     normalized_device_id = normalize_device_id(device_id) or ""
     if latest_row_id is not None and not TELEMETRY_HISTORY_ENABLED:
@@ -3551,6 +3555,22 @@ def default_device_service_config(device_id=None, account=None):
         },
         account=account,
     )
+
+
+def resolve_service_config_device_id(device_id=None, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if normalized_device_id:
+        return normalized_device_id
+    if snapshot:
+        return normalize_device_id(snapshot.get("device_id"))
+    return None
+
+
+def resolve_device_service_config(device_id=None, account=None, snapshot=None):
+    resolved_device_id = resolve_service_config_device_id(device_id, snapshot=snapshot)
+    if not resolved_device_id:
+        return default_device_service_config(device_id, account=account)
+    return fetch_device_service_config(resolved_device_id, account=account)
 
 
 def fetch_device_service_config(device_id, account=None):
@@ -6296,6 +6316,7 @@ def mobile_bootstrap():
     viewer = resolve_mobile_user() or {}
     snapshot = load_dashboard_snapshot(scoped_device_id)
     public_snapshot = strip_ip_address_fields(snapshot)
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
     payload = {
         "snapshot": public_snapshot,
@@ -6303,6 +6324,7 @@ def mobile_bootstrap():
         "events": build_events(event_limit, device_id=scoped_device_id),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
+        "service_config": service_config,
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
@@ -6491,8 +6513,8 @@ def mobile_device_status():
     if response:
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    service_config = fetch_device_service_config(scoped_device_id) if scoped_device_id else None
     snapshot = load_dashboard_snapshot(scoped_device_id)
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     return jsonify({
         "snapshot": strip_ip_address_fields(snapshot),
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
@@ -6943,11 +6965,27 @@ def admin_customer_services(device_id):
     if not normalized_device_id:
         error = "Choose a valid device before updating services."
     else:
+        ai_analysis_enabled = "ai_analysis_enabled" in request.form
+        cloud_feed_mode = request.form.get("cloud_feed_mode")
+        if cloud_feed_mode not in {
+            DEVICE_SERVICE_CLOUD_FEED_OFF,
+            DEVICE_SERVICE_CLOUD_FEED_BASIC,
+            DEVICE_SERVICE_CLOUD_FEED_FULL,
+        }:
+            cloud_feed_mode = (
+                DEVICE_SERVICE_CLOUD_FEED_OFF
+                if "cloud_feed_disabled" in request.form
+                else (
+                    DEVICE_SERVICE_CLOUD_FEED_FULL
+                    if ai_analysis_enabled
+                    else DEVICE_SERVICE_CLOUD_FEED_BASIC
+                )
+            )
         updated_config = upsert_device_service_config(
             normalized_device_id,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            ai_analysis_enabled=("ai_analysis_enabled" in request.form),
-            cloud_feed_mode=request.form.get("cloud_feed_mode"),
+            ai_analysis_enabled=ai_analysis_enabled,
+            cloud_feed_mode=cloud_feed_mode,
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
         )

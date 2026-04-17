@@ -784,6 +784,50 @@ def test_maybe_prune_retained_rows_skips_extra_maintenance_after_size_cap(monkey
     server_module.db_prune_state.update(original_prune_state)
 
 
+def test_prune_tank_data_retention_keeps_only_last_seven_days_per_device():
+    device_ids = (
+        "swt-retention-old-device-001",
+        "swt-retention-old-device-002",
+        "swt-retention-fresh-device-001",
+        "swt-retention-fresh-device-002",
+    )
+    with get_db() as db:
+        db.execute(
+            "DELETE FROM tank_data WHERE device_id IN (?,?,?,?)",
+            device_ids,
+        )
+        db.execute(
+            "INSERT INTO tank_data(device_id, created_at) VALUES (?, datetime('now', '-8 day'))",
+            (device_ids[0],),
+        )
+        db.execute(
+            "INSERT INTO tank_data(device_id, created_at) VALUES (?, datetime('now', '-9 day'))",
+            (device_ids[1],),
+        )
+        db.execute(
+            "INSERT INTO tank_data(device_id, created_at) VALUES (?, datetime('now', '-6 day'))",
+            (device_ids[2],),
+        )
+        db.execute(
+            "INSERT INTO tank_data(device_id, created_at) VALUES (?, datetime('now', '-1 day'))",
+            (device_ids[3],),
+        )
+
+        pruned = server_module.prune_retained_rows(db.cursor())
+        remaining = db.execute(
+            """
+            SELECT device_id
+            FROM tank_data
+            WHERE device_id IN (?,?,?,?)
+            ORDER BY device_id
+            """,
+            device_ids,
+        ).fetchall()
+
+    assert pruned["tank_data_retention"] == 2
+    assert [row["device_id"] for row in remaining] == sorted(device_ids[2:])
+
+
 def test_device_status_accepts_valid_credentials_and_persists_device_metadata():
     device_id = default_test_device_id()
     payload = build_status_payload(
@@ -2134,6 +2178,10 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
     assert "Manage Services" in page_body
     assert 'data-panel-mode="modal"' in page_body
     assert 'class="service-modal-title"' in page_body
+    assert 'name="cloud_feed_disabled"' in page_body
+    assert 'name="cloud_feed_mode"' not in page_body
+    assert "Cloud Feed Without AI" not in page_body
+    assert "Cloud Feed With Full Features" not in page_body
 
     edit_response = admin_client.post(
         f"/admin/customers/{device_id}/edit",
@@ -2161,7 +2209,6 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
             "csrf_token": TEST_CSRF_TOKEN,
             "q": device_id,
             "source_tank_monitoring_enabled": "1",
-            "cloud_feed_mode": "basic",
         },
     )
     assert service_response.status_code == 200
@@ -2178,9 +2225,140 @@ def test_admin_customer_page_can_edit_name_and_manage_services(monkeypatch):
     assert service_config["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_BASIC
     assert service_config["source_tank_monitoring_enabled"] is True
     assert service_config["ai_analysis_enabled"] is False
+    assert service_config["effective_ai_analysis_enabled"] is False
     assert service_config["buzzer_enabled"] is False
     assert service_config["led_display_enabled"] is False
     assert queued_commands == [("SERVICECFG:1:0:0", device_id)]
+
+
+def test_admin_customer_services_checkbox_cloud_disabled_maps_to_off(monkeypatch):
+    if BASE_URL:
+        pytest.skip("Admin customer checkbox service-management test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-admin-cloud-checkbox-001"
+    upsert_customer_account(
+        device_id,
+        "CloudCheckboxPass2026!",
+        display_name="Checkbox Owner",
+        cloud_feed_enabled=1,
+    )
+    admin_client = make_admin_client()
+
+    queued_commands = []
+    monkeypatch.setattr(
+        server_module,
+        "queue_command",
+        lambda command, target_device=None: queued_commands.append((command, target_device)) or {"queued": True},
+    )
+
+    response = admin_client.post(
+        f"/admin/customers/{device_id}/services",
+        data={
+            "csrf_token": TEST_CSRF_TOKEN,
+            "q": device_id,
+            "source_tank_monitoring_enabled": "1",
+            "ai_analysis_enabled": "1",
+            "cloud_feed_disabled": "1",
+            "buzzer_enabled": "1",
+            "led_display_enabled": "1",
+        },
+    )
+
+    assert response.status_code == 200
+    service_config = server_module.fetch_device_service_config(device_id)
+    account = server_module.fetch_customer_account(device_id)
+
+    assert service_config["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_OFF
+    assert service_config["ai_analysis_enabled"] is True
+    assert service_config["effective_ai_analysis_enabled"] is False
+    assert account is not None
+    assert int(account["cloud_feed_enabled"]) == 0
+    assert queued_commands == [("SERVICECFG:1:1:1", device_id)]
+
+
+def test_service_config_prioritizes_cloud_disabled_over_saved_ai_preference():
+    if BASE_URL:
+        pytest.skip("Service-priority test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-cloud-priority-001"
+    upsert_customer_account(
+        device_id,
+        "PriorityCloudPass2026!",
+        display_name="Priority Owner",
+        cloud_feed_enabled=1,
+    )
+
+    server_module.upsert_device_service_config(
+        device_id,
+        source_tank_monitoring_enabled=True,
+        ai_analysis_enabled=True,
+        cloud_feed_mode=server_module.DEVICE_SERVICE_CLOUD_FEED_OFF,
+        buzzer_enabled=True,
+        led_display_enabled=True,
+    )
+
+    service_config = server_module.fetch_device_service_config(device_id)
+    account = server_module.fetch_customer_account(device_id)
+
+    assert service_config["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_OFF
+    assert service_config["cloud_feed_enabled"] is False
+    assert service_config["ai_analysis_enabled"] is True
+    assert service_config["effective_ai_analysis_enabled"] is False
+    assert account is not None
+    assert int(account["cloud_feed_enabled"]) == 0
+
+
+def test_mobile_bootstrap_returns_resolved_service_config():
+    if BASE_URL:
+        pytest.skip("Mobile bootstrap service-config test is skipped against shared BASE_URL deployments.")
+
+    device_id = default_test_device_id()
+    assert device_id
+    original_config = server_module.fetch_device_service_config(device_id)
+    response = client.post(
+        "/status",
+        json=build_status_payload(
+            device_id=device_id,
+            channel_mode="both",
+            telemetry_service="ON",
+            command_service="ON",
+        ),
+        headers=device_headers(device_id),
+    )
+    assert response.status_code == 200
+
+    try:
+        server_module.upsert_device_service_config(
+            device_id,
+            source_tank_monitoring_enabled=True,
+            ai_analysis_enabled=False,
+            cloud_feed_mode=server_module.DEVICE_SERVICE_CLOUD_FEED_BASIC,
+            buzzer_enabled=False,
+            led_display_enabled=True,
+        )
+
+        bootstrap = client.get(
+            "/api/mobile/bootstrap",
+            query_string={"device_id": device_id},
+            headers=mobile_auth_headers(),
+        )
+
+        assert bootstrap.status_code == 200
+        payload = bootstrap.get_json()
+        assert payload["service_config"]["device_id"] == device_id
+        assert payload["service_config"]["cloud_feed_enabled"] is True
+        assert payload["service_config"]["cloud_feed_mode"] == server_module.DEVICE_SERVICE_CLOUD_FEED_BASIC
+        assert payload["service_config"]["effective_ai_analysis_enabled"] is False
+        assert payload["service_config"]["buzzer_enabled"] is False
+    finally:
+        server_module.upsert_device_service_config(
+            device_id,
+            source_tank_monitoring_enabled=original_config["source_tank_monitoring_enabled"],
+            ai_analysis_enabled=original_config["ai_analysis_enabled"],
+            cloud_feed_mode=original_config["cloud_feed_mode"],
+            buzzer_enabled=original_config["buzzer_enabled"],
+            led_display_enabled=original_config["led_display_enabled"],
+        )
 
 
 def test_customer_dashboard_shows_cloud_feed_disabled_state():
@@ -2247,6 +2425,38 @@ def test_mobile_last_blocks_when_cloud_feed_is_disabled():
     payload = response.get_json()
     assert payload["cloud_feed_enabled"] is False
     assert "Cloud feed is disabled" in payload["error"]
+
+
+def test_mobile_analytics_blocks_when_ai_is_disabled():
+    if BASE_URL:
+        pytest.skip("Mobile AI-disabled route test is skipped against shared BASE_URL deployments.")
+
+    device_id = "swt-ai-disabled-mobile-001"
+    upsert_customer_account(
+        device_id,
+        "CustomerAIDisabledPass2026!",
+        display_name="AI Disabled Owner",
+        cloud_feed_enabled=1,
+    )
+    server_module.upsert_device_service_config(
+        device_id,
+        source_tank_monitoring_enabled=True,
+        ai_analysis_enabled=False,
+        cloud_feed_mode=server_module.DEVICE_SERVICE_CLOUD_FEED_BASIC,
+        buzzer_enabled=True,
+        led_display_enabled=True,
+    )
+
+    response = client.get(
+        "/api/mobile/analytics",
+        query_string={"device_id": device_id},
+        headers=mobile_auth_headers(role="customer", username=device_id, device_id=device_id),
+    )
+
+    assert response.status_code == 403
+    payload = response.get_json()
+    assert payload["ai_analysis_enabled"] is False
+    assert "AI analysis is disabled" in payload["error"]
 
 
 def test_admin_customers_page_shows_server_registered_device_without_telemetry():
