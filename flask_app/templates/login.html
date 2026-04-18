@@ -2081,7 +2081,7 @@ inset:0;
 display:none;
 align-items:center;
 justify-content:center;
-padding:18px;
+padding:14px;
 z-index:30;
 }
 .modal.is-open{display:flex}
@@ -2093,11 +2093,11 @@ backdrop-filter:blur(6px);
 }
 .modal-panel{
 position:relative;
-width:min(620px,100%);
-max-height:min(88vh,760px);
+width:min(500px,100%);
+max-height:min(82vh,620px);
 overflow:auto;
-padding:18px 18px 16px;
-border-radius:24px;
+padding:14px 14px 12px;
+border-radius:20px;
 background:linear-gradient(180deg,var(--surface-dark),rgba(10,31,39,.98));
 border:1px solid rgba(150,207,218,.12);
 box-shadow:0 32px 80px rgba(0,0,0,.32);
@@ -2105,57 +2105,57 @@ color:#eefcff;
 }
 .modal-close{
 position:absolute;
-top:14px;
-right:14px;
-width:38px;
-height:38px;
-border-radius:12px;
+top:10px;
+right:10px;
+width:34px;
+height:34px;
+border-radius:10px;
 border:1px solid rgba(150,207,218,.18);
 background:rgba(255,255,255,.06);
 color:#eefcff;
 cursor:pointer;
-font-size:22px;
+font-size:20px;
 line-height:1;
 }
 .modal-panel .eyebrow{
-padding:7px 12px;
+padding:6px 10px;
 font-size:10px;
 letter-spacing:.16em;
 }
 .modal-header h2{
-margin:12px 0 6px;
-font-size:clamp(1.65rem,2.5vw,2.15rem);
+margin:10px 0 4px;
+font-size:clamp(1.4rem,2.1vw,1.8rem);
 line-height:1.04;
 letter-spacing:-.04em;
 }
 .modal-header p{
 margin:0;
-font-size:15px;
-line-height:1.55;
+font-size:13px;
+line-height:1.45;
 color:#a9c3ca;
-max-width:44ch;
+max-width:34ch;
 }
 .modal-banners{
 display:grid;
-gap:10px;
-margin-top:14px;
+gap:8px;
+margin-top:10px;
 }
 .login-toggle{
 display:grid;
 grid-template-columns:repeat(2,minmax(0,1fr));
-gap:10px;
-margin-top:14px;
+gap:8px;
+margin-top:10px;
 }
 .toggle-button{
-min-height:46px;
-padding:10px 12px;
-border-radius:16px;
+min-height:40px;
+padding:8px 10px;
+border-radius:14px;
 border:1px solid rgba(150,207,218,.14);
 background:rgba(255,255,255,.04);
 color:#d6eef2;
 cursor:pointer;
 font-weight:900;
-font-size:15px;
+font-size:14px;
 }
 .toggle-button.is-active{
 background:linear-gradient(135deg,rgba(60,208,230,.2),rgba(20,148,174,.28));
@@ -2164,69 +2164,51 @@ box-shadow:0 0 0 3px rgba(60,208,230,.1);
 }
 .login-pane{
 display:none;
-margin-top:14px;
+margin-top:10px;
 }
 .login-pane.is-active{display:block}
 .login-pane h3{
-margin:0 0 6px;
-font-size:19px;
+margin:0 0 4px;
+font-size:17px;
 line-height:1.1;
 letter-spacing:-.03em;
 }
 .login-pane p{
 margin:0;
-font-size:15px;
-line-height:1.52;
+font-size:13px;
+line-height:1.42;
 color:#b7d1d6;
 }
 .login-help{
-margin-top:12px;
-padding:12px 14px;
-border-radius:16px;
-background:rgba(255,255,255,.06);
-border:1px solid rgba(150,207,218,.12);
-}
-.login-help strong{
-display:block;
-margin-bottom:6px;
-font-size:11px;
-letter-spacing:.14em;
-text-transform:uppercase;
-color:#abf3ff;
+margin-top:8px;
+padding:8px 10px;
+border-radius:12px;
+background:rgba(255,255,255,.04);
+border:1px solid rgba(150,207,218,.1);
+font-size:12px;
+line-height:1.4;
+color:#cde8ee;
 }
 .modal-panel .portal-form{
-gap:10px;
-margin-top:12px;
+gap:8px;
+margin-top:10px;
 }
 .modal-panel .portal-form input{
-padding:11px 13px;
-border-radius:14px;
-font-size:15px;
+padding:10px 12px;
+border-radius:12px;
+font-size:14px;
 }
 .modal-panel .group{
-gap:6px;
+gap:4px;
 }
 .modal-panel .group label{
-font-size:10px;
+font-size:9px;
 letter-spacing:.15em;
 }
 .modal-panel .button{
-min-height:44px;
-padding:11px 16px;
-border-radius:14px;
-}
-.modal-footer{
-margin-top:14px;
-padding-top:14px;
-border-top:1px solid rgba(150,207,218,.12);
-font-size:13px;
-line-height:1.55;
-color:#b7d1d6;
-}
-.modal-footer a{
-font-weight:900;
-text-decoration:none;
-color:#d4fbff;
+min-height:40px;
+padding:10px 14px;
+border-radius:12px;
 }
 .enquiry-layout > .promo-card{
 grid-column:1 / -1;
@@ -3504,11 +3486,8 @@ padding:12px;
 
         <section class="login-pane {% if login_mode != 'admin' %}is-active{% endif %}" data-login-pane="customer">
             <h3>Customer Login</h3>
-            <p>Use your tank device ID and password to open your own dashboard, check tank level, and view only your registered system.</p>
-            <div class="login-help">
-                <strong>How to sign in</strong>
-                <p>Use your registered <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</p>
-            </div>
+            <p>Use your registered tank credentials.</p>
+            <div class="login-help">Use <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</div>
             <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
@@ -3525,11 +3504,8 @@ padding:12px;
 
         <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">
             <h3>Admin Login</h3>
-            <p>Use the admin account to register customers, manage credentials, review device activity and support installations from the service dashboard.</p>
-            <div class="login-help">
-                <strong>Admin access</strong>
-                <p>Admin access is for installers and service staff managing customer accounts, device support and dashboard operations.</p>
-            </div>
+            <p>For installer and service access.</p>
+            <div class="login-help">Use your admin username and password.</div>
             <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
@@ -3543,8 +3519,6 @@ padding:12px;
                 <button class="button" type="submit">Open Admin Dashboard</button>
             </form>
         </section>
-
-        <div class="modal-footer">Need help accessing your account? Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</div>
     </div>
 </div>
 
@@ -3564,11 +3538,11 @@ const shouldAutoOpenLogin = {{ "true" if error or request.path != url_for('dashb
 const roleContent = {
     customer: {
         title: "Customer Login",
-        description: "Customers sign in here with their tank device ID and password to view only their own tank dashboard.",
+        description: "Sign in with your tank device ID and password.",
     },
     admin: {
         title: "Admin Login",
-        description: "Admin signs in here to register customers, manage credentials, and control devices.",
+        description: "Sign in with your admin username and password.",
     },
 };
 
