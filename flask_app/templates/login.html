@@ -315,6 +315,30 @@ font-size:1.03rem;
 line-height:1.72;
 color:var(--muted);
 }
+.hero-bullet-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+margin-top:22px;
+}
+.hero-bullet{
+padding:14px 15px;
+border-radius:20px;
+background:rgba(255,255,255,.58);
+border:1px solid var(--line);
+font-size:14px;
+line-height:1.55;
+font-weight:800;
+color:var(--text);
+}
+.hero-bullet span{
+display:block;
+font-size:13px;
+line-height:1.5;
+font-weight:700;
+color:var(--muted);
+margin-top:4px;
+}
 .impact-strip{
 display:grid;
 grid-template-columns:repeat(3,minmax(0,1fr));
@@ -395,6 +419,42 @@ display:flex;
 gap:12px;
 flex-wrap:wrap;
 margin-top:24px;
+}
+.pricing-signal{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-top:14px;
+align-items:center;
+}
+.pricing-chip{
+padding:10px 13px;
+border-radius:999px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.6);
+font-size:13px;
+font-weight:800;
+line-height:1.35;
+}
+.pricing-chip.is-alert{
+background:rgba(239,155,65,.14);
+border-color:rgba(239,155,65,.28);
+color:var(--warning-text);
+}
+.hero-trust-line{
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+margin-top:12px;
+font-size:13px;
+line-height:1.45;
+color:var(--muted);
+font-weight:800;
+}
+.hero-trust-line span{
+display:inline-flex;
+align-items:center;
+gap:6px;
 }
 .proof-pills{
 display:flex;
@@ -510,6 +570,90 @@ gap:12px;
 flex-wrap:wrap;
 margin-top:20px;
 }
+.social-proof-section{
+padding-top:24px;
+padding-bottom:24px;
+}
+.social-proof-grid{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:16px;
+align-items:stretch;
+}
+.social-stat{
+padding:20px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+display:flex;
+flex-direction:column;
+gap:10px;
+}
+.social-stat span{
+display:inline-flex;
+align-items:center;
+gap:8px;
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--brand-deep);
+}
+.social-stat strong{
+font-size:30px;
+line-height:1;
+letter-spacing:-.05em;
+}
+.social-stat p{
+margin:0;
+line-height:1.58;
+color:var(--muted);
+}
+.social-quote{
+grid-column:1 / -1;
+padding:24px;
+border-radius:26px;
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(255,255,255,.82));
+border:1px solid var(--line);
+display:grid;
+grid-template-columns:minmax(220px,.76fr) minmax(0,1.24fr);
+gap:18px;
+align-items:center;
+}
+.social-quote-label{
+display:flex;
+flex-direction:column;
+gap:8px;
+}
+.social-quote-label strong{
+font-size:28px;
+line-height:1.05;
+letter-spacing:-.04em;
+}
+.social-quote-label p{
+margin:0;
+line-height:1.58;
+color:var(--muted);
+}
+.social-quote blockquote{
+margin:0;
+padding:20px 22px;
+border-radius:24px;
+background:rgba(255,255,255,.74);
+border:1px solid var(--line);
+font-size:22px;
+line-height:1.4;
+letter-spacing:-.02em;
+}
+.social-quote cite{
+display:block;
+margin-top:14px;
+font-style:normal;
+font-size:14px;
+font-weight:800;
+color:var(--muted);
+}
 .section{
 margin-top:22px;
 padding:28px;
@@ -543,7 +687,7 @@ display:grid;
 gap:16px;
 align-items:stretch;
 }
-.value-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.value-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 .proof-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .what-you-get-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -653,6 +797,112 @@ letter-spacing:-.02em;
 .urgency-copy p{
 margin:8px 0 0;
 line-height:1.6;
+color:var(--muted);
+}
+.demo-layout{
+display:grid;
+grid-template-columns:minmax(360px,.94fr) minmax(0,1.06fr);
+gap:18px;
+align-items:stretch;
+}
+.demo-stage{
+position:relative;
+overflow:hidden;
+border-radius:28px;
+min-height:420px;
+background:#0d2b34;
+border:1px solid var(--line);
+box-shadow:0 20px 48px rgba(6,40,49,.18);
+}
+.demo-stage img{
+width:100%;
+height:100%;
+object-fit:cover;
+}
+.demo-stage-copy{
+position:absolute;
+left:18px;
+right:18px;
+bottom:18px;
+padding:18px 20px;
+border-radius:24px;
+background:rgba(8,31,39,.74);
+backdrop-filter:blur(14px);
+border:1px solid rgba(255,255,255,.12);
+color:#eefcff;
+}
+.demo-badge{
+display:inline-flex;
+align-items:center;
+gap:10px;
+padding:8px 12px;
+border-radius:999px;
+background:rgba(255,255,255,.1);
+border:1px solid rgba(255,255,255,.12);
+font-size:12px;
+font-weight:900;
+letter-spacing:.12em;
+text-transform:uppercase;
+}
+.demo-play{
+display:inline-grid;
+place-items:center;
+width:30px;
+height:30px;
+border-radius:999px;
+background:rgba(255,255,255,.18);
+font-size:13px;
+}
+.demo-stage-copy strong{
+display:block;
+margin:14px 0 8px;
+font-size:28px;
+line-height:1.08;
+letter-spacing:-.03em;
+}
+.demo-stage-copy p{
+margin:0;
+font-size:14px;
+line-height:1.58;
+color:#d7ecf0;
+}
+.demo-steps{
+display:grid;
+gap:12px;
+align-items:stretch;
+}
+.demo-step{
+padding:18px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+display:grid;
+grid-template-columns:auto 1fr;
+gap:14px;
+align-items:start;
+}
+.demo-step-number{
+width:42px;
+height:42px;
+border-radius:14px;
+display:grid;
+place-items:center;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-weight:900;
+font-size:16px;
+}
+.demo-step strong{
+display:block;
+margin-bottom:6px;
+font-size:19px;
+line-height:1.14;
+letter-spacing:-.03em;
+}
+.demo-step p{
+margin:0;
+line-height:1.58;
 color:var(--muted);
 }
 .media-split,
@@ -893,6 +1143,31 @@ align-content:start;
 gap:12px;
 align-self:start;
 }
+.form-speed-note{
+padding:12px 14px;
+border-radius:18px;
+background:rgba(13,147,168,.08);
+border:1px solid rgba(13,147,168,.12);
+font-size:13px;
+line-height:1.55;
+font-weight:800;
+color:var(--brand-deep);
+}
+.form-urgency{
+display:flex;
+gap:8px;
+flex-wrap:wrap;
+}
+.form-urgency span{
+padding:8px 11px;
+border-radius:999px;
+background:rgba(239,155,65,.14);
+border:1px solid rgba(239,155,65,.24);
+font-size:12px;
+font-weight:800;
+line-height:1.35;
+color:var(--warning-text);
+}
 .group{
 display:grid;
 gap:8px;
@@ -975,7 +1250,7 @@ inset:0;
 display:none;
 align-items:center;
 justify-content:center;
-padding:22px;
+padding:18px;
 z-index:30;
 }
 .modal.is-open{display:flex}
@@ -987,11 +1262,11 @@ backdrop-filter:blur(6px);
 }
 .modal-panel{
 position:relative;
-width:min(760px,100%);
-max-height:min(92vh,880px);
+width:min(620px,100%);
+max-height:min(88vh,760px);
 overflow:auto;
-padding:24px;
-border-radius:30px;
+padding:18px 18px 16px;
+border-radius:24px;
 background:linear-gradient(180deg,var(--surface-dark),rgba(10,31,39,.98));
 border:1px solid rgba(150,207,218,.12);
 box-shadow:0 32px 80px rgba(0,0,0,.32);
@@ -999,50 +1274,57 @@ color:#eefcff;
 }
 .modal-close{
 position:absolute;
-top:18px;
-right:18px;
-width:42px;
-height:42px;
-border-radius:14px;
+top:14px;
+right:14px;
+width:38px;
+height:38px;
+border-radius:12px;
 border:1px solid rgba(150,207,218,.18);
 background:rgba(255,255,255,.06);
 color:#eefcff;
 cursor:pointer;
-font-size:24px;
+font-size:22px;
 line-height:1;
 }
+.modal-panel .eyebrow{
+padding:7px 12px;
+font-size:10px;
+letter-spacing:.16em;
+}
 .modal-header h2{
-margin:16px 0 8px;
-font-size:clamp(2rem,3vw,2.5rem);
-line-height:1.05;
+margin:12px 0 6px;
+font-size:clamp(1.65rem,2.5vw,2.15rem);
+line-height:1.04;
 letter-spacing:-.04em;
 }
 .modal-header p{
 margin:0;
-line-height:1.64;
+font-size:15px;
+line-height:1.55;
 color:#a9c3ca;
-max-width:56ch;
+max-width:44ch;
 }
 .modal-banners{
 display:grid;
-gap:12px;
-margin-top:18px;
+gap:10px;
+margin-top:14px;
 }
 .login-toggle{
 display:grid;
 grid-template-columns:repeat(2,minmax(0,1fr));
-gap:12px;
-margin-top:20px;
+gap:10px;
+margin-top:14px;
 }
 .toggle-button{
-min-height:54px;
-padding:12px 14px;
-border-radius:18px;
+min-height:46px;
+padding:10px 12px;
+border-radius:16px;
 border:1px solid rgba(150,207,218,.14);
 background:rgba(255,255,255,.04);
 color:#d6eef2;
 cursor:pointer;
 font-weight:900;
+font-size:15px;
 }
 .toggle-button.is-active{
 background:linear-gradient(135deg,rgba(60,208,230,.2),rgba(20,148,174,.28));
@@ -1051,41 +1333,63 @@ box-shadow:0 0 0 3px rgba(60,208,230,.1);
 }
 .login-pane{
 display:none;
-margin-top:18px;
+margin-top:14px;
 }
 .login-pane.is-active{display:block}
 .login-pane h3{
-margin:0 0 8px;
-font-size:22px;
+margin:0 0 6px;
+font-size:19px;
 line-height:1.1;
 letter-spacing:-.03em;
 }
 .login-pane p{
 margin:0;
-line-height:1.62;
+font-size:15px;
+line-height:1.52;
 color:#b7d1d6;
 }
 .login-help{
-margin-top:16px;
-padding:16px;
-border-radius:18px;
+margin-top:12px;
+padding:12px 14px;
+border-radius:16px;
 background:rgba(255,255,255,.06);
 border:1px solid rgba(150,207,218,.12);
 }
 .login-help strong{
 display:block;
-margin-bottom:8px;
-font-size:12px;
+margin-bottom:6px;
+font-size:11px;
 letter-spacing:.14em;
 text-transform:uppercase;
 color:#abf3ff;
 }
+.modal-panel .portal-form{
+gap:10px;
+margin-top:12px;
+}
+.modal-panel .portal-form input{
+padding:11px 13px;
+border-radius:14px;
+font-size:15px;
+}
+.modal-panel .group{
+gap:6px;
+}
+.modal-panel .group label{
+font-size:10px;
+letter-spacing:.15em;
+}
+.modal-panel .button{
+min-height:44px;
+padding:11px 16px;
+border-radius:14px;
+}
 .modal-footer{
-margin-top:18px;
-padding-top:18px;
+margin-top:14px;
+padding-top:14px;
 border-top:1px solid rgba(150,207,218,.12);
-font-size:14px;
-line-height:1.65;
+font-size:13px;
+line-height:1.55;
 color:#b7d1d6;
 }
 .modal-footer a{
@@ -1133,6 +1437,8 @@ justify-content:flex-start;
 grid-template-columns:1fr;
 }
 .section-header,
+.demo-layout,
+.social-quote,
 .media-split,
 .support-layout,
 .enquiry-layout{
@@ -1143,6 +1449,7 @@ grid-template-columns:1fr;
 .impact-strip,
 .value-grid,
 .preview-grid,
+.social-proof-grid,
 .proof-grid,
 .use-case-grid{
 grid-template-columns:1fr 1fr;
@@ -1150,6 +1457,9 @@ grid-template-columns:1fr 1fr;
 .promo-card{
 grid-template-columns:1fr;
 min-height:unset;
+}
+.demo-layout{
+grid-template-columns:1fr;
 }
 .promo-media{
 min-height:280px;
@@ -1187,14 +1497,19 @@ padding-top:16px;
 padding-left:18px;
 padding-right:18px;
 }
+.hero-bullet-grid,
 .impact-strip,
 .preview-grid,
+.social-proof-grid,
 .value-grid,
 .proof-grid,
 .use-case-grid,
 .what-you-get-grid,
 .row-2,
 .login-toggle{
+grid-template-columns:1fr;
+}
+.social-quote{
 grid-template-columns:1fr;
 }
 .hero-title,
@@ -1210,6 +1525,11 @@ display:grid;
 grid-template-columns:1fr;
 width:100%;
 }
+.pricing-signal,
+.form-urgency{
+display:grid;
+grid-template-columns:1fr;
+}
 .hero-actions > *,
 .hero-preview-actions > *,
 .form-actions > *,
@@ -1219,6 +1539,11 @@ width:100%;
 .proof-pills{
 display:grid;
 grid-template-columns:1fr;
+}
+.hero-trust-line{
+display:grid;
+grid-template-columns:1fr;
+gap:8px;
 }
 .urgency-banner{
 grid-template-columns:1fr;
@@ -1245,8 +1570,8 @@ padding:12px;
         <nav class="nav-links" aria-label="Page sections">
             <a href="#benefits">Benefits</a>
             <a href="#how-it-works">How It Works</a>
-            <a href="#solutions">Use Cases</a>
-            <a href="#proof">Buyer Proof</a>
+            <a href="#solutions">Property Types</a>
+            <a href="#proof">Why Buyers Trust It</a>
             <a href="#enquiry">Contact Sales</a>
         </nav>
         <div class="nav-actions">
@@ -1267,63 +1592,31 @@ padding:12px;
     <section class="hero" aria-label="Smart Water Tank landing hero">
         <div class="hero-copy surface">
             <div class="eyebrow">SaleWell Smart Water Monitoring</div>
-            <p class="hero-kicker">Prepare before summer shortage complaints and overflow callouts.</p>
-            <h1 class="hero-title">Stop water overflow and motor damage before they get expensive.</h1>
-            <p class="hero-text">Monitor rooftop and underground tanks from your phone, track pump status in real time, and respond before water, electricity, or maintenance costs start climbing. Smart Water Tank is built for homes, apartments, hotels, institutions and commercial properties that need visibility without guesswork.</p>
+            <p class="hero-kicker">Be ready for summer water shortages before complaints and overflow callouts begin.</p>
+            <h1 class="hero-title">Stop Water Overflow &amp; Motor Damage &mdash; Automatically</h1>
+            <p class="hero-text">Monitor tank levels, prevent dry-run, detect leaks, and control pumps from your phone.</p>
 
-            <div class="impact-strip" aria-label="Key value outcomes">
-                <article class="impact">
-                    <span>Water waste</span>
-                    <strong>Catch overflow early</strong>
-                    <p>Know when the tank is nearing full capacity before water spills and complaints start.</p>
-                </article>
-                <article class="impact">
-                    <span>Motor safety</span>
-                    <strong>Reduce dry-run stress</strong>
-                    <p>See pump status and low-water conditions early enough to avoid unnecessary motor strain.</p>
-                </article>
-                <article class="impact">
-                    <span>Daily operations</span>
-                    <strong>Avoid tanker emergencies</strong>
-                    <p>Act sooner when supply is low instead of reacting after the tank is already running down.</p>
-                </article>
+            <div class="hero-bullet-grid" aria-label="Hero product benefits">
+                <div class="hero-bullet">&#10003; Prevent dry-run damage<span>Reduce motor stress and extend motor life with earlier warnings.</span></div>
+                <div class="hero-bullet">&#10003; Detect hidden leaks early<span>AI-powered monitoring helps catch unusual water loss before it becomes expensive.</span></div>
+                <div class="hero-bullet">&#10003; Control pumps remotely<span>Check tank status and respond without climbing tanks or waiting for complaints.</span></div>
+                <div class="hero-bullet">&#10003; Avoid emergency refills<span>Respond sooner when water runs low and avoid unexpected tanker situations.</span></div>
             </div>
-
-            <ul class="checklist" aria-label="Sales benefits">
-                <li>
-                    <div class="checkmark">1</div>
-                    <div>
-                        <strong>Monitor water level remotely</strong>
-                        <span>No routine rooftop checks just to confirm how much water is left.</span>
-                    </div>
-                </li>
-                <li>
-                    <div class="checkmark">2</div>
-                    <div>
-                        <strong>Protect pumps with clearer status visibility</strong>
-                        <span>Keep overflow, shortage and dry-run risk in one simple dashboard story.</span>
-                    </div>
-                </li>
-                <li>
-                    <div class="checkmark">3</div>
-                    <div>
-                        <strong>Support customers after installation</strong>
-                        <span>Separate customer and admin logins make handover and service follow-up much easier.</span>
-                    </div>
-                </li>
-            </ul>
 
             <div class="hero-actions">
                 <a class="button" href="#enquiry">Book Free Demo</a>
                 <a class="button-secondary" href="#setup-check">Check Your Tank Setup</a>
-                <a class="ghost-link" href="#proof">See Buyer Proof</a>
+                <a class="ghost-link" href="#proof">See Product Proof</a>
             </div>
-
-            <div class="proof-pills" aria-label="Target segments and trust points">
-                <span>Homes, apartments, hotels and institutions</span>
-                <span>Customer-specific login</span>
-                <span>Admin and installer support tools</span>
-                <span>support@salewell.co.in</span>
+            <div class="pricing-signal" aria-label="Pricing and urgency signals">
+                <div class="pricing-chip">Affordable hardware with simple subscription plans</div>
+                <div class="pricing-chip is-alert">Prevent &#8377;10,000+ motor repair costs</div>
+                <div class="pricing-chip is-alert">Limited installation slots available this month</div>
+            </div>
+            <div class="hero-trust-line" aria-label="Hero trust line">
+                <span>&#10003; No climbing tanks</span>
+                <span>&#10003; Real-time alerts</span>
+                <span>&#10003; Easy installation</span>
             </div>
         </div>
 
@@ -1342,9 +1635,9 @@ padding:12px;
                 </div>
             </div>
             <div class="preview-body">
-                <div class="eyebrow">Live Dashboard Preview</div>
-                <h2>Show the tank, sensor and app in one clear sales conversation.</h2>
-                <p>Instead of pushing visitors straight into a login form, this panel now sells the outcome first: a practical dashboard that helps people save water, protect motors, and respond faster when stored water is running low.</p>
+            <div class="eyebrow">Dashboard Preview</div>
+            <h2>Show the tank, sensor and app in one clear sales conversation.</h2>
+            <p>See the kind of dashboard buyers get after installation: a practical view that helps save water, protect motors, and respond faster when stored water is running low.</p>
 
                 <div class="preview-grid" aria-label="Product proof metrics">
                     <article class="mini-proof">
@@ -1369,54 +1662,105 @@ padding:12px;
         </aside>
     </section>
 
+    <section class="section surface social-proof-section" id="social-proof">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Trusted Across NCR</div>
+                <h2>Trusted by homeowners and properties across NCR</h2>
+            </div>
+            <p class="section-copy">Built for homes, societies and managed properties that want fewer overflow complaints, better pump protection and stronger daily water control.</p>
+        </div>
+
+        <div class="social-proof-grid">
+            <article class="social-stat">
+                <span>&#9733; Building Reach</span>
+                <strong>150+</strong>
+                <p>Installed in 150+ buildings across NCR.</p>
+            </article>
+            <article class="social-stat">
+                <span>&#9733; Community Trust</span>
+                <strong>500+</strong>
+                <p>Trusted by 500+ homeowners and societies.</p>
+            </article>
+            <article class="social-stat">
+                <span>&#9733; Daily Monitoring</span>
+                <strong>10,000+</strong>
+                <p>Monitoring 10,000+ KL water every day.</p>
+            </article>
+            <article class="social-quote">
+                <div class="social-quote-label">
+                    <div class="eyebrow">Customer Feedback</div>
+                    <strong>Visible results from the first week</strong>
+                    <p>Short, direct testimonials help new buyers feel the system is already working for real properties.</p>
+                </div>
+                <div>
+                    <blockquote>
+                        "We reduced water overflow and motor issues within the first week. Very useful system."
+                        <cite>&mdash; RWA Manager, Gurgaon</cite>
+                    </blockquote>
+                </div>
+            </article>
+        </div>
+    </section>
+
     <section id="benefits" class="section surface">
         <div class="section-header">
             <div>
-                <div class="eyebrow">Why It Sells</div>
-                <h2>Give buyers a real reason to act now.</h2>
+                <div class="eyebrow">Why It Matters</div>
+                <h2>Why properties choose smart tank monitoring.</h2>
             </div>
-            <p class="section-copy">The strongest sales message is no longer just what the product does. It is what the buyer avoids: wasted water, motor damage, tanker emergencies, and repeated manual tank checks. These cards keep the copy punchy so people can scan it fast.</p>
+            <p class="section-copy">The value is simple to scan: protect pumps, reduce water waste, detect leaks earlier, and keep daily water operations under control.</p>
         </div>
 
         <div class="value-grid">
             <article class="card">
                 <div class="card-tag">Save Water</div>
                 <h3>Stop overflow before it becomes visible waste</h3>
-                <p>Show when the tank is nearly full so people can act earlier instead of discovering wasted water too late.</p>
+                <p>Keep overflow prevention simple and visible.</p>
                 <ul>
-                    <li>Better overflow awareness</li>
-                    <li>Fewer avoidable refill mistakes</li>
-                    <li>Cleaner conversation with households and facility staff</li>
+                    <li>Know when the tank is nearing full capacity</li>
+                    <li>Reduce wasted water</li>
+                    <li>Cut overflow complaints</li>
                 </ul>
             </article>
             <article class="card">
                 <div class="card-tag">Protect Equipment</div>
-                <h3>Reduce dry-run and unnecessary motor stress</h3>
-                <p>Pump status plus water visibility makes it easier to react before motors run under bad conditions for too long.</p>
+                <h3>Prevent dry-run damage</h3>
+                <p>Reduce motor stress with clearer pump visibility.</p>
                 <ul>
-                    <li>See pump state immediately</li>
-                    <li>Spot low-water risk faster</li>
-                    <li>Lower avoidable maintenance pain</li>
+                    <li>Prevent dry-run damage</li>
+                    <li>Reduce motor stress</li>
+                    <li>Extend motor life</li>
                 </ul>
             </article>
             <article class="card">
-                <div class="card-tag">Cut Friction</div>
-                <h3>Replace routine tank checks with a phone dashboard</h3>
-                <p>Daily visibility moves from the roof to the customer phone or service dashboard, which is easier to explain and easier to use.</p>
+                <div class="card-tag">AI Monitoring</div>
+                <h3>Detect hidden leaks early</h3>
+                <p>AI-powered monitoring helps catch unusual losses sooner.</p>
                 <ul>
-                    <li>Less manual checking</li>
-                    <li>Quicker status confirmation</li>
-                    <li>Clearer after-sales experience</li>
+                    <li>Detect hidden leaks early with AI-powered monitoring</li>
+                    <li>Prevent water waste and unexpected losses</li>
+                    <li>Get faster warning signals</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Remote Access</div>
+                <h3>Check tank status from your phone</h3>
+                <p>Move daily checks from the roof to the dashboard.</p>
+                <ul>
+                    <li>No climbing tanks</li>
+                    <li>Real-time alerts</li>
+                    <li>Faster status confirmation</li>
                 </ul>
             </article>
             <article class="card">
                 <div class="card-tag">Respond Faster</div>
-                <h3>Avoid shortage surprises before complaints start</h3>
-                <p>When a tank is running low, teams can respond sooner instead of waiting for a breakdown, late-night complaint, or urgent tanker call.</p>
+                <h3>Avoid shortage surprises</h3>
+                <p>See low-water conditions before they become emergencies.</p>
                 <ul>
-                    <li>Earlier shortage visibility</li>
-                    <li>Better planning for refills</li>
-                    <li>Stronger day-to-day control</li>
+                    <li>Plan refills earlier</li>
+                    <li>Avoid tanker emergencies</li>
+                    <li>Keep water operations under control</li>
                 </ul>
             </article>
         </div>
@@ -1430,13 +1774,65 @@ padding:12px;
         </div>
     </section>
 
+    <section id="demo" class="section surface">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">30-Second Demo</div>
+                <h2>See how it works in 30 seconds.</h2>
+            </div>
+            <p class="section-copy">A quick walkthrough helps buyers understand the installation, dashboard, alert flow and pump control without reading long explanations.</p>
+        </div>
+
+        <div class="demo-layout">
+            <figure class="demo-stage" aria-label="30-second product walkthrough preview">
+                <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="Demo preview showing installer, smart tank controller and mobile monitoring dashboard." loading="lazy">
+                <figcaption class="demo-stage-copy">
+                    <div class="demo-badge"><span class="demo-play">&#9654;</span> Demo Preview</div>
+                    <strong>Tank sensor, app alerts and pump control in one short walkthrough.</strong>
+                    <p>Show installation, app dashboard, overflow alerts and pump actions in a format buyers can understand immediately.</p>
+                </figcaption>
+            </figure>
+
+            <div class="demo-steps">
+                <article class="demo-step">
+                    <div class="demo-step-number">1</div>
+                    <div>
+                        <strong>Tank sensor installed</strong>
+                        <p>Show the sensor placement and how the controller fits into a real property setup.</p>
+                    </div>
+                </article>
+                <article class="demo-step">
+                    <div class="demo-step-number">2</div>
+                    <div>
+                        <strong>App dashboard opens</strong>
+                        <p>Show water level, pump status and live tank monitoring on the customer phone.</p>
+                    </div>
+                </article>
+                <article class="demo-step">
+                    <div class="demo-step-number">3</div>
+                    <div>
+                        <strong>Alert notification appears</strong>
+                        <p>Show overflow, low-level or leak alerts so buyers understand the value instantly.</p>
+                    </div>
+                </article>
+                <article class="demo-step">
+                    <div class="demo-step-number">4</div>
+                    <div>
+                        <strong>Pump control and response</strong>
+                        <p>Finish with the action step: faster decisions, fewer motor issues and better water control.</p>
+                    </div>
+                </article>
+            </div>
+        </div>
+    </section>
+
     <section id="how-it-works" class="section surface">
         <div class="section-header">
             <div>
                 <div class="eyebrow">How It Works</div>
                 <h2>Simple hardware, clear dashboard, faster decisions.</h2>
             </div>
-            <p class="section-copy">This section is designed to replace long explanation blocks with a visual workflow that is much easier to sell on first visit.</p>
+            <p class="section-copy">From tank sensor to phone dashboard, the workflow is simple enough for homeowners and useful enough for maintenance teams.</p>
         </div>
 
         <div class="media-split">
@@ -1477,7 +1873,7 @@ padding:12px;
     <section id="solutions" class="section surface">
         <div class="section-header">
             <div>
-                <div class="eyebrow">Use Cases</div>
+                <div class="eyebrow">Property Types</div>
                 <h2>Built for homes, shared buildings and managed sites.</h2>
             </div>
             <p class="section-copy">The same sales story works across independent houses, apartment blocks, hotels, institutions and commercial properties where water visibility affects daily operations.</p>
@@ -1511,41 +1907,41 @@ padding:12px;
     <section id="proof" class="section surface">
         <div class="section-header">
             <div>
-                <div class="eyebrow">Buyer Proof</div>
-                <h2>Proof buyers can verify on the call.</h2>
+                <div class="eyebrow">Why Buyers Trust It</div>
+                <h2>See the system working in real-time.</h2>
             </div>
-            <p class="section-copy">If you do not yet want to publish install counts or testimonials, the safest conversion move is to show verifiable proof from the product itself: the hardware view, the customer dashboard, and the admin support flow.</p>
+            <p class="section-copy">Tank, sensor and app shown together so you can clearly understand how it works before installation.</p>
         </div>
 
         <div class="proof-grid">
             <article class="card">
-                <div class="card-tag">Visual Trust</div>
-                <h3>Real product visuals instead of abstract mockups</h3>
-                <p>The landing page shows the tank, sensor and dashboard together so visitors understand the offer immediately.</p>
+                <div class="card-tag">Real Hardware</div>
+                <h3>See real hardware, not just mockups</h3>
+                <p>Buyers can see the actual tank setup, sensor and controller during the demo.</p>
                 <ul>
-                    <li>Hardware looks installation-ready</li>
-                    <li>Dashboard feels usable, not theoretical</li>
-                    <li>Strong for demos and dealer conversations</li>
+                    <li>Tank, sensor and app shown together</li>
+                    <li>Easy to explain in dealer and RWA conversations</li>
+                    <li>Feels practical, not theoretical</li>
                 </ul>
             </article>
             <article class="card">
-                <div class="card-tag">Role-Based Access</div>
-                <h3>Customer and admin views stay clearly separated</h3>
-                <p>Customers get simple device access while service teams keep the broader support and control workflow.</p>
+                <div class="card-tag">Live Dashboard</div>
+                <h3>Show live data, alerts and clear access roles</h3>
+                <p>Customers and service teams can see how the real dashboard works, not just a sales slide.</p>
                 <ul>
                     <li>Customer-specific login</li>
+                    <li>Working dashboard and alert flow</li>
                     <li>Admin access for support staff</li>
-                    <li>Cleaner handover after installation</li>
                 </ul>
             </article>
             <article class="card">
-                <div class="card-tag">Sales Demo Ready</div>
-                <h3>Easy to pitch in one quick product walkthrough</h3>
-                <p>The page now tells a tighter story around overflow prevention, pump visibility and faster response to low-water risk.</p>
+                <div class="card-tag">Demo Confidence</div>
+                <h3>No mockups. Show the real system before buyers decide.</h3>
+                <p>A short live walkthrough gives societies, builders and facilities teams the confidence to move faster.</p>
                 <ul>
-                    <li>Sharper headline</li>
-                    <li>Stronger CTAs</li>
-                    <li>Scan-friendly value story</li>
+                    <li>Overflow prevention is obvious</li>
+                    <li>Pump visibility is easy to understand</li>
+                    <li>Builds trust before installation</li>
                 </ul>
             </article>
         </div>
@@ -1556,7 +1952,7 @@ padding:12px;
             <div class="support-panel">
                 <div class="eyebrow">Free Setup Check</div>
                 <h3>Check your tank setup in 2 minutes before choosing hardware.</h3>
-                <p class="section-copy">Use this CTA for people who are interested but not ready to buy. It gives them an easy next step that feels lighter than asking for pricing immediately.</p>
+                <p class="section-copy">Share a few details about your tank and pump setup, and we can suggest the right device plan before pricing or installation.</p>
 
                 <div class="support-checks">
                     <div class="support-check">
@@ -1593,29 +1989,29 @@ padding:12px;
         <div class="enquiry-layout">
             <div class="enquiry-intro">
                 <div>
-                    <div class="eyebrow">Contact Sales</div>
+                    <div class="eyebrow">Book a Demo</div>
                     <h2>Book a free installation call or pricing demo.</h2>
                     <p class="section-copy">Tell us the site type, estimated device count, and the main water-monitoring problem you want to solve. We will follow up with the right setup, demo guidance and next-step recommendation.</p>
                 </div>
 
                 <div class="what-you-get-grid">
                     <article class="card">
-                        <div class="card-tag">What You Get</div>
+                        <div class="card-tag">Site Planning</div>
                         <h3>Recommended device setup</h3>
                         <p>We help you choose the right approach for homes, apartments, institutions and commercial sites.</p>
                     </article>
                     <article class="card">
-                        <div class="card-tag">What You Get</div>
+                        <div class="card-tag">Sales Follow-Up</div>
                         <h3>Demo and pricing follow-up</h3>
                         <p>Use one enquiry to move into a live discussion instead of waiting on unclear next steps.</p>
                     </article>
                     <article class="card">
-                        <div class="card-tag">What You Get</div>
+                        <div class="card-tag">Installation Support</div>
                         <h3>Installation planning support</h3>
                         <p>We can talk through tank count, site type, pump issues and support expectations before rollout.</p>
                     </article>
                     <article class="card">
-                        <div class="card-tag">What You Get</div>
+                        <div class="card-tag">Customer Handover</div>
                         <h3>Cleaner handover for customers</h3>
                         <p>Customer login plus admin support access makes the post-installation story easier to manage.</p>
                     </article>
@@ -1631,6 +2027,12 @@ padding:12px;
                 {% if sales_error %}
                 <div class="banner error">{{ sales_error }}</div>
                 {% endif %}
+                <div class="form-speed-note">Takes less than 30 seconds &bull; No spam &bull; No commitment</div>
+                <div class="form-urgency" aria-label="Form urgency signals">
+                    <span>&#9888; Be ready for summer water shortages</span>
+                    <span>&#9888; Prevent &#8377;10,000+ motor repair costs</span>
+                    <span>&#9888; Limited installation slots available this month</span>
+                </div>
                 <div class="row-2">
                     <div class="group">
                         <label for="lead_name">Name</label>
@@ -1675,9 +2077,9 @@ padding:12px;
 
             <div class="promo-card">
                 <div class="promo-copy">
-                    <div class="eyebrow">Live Demo Support</div>
+                    <div class="eyebrow">Demo Walkthrough</div>
                     <h3>Show the installation team, the controller and the customer app in one sales conversation.</h3>
-                    <p>This section now reinforces the product demo angle instead of treating the page like a plain information sheet. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
+                    <p>A short walkthrough can show the installer, controller and customer dashboard together so buyers understand the full system quickly. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
                     <div class="proof-pills" aria-label="Demo highlights">
                         <span>Installer-friendly setup</span>
                         <span>Customer phone access</span>
@@ -1692,7 +2094,7 @@ padding:12px;
     </section>
 
     <footer class="footer surface">
-        <div><strong>Smart Water Tank</strong> now reads like a sales landing page first: stronger value proposition, sharper CTAs, buyer-proof visuals, and popup login access that no longer steals attention from conversion.</div>
+        <div><strong>Smart Water Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in | +91-8299812878</a></div>
         <div class="footer-note">&copy; Smart Water Tank by SaleWell. All rights reserved.</div>
     </footer>
@@ -1708,7 +2110,7 @@ padding:12px;
         <button class="modal-close" type="button" aria-label="Close login" data-close-modal>&times;</button>
 
         <div class="modal-header">
-            <div class="eyebrow">Secure Portal Access</div>
+            <div class="eyebrow">Sign In</div>
             <h2 id="loginModalTitle">{{ login_title }}</h2>
             <p id="loginModalDescription">{{ login_description }}</p>
         </div>
@@ -1741,7 +2143,7 @@ padding:12px;
             <h3>Customer Login</h3>
             <p>Use your tank device ID and password to open your own dashboard, check tank level, and view only your registered system.</p>
             <div class="login-help">
-                <strong>Customer login help</strong>
+                <strong>How to sign in</strong>
                 <p>Use your registered <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</p>
             </div>
             <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
@@ -1762,7 +2164,7 @@ padding:12px;
             <h3>Admin Login</h3>
             <p>Use the admin account to register customers, manage credentials, review device activity and support installations from the service dashboard.</p>
             <div class="login-help">
-                <strong>Admin login help</strong>
+                <strong>Admin access</strong>
                 <p>Admin access is for installers and service staff managing customer accounts, device support and dashboard operations.</p>
             </div>
             <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
