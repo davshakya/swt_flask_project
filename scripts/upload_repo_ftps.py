@@ -37,6 +37,7 @@ EXCLUDED_DIRECTORY_NAMES = {
 EXCLUDED_FILE_NAMES = {
     ".DS_Store",
     "Thumbs.db",
+    "run_local.py"
 }
 
 EXCLUDED_RELATIVE_PATHS = {
