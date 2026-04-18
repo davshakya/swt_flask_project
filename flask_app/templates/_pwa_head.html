@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-title" content="Smart Water Tank">
 <meta name="csrf-token" content="{{ csrf_token }}">
 <link rel="manifest" href="/manifest.webmanifest">
-<link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='pwa/favicon.svg') }}">
+<link rel="icon" type="image/svg+xml" sizes="any" href="{{ url_for('static', filename='pwa/tab-favicon.svg') }}">
+<link rel="shortcut icon" href="{{ url_for('static', filename='pwa/tab-favicon.svg') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='pwa/apple-touch-icon.png') }}">
 <script defer src="{{ url_for('static', filename='js/locale-datetime.js') }}"></script>

@@ -165,10 +165,12 @@ place-items:center;
 background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(204,242,246,.82));
 border:1px solid rgba(255,255,255,.56);
 box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 16px 30px rgba(13,75,89,.16);
-font-weight:900;
-font-size:18px;
-letter-spacing:.08em;
-color:var(--brand-deep);
+overflow:hidden;
+}
+.brand-mark img{
+display:block;
+width:42px;
+height:42px;
 }
 .brand-copy strong{
 display:block;
@@ -801,41 +803,724 @@ color:var(--muted);
 }
 .demo-layout{
 display:grid;
-grid-template-columns:minmax(360px,.94fr) minmax(0,1.06fr);
-gap:18px;
+grid-template-columns:minmax(340px,1.02fr) minmax(0,.98fr);
+gap:14px;
 align-items:stretch;
+}
+#demo.section{
+padding-top:24px;
+padding-bottom:24px;
+}
+#demo .section-header{
+gap:14px;
+margin-bottom:16px;
+align-items:start;
+}
+#demo .section-header h2{
+margin-top:10px;
+font-size:clamp(1.9rem,3vw,2.55rem);
+}
+#demo .section-copy{
+font-size:15px;
+line-height:1.56;
+max-width:58ch;
+}
+.demo-storyboard{
+position:relative;
+overflow:hidden;
+border-radius:24px;
+min-height:400px;
+background:
+    radial-gradient(circle at 16% 16%,rgba(89,211,230,.2),transparent 26%),
+    radial-gradient(circle at 82% 10%,rgba(255,195,109,.16),transparent 24%),
+    linear-gradient(160deg,#081f28 0%,#0d2b34 62%,#15495c 100%);
+border:1px solid var(--line);
+box-shadow:0 20px 48px rgba(6,40,49,.18);
+padding:16px;
+display:grid;
+grid-template-rows:auto auto minmax(0,1fr) auto;
+gap:12px;
+}
+.demo-storyboard::before{
+content:"";
+position:absolute;
+inset:0;
+background:linear-gradient(180deg,rgba(255,255,255,.08),transparent 42%);
+pointer-events:none;
+}
+.demo-storyboard > *{
+position:relative;
+z-index:1;
+}
+.demo-storyboard-head{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:12px;
+flex-wrap:wrap;
+}
+.demo-runtime{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:9px 12px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+border:1px solid rgba(255,255,255,.12);
+font-size:12px;
+font-weight:900;
+letter-spacing:.12em;
+text-transform:uppercase;
+color:#d7ecf0;
+}
+.demo-progress-track{
+height:6px;
+border-radius:999px;
+overflow:hidden;
+background:rgba(255,255,255,.12);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+}
+.demo-progress-bar{
+width:100%;
+height:100%;
+transform:scaleX(0);
+transform-origin:left center;
+border-radius:inherit;
+background:linear-gradient(90deg,#59d3e6 0%,#ffc36d 100%);
+box-shadow:0 0 18px rgba(89,211,230,.32);
 }
 .demo-stage{
 position:relative;
 overflow:hidden;
-border-radius:28px;
-min-height:420px;
-background:#0d2b34;
-border:1px solid var(--line);
-box-shadow:0 20px 48px rgba(6,40,49,.18);
+border-radius:20px;
+min-height:350px;
+background:#0f3340;
+border:1px solid rgba(255,255,255,.12);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
 }
-.demo-stage img{
+.demo-scene{
+position:absolute;
+inset:0;
+opacity:0;
+transform:scale(1.04);
+transition:opacity .72s ease,transform 5.2s linear;
+pointer-events:none;
+}
+.demo-scene.is-active{
+opacity:1;
+transform:scale(1);
+}
+.demo-scene::after{
+content:"";
+position:absolute;
+inset:0;
+background:
+    linear-gradient(180deg,rgba(4,22,30,.18) 0%,rgba(4,22,30,.12) 38%,rgba(4,22,30,.76) 100%),
+    linear-gradient(115deg,rgba(4,22,30,.3),transparent 44%);
+}
+.demo-scene img{
 width:100%;
 height:100%;
 object-fit:cover;
 }
-.demo-stage-copy{
+.demo-scene-visual{
 position:absolute;
-left:18px;
-right:18px;
-bottom:18px;
-padding:18px 20px;
+inset:0;
+padding:14px;
+display:grid;
+z-index:0;
+}
+.demo-scene.has-ui::after{
+background:
+    linear-gradient(180deg,rgba(4,22,30,.1) 0%,rgba(4,22,30,.06) 34%,rgba(4,22,30,.82) 100%),
+    linear-gradient(115deg,rgba(4,22,30,.12),transparent 44%);
+}
+.demo-dashboard-shell{
+display:grid;
+grid-template-columns:180px 1fr;
+gap:16px;
+height:100%;
+}
+.demo-surface-card{
+padding:16px;
 border-radius:24px;
+background:rgba(255,255,255,.94);
+border:1px solid rgba(12,56,66,.12);
+box-shadow:0 22px 44px rgba(6,40,49,.12);
+}
+.demo-surface-card.is-dark{
+background:rgba(8,26,33,.96);
+border-color:rgba(146,208,220,.14);
+box-shadow:0 22px 44px rgba(0,0,0,.18);
+color:#eefcff;
+}
+.demo-panel-eyebrow{
+display:block;
+font-size:11px;
+font-weight:900;
+letter-spacing:.16em;
+text-transform:uppercase;
+color:var(--brand-deep);
+margin-bottom:10px;
+}
+.demo-surface-card.is-dark .demo-panel-eyebrow{
+color:#63cfea;
+}
+.demo-tank-panel{
+display:grid;
+gap:12px;
+align-content:start;
+}
+.demo-mini-tank{
+padding:12px;
+border-radius:22px;
+background:rgba(245,251,252,.92);
+border:1px solid rgba(12,56,66,.08);
+display:grid;
+gap:10px;
+}
+.demo-mini-tank-label{
+font-size:11px;
+font-weight:900;
+letter-spacing:.14em;
+text-transform:uppercase;
+color:var(--muted);
+}
+.demo-mini-tank-shell{
+position:relative;
+height:160px;
+border-radius:28px;
+padding:10px;
+background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(236,247,249,.92));
+border:1px solid rgba(12,56,66,.12);
+}
+.demo-mini-tank-inner{
+position:relative;
+height:100%;
+overflow:hidden;
+border-radius:20px;
+background:#173845;
+}
+.demo-mini-tank-water{
+position:absolute;
+left:0;
+right:0;
+bottom:0;
+background:linear-gradient(180deg,#64ddff,#178bd1);
+}
+.demo-mini-tank-water::before{
+content:"";
+position:absolute;
+left:-12%;
+right:-12%;
+top:-16px;
+height:28px;
+border-radius:50%;
+background:rgba(230,249,255,.5);
+}
+.demo-mini-tank-water.is-mid{height:55%}
+.demo-mini-tank-water.is-full{height:100%;background:linear-gradient(180deg,#8ce6a8,#1b8a45)}
+.demo-mini-tank-value{
+font-size:18px;
+font-weight:900;
+line-height:1;
+letter-spacing:-.03em;
+color:var(--text);
+}
+.demo-mini-tank-note{
+font-size:13px;
+line-height:1.45;
+color:var(--muted);
+}
+.demo-dashboard-main{
+display:grid;
+gap:14px;
+align-content:start;
+}
+.demo-dashboard-head{
+display:grid;
+gap:10px;
+}
+.demo-dashboard-title{
+display:grid;
+grid-template-columns:auto 1fr auto;
+gap:12px;
+align-items:start;
+}
+.demo-brand-coin{
+width:56px;
+height:56px;
+padding:6px;
+border-radius:18px;
+background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(203,241,246,.82));
+border:1px solid rgba(255,255,255,.58);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 14px 28px rgba(13,75,89,.14);
+}
+.demo-brand-coin img{
+display:block;
+width:100%;
+height:100%;
+}
+.demo-dashboard-title h3{
+margin:0;
+font-size:40px;
+line-height:.96;
+letter-spacing:-.05em;
+color:#12303a;
+}
+.demo-dashboard-title p{
+margin:6px 0 0;
+font-size:13px;
+line-height:1.5;
+color:#57737a;
+}
+.demo-sync-card{
+padding:12px 14px;
+border-radius:18px;
+background:rgba(255,255,255,.86);
+border:1px solid rgba(12,56,66,.1);
+display:grid;
+gap:6px;
+min-width:180px;
+}
+.demo-sync-card strong{
+font-size:12px;
+letter-spacing:.14em;
+text-transform:uppercase;
+color:var(--muted);
+}
+.demo-sync-card span{
+font-size:14px;
+font-weight:800;
+color:#1e9a67;
+}
+.demo-dashboard-narrative{
+margin:0;
+font-size:16px;
+line-height:1.6;
+color:#48656d;
+}
+.demo-kpi-row{
+display:grid;
+grid-template-columns:repeat(4,minmax(0,1fr));
+gap:12px;
+}
+.demo-kpi{
+padding:16px;
+border-radius:22px;
+background:rgba(255,255,255,.88);
+border:1px solid rgba(12,56,66,.1);
+display:grid;
+gap:8px;
+}
+.demo-kpi.is-featured{
+background:linear-gradient(135deg,#0f8fa4,#167e9f);
+color:#f0feff;
+}
+.demo-kpi span{
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--muted);
+}
+.demo-kpi.is-featured span{color:rgba(240,254,255,.76)}
+.demo-kpi strong{
+font-size:22px;
+line-height:1.08;
+letter-spacing:-.04em;
+}
+.demo-kpi p{
+margin:0;
+font-size:13px;
+line-height:1.5;
+color:var(--muted);
+}
+.demo-kpi.is-featured p{color:rgba(240,254,255,.82)}
+.demo-dashboard-banner{
+padding:16px 18px;
+border-radius:22px;
+background:rgba(192,238,245,.66);
+border:1px solid rgba(12,56,66,.08);
+font-size:15px;
+line-height:1.55;
+font-weight:800;
+color:#12303a;
+}
+.demo-chart-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:14px;
+height:100%;
+align-content:stretch;
+}
+.demo-chart-card{
+padding:14px;
+border-radius:22px;
+background:rgba(255,255,255,.94);
+border:1px solid rgba(12,56,66,.12);
+box-shadow:0 18px 34px rgba(6,40,49,.1);
+display:grid;
+gap:10px;
+align-content:start;
+}
+.demo-chart-card strong{
+display:block;
+font-size:14px;
+letter-spacing:.04em;
+color:#12303a;
+}
+.demo-chart-card span{
+display:block;
+font-size:11px;
+font-weight:900;
+letter-spacing:.14em;
+text-transform:uppercase;
+color:var(--brand-deep);
+}
+.demo-chart-frame{
+padding:10px;
+border-radius:18px;
+background:
+    linear-gradient(180deg,rgba(17,137,165,.06),rgba(17,137,165,.02)),
+    repeating-linear-gradient(to top,rgba(18,48,58,.08) 0 1px,transparent 1px 26px);
+border:1px solid rgba(12,56,66,.08);
+}
+.demo-chart-svg{
+display:block;
+width:100%;
+height:118px;
+}
+.demo-dark-scene{
+display:grid;
+place-items:center;
+height:100%;
+}
+.demo-dark-card{
+width:min(100%,540px);
+padding:24px;
+border-radius:30px;
+background:#081b24;
+border:1px solid rgba(102,170,190,.24);
+box-shadow:0 22px 42px rgba(0,0,0,.22);
+color:#ecfbff;
+display:grid;
+gap:18px;
+}
+.demo-dark-card.is-wide{
+width:min(100%,620px);
+}
+.demo-dark-card.is-tall{
+width:min(100%,620px);
+}
+.demo-dark-card h3{
+margin:0;
+font-size:42px;
+line-height:1.02;
+letter-spacing:-.05em;
+}
+.demo-dark-card p{
+margin:0;
+font-size:16px;
+line-height:1.58;
+color:#b0c9d1;
+}
+.demo-dark-metric{
+display:grid;
+gap:6px;
+}
+.demo-dark-metric span{
+font-size:12px;
+font-weight:900;
+letter-spacing:.16em;
+text-transform:uppercase;
+color:#5bc9e8;
+}
+.demo-dark-metric strong{
+font-size:28px;
+line-height:1.06;
+letter-spacing:-.04em;
+}
+.demo-dark-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:16px;
+}
+.demo-dark-topbar{
+display:grid;
+grid-template-columns:auto 1fr auto;
+gap:12px;
+align-items:center;
+}
+.demo-dark-topbar img{
+width:44px;
+height:44px;
+}
+.demo-dark-topbar-title{
+display:grid;
+gap:4px;
+}
+.demo-dark-topbar-title strong{
+font-size:20px;
+line-height:1.05;
+letter-spacing:-.03em;
+}
+.demo-dark-topbar-title span{
+font-size:13px;
+line-height:1.45;
+color:#a7c0c9;
+}
+.demo-logout-pill{
+padding:10px 14px;
+border-radius:999px;
+border:1px solid rgba(236,251,255,.18);
+font-size:14px;
+font-weight:900;
+color:#5bc9e8;
+}
+.demo-event-list{
+display:grid;
+gap:12px;
+}
+.demo-event-item{
+padding:14px 16px;
+border-radius:20px;
+background:rgba(255,255,255,.03);
+border:1px solid rgba(236,251,255,.1);
+display:grid;
+gap:6px;
+}
+.demo-event-item strong{
+font-size:18px;
+line-height:1.18;
+letter-spacing:-.02em;
+}
+.demo-event-item span{
+font-size:13px;
+line-height:1.45;
+color:#a7c0c9;
+}
+.demo-event-item.is-warning strong{color:#ffd36f}
+.demo-mobile-scene{
+display:grid;
+grid-template-columns:minmax(250px,310px) 1fr;
+gap:16px;
+height:100%;
+align-items:center;
+}
+.demo-mobile-frame{
+padding:14px;
+border-radius:34px;
+background:#081b24;
+border:1px solid rgba(102,170,190,.22);
+box-shadow:0 22px 42px rgba(0,0,0,.22);
+height:100%;
+display:grid;
+}
+.demo-mobile-screen{
+padding:16px;
+border-radius:26px;
+background:#0b202a;
+display:grid;
+gap:14px;
+}
+.demo-mobile-top{
+display:grid;
+grid-template-columns:auto 1fr auto;
+gap:10px;
+align-items:center;
+}
+.demo-mobile-top img{
+width:34px;
+height:34px;
+}
+.demo-mobile-top strong{
+font-size:16px;
+line-height:1.1;
+letter-spacing:-.02em;
+color:#ecfbff;
+}
+.demo-mobile-top span{
+display:block;
+font-size:12px;
+line-height:1.4;
+color:#a7c0c9;
+}
+.demo-mobile-pill{
+padding:8px 12px;
+border-radius:999px;
+border:1px solid rgba(236,251,255,.18);
+font-size:12px;
+font-weight:900;
+color:#5bc9e8;
+}
+.demo-mobile-copy{
+font-size:14px;
+line-height:1.58;
+color:#d5eef5;
+}
+.demo-mobile-copy strong{
+display:block;
+margin-bottom:6px;
+font-size:15px;
+line-height:1.35;
+color:#63cfea;
+}
+.demo-mobile-copy span{
+display:block;
+margin-bottom:6px;
+font-size:14px;
+line-height:1.45;
+color:#b2c8cf;
+}
+.demo-mobile-button{
+padding:12px 14px;
+border-radius:18px;
+font-size:14px;
+font-weight:900;
+text-align:center;
+}
+.demo-mobile-button.is-muted{
+background:rgba(255,255,255,.06);
+color:#5d7680;
+}
+.demo-mobile-button.is-danger{
+background:#f4a0b2;
+color:#13222a;
+}
+.demo-mobile-warning{
+font-size:13px;
+line-height:1.55;
+color:#ffd36f;
+}
+.demo-mobile-tanks{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+}
+.demo-mobile-tank{
+display:grid;
+gap:8px;
+justify-items:center;
+}
+.demo-mobile-tank-shell{
+width:100%;
+max-width:120px;
+height:200px;
+border-radius:26px;
+padding:10px;
+background:#2f2f3b;
+border:1px solid rgba(236,251,255,.08);
+}
+.demo-mobile-tank-inner{
+position:relative;
+height:100%;
+overflow:hidden;
+border-radius:18px;
+background:#0f2530;
+}
+.demo-mobile-tank-water{
+position:absolute;
+left:0;
+right:0;
+bottom:0;
+background:linear-gradient(180deg,#55b4ff,#307bd6);
+}
+.demo-mobile-tank-water.is-half{height:55%}
+.demo-mobile-tank-water.is-full{height:100%;background:linear-gradient(180deg,#61d597,#18a268)}
+.demo-mobile-tank-caption{
+font-size:14px;
+font-weight:900;
+line-height:1.15;
+color:#ecfbff;
+text-align:center;
+}
+.demo-mobile-tank-note{
+font-size:12px;
+line-height:1.4;
+color:#a7c0c9;
+text-align:center;
+}
+.demo-mobile-kpis{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:8px;
+}
+.demo-mobile-kpi{
+padding:12px 10px;
+border-radius:16px;
+background:#2f2f3b;
+border:1px solid rgba(236,251,255,.08);
+display:grid;
+gap:6px;
+}
+.demo-mobile-kpi span{
+font-size:11px;
+font-weight:900;
+letter-spacing:.06em;
+text-transform:uppercase;
+color:#9ab9c2;
+}
+.demo-mobile-kpi strong{
+font-size:18px;
+line-height:1.05;
+letter-spacing:-.03em;
+color:#ecfbff;
+}
+.demo-mobile-kpi.is-health strong{color:#73dd97}
+.demo-mobile-sidecopy{
+padding:18px;
+border-radius:24px;
+background:rgba(255,255,255,.94);
+border:1px solid rgba(12,56,66,.12);
+display:grid;
+gap:12px;
+}
+.demo-mobile-sidecopy strong{
+font-size:30px;
+line-height:1.04;
+letter-spacing:-.04em;
+color:#12303a;
+}
+.demo-mobile-sidecopy p{
+margin:0;
+font-size:15px;
+line-height:1.58;
+color:#57737a;
+}
+.demo-mobile-sidecopy ul{
+list-style:none;
+padding:0;
+margin:0;
+display:grid;
+gap:8px;
+}
+.demo-mobile-sidecopy li{
+font-size:14px;
+line-height:1.5;
+font-weight:800;
+color:#12303a;
+}
+.demo-scene-copy{
+position:absolute;
+left:14px;
+right:14px;
+bottom:14px;
+max-width:min(540px,calc(100% - 28px));
+padding:14px 16px;
+border-radius:18px;
 background:rgba(8,31,39,.74);
 backdrop-filter:blur(14px);
 border:1px solid rgba(255,255,255,.12);
 color:#eefcff;
+box-shadow:0 20px 36px rgba(0,0,0,.2);
+z-index:1;
 }
 .demo-badge{
 display:inline-flex;
 align-items:center;
 gap:10px;
-padding:8px 12px;
+padding:7px 11px;
 border-radius:999px;
 background:rgba(255,255,255,.1);
 border:1px solid rgba(255,255,255,.12);
@@ -847,63 +1532,209 @@ text-transform:uppercase;
 .demo-play{
 display:inline-grid;
 place-items:center;
-width:30px;
-height:30px;
+width:28px;
+height:28px;
 border-radius:999px;
 background:rgba(255,255,255,.18);
 font-size:13px;
 }
-.demo-stage-copy strong{
+.demo-scene-kicker{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:6px 10px;
+border-radius:999px;
+background:rgba(255,255,255,.08);
+border:1px solid rgba(255,255,255,.12);
+font-size:11px;
+font-weight:900;
+letter-spacing:.16em;
+text-transform:uppercase;
+color:#9bd8e2;
+}
+.demo-scene-copy strong{
 display:block;
-margin:14px 0 8px;
-font-size:28px;
+margin:10px 0 6px;
+font-size:clamp(1.45rem,2.1vw,1.95rem);
 line-height:1.08;
 letter-spacing:-.03em;
 }
-.demo-stage-copy p{
+.demo-scene-copy p{
 margin:0;
-font-size:14px;
-line-height:1.58;
+font-size:13px;
+line-height:1.52;
 color:#d7ecf0;
+}
+.demo-feature-list{
+display:flex;
+gap:6px;
+flex-wrap:wrap;
+margin-top:12px;
+}
+.demo-feature-list span{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+padding:7px 10px;
+border-radius:999px;
+background:rgba(255,255,255,.1);
+border:1px solid rgba(255,255,255,.12);
+font-size:11px;
+font-weight:800;
+line-height:1.25;
+color:#eefcff;
+}
+.demo-controls{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:10px;
+flex-wrap:wrap;
+}
+.demo-control-actions{
+display:flex;
+align-items:center;
+gap:8px;
+flex-wrap:wrap;
+}
+.demo-status-line{
+font-size:12px;
+line-height:1.5;
+font-weight:800;
+color:#d7ecf0;
+}
+.demo-control-button{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:40px;
+padding:9px 14px;
+border-radius:14px;
+border:1px solid rgba(255,255,255,.14);
+background:rgba(255,255,255,.08);
+color:#eefcff;
+font-weight:900;
+cursor:pointer;
+transition:transform .18s ease,background .18s ease,border-color .18s ease;
+}
+.demo-control-button:hover{
+transform:translateY(-1px);
+background:rgba(255,255,255,.14);
+border-color:rgba(255,255,255,.22);
+}
+.demo-control-button:disabled{
+opacity:.6;
+cursor:not-allowed;
+transform:none;
+}
+.demo-storyboard.is-fullscreen{
+width:100%;
+height:100%;
+min-height:100vh;
+padding:24px;
+border-radius:0;
+box-shadow:none;
+}
+.demo-storyboard.is-fullscreen .demo-stage{
+min-height:0;
+height:100%;
+}
+.demo-storyboard.is-fullscreen .demo-scene-visual{
+padding:20px;
+}
+.demo-storyboard.is-fullscreen .demo-scene-copy{
+left:20px;
+right:20px;
+bottom:20px;
+max-width:min(680px,calc(100% - 40px));
+padding:18px 20px;
+}
+.demo-storyboard.is-fullscreen .demo-controls{
+gap:12px;
+}
+.demo-storyboard.is-fullscreen .demo-status-line{
+font-size:13px;
+}
+.demo-storyboard.is-fullscreen .demo-control-button{
+min-height:44px;
+padding:11px 18px;
 }
 .demo-steps{
 display:grid;
-gap:12px;
-align-items:stretch;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:10px;
+align-content:start;
 }
-.demo-step{
-padding:18px;
-border-radius:24px;
+button.demo-step{
+width:100%;
+padding:14px;
+border-radius:18px;
 background:var(--surface-strong);
 border:1px solid var(--line);
 box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
 display:grid;
 grid-template-columns:auto 1fr;
-gap:14px;
+gap:12px;
 align-items:start;
+text-align:left;
+appearance:none;
+cursor:pointer;
+transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease;
+}
+button.demo-step:hover{
+transform:translateY(-1px);
+border-color:rgba(13,147,168,.24);
+box-shadow:0 18px 32px rgba(12,56,66,.1),inset 0 1px 0 rgba(255,255,255,.5);
+}
+button.demo-step.is-active{
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(255,255,255,.94));
+border-color:rgba(13,147,168,.3);
+box-shadow:0 20px 34px rgba(12,56,66,.12),inset 0 1px 0 rgba(255,255,255,.56);
 }
 .demo-step-number{
-width:42px;
-height:42px;
-border-radius:14px;
+width:36px;
+height:36px;
+border-radius:12px;
 display:grid;
 place-items:center;
 background:var(--brand-soft);
 color:var(--brand-deep);
 font-weight:900;
-font-size:16px;
+font-size:14px;
+}
+.demo-step-body{
+display:block;
+}
+.demo-step-label{
+display:inline-flex;
+align-items:center;
+gap:8px;
+margin-bottom:6px;
+font-size:10px;
+font-weight:900;
+letter-spacing:.16em;
+text-transform:uppercase;
+color:var(--brand-deep);
 }
 .demo-step strong{
 display:block;
-margin-bottom:6px;
-font-size:19px;
+margin-bottom:4px;
+font-size:16px;
 line-height:1.14;
 letter-spacing:-.03em;
 }
 .demo-step p{
 margin:0;
-line-height:1.58;
+font-size:13px;
+line-height:1.46;
 color:var(--muted);
+}
+@media (prefers-reduced-motion: reduce){
+.demo-scene,
+.demo-control-button,
+button.demo-step{
+transition:none;
+}
 }
 .media-split,
 .support-layout,
@@ -1454,12 +2285,30 @@ grid-template-columns:1fr;
 .use-case-grid{
 grid-template-columns:1fr 1fr;
 }
+.demo-dashboard-shell,
+.demo-mobile-scene{
+grid-template-columns:1fr;
+}
+.demo-chart-grid,
+.demo-dark-grid,
+.demo-kpi-row{
+grid-template-columns:1fr 1fr;
+}
 .promo-card{
 grid-template-columns:1fr;
 min-height:unset;
 }
 .demo-layout{
 grid-template-columns:1fr;
+}
+.demo-storyboard{
+min-height:380px;
+}
+.demo-stage{
+min-height:320px;
+}
+.demo-steps{
+grid-template-columns:repeat(2,minmax(0,1fr));
 }
 .promo-media{
 min-height:280px;
@@ -1504,10 +2353,20 @@ padding-right:18px;
 .value-grid,
 .proof-grid,
 .use-case-grid,
+.demo-chart-grid,
+.demo-dark-grid,
+.demo-kpi-row,
+.demo-mobile-kpis,
 .what-you-get-grid,
 .row-2,
-.login-toggle{
+.login-toggle,
+.demo-steps{
 grid-template-columns:1fr;
+}
+.demo-mobile-sidecopy strong,
+.demo-dark-card h3,
+.demo-dashboard-title h3{
+font-size:clamp(2rem,8vw,2.7rem);
 }
 .social-quote{
 grid-template-columns:1fr;
@@ -1548,6 +2407,30 @@ gap:8px;
 .urgency-banner{
 grid-template-columns:1fr;
 }
+.demo-storyboard{
+min-height:unset;
+padding:16px;
+}
+.demo-stage{
+min-height:320px;
+}
+.demo-scene-copy{
+left:14px;
+right:14px;
+bottom:14px;
+padding:16px;
+}
+.demo-controls{
+align-items:stretch;
+}
+.demo-control-actions{
+display:grid;
+grid-template-columns:1fr;
+width:100%;
+}
+.demo-control-button{
+width:100%;
+}
 .preview-overlay{
 max-width:180px;
 }
@@ -1561,7 +2444,9 @@ padding:12px;
 <div class="page">
     <header class="nav surface">
         <a class="brand" href="{{ url_for('dashboard') }}">
-            <div class="brand-mark">SWT</div>
+            <div class="brand-mark" aria-hidden="true">
+                <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
+            </div>
             <div class="brand-copy">
                 <strong>Smart Water Tank</strong>
                 <span>Water level monitoring and support by SaleWell</span>
@@ -1778,50 +2663,528 @@ padding:12px;
         <div class="section-header">
             <div>
                 <div class="eyebrow">30-Second Demo</div>
-                <h2>See how it works in 30 seconds.</h2>
+                <h2>See how it works</h2>
             </div>
-            <p class="section-copy">A quick walkthrough helps buyers understand the installation, dashboard, alert flow and pump control without reading long explanations.</p>
         </div>
 
         <div class="demo-layout">
-            <figure class="demo-stage" aria-label="30-second product walkthrough preview">
-                <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="Demo preview showing installer, smart tank controller and mobile monitoring dashboard." loading="lazy">
-                <figcaption class="demo-stage-copy">
-                    <div class="demo-badge"><span class="demo-play">&#9654;</span> Demo Preview</div>
-                    <strong>Tank sensor, app alerts and pump control in one short walkthrough.</strong>
-                    <p>Show installation, app dashboard, overflow alerts and pump actions in a format buyers can understand immediately.</p>
-                </figcaption>
-            </figure>
+            <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="30000" aria-label="30-second animated product walkthrough">
+                <div class="demo-storyboard-head">
+                    <div class="demo-badge"><span class="demo-play">&#9654;</span> AI Storyboard</div>
+                    <div class="demo-runtime">10 Scenes &bull; 30 Seconds</div>
+                </div>
+
+                <div class="demo-progress-track" aria-hidden="true">
+                    <div class="demo-progress-bar" id="demoProgressBar"></div>
+                </div>
+
+                <div class="demo-stage" aria-label="Animated smart water tank demo scenes">
+                    <article class="demo-scene is-active" data-demo-scene data-demo-title="Stop Water Overflow Automatically" aria-hidden="false">
+                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated smart water tank monitoring view showing a protected rooftop tank with phone alerts." loading="lazy">
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 01 &bull; Problem</span>
+                            <strong>Stop Water Overflow Automatically</strong>
+                            <p>Water overflow and motor damage can cost you thousands. Open with the pain point buyers already understand before introducing the solution.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Real-time monitoring</span>
+                                <span>AI leak detection</span>
+                                <span>Mobile + Web dashboard</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene" data-demo-scene data-demo-title="Easy Installation" aria-hidden="true">
+                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller and tank sensor hardware prepared for installation." loading="lazy">
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 02 &bull; Setup</span>
+                            <strong>Easy Installation</strong>
+                            <p>With a simple sensor setup, the tank becomes smart in minutes. Show the sensor on the tank and controller linked to the pump.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Sensor mounted on tank</span>
+                                <span>Controller to pump</span>
+                                <span>Ready in minutes</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Home Water Dashboard" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-dashboard-shell">
+                                <div class="demo-surface-card demo-tank-panel">
+                                    <span class="demo-panel-eyebrow">Tank View</span>
+                                    <div class="demo-mini-tank">
+                                        <span class="demo-mini-tank-label">Main Tank</span>
+                                        <div class="demo-mini-tank-shell">
+                                            <div class="demo-mini-tank-inner">
+                                                <div class="demo-mini-tank-water is-mid"></div>
+                                            </div>
+                                        </div>
+                                        <div class="demo-mini-tank-value">55.0%</div>
+                                        <div class="demo-mini-tank-note">550.0 L / 1000.0 L</div>
+                                    </div>
+                                    <div class="demo-mini-tank">
+                                        <span class="demo-mini-tank-label">Source Tank</span>
+                                        <div class="demo-mini-tank-shell">
+                                            <div class="demo-mini-tank-inner">
+                                                <div class="demo-mini-tank-water is-full"></div>
+                                            </div>
+                                        </div>
+                                        <div class="demo-mini-tank-value">100.0%</div>
+                                        <div class="demo-mini-tank-note">1000.0 L / 1000.0 L</div>
+                                    </div>
+                                </div>
+                                <div class="demo-dashboard-main">
+                                    <div class="demo-surface-card demo-dashboard-head">
+                                        <div class="demo-dashboard-title">
+                                            <div class="demo-brand-coin"><img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt=""></div>
+                                            <div>
+                                                <h3>Home Water Dashboard</h3>
+                                                <p>Hello, Shakya. Your tank summary is organized around what needs attention first.</p>
+                                            </div>
+                                            <div class="demo-sync-card">
+                                                <strong>Sync</strong>
+                                                <span>Analytics refreshed</span>
+                                            </div>
+                                        </div>
+                                        <p class="demo-dashboard-narrative">The tank is 55.0% full, the pump is currently resting, and household usage is down 40.9% from the previous day.</p>
+                                    </div>
+                                    <div class="demo-kpi-row">
+                                        <div class="demo-kpi is-featured">
+                                            <span>Available Now</span>
+                                            <strong>550.0 L</strong>
+                                            <p>55.0% full of 1000.0 L.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Pump Plan</span>
+                                            <strong>Auto-protected</strong>
+                                            <p>Sensor-linked protection active.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Use Trend</span>
+                                            <strong>184.58%</strong>
+                                            <p>Forecasted usage remains high.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Connection</span>
+                                            <strong>Excellent</strong>
+                                            <p>Strong sync and signal quality.</p>
+                                        </div>
+                                    </div>
+                                    <div class="demo-dashboard-banner">Motor ON request queued. Auto threshold protection remains active.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 03 &bull; Dashboard</span>
+                            <strong>Live Dashboard View</strong>
+                            <p>Show the real tank view, sync status and summary cards so buyers can understand the product in one glance.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Main + source tank view</span>
+                                <span>Live sync cards</span>
+                                <span>Desktop dashboard access</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Analytics Charts" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-chart-grid">
+                                <div class="demo-chart-card">
+                                    <span>Tank Trend</span>
+                                    <strong>Tank level history</strong>
+                                    <div class="demo-chart-frame">
+                                        <svg class="demo-chart-svg" viewBox="0 0 240 120" preserveAspectRatio="none" aria-hidden="true">
+                                            <polyline points="0,26 12,80 20,18 28,54 36,16 48,82 66,82 72,96 84,18 96,84 110,84 120,28 128,84 176,84 182,26 188,84 208,84 214,12 220,34 226,84 240,84" fill="none" stroke="#39b8f8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="demo-chart-card">
+                                    <span>Daily Use</span>
+                                    <strong>Daily water use</strong>
+                                    <div class="demo-chart-frame">
+                                        <svg class="demo-chart-svg" viewBox="0 0 240 120" preserveAspectRatio="none" aria-hidden="true">
+                                            <rect x="32" y="64" width="34" height="40" rx="4" fill="#28c158"></rect>
+                                            <rect x="104" y="22" width="34" height="82" rx="4" fill="#28c158"></rect>
+                                            <rect x="176" y="48" width="34" height="56" rx="4" fill="#28c158"></rect>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="demo-chart-card">
+                                    <span>Household Pattern</span>
+                                    <strong>24-hour water pattern</strong>
+                                    <div class="demo-chart-frame">
+                                        <svg class="demo-chart-svg" viewBox="0 0 240 120" preserveAspectRatio="none" aria-hidden="true">
+                                            <polyline points="0,92 20,84 34,110 62,110 78,92 92,82 104,110 128,110 140,76 150,46 162,54 172,18 184,42 194,70 204,110 240,110" fill="none" stroke="#f6a51a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+                                        </svg>
+                                    </div>
+                                </div>
+                                <div class="demo-chart-card">
+                                    <span>Pump Activity</span>
+                                    <strong>Pump activity</strong>
+                                    <div class="demo-chart-frame">
+                                        <svg class="demo-chart-svg" viewBox="0 0 240 120" preserveAspectRatio="none" aria-hidden="true">
+                                            <polyline points="0,110 16,110 16,20 28,20 28,110 42,110 42,20 54,20 54,110 72,110 72,20 84,20 84,110 102,110 102,20 114,20 114,110 132,110 132,20 144,20 144,110 162,110 162,20 174,20 174,110 196,110 196,20 208,20 208,110 226,110 226,20 238,20 238,110 240,110" fill="none" stroke="#ff5d5d" stroke-width="3.5" stroke-linecap="square" stroke-linejoin="miter"></polyline>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 04 &bull; Analytics</span>
+                            <strong>Usage Charts That Tell A Story</strong>
+                            <p>Use chart views to show tank trends, daily usage, 24-hour patterns and pump activity in a format RWAs and maintenance teams understand.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Tank trend history</span>
+                                <span>Daily water use</span>
+                                <span>Pump activity timeline</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Weekly Water Summary" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-dark-scene">
+                                <div class="demo-dark-card">
+                                    <div class="demo-dark-metric">
+                                        <span>Last 7 Days</span>
+                                        <strong>Last 7 days &bull; Apr 11, 2026 to Apr 17, 2026</strong>
+                                    </div>
+                                    <div class="demo-dark-grid">
+                                        <div class="demo-dark-metric">
+                                            <span>Average Daily Usage</span>
+                                            <strong>175.79 L</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Peak Usage Day</span>
+                                            <strong>Apr 17 &bull; 257.40 L</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Lowest Usage Day</span>
+                                            <strong>Apr 16 &bull; 117.93 L</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Average Level</span>
+                                            <strong>59.5%</strong>
+                                        </div>
+                                    </div>
+                                    <p>Weekly summaries turn raw telemetry into something buyers can immediately relate to: average usage, peak day, and how full the tank usually stays.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 05 &bull; Weekly Insight</span>
+                            <strong>Last 7 Days At A Glance</strong>
+                            <p>Show average use, peak demand and tank level patterns so buyers see how the system supports planning, not just monitoring.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Weekly usage summary</span>
+                                <span>Peak day visibility</span>
+                                <span>Average tank level</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="AI Forecast And Usage Trends" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-dark-scene">
+                                <div class="demo-dark-card is-wide">
+                                    <div class="demo-dark-topbar">
+                                        <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
+                                        <div class="demo-dark-topbar-title">
+                                            <strong>Smart Water Tank</strong>
+                                            <span>Updated 9:53 PM</span>
+                                        </div>
+                                        <div class="demo-logout-pill">Logout</div>
+                                    </div>
+                                    <div class="demo-dark-metric">
+                                        <span>AI Analysis</span>
+                                        <strong>Forecasts and usage trends from your cloud data</strong>
+                                    </div>
+                                    <div class="demo-dark-grid">
+                                        <div class="demo-dark-metric">
+                                            <span>Estimated Water Use</span>
+                                            <strong>0.00 L/hr</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Tomorrow Estimate</span>
+                                            <strong>184.58 L</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Device Forecast</span>
+                                            <strong>3.1 hrs</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Consumption Rate</span>
+                                            <strong>17.72%/hr</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 06 &bull; AI Forecast</span>
+                            <strong>AI Forecasts And Usage Trends</strong>
+                            <p>Use AI insights to show expected water use, forecast time to empty and unusual consumption patterns before they become costly surprises.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Tomorrow estimate</span>
+                                <span>Time-to-empty forecast</span>
+                                <span>AI consumption rate</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Alerts, Health And Next Steps" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-dark-scene">
+                                <div class="demo-dark-card is-tall">
+                                    <div class="demo-event-list">
+                                        <div class="demo-dark-metric">
+                                            <span>Recent Events</span>
+                                        </div>
+                                        <div class="demo-event-item is-warning">
+                                            <strong>Sensor requires attention.</strong>
+                                            <span>Apr 18, 2026, 9:51 PM</span>
+                                        </div>
+                                        <div class="demo-event-item is-warning">
+                                            <strong>Drip alert detected.</strong>
+                                            <span>Apr 18, 2026, 9:10 PM</span>
+                                        </div>
+                                        <div class="demo-event-item">
+                                            <strong>Mode changed to AUTO.</strong>
+                                            <span>Apr 18, 2026, 9:10 PM</span>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Health Details</span>
+                                        </div>
+                                        <div class="demo-event-item">
+                                            <strong>Sensor needs attention.</strong>
+                                        </div>
+                                        <div class="demo-event-item">
+                                            <strong>Water consumption is higher than the expected range.</strong>
+                                        </div>
+                                        <div class="demo-dark-metric">
+                                            <span>Helpful Next Steps</span>
+                                        </div>
+                                        <div class="demo-event-item">
+                                            <strong>Water consumption is above the usual range.</strong>
+                                        </div>
+                                        <div class="demo-event-item">
+                                            <strong>Tank may empty within the next 6 hours.</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 07 &bull; Alerts</span>
+                            <strong>Alerts, Health And Next Steps</strong>
+                            <p>Show recent events, health details and suggested next steps so buyers see the system as a practical decision tool, not just a sensor.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Sensor and leak alerts</span>
+                                <span>Health detail cards</span>
+                                <span>Helpful next steps</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Mobile Pump Control" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-mobile-scene">
+                                <div class="demo-mobile-frame">
+                                    <div class="demo-mobile-screen">
+                                        <div class="demo-mobile-top">
+                                            <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
+                                            <div>
+                                                <strong>Smart Water Tank</strong>
+                                                <span>Updated 9:53 PM</span>
+                                            </div>
+                                            <div class="demo-mobile-pill">Logout</div>
+                                        </div>
+                                        <div class="demo-mobile-copy">
+                                            <strong>Device ID: swt-000-000-000-001</strong>
+                                            <span>Source: Local Wi-Fi</span>
+                                            Tank is 55.0% full and Pump OFF. Auto paused because the sensor needs attention, and direct control stays visible here.
+                                        </div>
+                                        <div class="demo-mobile-button is-muted">Start Pump</div>
+                                        <div class="demo-mobile-button is-danger">Stop Pump</div>
+                                        <div class="demo-mobile-warning">Source tank data is unavailable. Start Pump will stay locked until the source reading recovers.</div>
+                                        <div class="demo-mobile-tanks">
+                                            <div class="demo-mobile-tank">
+                                                <div class="demo-mobile-tank-shell">
+                                                    <div class="demo-mobile-tank-inner">
+                                                        <div class="demo-mobile-tank-water is-half"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="demo-mobile-tank-caption">Main Tank</div>
+                                                <div class="demo-mobile-tank-note">550.0 L / 1000.0 L</div>
+                                            </div>
+                                            <div class="demo-mobile-tank">
+                                                <div class="demo-mobile-tank-shell">
+                                                    <div class="demo-mobile-tank-inner">
+                                                        <div class="demo-mobile-tank-water is-full"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="demo-mobile-tank-caption">Source Tank</div>
+                                                <div class="demo-mobile-tank-note">1000.0 L / 1000.0 L</div>
+                                            </div>
+                                        </div>
+                                        <div class="demo-mobile-kpis">
+                                            <div class="demo-mobile-kpi">
+                                                <span>Pump Now</span>
+                                                <strong>OFF</strong>
+                                            </div>
+                                            <div class="demo-mobile-kpi">
+                                                <span>Auto Mode</span>
+                                                <strong>AUTO</strong>
+                                            </div>
+                                            <div class="demo-mobile-kpi is-health">
+                                                <span>Health</span>
+                                                <strong>100%</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="demo-mobile-sidecopy">
+                                    <strong>Mobile control brings the full tank view into the field.</strong>
+                                    <p>Show direct pump actions, tank readings and health cards in a single mobile screen so onsite teams and homeowners can act immediately.</p>
+                                    <ul>
+                                        <li>&#10003; Pump ON/OFF control</li>
+                                        <li>&#10003; Main and source tank status</li>
+                                        <li>&#10003; Mobile-friendly field view</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 08 &bull; Mobile Control</span>
+                            <strong>Control Pumps From Your Phone</strong>
+                            <p>Bring pump actions, tank levels and direct control into one mobile view that is easy to use on-site.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Mobile pump control</span>
+                                <span>Main + source tank status</span>
+                                <span>Field-ready dashboard</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene" data-demo-scene data-demo-title="Instant Alerts And Leak Detection" aria-hidden="true">
+                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated service dashboard spotting unusual water usage, alerts and leak activity." loading="lazy">
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 09 &bull; Intelligence</span>
+                            <strong>Instant Alerts And AI Leak Detection</strong>
+                            <p>AI spots unusual water patterns, highlights possible leaks and helps the team act before overflow, dry-run or waste becomes expensive.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>Detect unusual usage</span>
+                                <span>Identify hidden leaks</span>
+                                <span>Save water and repair cost</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene" data-demo-scene data-demo-title="Book Free Demo" aria-hidden="true">
+                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated product specialist showing the smart water tank system during a live demo." loading="lazy">
+                        <div class="demo-scene-copy">
+                            <span class="demo-scene-kicker">Scene 10 &bull; Call To Action</span>
+                            <strong>Book Free Demo</strong>
+                            <p>Finish with the live demo invitation so the story ends with a next step, not just a feature list.</p>
+                            <div class="demo-feature-list" aria-label="Scene highlights">
+                                <span>See it working live</span>
+                                <span>No commitment</span>
+                                <span>Start monitoring today</span>
+                            </div>
+                        </div>
+                    </article>
+                </div>
+
+                <div class="demo-controls">
+                    <div class="demo-status-line" id="demoStatusLine">Scene 01 of 10 &bull; Stop Water Overflow Automatically</div>
+                    <div class="demo-control-actions">
+                        <button class="demo-control-button demo-fullscreen" id="demoFullscreenButton" type="button" aria-pressed="false">Full Screen</button>
+                        <button class="demo-control-button demo-replay" id="demoReplayButton" type="button">Replay Demo</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="demo-steps">
-                <article class="demo-step">
-                    <div class="demo-step-number">1</div>
-                    <div>
-                        <strong>Tank sensor installed</strong>
-                        <p>Show the sensor placement and how the controller fits into a real property setup.</p>
-                    </div>
-                </article>
-                <article class="demo-step">
-                    <div class="demo-step-number">2</div>
-                    <div>
-                        <strong>App dashboard opens</strong>
-                        <p>Show water level, pump status and live tank monitoring on the customer phone.</p>
-                    </div>
-                </article>
-                <article class="demo-step">
-                    <div class="demo-step-number">3</div>
-                    <div>
-                        <strong>Alert notification appears</strong>
-                        <p>Show overflow, low-level or leak alerts so buyers understand the value instantly.</p>
-                    </div>
-                </article>
-                <article class="demo-step">
-                    <div class="demo-step-number">4</div>
-                    <div>
-                        <strong>Pump control and response</strong>
-                        <p>Finish with the action step: faster decisions, fewer motor issues and better water control.</p>
-                    </div>
-                </article>
+                <button class="demo-step is-active" type="button" data-demo-step="0" aria-pressed="true">
+                    <span class="demo-step-number">1</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Problem</span>
+                        <strong>Stop Water Overflow Automatically</strong>
+                        <p>Water overflow and motor damage can cost you thousands.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="1" aria-pressed="false">
+                    <span class="demo-step-number">2</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Setup</span>
+                        <strong>Easy Installation</strong>
+                        <p>A simple sensor setup turns the tank smart in minutes.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="2" aria-pressed="false">
+                    <span class="demo-step-number">3</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Dashboard</span>
+                        <strong>Home Water Dashboard</strong>
+                        <p>Show live tank cards, sync status and the main dashboard view.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="3" aria-pressed="false">
+                    <span class="demo-step-number">4</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Analytics</span>
+                        <strong>Analytics Charts</strong>
+                        <p>Use tank trend, daily use and pump activity charts to tell the story.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="4" aria-pressed="false">
+                    <span class="demo-step-number">5</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Weekly Insight</span>
+                        <strong>Weekly Water Summary</strong>
+                        <p>Show peak usage, average demand and tank-level patterns at a glance.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="5" aria-pressed="false">
+                    <span class="demo-step-number">6</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">AI Forecast</span>
+                        <strong>Forecast And Usage Trends</strong>
+                        <p>AI surfaces tomorrow usage, time-to-empty and unusual consumption.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="6" aria-pressed="false">
+                    <span class="demo-step-number">7</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Events</span>
+                        <strong>Alerts, Health And Next Steps</strong>
+                        <p>Show recent events, health details and clear actions in one screen.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="7" aria-pressed="false">
+                    <span class="demo-step-number">8</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">Mobile</span>
+                        <strong>Mobile Pump Control</strong>
+                        <p>Bring tank visibility and pump actions into a single phone view.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="8" aria-pressed="false">
+                    <span class="demo-step-number">9</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">AI Alerting</span>
+                        <strong>Instant Alerts And Leak Detection</strong>
+                        <p>AI alerts help catch hidden leaks and abnormal use earlier.</p>
+                    </span>
+                </button>
+                <button class="demo-step" type="button" data-demo-step="9" aria-pressed="false">
+                    <span class="demo-step-number">10</span>
+                    <span class="demo-step-body">
+                        <span class="demo-step-label">CTA</span>
+                        <strong>Book Free Demo</strong>
+                        <p>End with a clear live-demo invitation and next step.</p>
+                    </span>
+                </button>
             </div>
         </div>
     </section>
@@ -2274,6 +3637,192 @@ if (shouldAutoOpenLogin) {
     openLoginModal(bodyDefaultRole);
 } else {
     setLoginRole(bodyDefaultRole);
+}
+
+const demoStoryboard = document.getElementById("demoStoryboard");
+const demoProgressBar = document.getElementById("demoProgressBar");
+const demoStatusLine = document.getElementById("demoStatusLine");
+const demoFullscreenButton = document.getElementById("demoFullscreenButton");
+const demoReplayButton = document.getElementById("demoReplayButton");
+const demoScenes = demoStoryboard ? Array.from(demoStoryboard.querySelectorAll("[data-demo-scene]")) : [];
+const demoStepButtons = demoStoryboard ? Array.from(demoStoryboard.querySelectorAll("[data-demo-step]")) : [];
+const reducedMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+
+if (demoStoryboard && demoScenes.length) {
+    const demoSceneCount = demoScenes.length;
+    const demoStepMs = Number(demoStoryboard.dataset.stepMs) || 4286;
+    const demoTotalMs = Number(demoStoryboard.dataset.totalMs) || 30000;
+    const demoSceneTotalLabel = String(demoSceneCount).padStart(2, "0");
+    const supportsFullscreen = Boolean(
+        demoStoryboard.requestFullscreen ||
+        demoStoryboard.webkitRequestFullscreen ||
+        document.exitFullscreen ||
+        document.webkitExitFullscreen
+    );
+    const demoState = {
+        animationFrame: 0,
+        autoPlaying: false,
+        index: 0,
+        startedAt: 0,
+    };
+
+    function getFullscreenElement() {
+        return document.fullscreenElement || document.webkitFullscreenElement || null;
+    }
+
+    function isDemoFullscreen() {
+        return getFullscreenElement() === demoStoryboard;
+    }
+
+    function updateFullscreenButton() {
+        if (!demoFullscreenButton) return;
+        const active = isDemoFullscreen();
+        demoStoryboard.classList.toggle("is-fullscreen", active);
+        demoFullscreenButton.textContent = active ? "Exit Full Screen" : "Full Screen";
+        demoFullscreenButton.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+
+    function updateDemoProgress(progress) {
+        if (!demoProgressBar) return;
+        const clamped = Math.max(0, Math.min(progress, 1));
+        demoProgressBar.style.transform = `scaleX(${clamped})`;
+    }
+
+    function setDemoStatus(index, mode = "auto") {
+        if (!demoStatusLine) return;
+        const activeTitle = demoScenes[index]?.dataset.demoTitle || `Scene ${index + 1}`;
+        const sceneLabel = `Scene ${String(index + 1).padStart(2, "0")} of ${demoSceneTotalLabel}`;
+        if (mode === "manual") {
+            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Manual preview`;
+            return;
+        }
+        if (mode === "reduced") {
+            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Reduced motion preview`;
+            return;
+        }
+        demoStatusLine.textContent = `${sceneLabel} | ${activeTitle}`;
+    }
+
+    function renderDemo(index) {
+        demoState.index = index;
+        demoScenes.forEach((scene, sceneIndex) => {
+            const isActive = sceneIndex === index;
+            scene.classList.toggle("is-active", isActive);
+            scene.setAttribute("aria-hidden", isActive ? "false" : "true");
+        });
+        demoStepButtons.forEach((button, buttonIndex) => {
+            const isActive = buttonIndex === index;
+            button.classList.toggle("is-active", isActive);
+            button.setAttribute("aria-pressed", isActive ? "true" : "false");
+        });
+    }
+
+    function stopDemo() {
+        if (demoState.animationFrame) {
+            window.cancelAnimationFrame(demoState.animationFrame);
+        }
+        demoState.animationFrame = 0;
+        demoState.autoPlaying = false;
+    }
+
+    function tickDemo(now) {
+        if (!demoState.autoPlaying) return;
+        const elapsed = (now - demoState.startedAt) % demoTotalMs;
+        const sceneIndex = Math.min(Math.floor(elapsed / demoStepMs), demoSceneCount - 1);
+        if (sceneIndex !== demoState.index) {
+            renderDemo(sceneIndex);
+            setDemoStatus(sceneIndex);
+        }
+        updateDemoProgress(elapsed / demoTotalMs);
+        demoState.animationFrame = window.requestAnimationFrame(tickDemo);
+    }
+
+    function startDemo(index = 0) {
+        stopDemo();
+        demoState.autoPlaying = true;
+        demoState.startedAt = performance.now() - (index * demoStepMs);
+        renderDemo(index);
+        setDemoStatus(index);
+        updateDemoProgress((index * demoStepMs) / demoTotalMs);
+        if (demoReplayButton) demoReplayButton.textContent = "Replay Demo";
+        demoState.animationFrame = window.requestAnimationFrame(tickDemo);
+    }
+
+    function showDemoFrame(index, mode = "manual") {
+        stopDemo();
+        renderDemo(index);
+        setDemoStatus(index, mode);
+        const fallbackProgress = demoSceneCount > 1 ? index / (demoSceneCount - 1) : 1;
+        updateDemoProgress(fallbackProgress);
+        if (demoReplayButton) demoReplayButton.textContent = "Play Demo";
+    }
+
+    demoStepButtons.forEach((button, index) => {
+        button.addEventListener("click", () => {
+            if (demoState.autoPlaying || !(reducedMotionQuery && reducedMotionQuery.matches)) {
+                startDemo(index);
+            } else {
+                showDemoFrame(index);
+            }
+        });
+    });
+
+    if (demoReplayButton) {
+        demoReplayButton.addEventListener("click", () => startDemo(0));
+    }
+
+    if (demoFullscreenButton) {
+        if (!supportsFullscreen) {
+            demoFullscreenButton.disabled = true;
+            demoFullscreenButton.textContent = "Full Screen Unavailable";
+        } else {
+            demoFullscreenButton.addEventListener("click", async () => {
+                try {
+                    if (isDemoFullscreen()) {
+                        if (document.exitFullscreen) {
+                            await document.exitFullscreen();
+                        } else if (document.webkitExitFullscreen) {
+                            document.webkitExitFullscreen();
+                        }
+                    } else if (demoStoryboard.requestFullscreen) {
+                        await demoStoryboard.requestFullscreen();
+                    } else if (demoStoryboard.webkitRequestFullscreen) {
+                        demoStoryboard.webkitRequestFullscreen();
+                    }
+                } catch (error) {
+                    console.warn("Fullscreen toggle failed", error);
+                } finally {
+                    updateFullscreenButton();
+                }
+            });
+        }
+    }
+
+    if (reducedMotionQuery && reducedMotionQuery.matches) {
+        showDemoFrame(0, "reduced");
+    } else {
+        startDemo(0);
+    }
+
+    updateFullscreenButton();
+
+    document.addEventListener("fullscreenchange", updateFullscreenButton);
+    document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+
+    if (reducedMotionQuery) {
+        const handleMotionPreferenceChange = (event) => {
+            if (event.matches) {
+                showDemoFrame(demoState.index, "reduced");
+            } else {
+                startDemo(demoState.index);
+            }
+        };
+        if (typeof reducedMotionQuery.addEventListener === "function") {
+            reducedMotionQuery.addEventListener("change", handleMotionPreferenceChange);
+        } else if (typeof reducedMotionQuery.addListener === "function") {
+            reducedMotionQuery.addListener(handleMotionPreferenceChange);
+        }
+    }
 }
 
 const emailEnquiryButton = document.getElementById("emailEnquiryButton");
