@@ -216,8 +216,15 @@ def test_public_home_page_loads_marketing_landing():
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "Request Pricing" in body
-    assert "Customer enquiry" in body
+    assert "Talk To Sales" in body
     assert "Customer Login" in body
+    assert "support@salewell.co.in" in body
+    assert "smart-water-tank-hero-ai.png" in body
+    assert "smart-water-tank-controls-ai.png" in body
+    assert "smart-water-tank-lifestyle-ai.png" in body
+    assert "smart-water-tank-service-ai.png" in body
+    assert 'mailto:support@salewell.co.in' in body
+    assert "Need the other login?" not in body
 
 
 def test_customer_dashboard_requires_login_redirect():
@@ -234,7 +241,9 @@ def test_customer_login_page_loads():
     assert b"Customer Login" in response.data
     assert b"Admin Login" in response.data
     assert b"Request Pricing" in response.data
+    assert b"support@salewell.co.in" in response.data
     assert b"device_id" in response.data
+    assert b"Need the other login?" not in response.data
 
 
 def test_admin_login_page_loads():
