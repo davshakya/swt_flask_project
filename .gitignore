@@ -12,6 +12,7 @@ env/
 .pytest_cache/
 .pytest-tmp/
 .tmp/
+sandbox-tmp/
 pytest-cache-files-*/
 .coverage
 .coverage.*

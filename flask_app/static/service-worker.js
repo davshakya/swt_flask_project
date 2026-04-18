@@ -1,4 +1,4 @@
-const CACHE_NAME = "swt-pwa-v1";
+const CACHE_NAME = "swt-pwa-v2";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/login/customer",
@@ -7,7 +7,8 @@ const APP_SHELL = [
   "/static/pwa/icon-512.png",
   "/static/pwa/icon-maskable-512.png",
   "/static/pwa/apple-touch-icon.png",
-  "/static/pwa/favicon.svg"
+  "/static/pwa/tab-favicon.svg",
+  "/static/pwa/brand-logo.svg"
 ];
 
 self.addEventListener("install", (event) => {
