@@ -127,3 +127,27 @@ print(json.dumps({
         "mqtt_qos": 1,
         "snapshot_cache_ttl_seconds": 2.0,
     }
+
+
+def test_local_runner_starts_dev_server_when_executed_as_main(monkeypatch):
+    import flask
+
+    captured = {}
+
+    def fake_run(self, host=None, port=None, threaded=None, **kwargs):
+        captured["host"] = host
+        captured["port"] = port
+        captured["threaded"] = threaded
+        captured["extra"] = kwargs
+
+    monkeypatch.setenv("PORT", "8123")
+    monkeypatch.setattr(flask.Flask, "run", fake_run)
+
+    runpy.run_path(str(PROJECT_ROOT / "run_local.py"), run_name="__main__")
+
+    assert captured == {
+        "host": "0.0.0.0",
+        "port": 8123,
+        "threaded": True,
+        "extra": {},
+    }

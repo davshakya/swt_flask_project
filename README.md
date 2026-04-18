@@ -95,7 +95,7 @@ python -m pip install -r requirements.txt
 ### 4. Run the server
 
 ```powershell
-python server.py
+python run_local.py
 ```
 
 By default, the app starts on `http://localhost:8000`.

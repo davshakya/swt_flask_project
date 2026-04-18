@@ -11,6 +11,7 @@ import logging
 import os
 from pathlib import Path
 import binascii
+import re
 import secrets
 import sqlite3
 import subprocess
@@ -1471,12 +1472,18 @@ def can_access_next_url(role, next_url):
     return not next_url.startswith("/admin/")
 
 
-def render_login_page(mode="customer", error=None, next_url="/"):
+def render_login_page(mode="customer", error=None, next_url="/", sales_error=None, sales_success=None, sales_form=None):
     is_admin_mode = mode == "admin"
     login_action = url_for("admin_login" if is_admin_mode else "customer_login")
     switch_href = url_for("customer_login" if is_admin_mode else "admin_login")
     switch_label = "Customer Login" if is_admin_mode else "Admin Login"
     persistence_warnings = auth_persistence_warnings()
+    sales_success = sales_success or (
+        "Thanks for your enquiry. Our team can now follow up with pricing, installation guidance, or a demo."
+        if request.args.get("enquiry") == "success"
+        else None
+    )
+    sales_form = sales_form or {}
     try:
         return render_template(
             "login.html",
@@ -1493,6 +1500,9 @@ def render_login_page(mode="customer", error=None, next_url="/"):
             switch_href=switch_href,
             switch_label=switch_label,
             persistence_warnings=persistence_warnings,
+            sales_error=sales_error,
+            sales_success=sales_success,
+            sales_form=sales_form,
         )
     except TemplateNotFound:
         logger.warning("login.html template not found, using inline fallback")
@@ -1511,7 +1521,53 @@ def render_login_page(mode="customer", error=None, next_url="/"):
             switch_href=switch_href,
             switch_label=switch_label,
             persistence_warnings=persistence_warnings,
+            sales_error=sales_error,
+            sales_success=sales_success,
+            sales_form=sales_form,
         )
+
+
+def validate_sales_enquiry_payload(form):
+    cleaned = {
+        "name": str(form.get("name", "")).strip(),
+        "phone": str(form.get("phone", "")).strip(),
+        "city": str(form.get("city", "")).strip(),
+        "segment": str(form.get("segment", "")).strip(),
+        "device_count": str(form.get("device_count", "")).strip(),
+        "message": str(form.get("message", "")).strip(),
+    }
+    errors = []
+
+    if len(cleaned["name"]) < 2:
+        errors.append("Please enter your name.")
+
+    phone_digits = re.sub(r"\D", "", cleaned["phone"])
+    if len(phone_digits) < 10:
+        errors.append("Please enter a valid phone or WhatsApp number.")
+
+    if not cleaned["city"]:
+        errors.append("Please enter your city or service area.")
+
+    if not cleaned["segment"]:
+        errors.append("Please choose the project type.")
+
+    if not cleaned["device_count"]:
+        errors.append("Please estimate how many devices you need.")
+    else:
+        try:
+            device_count = int(cleaned["device_count"])
+        except (TypeError, ValueError):
+            errors.append("Device quantity must be a whole number.")
+        else:
+            if device_count < 1 or device_count > 10000:
+                errors.append("Device quantity must be between 1 and 10000.")
+            else:
+                cleaned["device_count"] = str(device_count)
+
+    if len(cleaned["message"]) > 800:
+        errors.append("Project notes must stay under 800 characters.")
+
+    return cleaned, errors
 def handle_role_login(mode):
     if is_logged_in():
         return redirect(dashboard_home_url())
@@ -6693,6 +6749,35 @@ def admin_login():
     return handle_role_login("admin")
 
 
+@app.route("/sales/enquiry", methods=["POST"])
+@csrf_protect
+def sales_enquiry():
+    landing_mode = "admin" if request.form.get("landing_mode") == "admin" else "customer"
+    next_url = resolve_next_url(dashboard_home_url("customer"))
+    cleaned, errors = validate_sales_enquiry_payload(request.form)
+
+    if errors:
+        return render_login_page(
+            mode=landing_mode,
+            next_url=next_url,
+            sales_error=" ".join(errors),
+            sales_form=cleaned,
+        ), 400
+
+    lead_details = dict(cleaned)
+    lead_details["landing_mode"] = landing_mode
+    lead_details["next_url"] = next_url
+    lead_details["remote_addr"] = request.headers.get("X-Forwarded-For", request.remote_addr)
+    log_audit_event(
+        actor="public-lead",
+        action="sales_enquiry_submitted",
+        target_type="sales_enquiry",
+        details=lead_details,
+    )
+    logger.info("Sales enquiry submitted for %s (%s)", cleaned["name"], cleaned["phone"])
+    return redirect(url_for("dashboard", enquiry="success"))
+
+
 @app.route("/logout", methods=["POST"])
 @login_required
 @csrf_protect
@@ -7124,7 +7209,10 @@ def admin_delete_known_device(device_id):
 @app.route("/")
 def dashboard():
     if not is_logged_in():
-        return redirect(url_for("customer_login"))
+        return render_login_page(
+            mode="customer",
+            next_url=resolve_next_url(dashboard_home_url("customer")),
+        )
     if is_admin_user():
         return redirect(url_for("admin_customers"))
     return render_dashboard_page(request.args.get("device_id", type=str))

@@ -210,9 +210,19 @@ def test_device_status_clears_snapshot_cache_after_new_telemetry():
     assert f"{active_mode}:__latest__" not in server_module.dashboard_snapshot_cache
 
 
-def test_login_required_redirect():
+def test_public_home_page_loads_marketing_landing():
     fresh_client = app.test_client()
-    response = fresh_client.get("/", follow_redirects=False)
+    response = fresh_client.get("/")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Request Pricing" in body
+    assert "Customer enquiry" in body
+    assert "Customer Login" in body
+
+
+def test_customer_dashboard_requires_login_redirect():
+    fresh_client = app.test_client()
+    response = fresh_client.get("/customer/dashboard", follow_redirects=False)
     assert response.status_code == 302
     assert "/login/customer" in response.headers["Location"]
 
@@ -223,6 +233,7 @@ def test_customer_login_page_loads():
     assert response.status_code == 200
     assert b"Customer Login" in response.data
     assert b"Admin Login" in response.data
+    assert b"Request Pricing" in response.data
     assert b"device_id" in response.data
 
 
@@ -242,6 +253,62 @@ def test_login_page_exposes_pwa_install_assets():
     assert '/manifest.webmanifest' in body
     assert '/service-worker.js' in body
     assert 'Install App' in body
+
+
+def test_sales_enquiry_logs_public_lead():
+    fresh_client = app.test_client()
+    unique_name = "Marketing Lead Test"
+
+    with get_db() as db:
+        db.execute(
+            "DELETE FROM ops_audit_log WHERE actor = ? AND action = ? AND details LIKE ?",
+            ("public-lead", "sales_enquiry_submitted", f"%{unique_name}%"),
+        )
+
+    response = fresh_client.get("/")
+    assert response.status_code == 200
+    with fresh_client.session_transaction() as session_data:
+        csrf_token = session_data["csrf_token"]
+
+    response = fresh_client.post(
+        "/sales/enquiry",
+        data={
+            "csrf_token": csrf_token,
+            "landing_mode": "customer",
+            "name": unique_name,
+            "phone": "+91 9876543210",
+            "city": "Pune",
+            "segment": "Apartment / Hostel",
+            "device_count": "6",
+            "message": "Need a quote for a hostel deployment.",
+        },
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Thanks for your enquiry." in body
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT actor, action, target_type, details
+            FROM ops_audit_log
+            WHERE actor = ? AND action = ? AND details LIKE ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            ("public-lead", "sales_enquiry_submitted", f"%{unique_name}%"),
+        ).fetchone()
+
+    assert row is not None
+    assert row["target_type"] == "sales_enquiry"
+    details = json.loads(row["details"])
+    assert details["name"] == unique_name
+    assert details["phone"] == "+91 9876543210"
+    assert details["city"] == "Pune"
+    assert details["segment"] == "Apartment / Hostel"
+    assert details["device_count"] == "6"
 
 
 def test_pwa_routes_are_available():

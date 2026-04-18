@@ -4,56 +4,968 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>Smart Water Tank Login</title>
+<title>Smart Water Tank | Monitoring, Enquiry and Login</title>
 {% include '_pwa_head.html' %}
 <style>
-:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.9);--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 24%),radial-gradient(circle at bottom right,rgba(31,157,104,.14),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--input-bg:rgba(248,252,252,.94);--button-line:rgba(19,78,94,.14);--error-bg:rgba(218,79,99,.12);--error-line:rgba(218,79,99,.16);--error-text:#a9334a}
-@media (prefers-color-scheme: dark){
-:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at bottom right,rgba(70,209,143,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--input-bg:rgba(10,26,35,.92);--button-line:rgba(154,202,221,.16);--error-bg:rgba(255,125,145,.14);--error-line:rgba(255,125,145,.18);--error-text:#ffb3c0}
+:root{
+color-scheme:light dark;
+--bg:#f4faf8;
+--bg-deep:#dceee8;
+--surface:rgba(255,255,255,.82);
+--surface-strong:rgba(255,255,255,.92);
+--surface-dark:rgba(7,27,35,.88);
+--line:rgba(11,78,87,.12);
+--line-strong:rgba(11,78,87,.18);
+--text:#16333b;
+--muted:#57737a;
+--brand:#0f9ab0;
+--brand-deep:#0d6377;
+--brand-soft:#dff8fb;
+--accent:#f39a3d;
+--success:#1d9b68;
+--danger:#d94b64;
+--shadow:0 26px 60px rgba(12,56,66,.14);
+--hero-glow:radial-gradient(circle at 18% 18%,rgba(15,154,176,.18),transparent 28%),radial-gradient(circle at 85% 10%,rgba(243,154,61,.16),transparent 24%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
+--button-primary:linear-gradient(135deg,#11a7be,#0d6d82);
+--button-secondary:linear-gradient(135deg,#ffbe69,#f39a3d);
+--input-bg:rgba(248,252,251,.94);
+--warning-bg:rgba(243,154,61,.14);
+--warning-line:rgba(243,154,61,.24);
+--warning-text:#9a5a10;
+--error-bg:rgba(217,75,100,.12);
+--error-line:rgba(217,75,100,.18);
+--error-text:#a5364d;
+--success-bg:rgba(29,155,104,.12);
+--success-line:rgba(29,155,104,.18);
+--success-text:#146846;
 }
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg);padding:18px;transition:background .3s ease,color .3s ease}
-.card{width:min(460px,100%);padding:30px;border-radius:28px;background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow)}
-.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 12px;font-weight:800}.title{font-size:38px;font-weight:800;line-height:1;margin:0 0 10px}.muted{margin:0 0 20px;color:var(--muted);line-height:1.65}
-form{display:grid;gap:16px}.group{display:grid;gap:8px}.group label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}
-input{width:100%;padding:13px 15px;border-radius:15px;border:1px solid var(--button-line);background:var(--input-bg);color:var(--text);font-family:inherit}
-button{border:none;border-radius:14px;padding:10px 16px;min-height:40px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font-family:inherit;justify-self:start}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:14px;padding:10px 16px;min-height:40px;font-weight:800;text-decoration:none;border:1px solid var(--button-line);color:var(--text)}
-.error,.warning{padding:13px 15px;border-radius:16px}
-.error{background:var(--error-bg);border:1px solid var(--error-line);color:var(--error-text)}
-.warning{background:rgba(222,141,29,.12);border:1px solid rgba(222,141,29,.2);color:#9a5c04}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.hint{margin-top:14px;font-size:13px;color:var(--muted);line-height:1.6}
-@media (max-width:560px){button,a{width:100%;justify-content:center}.row{display:grid}.row a{width:100%}}
+@media (prefers-color-scheme: dark){
+:root{
+--bg:#07151c;
+--bg-deep:#0b2430;
+--surface:rgba(9,29,37,.8);
+--surface-strong:rgba(11,32,41,.92);
+--surface-dark:rgba(5,18,25,.96);
+--line:rgba(153,209,220,.12);
+--line-strong:rgba(153,209,220,.2);
+--text:#e8f7f8;
+--muted:#9eb9bf;
+--brand:#58d1e5;
+--brand-deep:#90ecff;
+--brand-soft:rgba(88,209,229,.12);
+--accent:#ffb75c;
+--success:#4cd99b;
+--danger:#ff8499;
+--shadow:0 28px 70px rgba(0,0,0,.34);
+--hero-glow:radial-gradient(circle at 16% 18%,rgba(88,209,229,.18),transparent 28%),radial-gradient(circle at 84% 10%,rgba(255,183,92,.14),transparent 24%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
+--button-primary:linear-gradient(135deg,#3ecce3,#1593ad);
+--button-secondary:linear-gradient(135deg,#ffc477,#ee9640);
+--input-bg:rgba(8,24,31,.9);
+--warning-bg:rgba(255,183,92,.14);
+--warning-line:rgba(255,183,92,.22);
+--warning-text:#ffd7a3;
+--error-bg:rgba(255,132,153,.14);
+--error-line:rgba(255,132,153,.2);
+--error-text:#ffc0cb;
+--success-bg:rgba(76,217,155,.14);
+--success-line:rgba(76,217,155,.2);
+--success-text:#baf3d8;
+}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+margin:0;
+min-height:100vh;
+font-family:"Aptos","Trebuchet MS","Segoe UI",sans-serif;
+color:var(--text);
+background:var(--hero-glow);
+transition:background .3s ease,color .3s ease;
+}
+body::before,
+body::after{
+content:"";
+position:fixed;
+border-radius:999px;
+pointer-events:none;
+filter:blur(8px);
+opacity:.8;
+z-index:0;
+}
+body::before{
+width:260px;
+height:260px;
+top:110px;
+left:-70px;
+background:rgba(17,167,190,.14);
+animation:drift 14s ease-in-out infinite;
+}
+body::after{
+width:220px;
+height:220px;
+right:-60px;
+bottom:110px;
+background:rgba(243,154,61,.14);
+animation:drift 16s ease-in-out infinite reverse;
+}
+@keyframes drift{
+0%,100%{transform:translateY(0)}
+50%{transform:translateY(18px)}
+}
+a{color:inherit}
+button,input,select,textarea{font:inherit}
+.page{
+position:relative;
+z-index:1;
+width:min(1220px,calc(100% - 28px));
+margin:0 auto;
+padding:22px 0 54px;
+}
+.surface{
+background:var(--surface);
+border:1px solid var(--line);
+box-shadow:var(--shadow);
+backdrop-filter:blur(16px);
+}
+.nav{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:18px;
+padding:14px 18px;
+border-radius:24px;
+position:sticky;
+top:14px;
+z-index:12;
+}
+.brand{
+display:flex;
+align-items:center;
+gap:14px;
+text-decoration:none;
+min-width:0;
+}
+.brand-mark{
+width:52px;
+height:52px;
+border-radius:18px;
+display:grid;
+place-items:center;
+background:linear-gradient(145deg,rgba(255,255,255,.92),rgba(203,241,246,.82));
+border:1px solid rgba(255,255,255,.58);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 16px 30px rgba(13,75,89,.16);
+color:var(--brand-deep);
+font-weight:900;
+font-size:18px;
+letter-spacing:.08em;
+}
+.brand-copy{min-width:0}
+.brand-copy strong{
+display:block;
+font-size:15px;
+letter-spacing:.14em;
+text-transform:uppercase;
+}
+.brand-copy span{
+display:block;
+font-size:13px;
+color:var(--muted);
+margin-top:4px;
+}
+.nav-links{
+display:flex;
+gap:16px;
+align-items:center;
+flex-wrap:wrap;
+justify-content:center;
+}
+.nav-links a{
+font-size:14px;
+text-decoration:none;
+color:var(--muted);
+font-weight:700;
+}
+.nav-actions{
+display:flex;
+gap:10px;
+align-items:center;
+justify-content:flex-end;
+flex-wrap:wrap;
+}
+.nav-button,
+.button,
+.button-secondary,
+.ghost-link{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:46px;
+padding:12px 18px;
+border-radius:16px;
+font-weight:800;
+text-decoration:none;
+transition:transform .18s ease,filter .18s ease,background .18s ease;
+}
+.nav-button:hover,
+.button:hover,
+.button-secondary:hover,
+.ghost-link:hover{
+transform:translateY(-1px);
+filter:brightness(1.03);
+}
+.nav-button{
+border:1px solid var(--line-strong);
+background:rgba(255,255,255,.38);
+}
+.nav-button.is-primary,
+.button{
+border:none;
+background:var(--button-primary);
+color:#fff;
+}
+.nav-button.is-secondary,
+.button-secondary{
+border:none;
+background:var(--button-secondary);
+color:#1e2b31;
+}
+.nav-button.is-current{
+box-shadow:0 0 0 3px rgba(17,167,190,.12);
+}
+.hero{
+display:grid;
+grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);
+gap:22px;
+margin-top:24px;
+align-items:stretch;
+}
+.hero-copy,
+.portal-card,
+.section{
+border-radius:30px;
+}
+.hero-copy{
+padding:34px;
+position:relative;
+overflow:hidden;
+}
+.hero-copy::before{
+content:"";
+position:absolute;
+inset:0;
+background:radial-gradient(circle at 82% 12%,rgba(255,255,255,.44),transparent 20%),linear-gradient(135deg,rgba(15,154,176,.08),rgba(243,154,61,.04));
+pointer-events:none;
+}
+.hero-copy > *{position:relative;z-index:1}
+.eyebrow{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:9px 14px;
+border-radius:999px;
+background:var(--brand-soft);
+border:1px solid var(--line);
+font-size:11px;
+letter-spacing:.18em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--brand-deep);
+}
+.hero-title{
+margin:18px 0 14px;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(2.8rem,5vw,5rem);
+line-height:.96;
+letter-spacing:-.04em;
+max-width:11ch;
+}
+.hero-text{
+margin:0;
+max-width:62ch;
+font-size:1.05rem;
+line-height:1.78;
+color:var(--muted);
+}
+.hero-actions{
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+margin-top:24px;
+}
+.metrics{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:12px;
+margin-top:26px;
+}
+.metric{
+padding:18px;
+border-radius:22px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.54);
+}
+.metric strong{
+display:block;
+font-size:25px;
+letter-spacing:-.04em;
+margin-bottom:6px;
+}
+.metric span{
+display:block;
+font-size:12px;
+letter-spacing:.12em;
+text-transform:uppercase;
+font-weight:800;
+color:var(--muted);
+}
+.metric p{
+margin:8px 0 0;
+font-size:13px;
+line-height:1.55;
+color:var(--muted);
+}
+.trust-row{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+margin-top:20px;
+}
+.trust-pill{
+padding:10px 14px;
+border-radius:999px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.42);
+font-size:13px;
+font-weight:700;
+}
+.portal-card{
+padding:28px;
+background:linear-gradient(180deg,var(--surface-dark),rgba(11,32,41,.94));
+color:#effbfd;
+border:1px solid rgba(153,209,220,.12);
+}
+.portal-card .eyebrow{
+background:rgba(88,209,229,.12);
+border-color:rgba(153,209,220,.18);
+color:#abf3ff;
+}
+.portal-card h2{
+margin:16px 0 10px;
+font-size:clamp(1.8rem,3vw,2.4rem);
+line-height:1.02;
+letter-spacing:-.03em;
+}
+.portal-card .muted{
+margin:0 0 20px;
+color:#a9c3ca;
+line-height:1.7;
+}
+.banner{
+padding:13px 15px;
+border-radius:16px;
+margin:0 0 14px;
+font-size:14px;
+line-height:1.6;
+}
+.banner.warning{
+background:var(--warning-bg);
+border:1px solid var(--warning-line);
+color:var(--warning-text);
+}
+.banner.error{
+background:var(--error-bg);
+border:1px solid var(--error-line);
+color:var(--error-text);
+}
+.banner.success{
+background:var(--success-bg);
+border:1px solid var(--success-line);
+color:var(--success-text);
+}
+.portal-form,
+.enquiry-form{
+display:grid;
+gap:14px;
+}
+.group{
+display:grid;
+gap:8px;
+}
+.group label{
+font-size:11px;
+letter-spacing:.16em;
+text-transform:uppercase;
+font-weight:900;
+color:#bcd6db;
+}
+.portal-form input,
+.portal-form select,
+.portal-form textarea,
+.enquiry-form input,
+.enquiry-form select,
+.enquiry-form textarea{
+width:100%;
+padding:13px 15px;
+border-radius:16px;
+border:1px solid var(--line-strong);
+background:var(--input-bg);
+color:var(--text);
+}
+.portal-form input{
+background:rgba(8,24,31,.96);
+color:#effbfd;
+border-color:rgba(153,209,220,.14);
+}
+.portal-form input::placeholder{color:#88a5ad}
+.portal-submit{
+margin-top:2px;
+width:100%;
+}
+.portal-note{
+margin-top:18px;
+padding:16px;
+border-radius:18px;
+background:rgba(255,255,255,.06);
+border:1px solid rgba(153,209,220,.12);
+}
+.portal-note strong{
+display:block;
+font-size:12px;
+letter-spacing:.14em;
+text-transform:uppercase;
+color:#abf3ff;
+margin-bottom:8px;
+}
+.portal-note p{
+margin:0;
+color:#b7d1d6;
+line-height:1.65;
+font-size:14px;
+}
+.portal-switch{
+display:flex;
+justify-content:space-between;
+align-items:center;
+gap:12px;
+margin-top:16px;
+padding-top:16px;
+border-top:1px solid rgba(153,209,220,.12);
+font-size:14px;
+color:#b7d1d6;
+}
+.portal-switch a{
+color:#abf3ff;
+font-weight:800;
+text-decoration:none;
+}
+.section{
+margin-top:22px;
+padding:30px;
+}
+.section-head{
+display:flex;
+justify-content:space-between;
+align-items:end;
+gap:18px;
+flex-wrap:wrap;
+margin-bottom:18px;
+}
+.section-head h2{
+margin:0;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(2rem,4vw,3rem);
+line-height:1;
+letter-spacing:-.03em;
+max-width:14ch;
+}
+.section-copy{
+margin:0;
+max-width:58ch;
+line-height:1.72;
+color:var(--muted);
+}
+.feature-grid,
+.solution-grid,
+.service-grid{
+display:grid;
+gap:16px;
+}
+.feature-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.solution-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{
+padding:22px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+}
+.card-tag{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:7px 11px;
+border-radius:999px;
+background:rgba(15,154,176,.1);
+color:var(--brand-deep);
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+}
+.card h3{
+margin:16px 0 8px;
+font-size:23px;
+line-height:1.1;
+letter-spacing:-.03em;
+}
+.card p{
+margin:0;
+line-height:1.68;
+color:var(--muted);
+}
+.card strong.price{
+display:block;
+margin:18px 0 10px;
+font-size:26px;
+letter-spacing:-.04em;
+}
+.card .ghost-link{
+margin-top:18px;
+border:1px solid var(--line-strong);
+background:transparent;
+justify-self:start;
+}
+.split{
+display:grid;
+grid-template-columns:minmax(0,1fr) minmax(320px,.9fr);
+gap:18px;
+}
+.support-panel{
+padding:24px;
+border-radius:26px;
+background:linear-gradient(180deg,rgba(15,154,176,.1),rgba(255,255,255,.58));
+border:1px solid var(--line);
+}
+.support-panel h3{
+margin:12px 0 10px;
+font-size:28px;
+line-height:1.05;
+letter-spacing:-.03em;
+}
+.support-list{
+display:grid;
+gap:12px;
+margin-top:18px;
+}
+.support-item{
+padding:14px 15px;
+border-radius:18px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.52);
+}
+.support-item strong{
+display:block;
+margin-bottom:6px;
+font-size:14px;
+letter-spacing:.12em;
+text-transform:uppercase;
+}
+.support-item p{
+margin:0;
+color:var(--muted);
+line-height:1.6;
+}
+.enquiry-layout{
+display:grid;
+grid-template-columns:minmax(0,1fr) minmax(340px,.95fr);
+gap:18px;
+align-items:stretch;
+}
+.enquiry-intro{
+display:flex;
+flex-direction:column;
+justify-content:space-between;
+gap:18px;
+}
+.spotlight-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+}
+.spotlight{
+padding:18px;
+border-radius:22px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+}
+.spotlight strong{
+display:block;
+font-size:16px;
+letter-spacing:.02em;
+margin-bottom:8px;
+}
+.spotlight p{
+margin:0;
+line-height:1.6;
+color:var(--muted);
+}
+.enquiry-form{
+padding:24px;
+border-radius:26px;
+background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(234,246,244,.84));
+border:1px solid var(--line);
+}
+.enquiry-form .group label{
+color:var(--muted);
+}
+.row-2{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+}
+textarea{
+min-height:126px;
+resize:vertical;
+}
+.form-note{
+font-size:13px;
+line-height:1.6;
+color:var(--muted);
+}
+.footer{
+margin-top:22px;
+padding:18px 22px;
+border-radius:24px;
+display:flex;
+justify-content:space-between;
+gap:16px;
+align-items:center;
+flex-wrap:wrap;
+font-size:14px;
+color:var(--muted);
+}
+.footer strong{
+color:var(--text);
+}
+@media (max-width:1100px){
+.hero,
+.split,
+.enquiry-layout{
+grid-template-columns:1fr;
+}
+.hero-title{max-width:none}
+}
+@media (max-width:900px){
+.feature-grid,
+.solution-grid,
+.service-grid,
+.metrics{
+grid-template-columns:1fr 1fr;
+}
+.nav{
+position:static;
+}
+.nav-links{
+display:none;
+}
+}
+@media (max-width:640px){
+.page{
+width:min(100% - 18px,1220px);
+padding-top:16px;
+}
+.nav,
+.hero-copy,
+.portal-card,
+.section,
+.footer{
+padding-left:18px;
+padding-right:18px;
+}
+.metrics,
+.feature-grid,
+.solution-grid,
+.service-grid,
+.row-2,
+.spotlight-grid{
+grid-template-columns:1fr;
+}
+.nav-actions,
+.hero-actions{
+display:grid;
+grid-template-columns:1fr;
+width:100%;
+}
+.nav-actions > *,
+.hero-actions > *,
+.ghost-link{
+width:100%;
+}
+.portal-switch{
+align-items:flex-start;
+flex-direction:column;
+}
+}
 </style>
 </head>
 <body>
-<div class="card">
-    <div class="eyebrow">Smart Water Tank</div>
-    <h1 class="title">{{ login_title }}</h1>
-    <p class="muted">{{ login_description }}</p>
-    {% for warning in persistence_warnings or [] %}
-    <div class="warning">{{ warning }}</div>
-    {% endfor %}
-    {% if error %}
-    <div class="error">{{ error }}</div>
-    {% endif %}
-    <form method="post" action="{{ login_action }}">
-        <input type="hidden" name="next" value="{{ next_url }}">
-        <div class="group">
-            <label for="username">Username</label>
-            <input id="username" name="username" type="text" autocomplete="username" required>
+<div class="page">
+    <header class="nav surface">
+        <a class="brand" href="{{ url_for('dashboard') }}">
+            <div class="brand-mark">SWT</div>
+            <div class="brand-copy">
+                <strong>Smart Water Tank</strong>
+                <span>Marketing, enquiry and live dashboard access</span>
+            </div>
+        </a>
+        <nav class="nav-links" aria-label="Page sections">
+            <a href="#features">Features</a>
+            <a href="#solutions">Solutions</a>
+            <a href="#enquiry">Enquiry</a>
+            <a href="#portal">Portal</a>
+        </nav>
+        <div class="nav-actions">
+            <a class="nav-button is-secondary" href="#enquiry">Get Quote</a>
+            <a class="nav-button {% if login_mode != 'admin' %}is-primary is-current{% endif %}" href="{{ url_for('customer_login') }}#portal">Customer Login</a>
+            <a class="nav-button {% if login_mode == 'admin' %}is-primary is-current{% endif %}" href="{{ url_for('admin_login') }}#portal">Admin Login</a>
         </div>
-        <div class="group">
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required>
+    </header>
+
+    <section class="hero">
+        <div class="hero-copy surface">
+            <div class="eyebrow">{% if login_mode == "admin" %}Dealer and admin control{% else %}Built to help you sell smarter water devices{% endif %}</div>
+            <h1 class="hero-title">{% if login_mode == "admin" %}Run onboarding, service, and customer operations from one clean desk.{% else %}Turn every water tank into a premium, easy-to-sell smart product.{% endif %}</h1>
+            <p class="hero-text">{% if login_mode == "admin" %}Use the same platform to register customers, support installations, and monitor devices with a polished dashboard that feels production-ready from day one.{% else %}Show customers real value with live tank visibility, overflow protection, leak alerts, app access, and a professional service experience for homes, apartments, hostels, and commercial sites.{% endif %}</p>
+            <div class="hero-actions">
+                <a class="button" href="#enquiry">Request Pricing</a>
+                <a class="ghost-link nav-button" href="#solutions">View Packages</a>
+            </div>
+            <div class="metrics">
+                <article class="metric">
+                    <span>24/7 Monitoring</span>
+                    <strong>Live tank visibility</strong>
+                    <p>Customers can see level, pump state, and usage status from web or mobile without calling the installer.</p>
+                </article>
+                <article class="metric">
+                    <span>Protection Layer</span>
+                    <strong>Overflow, leak and dry-run alerts</strong>
+                    <p>Sell prevention, not just hardware, with safety-focused alerts that reduce avoidable water and motor loss.</p>
+                </article>
+                <article class="metric">
+                    <span>Fast Adoption</span>
+                    <strong>Installer-friendly rollout</strong>
+                    <p>Account access, dashboard onboarding, and after-sales support are already built into the experience.</p>
+                </article>
+            </div>
+            <div class="trust-row" aria-label="Feature highlights">
+                <div class="trust-pill">Web + mobile dashboard</div>
+                <div class="trust-pill">Customer-specific device access</div>
+                <div class="trust-pill">Admin controls and audit trail</div>
+                <div class="trust-pill">Sales enquiry capture</div>
+            </div>
         </div>
-        <button type="submit">Sign In</button>
-    </form>
-    <div class="row">
-        <a href="{{ switch_href }}">{{ switch_label }}</a>
-    </div>
-    <div class="hint">{% if login_mode == "admin" %}Use the admin dashboard account here. Customers should sign in from the customer page with their exact device ID.{% else %}Customer usernames must exactly match the registered `device_id`, for example `swt-000-000-000-001`.{% endif %}</div>
+
+        <aside id="portal" class="portal-card surface">
+            <div class="eyebrow">{{ login_title }}</div>
+            <h2>{% if login_mode == "admin" %}Operations access{% else %}Portal access{% endif %}</h2>
+            <p class="muted">{{ login_description }}</p>
+            {% for warning in persistence_warnings or [] %}
+            <div class="banner warning">{{ warning }}</div>
+            {% endfor %}
+            {% if error %}
+            <div class="banner error">{{ error }}</div>
+            {% endif %}
+            <form method="post" action="{{ login_action }}" class="portal-form">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <div class="group">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" type="text" autocomplete="username" value="{{ request.form.get('username', '') }}" placeholder="{% if login_mode == 'admin' %}Admin username{% else %}swt-000-000-000-001{% endif %}" required>
+                </div>
+                <div class="group">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                </div>
+                <button class="button portal-submit" type="submit">{% if login_mode == "admin" %}Open Admin Dashboard{% else %}Open Customer Dashboard{% endif %}</button>
+            </form>
+            <div class="portal-note">
+                <strong>{% if login_mode == "admin" %}Admin note{% else %}Customer note{% endif %}</strong>
+                <p>{% if login_mode == "admin" %}Use the admin account to register customers, reset passwords, manage cloud-feed access, and review operational data in one place.{% else %}Customer usernames must exactly match the registered <code>device_id</code>, for example <code>swt-000-000-000-001</code>.{% endif %}</p>
+            </div>
+            <div class="portal-switch">
+                <span>Need the other portal?</span>
+                <a href="{{ switch_href }}#portal">{{ switch_label }}</a>
+            </div>
+        </aside>
+    </section>
+
+    <section id="features" class="section surface">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Why customers buy</div>
+                <h2>Features that solve visible, everyday water problems.</h2>
+            </div>
+            <p class="section-copy">This page now works like a real sales surface: it explains the product, captures enquiries, and still gives existing customers a clean login path.</p>
+        </div>
+        <div class="feature-grid">
+            <article class="card">
+                <div class="card-tag">Smart alerts</div>
+                <h3>Leak and fault awareness</h3>
+                <p>Detect abnormal use, drip patterns, slow leaks, dry-run risk, and pump issues before they become expensive complaints.</p>
+            </article>
+            <article class="card">
+                <div class="card-tag">Premium service</div>
+                <h3>Customer dashboard access</h3>
+                <p>Give every buyer a branded digital experience with live status, analytics, and device-specific access instead of manual follow-up calls.</p>
+            </article>
+            <article class="card">
+                <div class="card-tag">Sales advantage</div>
+                <h3>Easy demo during conversion</h3>
+                <p>Use live level tracking, automation controls, and protection features as practical proof when pitching to homes, builders, or facility managers.</p>
+            </article>
+        </div>
+    </section>
+
+    <section id="solutions" class="section surface">
+        <div class="split">
+            <div>
+                <div class="section-head">
+                    <div>
+                        <div class="eyebrow">Sales packages</div>
+                        <h2>Offer a package for each customer segment.</h2>
+                    </div>
+                    <p class="section-copy">You asked for more features to help sell the devices, so the page now includes simple offer framing customers can understand quickly.</p>
+                </div>
+                <div class="solution-grid">
+                    <article class="card">
+                        <div class="card-tag">Residential</div>
+                        <h3>Home Tank Guard</h3>
+                        <p>Ideal for villas and homes that want level visibility, auto motor logic, and essential overflow protection.</p>
+                        <strong class="price">Starter smart upgrade</strong>
+                        <a class="ghost-link" href="#enquiry">Request home pricing</a>
+                    </article>
+                    <article class="card">
+                        <div class="card-tag">Apartment and hostel</div>
+                        <h3>Multi-Tank Control</h3>
+                        <p>Built for properties that need dependable monitoring, service alerts, and a cleaner support workflow for multiple users.</p>
+                        <strong class="price">Best for recurring service</strong>
+                        <a class="ghost-link" href="#enquiry">Request site quote</a>
+                    </article>
+                    <article class="card">
+                        <div class="card-tag">Commercial</div>
+                        <h3>Operations Pro</h3>
+                        <p>For schools, hotels, clinics, and facilities that need administrator oversight, auditable actions, and a professional dashboard story.</p>
+                        <strong class="price">Custom deployment plan</strong>
+                        <a class="ghost-link" href="#enquiry">Talk to sales</a>
+                    </article>
+                </div>
+            </div>
+            <aside class="support-panel">
+                <div class="eyebrow">After-sales support</div>
+                <h3>Sell the service promise, not only the device.</h3>
+                <p class="section-copy">Strong sales pages should reduce buyer hesitation. This support panel helps position you as a long-term partner instead of a one-time hardware seller.</p>
+                <div class="support-list">
+                    <div class="support-item">
+                        <strong>Customer onboarding</strong>
+                        <p>Separate customer accounts keep each buyer focused only on their own tank dashboard.</p>
+                    </div>
+                    <div class="support-item">
+                        <strong>Admin visibility</strong>
+                        <p>Reset passwords, manage customer accounts, and handle service operations from a dedicated admin side.</p>
+                    </div>
+                    <div class="support-item">
+                        <strong>Enquiry follow-up</strong>
+                        <p>The page now captures public sales enquiries so interested buyers have a clear path to contact you.</p>
+                    </div>
+                </div>
+            </aside>
+        </div>
+    </section>
+
+    <section id="enquiry" class="section surface">
+        <div class="enquiry-layout">
+            <div class="enquiry-intro">
+                <div>
+                    <div class="eyebrow">Customer enquiry</div>
+                    <h2>Invite buyers to ask for pricing, demos, and installation help.</h2>
+                    <p class="section-copy">This form is now connected to the Flask backend, so enquiries are logged for follow-up instead of being just a visual placeholder.</p>
+                </div>
+                <div class="spotlight-grid">
+                    <article class="spotlight">
+                        <strong>Homes and villas</strong>
+                        <p>Pitch convenience, overflow prevention, and easy phone access for everyday household use.</p>
+                    </article>
+                    <article class="spotlight">
+                        <strong>Apartments and hostels</strong>
+                        <p>Position the device as a reliability and complaint-reduction tool for managers and maintenance teams.</p>
+                    </article>
+                    <article class="spotlight">
+                        <strong>Hotels and institutions</strong>
+                        <p>Highlight monitoring discipline, alerting, and cleaner service operations for staff-heavy sites.</p>
+                    </article>
+                    <article class="spotlight">
+                        <strong>Dealers and installers</strong>
+                        <p>Use the admin portal and dashboard access as a value-add that helps you close and support more customers.</p>
+                    </article>
+                </div>
+            </div>
+
+            <form class="enquiry-form" method="post" action="{{ url_for('sales_enquiry') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="landing_mode" value="{{ login_mode }}">
+                {% if sales_success %}
+                <div class="banner success">{{ sales_success }}</div>
+                {% endif %}
+                {% if sales_error %}
+                <div class="banner error">{{ sales_error }}</div>
+                {% endif %}
+                <div class="row-2">
+                    <div class="group">
+                        <label for="lead_name">Name</label>
+                        <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" placeholder="Your full name" required>
+                    </div>
+                    <div class="group">
+                        <label for="lead_phone">Phone / WhatsApp</label>
+                        <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" placeholder="+91 98765 43210" required>
+                    </div>
+                </div>
+                <div class="row-2">
+                    <div class="group">
+                        <label for="lead_city">City</label>
+                        <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" placeholder="City or service area" required>
+                    </div>
+                    <div class="group">
+                        <label for="lead_segment">Project Type</label>
+                        <select id="lead_segment" name="segment" required>
+                            <option value="">Select one</option>
+                            <option value="Home / Villa" {% if sales_form.get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
+                            <option value="Apartment / Hostel" {% if sales_form.get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
+                            <option value="Hotel / Institution" {% if sales_form.get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
+                            <option value="Dealer / Installer" {% if sales_form.get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
+                            <option value="Commercial Site" {% if sales_form.get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="group">
+                    <label for="lead_device_count">Estimated Devices Needed</label>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" placeholder="Example: 12" required>
+                </div>
+                <div class="group">
+                    <label for="lead_message">Project Notes</label>
+                    <textarea id="lead_message" name="message" placeholder="Tell us about the site, tank count, support needs, or installation timeline.">{{ sales_form.get('message', '') }}</textarea>
+                </div>
+                <button class="button-secondary" type="submit">Send Enquiry</button>
+                <div class="form-note">Enquiries are recorded in the platform so you can follow up on pricing, demos, or installation planning.</div>
+            </form>
+        </div>
+    </section>
+
+    <footer class="footer surface">
+        <div><strong>Smart Water Tank</strong> now has a proper landing page for sales, customer enquiry, and portal access.</div>
+        <div>Customer login stays available from the top-right, with admin access beside it.</div>
+    </footer>
 </div>
 {% include '_pwa_install.html' %}
 </body>
 </html>
-
