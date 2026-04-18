@@ -4,72 +4,81 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>Smart Water Tank | Monitoring, Enquiry and Login</title>
+<meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with Smart Water Tank by SaleWell.">
+<title>Stop Water Overflow | Smart Water Tank by SaleWell</title>
 {% include '_pwa_head.html' %}
 <style>
 :root{
 color-scheme:light dark;
---bg:#f4faf8;
---bg-deep:#dceee8;
---surface:rgba(255,255,255,.82);
+--bg:#f4f8f5;
+--bg-deep:#deebe4;
+--surface:rgba(255,255,255,.84);
 --surface-strong:rgba(255,255,255,.94);
---surface-dark:rgba(7,27,35,.9);
---line:rgba(11,78,87,.12);
---line-strong:rgba(11,78,87,.18);
---text:#16333b;
---muted:#57737a;
---brand:#0f9ab0;
---brand-deep:#0d6377;
---brand-soft:#dff8fb;
---accent:#f39a3d;
---success:#1d9b68;
---danger:#d94b64;
---shadow:0 26px 60px rgba(12,56,66,.14);
---hero-glow:radial-gradient(circle at 18% 18%,rgba(15,154,176,.18),transparent 28%),radial-gradient(circle at 85% 10%,rgba(243,154,61,.16),transparent 24%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
---button-primary:linear-gradient(135deg,#11a7be,#0d6d82);
---button-secondary:linear-gradient(135deg,#ffbe69,#f39a3d);
---input-bg:rgba(248,252,251,.94);
---warning-bg:rgba(243,154,61,.14);
---warning-line:rgba(243,154,61,.24);
---warning-text:#9a5a10;
---error-bg:rgba(217,75,100,.12);
---error-line:rgba(217,75,100,.18);
---error-text:#a5364d;
---success-bg:rgba(29,155,104,.12);
---success-line:rgba(29,155,104,.18);
---success-text:#146846;
+--surface-dark:rgba(8,31,39,.94);
+--line:rgba(9,72,80,.12);
+--line-strong:rgba(9,72,80,.2);
+--text:#173238;
+--muted:#5a7278;
+--brand:#0d93a8;
+--brand-deep:#0c6678;
+--brand-soft:rgba(13,147,168,.1);
+--accent:#ef9b41;
+--accent-soft:rgba(239,155,65,.14);
+--success:#198a61;
+--danger:#cf566b;
+--shadow:0 28px 60px rgba(12,56,66,.14);
+--hero-glow:
+    radial-gradient(circle at 18% 16%,rgba(13,147,168,.18),transparent 26%),
+    radial-gradient(circle at 84% 10%,rgba(239,155,65,.18),transparent 24%),
+    linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
+--button-primary:linear-gradient(135deg,#12a8bf,#0d6e83);
+--button-secondary:linear-gradient(135deg,#ffc36d,#ef9b41);
+--input-bg:rgba(248,252,250,.96);
+--warning-bg:rgba(239,155,65,.14);
+--warning-line:rgba(239,155,65,.24);
+--warning-text:#935510;
+--error-bg:rgba(207,86,107,.12);
+--error-line:rgba(207,86,107,.18);
+--error-text:#a53d50;
+--success-bg:rgba(25,138,97,.12);
+--success-line:rgba(25,138,97,.18);
+--success-text:#146746;
 }
 @media (prefers-color-scheme: dark){
 :root{
---bg:#07151c;
---bg-deep:#0b2430;
---surface:rgba(9,29,37,.8);
---surface-strong:rgba(11,32,41,.92);
---surface-dark:rgba(5,18,25,.97);
---line:rgba(153,209,220,.12);
---line-strong:rgba(153,209,220,.2);
+--bg:#06151b;
+--bg-deep:#0b2530;
+--surface:rgba(8,28,35,.82);
+--surface-strong:rgba(10,31,39,.94);
+--surface-dark:rgba(4,18,24,.98);
+--line:rgba(150,207,218,.12);
+--line-strong:rgba(150,207,218,.2);
 --text:#e8f7f8;
---muted:#9eb9bf;
---brand:#58d1e5;
---brand-deep:#90ecff;
---brand-soft:rgba(88,209,229,.12);
---accent:#ffb75c;
---success:#4cd99b;
---danger:#ff8499;
---shadow:0 28px 70px rgba(0,0,0,.34);
---hero-glow:radial-gradient(circle at 16% 18%,rgba(88,209,229,.18),transparent 28%),radial-gradient(circle at 84% 10%,rgba(255,183,92,.14),transparent 24%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
---button-primary:linear-gradient(135deg,#3ecce3,#1593ad);
---button-secondary:linear-gradient(135deg,#ffc477,#ee9640);
---input-bg:rgba(8,24,31,.9);
---warning-bg:rgba(255,183,92,.14);
---warning-line:rgba(255,183,92,.22);
---warning-text:#ffd7a3;
---error-bg:rgba(255,132,153,.14);
---error-line:rgba(255,132,153,.2);
---error-text:#ffc0cb;
---success-bg:rgba(76,217,155,.14);
---success-line:rgba(76,217,155,.2);
---success-text:#baf3d8;
+--muted:#9bb8bf;
+--brand:#59d3e6;
+--brand-deep:#95eeff;
+--brand-soft:rgba(89,211,230,.14);
+--accent:#ffbb61;
+--accent-soft:rgba(255,187,97,.16);
+--success:#49d597;
+--danger:#ff8599;
+--shadow:0 28px 72px rgba(0,0,0,.34);
+--hero-glow:
+    radial-gradient(circle at 16% 16%,rgba(89,211,230,.18),transparent 26%),
+    radial-gradient(circle at 84% 10%,rgba(255,187,97,.14),transparent 24%),
+    linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);
+--button-primary:linear-gradient(135deg,#3cd0e6,#1494ae);
+--button-secondary:linear-gradient(135deg,#ffc77b,#ef9b41);
+--input-bg:rgba(8,23,29,.94);
+--warning-bg:rgba(255,187,97,.14);
+--warning-line:rgba(255,187,97,.22);
+--warning-text:#ffd8a7;
+--error-bg:rgba(255,133,153,.14);
+--error-line:rgba(255,133,153,.2);
+--error-text:#ffc1cb;
+--success-bg:rgba(73,213,151,.14);
+--success-line:rgba(73,213,151,.2);
+--success-text:#c0f5dc;
 }
 }
 *{box-sizing:border-box}
@@ -88,27 +97,28 @@ content:"";
 position:fixed;
 border-radius:999px;
 pointer-events:none;
-filter:blur(8px);
+filter:blur(10px);
 opacity:.8;
 z-index:0;
 }
 body::before{
-width:260px;
-height:260px;
-top:110px;
-left:-70px;
-background:rgba(17,167,190,.14);
-animation:drift 14s ease-in-out infinite;
+width:280px;
+height:280px;
+top:90px;
+left:-80px;
+background:rgba(18,168,191,.15);
+animation:floaty 16s ease-in-out infinite;
 }
 body::after{
 width:220px;
 height:220px;
 right:-60px;
 bottom:110px;
-background:rgba(243,154,61,.14);
-animation:drift 16s ease-in-out infinite reverse;
+background:rgba(239,155,65,.14);
+animation:floaty 18s ease-in-out infinite reverse;
 }
-@keyframes drift{
+body.modal-open{overflow:hidden}
+@keyframes floaty{
 0%,100%{transform:translateY(0)}
 50%{transform:translateY(18px)}
 }
@@ -118,7 +128,7 @@ img{display:block;max-width:100%}
 .page{
 position:relative;
 z-index:1;
-width:min(1360px,calc(100% - 24px));
+width:min(1380px,calc(100% - 24px));
 margin:0 auto;
 padding:18px 0 42px;
 }
@@ -130,7 +140,7 @@ backdrop-filter:blur(16px);
 }
 .nav{
 display:grid;
-grid-template-columns:minmax(260px,max-content) minmax(0,1fr) max-content;
+grid-template-columns:minmax(250px,max-content) minmax(0,1fr) max-content;
 align-items:center;
 gap:16px;
 padding:12px 16px;
@@ -143,30 +153,29 @@ z-index:12;
 display:flex;
 align-items:center;
 gap:14px;
-text-decoration:none;
 min-width:0;
+text-decoration:none;
 }
 .brand-mark{
-width:52px;
-height:52px;
+width:54px;
+height:54px;
 border-radius:18px;
 display:grid;
 place-items:center;
-background:linear-gradient(145deg,rgba(255,255,255,.92),rgba(203,241,246,.82));
-border:1px solid rgba(255,255,255,.58);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 16px 30px rgba(13,75,89,.16);
-color:var(--brand-deep);
+background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(204,242,246,.82));
+border:1px solid rgba(255,255,255,.56);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 16px 30px rgba(13,75,89,.16);
 font-weight:900;
 font-size:18px;
 letter-spacing:.08em;
+color:var(--brand-deep);
 }
-.brand-copy{min-width:0}
 .brand-copy strong{
 display:block;
 font-size:14px;
 letter-spacing:.14em;
 text-transform:uppercase;
-line-height:1.12;
+line-height:1.1;
 }
 .brand-copy span{
 display:block;
@@ -179,15 +188,14 @@ line-height:1.35;
 display:flex;
 gap:16px;
 align-items:center;
-flex-wrap:wrap;
 justify-content:center;
-min-width:0;
+flex-wrap:wrap;
 }
 .nav-links a{
 font-size:13px;
-text-decoration:none;
+font-weight:800;
 color:var(--muted);
-font-weight:700;
+text-decoration:none;
 }
 .nav-actions{
 display:flex;
@@ -195,88 +203,51 @@ gap:10px;
 align-items:center;
 justify-content:flex-end;
 flex-wrap:wrap;
-min-width:0;
-}
-.nav-actions form{
-margin:0;
-display:flex;
-}
-.nav-actions form .nav-button{
-cursor:pointer;
-font-family:inherit;
 }
 .nav-button,
 .button,
 .button-secondary,
-.ghost-link,
-.contact-link{
+.ghost-link{
 display:inline-flex;
 align-items:center;
 justify-content:center;
-min-height:46px;
+min-height:48px;
 padding:12px 18px;
 border-radius:16px;
-font-weight:800;
+font-weight:900;
 text-decoration:none;
 transition:transform .18s ease,filter .18s ease,background .18s ease;
 }
 .nav-button:hover,
 .button:hover,
 .button-secondary:hover,
-.ghost-link:hover,
-.contact-link:hover{
+.ghost-link:hover{
 transform:translateY(-1px);
 filter:brightness(1.03);
 }
 .nav-button{
 border:1px solid var(--line-strong);
 background:rgba(255,255,255,.38);
+cursor:pointer;
 }
-.nav-button.is-primary,
-.button{
+.nav-button.is-current{
+box-shadow:0 0 0 3px rgba(18,168,191,.14);
+}
+.button,
+.nav-button.is-primary{
 border:none;
 background:var(--button-primary);
 color:#fff;
 }
-.nav-button.is-secondary,
-.button-secondary{
+.button-secondary,
+.nav-button.is-secondary{
 border:none;
 background:var(--button-secondary);
 color:#1e2b31;
 }
-.nav-button.is-current{
-box-shadow:0 0 0 3px rgba(17,167,190,.12);
-}
-.hero{
-display:grid;
-grid-template-columns:minmax(0,1.55fr) minmax(330px,395px);
-gap:18px;
-margin-top:24px;
-align-items:start;
-}
-.hero-copy,
-.portal-card,
-.section{
-border-radius:30px;
-}
-.hero-copy{
-padding:28px 30px;
-position:relative;
-overflow:hidden;
-}
-.hero-copy::before{
-content:"";
-position:absolute;
-inset:0;
-background:radial-gradient(circle at 82% 12%,rgba(255,255,255,.44),transparent 20%),linear-gradient(135deg,rgba(15,154,176,.08),rgba(243,154,61,.04));
-pointer-events:none;
-}
-.hero-copy > *{position:relative;z-index:1}
-.hero-layout{
-display:grid;
-grid-template-columns:minmax(400px,1fr) minmax(420px,540px);
-gap:18px;
-align-items:stretch;
+.ghost-link{
+border:1px solid var(--line-strong);
+background:rgba(255,255,255,.45);
 }
 .eyebrow{
 display:inline-flex;
@@ -292,48 +263,132 @@ text-transform:uppercase;
 font-weight:900;
 color:var(--brand-deep);
 align-self:flex-start;
-width:auto;
 max-width:max-content;
 }
+.hero{
+display:grid;
+grid-template-columns:minmax(0,1.1fr) minmax(350px,.9fr);
+gap:18px;
+margin-top:24px;
+align-items:stretch;
+}
+.hero-copy,
+.hero-preview,
+.section,
+.footer{
+border-radius:30px;
+}
+.hero-copy{
+padding:30px;
+position:relative;
+overflow:hidden;
+}
+.hero-copy::before{
+content:"";
+position:absolute;
+inset:0;
+background:
+    radial-gradient(circle at 84% 12%,rgba(255,255,255,.42),transparent 18%),
+    linear-gradient(135deg,rgba(13,147,168,.08),rgba(239,155,65,.04));
+pointer-events:none;
+}
+.hero-copy > *{position:relative;z-index:1}
+.hero-kicker{
+margin:14px 0 0;
+font-size:13px;
+font-weight:800;
+letter-spacing:.04em;
+color:var(--accent);
+}
 .hero-title{
-margin:18px 0 14px;
+margin:16px 0 14px;
 font-family:"Georgia","Times New Roman",serif;
-font-size:clamp(2.2rem,3.9vw,3.8rem);
-line-height:.98;
-letter-spacing:-.04em;
-max-width:11.2ch;
+font-size:clamp(2.5rem,4.5vw,4.3rem);
+line-height:.95;
+letter-spacing:-.05em;
+max-width:11ch;
 }
 .hero-text{
 margin:0;
-max-width:52ch;
-font-size:.98rem;
-line-height:1.66;
+max-width:60ch;
+font-size:1.03rem;
+line-height:1.72;
 color:var(--muted);
 }
-.hero-points{
+.impact-strip{
 display:grid;
-gap:10px;
-list-style:none;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:12px;
+margin-top:22px;
+}
+.impact{
+padding:16px;
+border-radius:22px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.55);
+display:flex;
+flex-direction:column;
+gap:8px;
+}
+.impact span{
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--muted);
+}
+.impact strong{
+font-size:20px;
+line-height:1.08;
+letter-spacing:-.04em;
+}
+.impact p{
+margin:0;
+font-size:13px;
+line-height:1.55;
+color:var(--muted);
+}
+.checklist{
+display:grid;
+gap:12px;
 padding:0;
 margin:22px 0 0;
+list-style:none;
 }
-.hero-points li{
-position:relative;
-padding-left:18px;
-line-height:1.65;
-color:var(--muted);
-font-weight:700;
+.checklist li{
+display:grid;
+grid-template-columns:auto 1fr;
+gap:12px;
+align-items:start;
+padding:14px 15px;
+border-radius:20px;
+background:rgba(255,255,255,.58);
+border:1px solid var(--line);
 }
-.hero-points li::before{
-content:"";
-position:absolute;
-left:0;
-top:.72em;
-width:8px;
-height:8px;
+.checkmark{
+width:28px;
+height:28px;
 border-radius:999px;
-background:var(--brand);
-box-shadow:0 0 0 4px rgba(15,154,176,.12);
+display:grid;
+place-items:center;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-weight:900;
+font-size:14px;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+}
+.checklist strong{
+display:block;
+margin-bottom:4px;
+font-size:15px;
+letter-spacing:-.01em;
+}
+.checklist span{
+display:block;
+font-size:14px;
+line-height:1.6;
+color:var(--muted);
 }
 .hero-actions{
 display:flex;
@@ -341,123 +396,469 @@ gap:12px;
 flex-wrap:wrap;
 margin-top:24px;
 }
-.hero-media{
-position:relative;
-display:grid;
-grid-template-rows:minmax(0,1fr) auto;
-border-radius:28px;
-overflow:hidden;
-background:#0e2d37;
-min-height:700px;
-height:90%;
-border:1px solid var(--line);
-box-shadow:0 20px 50px rgba(6,40,49,.2);
-}
-.hero-media img{
-width:100%;
-height:90%;
-object-fit:cover;
-}
-.hero-badge{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-padding:14px 16px 18px;
-background:linear-gradient(180deg,rgba(7,27,35,.08),rgba(7,27,35,.76));
-border-top:1px solid rgba(255,255,255,.1);
-}
-.hero-badge span{
-padding:10px 13px;
-border-radius:999px;
-background:rgba(255,255,255,.12);
-border:1px solid rgba(255,255,255,.14);
-backdrop-filter:blur(10px);
-font-size:12px;
-font-weight:800;
-color:#f2fcff;
-}
-.metrics{
-display:grid;
-grid-template-columns:repeat(3,minmax(0,1fr));
-gap:14px;
-margin-top:20px;
-align-items:stretch;
-}
-.metric{
-padding:16px 15px;
-border-radius:22px;
-background:var(--surface-strong);
-border:1px solid var(--line);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.54);
-display:flex;
-flex-direction:column;
-height:100%;
-}
-.metric strong{
-display:block;
-font-size:20px;
-line-height:1.08;
-letter-spacing:-.04em;
-margin-bottom:6px;
-}
-.metric span{
-display:block;
-font-size:12px;
-letter-spacing:.12em;
-text-transform:uppercase;
-font-weight:800;
-color:var(--muted);
-}
-.metric p{
-margin:8px 0 0;
-font-size:13px;
-line-height:1.55;
-color:var(--muted);
-}
-.trust-row{
+.proof-pills{
 display:flex;
 gap:10px;
 flex-wrap:wrap;
 margin-top:18px;
 }
-.trust-pill{
+.proof-pills span{
 padding:9px 12px;
 border-radius:999px;
 border:1px solid var(--line);
-background:rgba(255,255,255,.42);
+background:rgba(255,255,255,.48);
 font-size:12px;
-font-weight:700;
+font-weight:800;
 }
-.portal-card{
-padding:26px;
-background:linear-gradient(180deg,var(--surface-dark),rgba(11,32,41,.95));
-color:#effbfd;
-border:1px solid rgba(153,209,220,.12);
+.hero-preview{
+padding:20px;
+display:grid;
+grid-template-rows:minmax(340px,1fr) auto;
+gap:18px;
+overflow:hidden;
+}
+.preview-visual{
+position:relative;
+min-height:340px;
+border-radius:28px;
+overflow:hidden;
+background:#0d2b34;
+border:1px solid var(--line);
+box-shadow:0 20px 48px rgba(6,40,49,.2);
+}
+.preview-visual img{
+width:100%;
+height:100%;
+object-fit:cover;
+}
+.preview-overlay{
+position:absolute;
+padding:14px 15px;
+border-radius:20px;
+backdrop-filter:blur(14px);
+background:rgba(8,31,39,.74);
+border:1px solid rgba(255,255,255,.12);
+color:#eefcff;
+max-width:210px;
+box-shadow:0 20px 40px rgba(0,0,0,.2);
+}
+.preview-overlay span{
+display:block;
+font-size:11px;
+letter-spacing:.16em;
+text-transform:uppercase;
+font-weight:900;
+color:#9bd8e2;
+}
+.preview-overlay strong{
+display:block;
+margin:8px 0 6px;
+font-size:24px;
+line-height:1.02;
+letter-spacing:-.04em;
+}
+.preview-overlay p{
+margin:0;
+font-size:13px;
+line-height:1.5;
+color:#d7ecf0;
+}
+.preview-overlay--top{top:18px;left:18px}
+.preview-overlay--bottom{right:18px;bottom:18px}
+.preview-body h2{
+margin:16px 0 10px;
+font-size:clamp(1.9rem,2.8vw,2.5rem);
+line-height:1.04;
+letter-spacing:-.04em;
+}
+.preview-body p{
+margin:0;
+line-height:1.68;
+color:var(--muted);
+}
+.preview-grid{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:12px;
+margin-top:20px;
+}
+.mini-proof{
+padding:16px;
+border-radius:20px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.52);
+}
+.mini-proof span{
+display:block;
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--muted);
+}
+.mini-proof strong{
+display:block;
+margin-top:8px;
+font-size:16px;
+line-height:1.32;
+letter-spacing:-.02em;
+}
+.hero-preview-actions{
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+margin-top:20px;
+}
+.section{
+margin-top:22px;
+padding:28px;
+}
+.section-header{
+display:grid;
+grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);
+gap:18px;
+align-items:end;
+margin-bottom:20px;
+}
+.section-header h2{
+margin:14px 0 0;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(2rem,3.3vw,2.9rem);
+line-height:1.02;
+letter-spacing:-.04em;
+max-width:14ch;
+}
+.section-copy{
+margin:0;
+line-height:1.68;
+color:var(--muted);
+max-width:64ch;
+}
+.value-grid,
+.proof-grid,
+.use-case-grid,
+.what-you-get-grid{
+display:grid;
+gap:16px;
+align-items:stretch;
+}
+.value-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.proof-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.what-you-get-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.card{
+padding:22px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
 display:flex;
 flex-direction:column;
-justify-content:flex-start;
-align-self:start;
+height:100%;
 }
-.portal-card .eyebrow{
-background:rgba(88,209,229,.12);
-border-color:rgba(153,209,220,.18);
-color:#abf3ff;
+.card-tag{
+display:inline-flex;
+align-items:center;
+gap:8px;
+padding:7px 11px;
+border-radius:999px;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+align-self:flex-start;
+max-width:max-content;
 }
-.portal-card h2{
-margin:16px 0 10px;
-font-size:clamp(1.9rem,2.8vw,2.35rem);
-line-height:1.05;
+.card h3{
+margin:16px 0 8px;
+font-size:21px;
+line-height:1.12;
 letter-spacing:-.03em;
 }
-.portal-card .muted{
-margin:0 0 20px;
-color:#a9c3ca;
-line-height:1.65;
+.card p{
+margin:0;
+line-height:1.62;
+color:var(--muted);
+}
+.card ul{
+list-style:none;
+padding:0;
+margin:14px 0 0;
+display:grid;
+gap:8px;
+}
+.card li{
+padding-left:14px;
+position:relative;
+font-size:14px;
+line-height:1.55;
+color:var(--muted);
+}
+.card li::before{
+content:"";
+position:absolute;
+left:0;
+top:.7em;
+width:7px;
+height:7px;
+border-radius:999px;
+background:var(--brand);
+box-shadow:0 0 0 4px rgba(13,147,168,.12);
+}
+.card strong.price{
+display:block;
+margin:16px 0 12px;
+font-size:19px;
+line-height:1.18;
+letter-spacing:-.03em;
+}
+.card .ghost-link{
+margin-top:16px;
+align-self:flex-start;
+}
+.urgency-banner{
+margin-top:18px;
+padding:18px 20px;
+border-radius:24px;
+background:linear-gradient(135deg,var(--accent-soft),rgba(255,255,255,.62));
+border:1px solid var(--line);
+display:grid;
+grid-template-columns:max-content 1fr;
+gap:14px;
+align-items:start;
+}
+.urgency-pill{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:44px;
+padding:0 16px;
+border-radius:999px;
+background:rgba(255,255,255,.86);
+font-size:12px;
+font-weight:900;
+letter-spacing:.16em;
+text-transform:uppercase;
+color:var(--accent);
+}
+.urgency-copy strong{
+display:block;
+font-size:19px;
+line-height:1.18;
+letter-spacing:-.02em;
+}
+.urgency-copy p{
+margin:8px 0 0;
+line-height:1.6;
+color:var(--muted);
+}
+.media-split,
+.support-layout,
+.enquiry-layout{
+display:grid;
+gap:18px;
+align-items:stretch;
+}
+.media-split{
+grid-template-columns:minmax(420px,.96fr) minmax(0,1.04fr);
+}
+.support-layout{
+grid-template-columns:minmax(0,.84fr) minmax(500px,1.16fr);
+}
+.enquiry-layout{
+grid-template-columns:minmax(0,.94fr) minmax(520px,1.06fr);
+}
+.visual{
+position:relative;
+overflow:hidden;
+border-radius:28px;
+min-height:420px;
+background:#0d2a34;
+border:1px solid var(--line);
+box-shadow:0 20px 48px rgba(6,40,49,.18);
+}
+.visual img{
+width:100%;
+height:100%;
+object-fit:cover;
+}
+.visual-copy{
+position:absolute;
+left:18px;
+right:18px;
+bottom:18px;
+padding:16px 18px;
+border-radius:22px;
+background:rgba(8,31,39,.74);
+backdrop-filter:blur(14px);
+border:1px solid rgba(255,255,255,.12);
+color:#eefcff;
+}
+.visual-copy strong{
+display:block;
+margin-bottom:6px;
+font-size:17px;
+letter-spacing:-.02em;
+}
+.visual-copy p{
+margin:0;
+font-size:14px;
+line-height:1.56;
+color:#d7ecf0;
+}
+.steps{
+display:grid;
+gap:14px;
+align-items:stretch;
+}
+.step{
+padding:18px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+display:grid;
+grid-template-columns:auto 1fr;
+gap:14px;
+align-items:start;
+}
+.step-number{
+width:42px;
+height:42px;
+border-radius:14px;
+display:grid;
+place-items:center;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-weight:900;
+font-size:16px;
+}
+.step strong{
+display:block;
+margin-bottom:6px;
+font-size:19px;
+line-height:1.14;
+letter-spacing:-.03em;
+}
+.step p{
+margin:0;
+line-height:1.6;
+color:var(--muted);
+}
+.support-panel{
+padding:24px;
+border-radius:28px;
+background:linear-gradient(180deg,rgba(13,147,168,.1),rgba(255,255,255,.62));
+border:1px solid var(--line);
+display:flex;
+flex-direction:column;
+gap:16px;
+}
+.support-panel h3{
+margin:14px 0 0;
+font-size:31px;
+line-height:1.05;
+letter-spacing:-.04em;
+}
+.support-checks{
+display:grid;
+gap:12px;
+}
+.support-check{
+padding:15px 16px;
+border-radius:20px;
+background:rgba(255,255,255,.6);
+border:1px solid var(--line);
+}
+.support-check strong{
+display:block;
+margin-bottom:6px;
+font-size:14px;
+letter-spacing:.12em;
+text-transform:uppercase;
+}
+.support-check p{
+margin:0;
+line-height:1.58;
+color:var(--muted);
+}
+.contact-card{
+padding:18px;
+border-radius:22px;
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(239,155,65,.08));
+border:1px solid var(--line);
+}
+.contact-card strong{
+display:block;
+margin-bottom:10px;
+font-size:13px;
+letter-spacing:.14em;
+text-transform:uppercase;
+}
+.contact-card p{
+margin:0;
+line-height:1.62;
+color:var(--muted);
+}
+.contact-card a{
+font-weight:900;
+text-decoration:none;
+}
+.enquiry-intro{
+display:flex;
+flex-direction:column;
+gap:18px;
+}
+.enquiry-intro h2{
+margin:14px 0 0;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(2rem,3.4vw,2.8rem);
+line-height:1.04;
+letter-spacing:-.04em;
+max-width:15ch;
+}
+.promo-card{
+padding:18px;
+border-radius:26px;
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(255,255,255,.78));
+border:1px solid var(--line);
+display:grid;
+grid-template-columns:minmax(0,.74fr) minmax(360px,1.26fr);
+gap:16px;
+align-items:center;
+overflow:hidden;
+min-height:420px;
+}
+.promo-copy h3{
+margin:12px 0 10px;
+font-size:31px;
+line-height:1.06;
+letter-spacing:-.04em;
+}
+.promo-copy p{
+margin:0;
+line-height:1.66;
+color:var(--muted);
+}
+.promo-media{
+position:relative;
+overflow:hidden;
+border-radius:22px;
+min-height:380px;
+background:#0d2b34;
+box-shadow:0 18px 40px rgba(6,40,49,.16);
+}
+.promo-media img{
+width:100%;
+height:100%;
+object-fit:cover;
 }
 .banner{
 padding:13px 15px;
 border-radius:16px;
-margin:0 0 14px;
 font-size:14px;
 line-height:1.6;
 }
@@ -476,10 +877,17 @@ background:var(--success-bg);
 border:1px solid var(--success-line);
 color:var(--success-text);
 }
-.portal-form,
-.enquiry-form{
+.enquiry-form,
+.portal-form{
 display:grid;
 gap:14px;
+}
+.enquiry-form{
+padding:24px;
+border-radius:28px;
+background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(232,246,243,.86));
+border:1px solid var(--line);
+align-content:start;
 }
 .group{
 display:grid;
@@ -490,14 +898,20 @@ font-size:11px;
 letter-spacing:.16em;
 text-transform:uppercase;
 font-weight:900;
-color:#bcd6db;
+color:var(--muted);
 }
-.portal-form input,
-.portal-form select,
-.portal-form textarea,
+.portal-form .group label{
+color:#b9d4da;
+}
+.row-2{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+}
 .enquiry-form input,
 .enquiry-form select,
-.enquiry-form textarea{
+.enquiry-form textarea,
+.portal-form input{
 width:100%;
 padding:13px 15px;
 border-radius:16px;
@@ -511,360 +925,24 @@ color:#effbfd;
 border-color:rgba(153,209,220,.14);
 }
 .portal-form input::placeholder{color:#88a5ad}
-.portal-submit{
-margin-top:2px;
-width:100%;
-}
-.portal-note{
-margin-top:18px;
-padding:16px;
-border-radius:18px;
-background:rgba(255,255,255,.06);
-border:1px solid rgba(153,209,220,.12);
-}
-.portal-note strong{
-display:block;
-font-size:12px;
-letter-spacing:.14em;
-text-transform:uppercase;
-color:#abf3ff;
-margin-bottom:8px;
-}
-.portal-note p{
-margin:0;
-color:#b7d1d6;
-line-height:1.65;
-font-size:14px;
-}
-.portal-help{
-margin-top:12px;
-font-size:14px;
-line-height:1.65;
-color:#b7d1d6;
-}
-.portal-help a{
-color:#c8fbff;
-font-weight:800;
-text-decoration:none;
-}
-.section{
-margin-top:22px;
-padding:26px 28px;
-}
-.section-lead{
-display:grid;
-grid-template-columns:minmax(0,.82fr) minmax(520px,1.18fr);
-gap:18px;
-align-items:stretch;
-margin-bottom:18px;
-}
-.section-head{
-display:flex;
-flex-direction:column;
-align-items:flex-start;
-gap:10px;
-margin-bottom:0;
-justify-content:center;
-}
-.section-head h2{
-margin:0;
-font-family:"Georgia","Times New Roman",serif;
-font-size:clamp(1.9rem,3.2vw,2.7rem);
-line-height:1.02;
-letter-spacing:-.03em;
-max-width:16ch;
-}
-.section-copy{
-margin:0;
-max-width:64ch;
-line-height:1.62;
-color:var(--muted);
-}
-.section-visual{
-position:relative;
-display:grid;
-grid-template-rows:minmax(420px,1fr) auto;
-overflow:hidden;
-border-radius:28px;
-background:#0d2933;
-border:1px solid var(--line);
-box-shadow:0 20px 48px rgba(6,40,49,.18);
-}
-.section-visual img{
-width:100%;
-height:100%;
-object-fit:cover;
-}
-.section-visual-copy{
-padding:14px 15px;
-background:linear-gradient(180deg,rgba(7,27,35,.84),rgba(7,27,35,.96));
-border-top:1px solid rgba(255,255,255,.08);
-color:#f2fcff;
-}
-.section-visual-copy strong{
-display:block;
-margin-bottom:6px;
-font-size:15px;
-letter-spacing:.02em;
-}
-.section-visual-copy p{
-margin:0;
-font-size:13px;
-line-height:1.55;
-color:#d7edf1;
-}
-.feature-grid,
-.solution-grid{
-display:grid;
-gap:16px;
-align-items:stretch;
-}
-.feature-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-.solution-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
-.card{
-padding:22px;
-border-radius:24px;
-background:var(--surface-strong);
-border:1px solid var(--line);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
-display:flex;
-flex-direction:column;
-height:100%;
-}
-.card-tag{
-display:inline-flex;
-align-items:center;
-gap:8px;
-padding:7px 11px;
-border-radius:999px;
-background:rgba(15,154,176,.1);
-color:var(--brand-deep);
-font-size:11px;
-letter-spacing:.14em;
-text-transform:uppercase;
-font-weight:900;
-align-self:flex-start;
-max-width:max-content;
-}
-.card h3{
-margin:16px 0 8px;
-font-size:20px;
-line-height:1.14;
-letter-spacing:-.03em;
-}
-.card p{
-margin:0;
-line-height:1.62;
-color:var(--muted);
-flex:1 1 auto;
-}
-.card strong.price{
-display:block;
-margin:16px 0 10px;
-font-size:20px;
-line-height:1.15;
-letter-spacing:-.04em;
-}
-.card .ghost-link{
-margin-top:14px;
-border:1px solid var(--line-strong);
-background:transparent;
-justify-self:start;
-align-self:flex-start;
-}
-.split{
-display:grid;
-grid-template-columns:minmax(0,.84fr) minmax(520px,1.16fr);
-gap:18px;
-align-items:stretch;
-}
-.support-panel{
-padding:22px;
-border-radius:26px;
-background:linear-gradient(180deg,rgba(15,154,176,.1),rgba(255,255,255,.58));
-border:1px solid var(--line);
-display:flex;
-flex-direction:column;
-gap:16px;
-}
-.support-panel h3{
-margin:12px 0 10px;
-font-size:28px;
-line-height:1.08;
-letter-spacing:-.03em;
-}
-.support-visual{
-position:relative;
-overflow:hidden;
-border-radius:24px;
-min-height:500px;
-background:#0d2933;
-}
-.support-visual img{
-width:100%;
-height:100%;
-object-fit:cover;
-}
-.support-list{
-display:grid;
-gap:12px;
-align-items:stretch;
-}
-.support-item{
-padding:14px 15px;
-border-radius:18px;
-border:1px solid var(--line);
-background:rgba(255,255,255,.52);
-display:flex;
-flex-direction:column;
-justify-content:center;
-}
-.support-item strong{
-display:block;
-margin-bottom:6px;
-font-size:14px;
-letter-spacing:.12em;
-text-transform:uppercase;
-}
-.support-item p{
-margin:0;
-color:var(--muted);
-line-height:1.6;
-}
-.enquiry-layout{
-display:grid;
-grid-template-columns:minmax(0,.96fr) minmax(500px,1.04fr);
-gap:18px;
-align-items:stretch;
-}
-.enquiry-intro{
-display:flex;
-flex-direction:column;
-gap:18px;
-}
-.spotlight-grid{
-display:grid;
-grid-template-columns:repeat(2,minmax(0,1fr));
-gap:12px;
-align-items:stretch;
-}
-.spotlight{
-padding:18px;
-border-radius:22px;
-background:var(--surface-strong);
-border:1px solid var(--line);
-height:100%;
-}
-.spotlight strong{
-display:block;
-font-size:16px;
-letter-spacing:.02em;
-margin-bottom:8px;
-}
-.spotlight p{
-margin:0;
-line-height:1.6;
-color:var(--muted);
-}
-.contact-card{
-padding:18px;
-border-radius:22px;
-background:linear-gradient(135deg,rgba(15,154,176,.12),rgba(243,154,61,.08));
-border:1px solid var(--line);
-}
-.contact-card strong{
-display:block;
-font-size:13px;
-letter-spacing:.14em;
-text-transform:uppercase;
-margin-bottom:10px;
-align-self:flex-start;
-}
-.contact-card p{
-margin:0;
-line-height:1.65;
-color:var(--muted);
-}
-.contact-card a{
-font-weight:800;
-text-decoration:none;
-}
-.promo-card{
-padding:18px;
-border-radius:26px;
-background:linear-gradient(135deg,rgba(15,154,176,.12),rgba(255,255,255,.78));
-border:1px solid var(--line);
-display:grid;
-grid-template-columns:minmax(0,.72fr) minmax(380px,1.28fr);
-gap:16px;
-align-items:center;
-overflow:hidden;
-min-height:420px;
-}
-.promo-copy h3{
-margin:12px 0 10px;
-font-size:30px;
-line-height:1.06;
-letter-spacing:-.03em;
-}
-.promo-copy p{
-margin:0;
-line-height:1.65;
-color:var(--muted);
-}
-.promo-copy a{
-font-weight:800;
-text-decoration:none;
-}
-.promo-card .trust-row{
-margin-top:16px;
-}
-.promo-card .trust-pill{
-background:rgba(255,255,255,.76);
-}
-.promo-media{
-position:relative;
-overflow:hidden;
-border-radius:22px;
-min-height:400px;
-height:100%;
-background:#0e2934;
-box-shadow:0 18px 40px rgba(6,40,49,.16);
-}
-.promo-media img{
-width:100%;
-height:100%;
-object-fit:cover;
-}
-.enquiry-form{
-padding:22px;
-border-radius:26px;
-background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(234,246,244,.84));
-border:1px solid var(--line);
-display:grid;
-align-content:start;
-}
-.enquiry-form .group label{
-color:var(--muted);
-}
-.row-2{
-display:grid;
-grid-template-columns:repeat(2,minmax(0,1fr));
-gap:12px;
-}
 textarea{
 min-height:140px;
 resize:vertical;
 }
 .form-note{
 font-size:13px;
-line-height:1.6;
+line-height:1.62;
 color:var(--muted);
+}
+.form-actions{
+display:flex;
+gap:12px;
+flex-wrap:wrap;
+align-items:center;
 }
 .footer{
 margin-top:22px;
 padding:18px 22px;
-border-radius:24px;
 display:grid;
 grid-template-columns:minmax(0,1.25fr) max-content;
 gap:16px;
@@ -876,61 +954,168 @@ color:var(--muted);
 color:var(--text);
 }
 .footer a{
-font-weight:800;
+font-weight:900;
 text-decoration:none;
 }
-@media (max-width:1240px){
+.modal{
+position:fixed;
+inset:0;
+display:none;
+align-items:center;
+justify-content:center;
+padding:22px;
+z-index:30;
+}
+.modal.is-open{display:flex}
+.modal-backdrop{
+position:absolute;
+inset:0;
+background:rgba(5,14,18,.56);
+backdrop-filter:blur(6px);
+}
+.modal-panel{
+position:relative;
+width:min(760px,100%);
+max-height:min(92vh,880px);
+overflow:auto;
+padding:24px;
+border-radius:30px;
+background:linear-gradient(180deg,var(--surface-dark),rgba(10,31,39,.98));
+border:1px solid rgba(150,207,218,.12);
+box-shadow:0 32px 80px rgba(0,0,0,.32);
+color:#eefcff;
+}
+.modal-close{
+position:absolute;
+top:18px;
+right:18px;
+width:42px;
+height:42px;
+border-radius:14px;
+border:1px solid rgba(150,207,218,.18);
+background:rgba(255,255,255,.06);
+color:#eefcff;
+cursor:pointer;
+font-size:24px;
+line-height:1;
+}
+.modal-header h2{
+margin:16px 0 8px;
+font-size:clamp(2rem,3vw,2.5rem);
+line-height:1.05;
+letter-spacing:-.04em;
+}
+.modal-header p{
+margin:0;
+line-height:1.64;
+color:#a9c3ca;
+max-width:56ch;
+}
+.modal-banners{
+display:grid;
+gap:12px;
+margin-top:18px;
+}
+.login-toggle{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+margin-top:20px;
+}
+.toggle-button{
+min-height:54px;
+padding:12px 14px;
+border-radius:18px;
+border:1px solid rgba(150,207,218,.14);
+background:rgba(255,255,255,.04);
+color:#d6eef2;
+cursor:pointer;
+font-weight:900;
+}
+.toggle-button.is-active{
+background:linear-gradient(135deg,rgba(60,208,230,.2),rgba(20,148,174,.28));
+border-color:rgba(171,243,255,.18);
+box-shadow:0 0 0 3px rgba(60,208,230,.1);
+}
+.login-pane{
+display:none;
+margin-top:18px;
+}
+.login-pane.is-active{display:block}
+.login-pane h3{
+margin:0 0 8px;
+font-size:22px;
+line-height:1.1;
+letter-spacing:-.03em;
+}
+.login-pane p{
+margin:0;
+line-height:1.62;
+color:#b7d1d6;
+}
+.login-help{
+margin-top:16px;
+padding:16px;
+border-radius:18px;
+background:rgba(255,255,255,.06);
+border:1px solid rgba(150,207,218,.12);
+}
+.login-help strong{
+display:block;
+margin-bottom:8px;
+font-size:12px;
+letter-spacing:.14em;
+text-transform:uppercase;
+color:#abf3ff;
+}
+.modal-footer{
+margin-top:18px;
+padding-top:18px;
+border-top:1px solid rgba(150,207,218,.12);
+font-size:14px;
+line-height:1.65;
+color:#b7d1d6;
+}
+.modal-footer a{
+font-weight:900;
+text-decoration:none;
+color:#d4fbff;
+}
+@media (max-width:1260px){
 .nav{
 grid-template-columns:minmax(240px,max-content) minmax(0,1fr);
-}
-.nav-links{
-justify-content:flex-start;
 }
 .nav-actions{
 grid-column:1 / -1;
 justify-content:flex-start;
 }
 .hero{
-grid-template-columns:minmax(0,1fr);
+grid-template-columns:1fr;
 }
-.split,
+.section-header,
+.media-split,
+.support-layout,
 .enquiry-layout{
 grid-template-columns:1fr;
 }
-.section-lead{
-grid-template-columns:1fr;
 }
+@media (max-width:1080px){
+.impact-strip,
+.value-grid,
+.preview-grid,
+.proof-grid,
+.use-case-grid{
+grid-template-columns:1fr 1fr;
 }
-@media (max-width:1100px){
-.hero,
-.hero-layout{
-grid-template-columns:1fr;
-}
-.hero-title{max-width:none}
 .promo-card{
 grid-template-columns:1fr;
 min-height:unset;
 }
-.hero-media{
-height:460px;
-min-height:460px;
-}
-.section-visual{
-grid-template-rows:minmax(320px,1fr) auto;
-}
 .promo-media{
-min-height:340px;
-}
-.support-visual{
-min-height:380px;
+min-height:320px;
 }
 }
 @media (max-width:900px){
-.feature-grid,
-.solution-grid,
-.metrics{
-grid-template-columns:1fr 1fr;
-}
 .nav-links{
 display:none;
 }
@@ -950,54 +1135,64 @@ grid-template-columns:1fr;
 }
 @media (max-width:720px){
 .page{
-width:min(100% - 18px,1240px);
+width:min(100% - 18px,1380px);
 padding-top:16px;
 }
 .nav,
 .hero-copy,
-.portal-card,
+.hero-preview,
 .section,
-.footer{
+.footer,
+.modal-panel{
 padding-left:18px;
 padding-right:18px;
 }
-.metrics,
-.feature-grid,
-.solution-grid,
+.impact-strip,
+.preview-grid,
+.value-grid,
+.proof-grid,
+.use-case-grid,
+.what-you-get-grid,
 .row-2,
-.spotlight-grid{
+.login-toggle{
 grid-template-columns:1fr;
 }
-.nav-actions,
-.hero-actions{
+.hero-title,
+.section-header h2,
+.enquiry-intro h2{
+max-width:none;
+}
+.hero-actions,
+.hero-preview-actions,
+.form-actions,
+.nav-actions{
 display:grid;
 grid-template-columns:1fr;
 width:100%;
 }
-.nav-actions > *,
 .hero-actions > *,
-.ghost-link,
-.contact-link{
+.hero-preview-actions > *,
+.form-actions > *,
+.nav-actions > *{
 width:100%;
 }
-.nav-actions form button{
-width:100%;
+.proof-pills{
+display:grid;
+grid-template-columns:1fr;
 }
-.hero-media{
-min-height:320px;
-height:320px;
+.urgency-banner{
+grid-template-columns:1fr;
 }
-.section-visual,
-.promo-media{
-min-height:280px;
+.preview-overlay{
+max-width:180px;
 }
-.support-visual{
-min-height:300px;
+.modal{
+padding:12px;
 }
 }
 </style>
 </head>
-<body>
+<body data-default-login-mode="{{ login_mode }}">
 <div class="page">
     <header class="nav surface">
         <a class="brand" href="{{ url_for('dashboard') }}">
@@ -1008,186 +1203,349 @@ min-height:300px;
             </div>
         </a>
         <nav class="nav-links" aria-label="Page sections">
-            <a href="#features">How It Helps</a>
+            <a href="#benefits">Benefits</a>
+            <a href="#how-it-works">How It Works</a>
             <a href="#solutions">Use Cases</a>
+            <a href="#proof">Buyer Proof</a>
             <a href="#enquiry">Contact Sales</a>
-            <a href="#portal">Portal Access</a>
         </nav>
         <div class="nav-actions">
-            <a class="nav-button is-secondary" href="#enquiry">Get Quote</a>
-            <form method="get" action="{{ url_for('customer_login') }}">
-                <button type="submit" class="nav-button {% if login_mode != 'admin' %}is-primary is-current{% endif %}">Customer Login</button>
-            </form>
-            <form method="get" action="{{ url_for('admin_login') }}">
-                <button type="submit" class="nav-button {% if login_mode == 'admin' %}is-primary is-current{% endif %}">Admin Login</button>
-            </form>
+            <a class="nav-button is-secondary" href="#enquiry">Book Free Demo</a>
+            <a
+                class="nav-button js-open-login {% if login_mode != 'admin' %}is-primary is-current{% endif %}"
+                href="{{ url_for('customer_login', next=next_url) }}"
+                data-role="customer"
+            >Customer Login</a>
+            <a
+                class="nav-button js-open-login {% if login_mode == 'admin' %}is-primary is-current{% endif %}"
+                href="{{ url_for('admin_login', next=next_url) }}"
+                data-role="admin"
+            >Admin Login</a>
         </div>
     </header>
 
-    <section class="hero">
+    <section class="hero" aria-label="Smart Water Tank landing hero">
         <div class="hero-copy surface">
-            <div class="hero-layout">
-                <div>
-                    <div class="eyebrow">SaleWell Water Monitoring</div>
-                    <h1 class="hero-title">Water tank monitoring for homes, apartments, hotels and commercial buildings.</h1>
-                    <p class="hero-text">SaleWell helps you monitor rooftop and underground tanks from your phone or browser. You can see current water level, check pump status, reduce overflow and respond faster when a site is running low on water.</p>
-                    <ul class="hero-points">
-                        <li>View tank level and pump status without climbing to the roof.</li>
-                        <li>Receive clearer warning signals before overflow, dry run or shortage conditions.</li>
-                        <li>Simple login for customers, easy control for installers.</li>
-                        <li>Prevent overflow, avoid dry runs, and save water and electricity..</li>
+            <div class="eyebrow">SaleWell Smart Water Monitoring</div>
+            <p class="hero-kicker">Prepare before summer shortage complaints and overflow callouts.</p>
+            <h1 class="hero-title">Stop water overflow and motor damage before they get expensive.</h1>
+            <p class="hero-text">Monitor rooftop and underground tanks from your phone, track pump status in real time, and respond before water, electricity, or maintenance costs start climbing. Smart Water Tank is built for homes, apartments, hotels, institutions and commercial properties that need visibility without guesswork.</p>
 
-                    </ul>
-                    <div class="hero-actions">
-                        <a class="button" href="#enquiry">Request Pricing</a>
-                        <a class="ghost-link nav-button" href="#solutions">See Where It Works</a>
-                    </div>
-                </div>
-                <figure class="hero-media" aria-label="Smart water tank monitoring illustration">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated view of a rooftop smart water tank with sensor unit and mobile water level dashboard." loading="eager">
-                    <div class="hero-badge">
-                        <span>Rooftop installation</span>
-                        <span>Mobile dashboard access</span>
-                        <span>Monitor your water tank anytime, anywhere.</span>
-                    </div>
-                </figure>
-            </div>
-            <div class="metrics">
-                <article class="metric">
-                    <span>Live Monitoring</span>
-                    <strong>Live water level and pump status</strong>
-                    <p>Customers can check the tank from a mobile phone, laptop or support dashboard in seconds.</p>
+            <div class="impact-strip" aria-label="Key value outcomes">
+                <article class="impact">
+                    <span>Water waste</span>
+                    <strong>Catch overflow early</strong>
+                    <p>Know when the tank is nearing full capacity before water spills and complaints start.</p>
                 </article>
-                <article class="metric">
-                    <span>Overflow Control</span>
-                    <strong>Overflow, shortage and motor stress</strong>
-                    <p>Monitoring makes it easier to react before water waste or pump problems become expensive.</p>
+                <article class="impact">
+                    <span>Motor safety</span>
+                    <strong>Reduce dry-run stress</strong>
+                    <p>See pump status and low-water conditions early enough to avoid unnecessary motor strain.</p>
                 </article>
-                <article class="metric">
-                    <span>Service Access</span>
-                    <strong>Customer login and service access</strong>
-                    <p>Installers and admins can support devices while each customer sees only their own system.</p>
+                <article class="impact">
+                    <span>Daily operations</span>
+                    <strong>Avoid tanker emergencies</strong>
+                    <p>Act sooner when supply is low instead of reacting after the tank is already running down.</p>
                 </article>
             </div>
-            <div class="trust-row" aria-label="Feature highlights">
-                <div class="trust-pill">Web and mobile access</div>
-                <div class="trust-pill">Customer-specific login</div>
-                <div class="trust-pill">Admin and installer support tools</div>
-                <div class="trust-pill">support@salewell.co.in</div>
+
+            <ul class="checklist" aria-label="Sales benefits">
+                <li>
+                    <div class="checkmark">1</div>
+                    <div>
+                        <strong>Monitor water level remotely</strong>
+                        <span>No routine rooftop checks just to confirm how much water is left.</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="checkmark">2</div>
+                    <div>
+                        <strong>Protect pumps with clearer status visibility</strong>
+                        <span>Keep overflow, shortage and dry-run risk in one simple dashboard story.</span>
+                    </div>
+                </li>
+                <li>
+                    <div class="checkmark">3</div>
+                    <div>
+                        <strong>Support customers after installation</strong>
+                        <span>Separate customer and admin logins make handover and service follow-up much easier.</span>
+                    </div>
+                </li>
+            </ul>
+
+            <div class="hero-actions">
+                <a class="button" href="#enquiry">Book Free Demo</a>
+                <a class="button-secondary" href="#setup-check">Check Your Tank Setup</a>
+                <a class="ghost-link" href="#proof">See Buyer Proof</a>
+            </div>
+
+            <div class="proof-pills" aria-label="Target segments and trust points">
+                <span>Homes, apartments, hotels and institutions</span>
+                <span>Customer-specific login</span>
+                <span>Admin and installer support tools</span>
+                <span>support@salewell.co.in</span>
             </div>
         </div>
 
-        <aside id="portal" class="portal-card surface">
-            <div class="eyebrow">{{ login_title }}</div>
-            <h2>{{ login_title }}</h2>
-            <p class="muted">{{ login_description }}</p>
-            {% for warning in persistence_warnings or [] %}
-            <div class="banner warning">{{ warning }}</div>
-            {% endfor %}
-            {% if error %}
-            <div class="banner error">{{ error }}</div>
-            {% endif %}
-            <form method="post" action="{{ login_action }}" class="portal-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
-                <div class="group">
-                    <label for="username">Username</label>
-                    <input id="username" name="username" type="text" autocomplete="username" value="{{ request.form.get('username', '') }}" placeholder="{% if login_mode == 'admin' %}Admin username{% else %}swt-000-000-000-001{% endif %}" required>
+        <aside class="hero-preview surface" aria-label="Live dashboard preview">
+            <div class="preview-visual">
+                <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated rooftop smart water tank with sensor hardware and mobile dashboard preview." loading="eager">
+                <div class="preview-overlay preview-overlay--top">
+                    <span>Live tank status</span>
+                    <strong>72% full</strong>
+                    <p>Show buyers how much water is available without sending anyone to the roof.</p>
                 </div>
-                <div class="group">
-                    <label for="password">Password</label>
-                    <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                <div class="preview-overlay preview-overlay--bottom">
+                    <span>Pump protection</span>
+                    <strong>Auto protected</strong>
+                    <p>Combine tank level, pump status and overflow awareness in one clean view.</p>
                 </div>
-                <button class="button portal-submit" type="submit">{% if login_mode == "admin" %}Open Admin Dashboard{% else %}Open Customer Dashboard{% endif %}</button>
-            </form>
-            <div class="portal-note">
-                <strong>Login help</strong>
-                <p>{% if login_mode == "admin" %}Use the admin account to register customers, manage credentials and review device activity from the service dashboard.{% else %}Use your registered <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.{% endif %}</p>
             </div>
-            <div class="portal-help">Need help accessing your account? Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</div>
+            <div class="preview-body">
+                <div class="eyebrow">Live Dashboard Preview</div>
+                <h2>Show the tank, sensor and app in one clear sales conversation.</h2>
+                <p>Instead of pushing visitors straight into a login form, this panel now sells the outcome first: a practical dashboard that helps people save water, protect motors, and respond faster when stored water is running low.</p>
+
+                <div class="preview-grid" aria-label="Product proof metrics">
+                    <article class="mini-proof">
+                        <span>24/7 visibility</span>
+                        <strong>Tank level and pump status in one view</strong>
+                    </article>
+                    <article class="mini-proof">
+                        <span>2 login roles</span>
+                        <strong>Customer access plus admin service control</strong>
+                    </article>
+                    <article class="mini-proof">
+                        <span>3 savings levers</span>
+                        <strong>Water, electricity and maintenance protection</strong>
+                    </article>
+                </div>
+
+                <div class="hero-preview-actions">
+                    <a class="button" href="#enquiry">Start Monitoring Today</a>
+                    <a class="ghost-link" href="#how-it-works">How It Works</a>
+                </div>
+            </div>
         </aside>
     </section>
 
-    <section id="features" class="section surface">
-        <div class="section-lead">
-            <div class="section-head">
-                <div class="eyebrow">Real Customer Value</div>
-                <h2>What this system actually helps you do.</h2>
-                <p class="section-copy">This platform is useful when you need practical water visibility, fewer manual checks and a better way to support installed devices after delivery.</p>
+    <section id="benefits" class="section surface">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Why It Sells</div>
+                <h2>Give buyers a real reason to act now.</h2>
             </div>
-            <figure class="section-visual" aria-label="Smart water tank advertising lifestyle image">
-                <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking a smart water tank level on a phone beside a monitored rooftop tank." loading="lazy">
-                <figcaption class="section-visual-copy">
-                    <strong>What buyers understand immediately</strong>
-                    <p>The tank, sensor and customer phone view are visible together, so the product feels practical instead of abstract.</p>
+            <p class="section-copy">The strongest sales message is no longer just what the product does. It is what the buyer avoids: wasted water, motor damage, tanker emergencies, and repeated manual tank checks. These cards keep the copy punchy so people can scan it fast.</p>
+        </div>
+
+        <div class="value-grid">
+            <article class="card">
+                <div class="card-tag">Save Water</div>
+                <h3>Stop overflow before it becomes visible waste</h3>
+                <p>Show when the tank is nearly full so people can act earlier instead of discovering wasted water too late.</p>
+                <ul>
+                    <li>Better overflow awareness</li>
+                    <li>Fewer avoidable refill mistakes</li>
+                    <li>Cleaner conversation with households and facility staff</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Protect Equipment</div>
+                <h3>Reduce dry-run and unnecessary motor stress</h3>
+                <p>Pump status plus water visibility makes it easier to react before motors run under bad conditions for too long.</p>
+                <ul>
+                    <li>See pump state immediately</li>
+                    <li>Spot low-water risk faster</li>
+                    <li>Lower avoidable maintenance pain</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Cut Friction</div>
+                <h3>Replace routine tank checks with a phone dashboard</h3>
+                <p>Daily visibility moves from the roof to the customer phone or service dashboard, which is easier to explain and easier to use.</p>
+                <ul>
+                    <li>Less manual checking</li>
+                    <li>Quicker status confirmation</li>
+                    <li>Clearer after-sales experience</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Respond Faster</div>
+                <h3>Avoid shortage surprises before complaints start</h3>
+                <p>When a tank is running low, teams can respond sooner instead of waiting for a breakdown, late-night complaint, or urgent tanker call.</p>
+                <ul>
+                    <li>Earlier shortage visibility</li>
+                    <li>Better planning for refills</li>
+                    <li>Stronger day-to-day control</li>
+                </ul>
+            </article>
+        </div>
+
+        <div class="urgency-banner">
+            <div class="urgency-pill">Act Before Summer</div>
+            <div class="urgency-copy">
+                <strong>Summer water shortage ready</strong>
+                <p>Use the dashboard before refill delays, motor complaints, or overflow callouts become expensive emergency work.</p>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="section surface">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">How It Works</div>
+                <h2>Simple hardware, clear dashboard, faster decisions.</h2>
+            </div>
+            <p class="section-copy">This section is designed to replace long explanation blocks with a visual workflow that is much easier to sell on first visit.</p>
+        </div>
+
+        <div class="media-split">
+            <figure class="visual" aria-label="Smart water tank controls illustration">
+                <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." loading="lazy">
+                <figcaption class="visual-copy">
+                    <strong>Hardware plus app in one product story</strong>
+                    <p>The tank, control hardware and monitoring dashboard appear together, which helps the product feel practical and install-ready.</p>
                 </figcaption>
             </figure>
-        </div>
-        <div class="feature-grid">
-            <article class="card">
-                <div class="card-tag">Daily Monitoring</div>
-                <h3>Check tank level without visiting the tank</h3>
-                <p>Instead of physically checking the tank, users can open the dashboard and see current water status immediately.</p>
-            </article>
-            <article class="card">
-                <div class="card-tag">Overflow Control</div>
-                <h3>Respond faster to overflow and low-water risk</h3>
-                <p>Better visibility helps reduce wasted water, delayed filling and situations that can put unnecessary load on the motor.</p>
-            </article>
-            <article class="card">
-                <div class="card-tag">Service Support</div>
-                <h3>Handle support with customer dashboard</h3>
-                <p>Separate roles make it easier for service teams to manage devices while customers get a simple, clear login experience.</p>
-            </article>
+
+            <div class="steps">
+                <article class="step">
+                    <div class="step-number">1</div>
+                    <div>
+                        <strong>Install the sensor on the water tank</strong>
+                        <p>Fit the smart sensor and controller where the tank or pump setup needs better visibility.</p>
+                    </div>
+                </article>
+                <article class="step">
+                    <div class="step-number">2</div>
+                    <div>
+                        <strong>Monitor level and pump status remotely</strong>
+                        <p>Open the dashboard on a phone or browser to see tank level, pump state and risk signals in one place.</p>
+                    </div>
+                </article>
+                <article class="step">
+                    <div class="step-number">3</div>
+                    <div>
+                        <strong>Act before overflow, shortage or motor trouble escalates</strong>
+                        <p>Use the clearer view to respond sooner, reduce waste, and make after-sales support far easier.</p>
+                    </div>
+                </article>
+            </div>
         </div>
     </section>
 
     <section id="solutions" class="section surface">
-        <div class="split">
+        <div class="section-header">
             <div>
-                <div class="section-head">
-                    <div>
-                        <div class="eyebrow">Best Fit Projects</div>
-                        <h2>Suitable for single homes, shared properties and managed water systems.</h2>
+                <div class="eyebrow">Use Cases</div>
+                <h2>Built for homes, shared buildings and managed sites.</h2>
+            </div>
+            <p class="section-copy">The same sales story works across independent houses, apartment blocks, hotels, institutions and commercial properties where water visibility affects daily operations.</p>
+        </div>
+
+        <div class="use-case-grid">
+            <article class="card">
+                <div class="card-tag">Homes</div>
+                <h3>Independent houses and villas</h3>
+                <p>A strong fit for families that want to stop unnecessary rooftop checks and keep a closer eye on stored water.</p>
+                <strong class="price">Best for day-to-day home monitoring</strong>
+                <a class="ghost-link" href="#enquiry">Book home demo</a>
+            </article>
+            <article class="card">
+                <div class="card-tag">Shared Properties</div>
+                <h3>Apartments, hostels and residential blocks</h3>
+                <p>Useful where many residents depend on one system and complaints rise quickly when the tank runs low or overflows.</p>
+                <strong class="price">Great for common tank visibility</strong>
+                <a class="ghost-link" href="#enquiry">Plan apartment rollout</a>
+            </article>
+            <article class="card">
+                <div class="card-tag">Institutions</div>
+                <h3>Hotels, schools, clinics and commercial sites</h3>
+                <p>Helps maintenance teams monitor larger systems with a cleaner support flow and clearer status visibility.</p>
+                <strong class="price">Suitable for managed facilities</strong>
+                <a class="ghost-link" href="#enquiry">Talk to sales</a>
+            </article>
+        </div>
+    </section>
+
+    <section id="proof" class="section surface">
+        <div class="section-header">
+            <div>
+                <div class="eyebrow">Buyer Proof</div>
+                <h2>Proof buyers can verify on the call.</h2>
+            </div>
+            <p class="section-copy">If you do not yet want to publish install counts or testimonials, the safest conversion move is to show verifiable proof from the product itself: the hardware view, the customer dashboard, and the admin support flow.</p>
+        </div>
+
+        <div class="proof-grid">
+            <article class="card">
+                <div class="card-tag">Visual Trust</div>
+                <h3>Real product visuals instead of abstract mockups</h3>
+                <p>The landing page shows the tank, sensor and dashboard together so visitors understand the offer immediately.</p>
+                <ul>
+                    <li>Hardware looks installation-ready</li>
+                    <li>Dashboard feels usable, not theoretical</li>
+                    <li>Strong for demos and dealer conversations</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Role-Based Access</div>
+                <h3>Customer and admin views stay clearly separated</h3>
+                <p>Customers get simple device access while service teams keep the broader support and control workflow.</p>
+                <ul>
+                    <li>Customer-specific login</li>
+                    <li>Admin access for support staff</li>
+                    <li>Cleaner handover after installation</li>
+                </ul>
+            </article>
+            <article class="card">
+                <div class="card-tag">Sales Demo Ready</div>
+                <h3>Easy to pitch in one quick product walkthrough</h3>
+                <p>The page now tells a tighter story around overflow prevention, pump visibility and faster response to low-water risk.</p>
+                <ul>
+                    <li>Sharper headline</li>
+                    <li>Stronger CTAs</li>
+                    <li>Scan-friendly value story</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
+    <section id="setup-check" class="section surface">
+        <div class="support-layout">
+            <div class="support-panel">
+                <div class="eyebrow">Free Setup Check</div>
+                <h3>Check your tank setup in 2 minutes before choosing hardware.</h3>
+                <p class="section-copy">Use this CTA for people who are interested but not ready to buy. It gives them an easy next step that feels lighter than asking for pricing immediately.</p>
+
+                <div class="support-checks">
+                    <div class="support-check">
+                        <strong>Tank height and capacity</strong>
+                        <p>We can help match the right setup for rooftop or underground tank monitoring.</p>
                     </div>
-                    <p class="section-copy">The same platform can be used for one tank at home or multiple tanks across buildings that need regular maintenance support.</p>
+                    <div class="support-check">
+                        <strong>Pump and dry-run concerns</strong>
+                        <p>Tell us where overflow, motor damage or shortage response is creating the most friction today.</p>
+                    </div>
+                    <div class="support-check">
+                        <strong>Property type and device count</strong>
+                        <p>We can guide homes, apartments, hotels, institutions, dealers and commercial projects.</p>
+                    </div>
                 </div>
-                <div class="solution-grid">
-                    <article class="card">
-                        <div class="card-tag">Homes</div>
-                        <h3>Independent houses and villas</h3>
-                        <p>A practical choice for families who want to monitor rooftop tanks and avoid unnecessary trips upstairs.</p>
-                        <strong class="price">Best for daily household use</strong>
-                        <a class="ghost-link" href="#enquiry">Request home pricing</a>
-                    </article>
-                    <article class="card">
-                        <div class="card-tag">Shared properties</div>
-                        <h3>Apartments, hostels and residential blocks</h3>
-                        <p>Useful where several people depend on a common water system and faster issue response matters.</p>
-                        <strong class="price">Good for common tank monitoring</strong>
-                        <a class="ghost-link" href="#enquiry">Request site pricing</a>
-                    </article>
-                    <article class="card">
-                        <div class="card-tag">Institutions</div>
-                        <h3>Schools, clinics, hotels and commercial sites</h3>
-                        <p>Helps maintenance teams manage larger water systems with clearer status information and easier follow-up.</p>
-                        <strong class="price">Suitable for managed facilities</strong>
-                        <a class="ghost-link" href="#enquiry">Talk to our team</a>
-                    </article>
+
+                <div class="contact-card">
+                    <strong>Talk To SaleWell</strong>
+                    <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> to book a demo, discuss pricing, or review your installation plan.</p>
                 </div>
             </div>
-            <aside class="support-panel">
-                <div class="eyebrow">Hardware + App</div>
-                <h3>Smart sensor hardware paired with a clean monitoring dashboard.</h3>
-                <figure class="support-visual" aria-label="Smart water tank controls illustration">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank control unit with pump room piping and mobile monitoring screen." loading="lazy">
-                </figure>
-                <div class="support-list">
-                    <div class="support-item">
-                        <strong>Customer account access</strong>
-                        <p>Each customer can view their own device while your support team keeps the wider service view.</p>
-                    </div>
-                </div>
-            </aside>
+
+            <figure class="visual" aria-label="Smart water tank lifestyle illustration">
+                <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." loading="lazy">
+                <figcaption class="visual-copy">
+                    <strong>Less explanation, more clarity</strong>
+                    <p>Visitors can instantly understand the pain point, the hardware setup and the phone-based monitoring outcome.</p>
+                </figcaption>
+            </figure>
         </div>
     </section>
 
@@ -1195,37 +1553,43 @@ min-height:300px;
         <div class="enquiry-layout">
             <div class="enquiry-intro">
                 <div>
-                    <div class="eyebrow">Talk To Sales</div>
-                    <h2>Tell us about your property and we will suggest the right device setup.</h2>
-                    <p class="section-copy">Send your site type, expected device count and support needs. We will help with pricing, planning and the best fit for your installation.</p>
+                    <div class="eyebrow">Contact Sales</div>
+                    <h2>Book a free installation call or pricing demo.</h2>
+                    <p class="section-copy">Tell us the site type, estimated device count, and the main water-monitoring problem you want to solve. We will follow up with the right setup, demo guidance and next-step recommendation.</p>
                 </div>
-                <div class="spotlight-grid">
-                    <article class="spotlight">
-                        <strong>Homes and villas</strong>
-                        <p>Recommended for household users who want a simple and reliable way to monitor stored water.</p>
+
+                <div class="what-you-get-grid">
+                    <article class="card">
+                        <div class="card-tag">What You Get</div>
+                        <h3>Recommended device setup</h3>
+                        <p>We help you choose the right approach for homes, apartments, institutions and commercial sites.</p>
                     </article>
-                    <article class="spotlight">
-                        <strong>Apartments and hostels</strong>
-                        <p>Useful when many people depend on the same tanks and complaints need faster response.</p>
+                    <article class="card">
+                        <div class="card-tag">What You Get</div>
+                        <h3>Demo and pricing follow-up</h3>
+                        <p>Use one enquiry to move into a live discussion instead of waiting on unclear next steps.</p>
                     </article>
-                    <article class="spotlight">
-                        <strong>Hotels and institutions</strong>
-                        <p>Helpful for staff-managed buildings where better water visibility supports smoother daily operations.</p>
+                    <article class="card">
+                        <div class="card-tag">What You Get</div>
+                        <h3>Installation planning support</h3>
+                        <p>We can talk through tank count, site type, pump issues and support expectations before rollout.</p>
                     </article>
-                    <article class="spotlight">
-                        <strong>Installers and dealers</strong>
-                        <p>A good fit for partners who want a better product offer and cleaner after-sales support for customers.</p>
+                    <article class="card">
+                        <div class="card-tag">What You Get</div>
+                        <h3>Cleaner handover for customers</h3>
+                        <p>Customer login plus admin support access makes the post-installation story easier to manage.</p>
                     </article>
                 </div>
+
                 <div class="promo-card">
                     <div class="promo-copy">
                         <div class="eyebrow">Live Demo Support</div>
                         <h3>Show the installation team, the controller and the customer app in one sales conversation.</h3>
-                        <p>Use this section to move buyers from interest to discussion, then continue pricing and installation planning directly at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
-                        <div class="trust-row" aria-label="Demo highlights">
-                            <div class="trust-pill">Installer-friendly setup</div>
-                            <div class="trust-pill">Customer phone access</div>
-                            <div class="trust-pill">Sales email support</div>
+                        <p>This section now reinforces the product demo angle instead of treating the page like a plain information sheet. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
+                        <div class="proof-pills" aria-label="Demo highlights">
+                            <span>Installer-friendly setup</span>
+                            <span>Customer phone access</span>
+                            <span>Admin service workflow</span>
                         </div>
                     </div>
                     <figure class="promo-media" aria-label="Smart water tank service demo illustration">
@@ -1236,7 +1600,7 @@ min-height:300px;
 
             <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="landing_mode" value="{{ login_mode }}">
+                <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
                 {% if sales_success %}
                 <div class="banner success">{{ sales_success }}</div>
                 {% endif %}
@@ -1276,22 +1640,203 @@ min-height:300px;
                 </div>
                 <div class="group">
                     <label for="lead_message">Project Notes</label>
-                    <textarea id="lead_message" name="message" placeholder="Tell us about the site, tank count, support needs or preferred installation timeline.">{{ sales_form.get('message', '') }}</textarea>
+                    <textarea id="lead_message" name="message" placeholder="Tell us about the site, tank count, overflow issues, dry-run risk, or preferred installation timeline.">{{ sales_form.get('message', '') }}</textarea>
                 </div>
-                <button class="button-secondary" id="emailEnquiryButton" type="button">Send Enquiry</button>
+                <div class="form-actions">
+                    <button class="button-secondary" type="submit">Book Installation Call</button>
+                    <a class="ghost-link" id="emailEnquiryButton" href="mailto:support@salewell.co.in">Prefer email instead</a>
+                </div>
+                <div class="form-note">Send this form for a pricing discussion, demo scheduling, or a quick tank setup recommendation.</div>
             </form>
         </div>
     </section>
 
     <footer class="footer surface">
-        <div><strong>Smart Water Tank</strong> gives users a practical way to monitor water level, reduce overflow risk and support installed devices more efficiently.</div>
-        <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in  | +91-8299812878</a></div>
+        <div><strong>Smart Water Tank</strong> now reads like a sales landing page first: stronger value proposition, sharper CTAs, buyer-proof visuals, and popup login access that no longer steals attention from conversion.</div>
+        <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in | +91-8299812878</a></div>
     </footer>
 </div>
+
+<div
+    class="modal {% if error or request.path != url_for('dashboard') %}is-open{% endif %}"
+    id="loginModal"
+    aria-hidden="{% if error or request.path != url_for('dashboard') %}false{% else %}true{% endif %}"
+>
+    <div class="modal-backdrop" data-close-modal></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
+        <button class="modal-close" type="button" aria-label="Close login" data-close-modal>&times;</button>
+
+        <div class="modal-header">
+            <div class="eyebrow">Secure Portal Access</div>
+            <h2 id="loginModalTitle">{{ login_title }}</h2>
+            <p id="loginModalDescription">{{ login_description }}</p>
+        </div>
+
+        <div class="modal-banners">
+            {% for warning in persistence_warnings or [] %}
+            <div class="banner warning">{{ warning }}</div>
+            {% endfor %}
+            {% if error %}
+            <div class="banner error">{{ error }}</div>
+            {% endif %}
+        </div>
+
+        <div class="login-toggle" role="tablist" aria-label="Login role selector">
+            <button
+                class="toggle-button {% if login_mode != 'admin' %}is-active{% endif %}"
+                type="button"
+                data-login-role="customer"
+                aria-pressed="{% if login_mode != 'admin' %}true{% else %}false{% endif %}"
+            >Customer Login</button>
+            <button
+                class="toggle-button {% if login_mode == 'admin' %}is-active{% endif %}"
+                type="button"
+                data-login-role="admin"
+                aria-pressed="{% if login_mode == 'admin' %}true{% else %}false{% endif %}"
+            >Admin Login</button>
+        </div>
+
+        <section class="login-pane {% if login_mode != 'admin' %}is-active{% endif %}" data-login-pane="customer">
+            <h3>Customer Login</h3>
+            <p>Use your tank device ID and password to open your own dashboard, check tank level, and view only your registered system.</p>
+            <div class="login-help">
+                <strong>Customer login help</strong>
+                <p>Use your registered <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</p>
+            </div>
+            <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <div class="group">
+                    <label for="customer_username">Device ID</label>
+                    <input id="customer_username" name="username" type="text" autocomplete="username" value="{% if login_mode != 'admin' %}{{ request.form.get('username', '') }}{% endif %}" placeholder="swt-000-000-000-001" required>
+                </div>
+                <div class="group">
+                    <label for="customer_password">Password</label>
+                    <input id="customer_password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                </div>
+                <button class="button" type="submit">Open Customer Dashboard</button>
+            </form>
+        </section>
+
+        <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">
+            <h3>Admin Login</h3>
+            <p>Use the admin account to register customers, manage credentials, review device activity and support installations from the service dashboard.</p>
+            <div class="login-help">
+                <strong>Admin login help</strong>
+                <p>Admin access is for installers and service staff managing customer accounts, device support and dashboard operations.</p>
+            </div>
+            <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <div class="group">
+                    <label for="admin_username">Username</label>
+                    <input id="admin_username" name="username" type="text" autocomplete="username" value="{% if login_mode == 'admin' %}{{ request.form.get('username', '') }}{% endif %}" placeholder="Admin username" required>
+                </div>
+                <div class="group">
+                    <label for="admin_password">Password</label>
+                    <input id="admin_password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                </div>
+                <button class="button" type="submit">Open Admin Dashboard</button>
+            </form>
+        </section>
+
+        <div class="modal-footer">Need help accessing your account? Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</div>
+    </div>
+</div>
+
 <script>
-const enquiryButton = document.getElementById("emailEnquiryButton");
-if (enquiryButton) {
-    enquiryButton.addEventListener("click", () => {
+const landingHomeUrl = "{{ url_for('dashboard') }}";
+const loginModal = document.getElementById("loginModal");
+const loginTitle = document.getElementById("loginModalTitle");
+const loginDescription = document.getElementById("loginModalDescription");
+const closeButtons = document.querySelectorAll("[data-close-modal]");
+const toggleButtons = document.querySelectorAll("[data-login-role]");
+const loginPanes = document.querySelectorAll("[data-login-pane]");
+const openLoginButtons = document.querySelectorAll(".js-open-login");
+const landingModeInput = document.getElementById("landingModeInput");
+const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
+const onDedicatedLoginRoute = {{ "true" if request.path != url_for('dashboard') else "false" }};
+const shouldAutoOpenLogin = {{ "true" if error or request.path != url_for('dashboard') else "false" }};
+const roleContent = {
+    customer: {
+        title: "Customer Login",
+        description: "Customers sign in here with their tank device ID and password to view only their own tank dashboard.",
+    },
+    admin: {
+        title: "Admin Login",
+        description: "Admin signs in here to register customers, manage credentials, and control devices.",
+    },
+};
+
+function setLoginRole(role) {
+    const activeRole = role === "admin" ? "admin" : "customer";
+    toggleButtons.forEach((button) => {
+        const isActive = button.dataset.loginRole === activeRole;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    });
+    loginPanes.forEach((pane) => {
+        pane.classList.toggle("is-active", pane.dataset.loginPane === activeRole);
+    });
+    if (loginTitle) loginTitle.textContent = roleContent[activeRole].title;
+    if (loginDescription) loginDescription.textContent = roleContent[activeRole].description;
+    if (landingModeInput) landingModeInput.value = activeRole;
+}
+
+function focusActiveLoginField(role) {
+    const inputId = role === "admin" ? "admin_username" : "customer_username";
+    const target = document.getElementById(inputId);
+    if (target) target.focus();
+}
+
+function openLoginModal(role) {
+    const activeRole = role === "admin" ? "admin" : "customer";
+    setLoginRole(activeRole);
+    loginModal.classList.add("is-open");
+    loginModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(() => focusActiveLoginField(activeRole), 30);
+}
+
+function closeLoginModal() {
+    if (onDedicatedLoginRoute) {
+        window.location.href = landingHomeUrl;
+        return;
+    }
+    loginModal.classList.remove("is-open");
+    loginModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+}
+
+toggleButtons.forEach((button) => {
+    button.addEventListener("click", () => setLoginRole(button.dataset.loginRole));
+});
+
+openLoginButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+        event.preventDefault();
+        openLoginModal(button.dataset.role);
+    });
+});
+
+closeButtons.forEach((button) => {
+    button.addEventListener("click", closeLoginModal);
+});
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && loginModal.classList.contains("is-open")) {
+        closeLoginModal();
+    }
+});
+
+if (shouldAutoOpenLogin) {
+    openLoginModal(bodyDefaultRole);
+} else {
+    setLoginRole(bodyDefaultRole);
+}
+
+const emailEnquiryButton = document.getElementById("emailEnquiryButton");
+if (emailEnquiryButton) {
+    emailEnquiryButton.addEventListener("click", (event) => {
+        event.preventDefault();
         const getValue = (id) => (document.getElementById(id)?.value || "").trim();
         const name = getValue("lead_name");
         const phone = getValue("lead_phone");

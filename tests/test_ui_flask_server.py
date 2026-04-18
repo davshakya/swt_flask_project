@@ -215,9 +215,11 @@ def test_public_home_page_loads_marketing_landing():
     response = fresh_client.get("/")
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Request Pricing" in body
-    assert "Talk To Sales" in body
+    assert "Book Free Demo" in body
+    assert "Contact Sales" in body
     assert "Customer Login" in body
+    assert "Admin Login" in body
+    assert "Book Installation Call" in body
     assert "support@salewell.co.in" in body
     assert "smart-water-tank-hero-ai.png" in body
     assert "smart-water-tank-controls-ai.png" in body
@@ -240,7 +242,8 @@ def test_customer_login_page_loads():
     assert response.status_code == 200
     assert b"Customer Login" in response.data
     assert b"Admin Login" in response.data
-    assert b"Request Pricing" in response.data
+    assert b"Book Free Demo" in response.data
+    assert b"Book Installation Call" in response.data
     assert b"support@salewell.co.in" in response.data
     assert b"device_id" in response.data
     assert b"Need the other login?" not in response.data
