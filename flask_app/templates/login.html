@@ -669,7 +669,9 @@ grid-template-columns:minmax(420px,.96fr) minmax(0,1.04fr);
 grid-template-columns:minmax(0,.84fr) minmax(500px,1.16fr);
 }
 .enquiry-layout{
-grid-template-columns:minmax(0,.94fr) minmax(520px,1.06fr);
+grid-template-columns:minmax(0,1fr) minmax(440px,.92fr);
+gap:16px;
+align-items:start;
 }
 .visual{
 position:relative;
@@ -810,7 +812,7 @@ text-decoration:none;
 .enquiry-intro{
 display:flex;
 flex-direction:column;
-gap:18px;
+gap:16px;
 }
 .enquiry-intro h2{
 margin:14px 0 0;
@@ -821,20 +823,20 @@ letter-spacing:-.04em;
 max-width:15ch;
 }
 .promo-card{
-padding:18px;
+padding:16px 18px;
 border-radius:26px;
 background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(255,255,255,.78));
 border:1px solid var(--line);
 display:grid;
-grid-template-columns:minmax(0,.74fr) minmax(360px,1.26fr);
-gap:16px;
+grid-template-columns:minmax(0,.92fr) minmax(380px,1.08fr);
+gap:18px;
 align-items:center;
 overflow:hidden;
-min-height:420px;
+min-height:300px;
 }
 .promo-copy h3{
 margin:12px 0 10px;
-font-size:31px;
+font-size:29px;
 line-height:1.06;
 letter-spacing:-.04em;
 }
@@ -847,7 +849,7 @@ color:var(--muted);
 position:relative;
 overflow:hidden;
 border-radius:22px;
-min-height:380px;
+min-height:250px;
 background:#0d2b34;
 box-shadow:0 18px 40px rgba(6,40,49,.16);
 }
@@ -883,11 +885,13 @@ display:grid;
 gap:14px;
 }
 .enquiry-form{
-padding:24px;
+padding:20px 22px;
 border-radius:28px;
 background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(232,246,243,.86));
 border:1px solid var(--line);
 align-content:start;
+gap:12px;
+align-self:start;
 }
 .group{
 display:grid;
@@ -956,6 +960,14 @@ color:var(--text);
 .footer a{
 font-weight:900;
 text-decoration:none;
+}
+.footer-note{
+grid-column:1 / -1;
+padding-top:6px;
+border-top:1px solid var(--line);
+font-size:13px;
+line-height:1.6;
+color:var(--muted);
 }
 .modal{
 position:fixed;
@@ -1081,6 +1093,34 @@ font-weight:900;
 text-decoration:none;
 color:#d4fbff;
 }
+.enquiry-layout > .promo-card{
+grid-column:1 / -1;
+}
+.what-you-get-grid{
+gap:12px;
+}
+.what-you-get-grid .card{
+padding:18px;
+}
+.what-you-get-grid .card h3{
+margin:14px 0 6px;
+font-size:18px;
+line-height:1.15;
+}
+.what-you-get-grid .card p{
+font-size:14px;
+line-height:1.55;
+}
+.enquiry-form textarea{
+min-height:112px;
+}
+.enquiry-form .form-note{
+margin-top:2px;
+}
+#enquiry.section{
+padding-top:24px;
+padding-bottom:24px;
+}
 @media (max-width:1260px){
 .nav{
 grid-template-columns:minmax(240px,max-content) minmax(0,1fr);
@@ -1112,7 +1152,7 @@ grid-template-columns:1fr;
 min-height:unset;
 }
 .promo-media{
-min-height:320px;
+min-height:280px;
 }
 }
 @media (max-width:900px){
@@ -1580,22 +1620,6 @@ padding:12px;
                         <p>Customer login plus admin support access makes the post-installation story easier to manage.</p>
                     </article>
                 </div>
-
-                <div class="promo-card">
-                    <div class="promo-copy">
-                        <div class="eyebrow">Live Demo Support</div>
-                        <h3>Show the installation team, the controller and the customer app in one sales conversation.</h3>
-                        <p>This section now reinforces the product demo angle instead of treating the page like a plain information sheet. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
-                        <div class="proof-pills" aria-label="Demo highlights">
-                            <span>Installer-friendly setup</span>
-                            <span>Customer phone access</span>
-                            <span>Admin service workflow</span>
-                        </div>
-                    </div>
-                    <figure class="promo-media" aria-label="Smart water tank service demo illustration">
-                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated installer showing a smart water tank controller and phone dashboard to a customer." loading="lazy">
-                    </figure>
-                </div>
             </div>
 
             <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
@@ -1648,12 +1672,29 @@ padding:12px;
                 </div>
                 <div class="form-note">Send this form for a pricing discussion, demo scheduling, or a quick tank setup recommendation.</div>
             </form>
+
+            <div class="promo-card">
+                <div class="promo-copy">
+                    <div class="eyebrow">Live Demo Support</div>
+                    <h3>Show the installation team, the controller and the customer app in one sales conversation.</h3>
+                    <p>This section now reinforces the product demo angle instead of treating the page like a plain information sheet. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
+                    <div class="proof-pills" aria-label="Demo highlights">
+                        <span>Installer-friendly setup</span>
+                        <span>Customer phone access</span>
+                        <span>Admin service workflow</span>
+                    </div>
+                </div>
+                <figure class="promo-media" aria-label="Smart water tank service demo illustration">
+                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated installer showing a smart water tank controller and phone dashboard to a customer." loading="lazy">
+                </figure>
+            </div>
         </div>
     </section>
 
     <footer class="footer surface">
         <div><strong>Smart Water Tank</strong> now reads like a sales landing page first: stronger value proposition, sharper CTAs, buyer-proof visuals, and popup login access that no longer steals attention from conversion.</div>
         <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in | +91-8299812878</a></div>
+        <div class="footer-note">&copy; Smart Water Tank by SaleWell. All rights reserved.</div>
     </footer>
 </div>
 
