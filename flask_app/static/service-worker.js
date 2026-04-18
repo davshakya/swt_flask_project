@@ -1,8 +1,9 @@
-const CACHE_NAME = "swt-pwa-v2";
+const CACHE_NAME = "swt-pwa-v3";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/login/customer",
   "/login/admin",
+  "/pricing",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
   "/static/pwa/icon-maskable-512.png",
