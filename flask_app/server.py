@@ -6749,6 +6749,11 @@ def admin_login():
     return handle_role_login("admin")
 
 
+@app.route("/pricing")
+def pricing_page():
+    return render_template("pricing.html")
+
+
 @app.route("/sales/enquiry", methods=["POST"])
 @csrf_protect
 def sales_enquiry():

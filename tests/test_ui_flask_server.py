@@ -225,8 +225,27 @@ def test_public_home_page_loads_marketing_landing():
     assert "smart-water-tank-controls-ai.png" in body
     assert "smart-water-tank-lifestyle-ai.png" in body
     assert "smart-water-tank-service-ai.png" in body
+    assert 'href="/pricing"' in body
+    assert "View Pricing" in body
     assert 'mailto:support@salewell.co.in' in body
     assert "Need the other login?" not in body
+
+
+def test_public_pricing_page_loads():
+    fresh_client = app.test_client()
+    response = fresh_client.get("/pricing")
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Simple pricing for every type of property" in body
+    assert "Home Basic" in body
+    assert "Home Smart" in body
+    assert "Home AI" in body
+    assert "Commercial Standard" in body
+    assert "Commercial AI Pro" in body
+    assert "Custom Pricing" in body
+    assert "Book Free Demo" in body
+    assert "Check Your Tank Setup" in body
+    assert "Talk to Sales" in body
 
 
 def test_customer_dashboard_requires_login_redirect():
