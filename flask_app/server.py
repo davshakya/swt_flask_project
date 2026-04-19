@@ -126,6 +126,19 @@ STATIC_DIR = APP_ROOT / "static"
 RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
 
 
+def resolve_test_repo_root():
+    configured_path = str(os.environ.get("SWT_FLASK_TEST_REPO") or "").strip()
+    if configured_path:
+        candidate = Path(configured_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = (PROJECT_ROOT / candidate).resolve()
+        return candidate.resolve()
+    return (PROJECT_ROOT.parent / "swt_flask_test_project").resolve()
+
+
+TEST_REPO_ROOT = resolve_test_repo_root()
+
+
 def normalize_db_path(raw_path):
     return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
 
@@ -942,15 +955,24 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
     note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
 
-def iter_virtual_device_env_paths():
-    tests_root = PROJECT_ROOT / "tests"
+def iter_virtual_device_tests_roots():
     seen = set()
-    candidates = [
-        tests_root / "virtual_device.env",
-    ]
-    virtual_devices_dir = tests_root / "virtual_devices"
-    if virtual_devices_dir.exists():
-        candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
+    for tests_root in (TEST_REPO_ROOT / "tests", PROJECT_ROOT / "tests"):
+        resolved = str(tests_root.resolve()) if tests_root.exists() else str(tests_root)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield tests_root
+
+
+def iter_virtual_device_env_paths():
+    seen = set()
+    candidates = []
+    for tests_root in iter_virtual_device_tests_roots():
+        candidates.append(tests_root / "virtual_device.env")
+        virtual_devices_dir = tests_root / "virtual_devices"
+        if virtual_devices_dir.exists():
+            candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
 
     for path in candidates:
         resolved = str(path.resolve()) if path.exists() else str(path)
@@ -961,10 +983,13 @@ def iter_virtual_device_env_paths():
 
 
 def relative_to_project_or_str(path):
-    try:
-        return str(path.relative_to(PROJECT_ROOT))
-    except ValueError:
-        return str(path)
+    resolved_path = path.resolve() if path.exists() else path
+    for project_root in (TEST_REPO_ROOT, PROJECT_ROOT):
+        try:
+            return str(resolved_path.relative_to(project_root))
+        except ValueError:
+            continue
+    return str(path)
 
 
 def configured_virtual_device_ids():
