@@ -568,7 +568,7 @@ color:var(--muted);
 }
 .preview-grid{
 display:grid;
-grid-template-columns:repeat(3,minmax(0,1fr));
+grid-template-columns:repeat(2,minmax(0,1fr));
 gap:12px;
 margin-top:20px;
 }
@@ -2555,21 +2555,25 @@ padding:12px;
             </div>
             <div class="preview-body">
             <div class="eyebrow">Dashboard Preview</div>
-            <h2>Show the tank, sensor and app in one clear sales conversation.</h2>
-            <p>See the kind of dashboard buyers get after installation: a practical view that helps save water, protect motors, and respond faster when stored water is running low.</p>
+            <h2>What you actually get after installation.</h2>
+            <p>Monitor your tank, sensor, and pump in real time — so you can act faster, prevent overflow, and never run out of water.</p>
 
                 <div class="preview-grid" aria-label="Product proof metrics">
                     <article class="mini-proof">
-                        <span>24/7 visibility</span>
-                        <strong>Tank level and pump status in one view</strong>
+                        <span>24/7 live visibility</span>
+                        <strong>Tank status updates continuously with no manual checking or guesswork.</strong>
                     </article>
                     <article class="mini-proof">
-                        <span>2 login roles</span>
-                        <strong>Customer access plus admin service control</strong>
+                        <span>Tank level + pump status</span>
+                        <strong>See available water and pump activity together in one simple screen.</strong>
                     </article>
                     <article class="mini-proof">
-                        <span>3 savings levers</span>
-                        <strong>Water, electricity and maintenance protection</strong>
+                        <span>Access for the right people</span>
+                        <strong>Customers stay informed while admins and maintenance teams manage operations.</strong>
+                    </article>
+                    <article class="mini-proof">
+                        <span>Real, measurable savings</span>
+                        <strong>Reduce water waste, avoid electricity overuse and protect pumps from damage.</strong>
                     </article>
                 </div>
 
@@ -2585,7 +2589,7 @@ padding:12px;
         <div class="section-header">
             <div>
                 <div class="eyebrow">Trusted Across NCR</div>
-                <h2>Trusted by homeowners and properties across NCR</h2>
+                <h2>Trusted by owners.</h2>
             </div>
             <p class="section-copy">Built for homes, societies and managed properties that want fewer overflow complaints, better pump protection and stronger daily water control.</p>
         </div>
@@ -2705,7 +2709,7 @@ padding:12px;
         <div class="demo-layout">
             <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="30000" aria-label="30-second animated product walkthrough">
                 <div class="demo-storyboard-head">
-                    <div class="demo-badge"><span class="demo-play">&#9654;</span> AI Storyboard</div>
+                    <div class="demo-badge"><span class="demo-play">&#9654;</span>Storyboard</div>
                     <div class="demo-runtime">10 Scenes &bull; 30 Seconds</div>
                 </div>
 
@@ -3228,17 +3232,17 @@ padding:12px;
         <div class="section-header">
             <div>
                 <div class="eyebrow">How It Works</div>
-                <h2>Simple hardware, clear dashboard, faster decisions.</h2>
+                <h2>Simple, practical and easy to use every day.</h2>
             </div>
-            <p class="section-copy">From tank sensor to phone dashboard, the workflow is simple enough for homeowners and useful enough for maintenance teams.</p>
+            <p class="section-copy">From sensor installation to live alerts, the system gives homeowners, RWAs and maintenance teams a clear view of the tank without extra jargon or extra effort.</p>
         </div>
 
         <div class="media-split">
             <figure class="visual" aria-label="Smart water tank controls illustration">
                 <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." loading="lazy">
                 <figcaption class="visual-copy">
-                    <strong>Hardware plus app in one product story</strong>
-                    <p>The tank, control hardware and monitoring dashboard appear together, which helps the product feel practical and install-ready.</p>
+                    <strong>Install once and see everything from your phone.</strong>
+                    <p>The sensor, controller and live dashboard work together as one practical system, so buyers can understand what gets installed and what they will use every day.</p>
                 </figcaption>
             </figure>
 
@@ -3246,22 +3250,29 @@ padding:12px;
                 <article class="step">
                     <div class="step-number">1</div>
                     <div>
-                        <strong>Install the sensor on the water tank</strong>
-                        <p>Fit the smart sensor and controller where the tank or pump setup needs better visibility.</p>
+                        <strong>Sensor installed in the tank</strong>
+                        <p>A compact smart sensor is placed inside your water tank to measure water levels accurately.</p>
                     </div>
                 </article>
                 <article class="step">
                     <div class="step-number">2</div>
                     <div>
-                        <strong>Monitor level and pump status remotely</strong>
-                        <p>Open the dashboard on a phone or browser to see tank level, pump state and risk signals in one place.</p>
+                        <strong>Data sent instantly</strong>
+                        <p>Water level readings are transmitted in real time so the system always has the latest tank status.</p>
                     </div>
                 </article>
                 <article class="step">
                     <div class="step-number">3</div>
                     <div>
-                        <strong>Act before overflow, shortage or motor trouble escalates</strong>
-                        <p>Use the clearer view to respond sooner, reduce waste, and make after-sales support far easier.</p>
+                        <strong>Live dashboard on your phone</strong>
+                        <p>Open the app to check tank levels, pump status and alerts any time without climbing up to inspect the tank.</p>
+                    </div>
+                </article>
+                <article class="step">
+                    <div class="step-number">4</div>
+                    <div>
+                        <strong>Alerts plus remote action</strong>
+                        <p>Get notified before overflow or shortage becomes a problem, and control the pump when action is needed.</p>
                     </div>
                 </article>
             </div>
@@ -3667,12 +3678,13 @@ if (shouldAutoOpenLogin) {
 }
 
 const demoStoryboard = document.getElementById("demoStoryboard");
+const demoSection = document.getElementById("demo");
 const demoProgressBar = document.getElementById("demoProgressBar");
 const demoStatusLine = document.getElementById("demoStatusLine");
 const demoFullscreenButton = document.getElementById("demoFullscreenButton");
 const demoReplayButton = document.getElementById("demoReplayButton");
 const demoScenes = demoStoryboard ? Array.from(demoStoryboard.querySelectorAll("[data-demo-scene]")) : [];
-const demoStepButtons = demoStoryboard ? Array.from(demoStoryboard.querySelectorAll("[data-demo-step]")) : [];
+const demoStepButtons = demoSection ? Array.from(demoSection.querySelectorAll("[data-demo-step]")) : [];
 const reducedMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
 
 if (demoStoryboard && demoScenes.length) {
@@ -3781,21 +3793,20 @@ if (demoStoryboard && demoScenes.length) {
         setDemoStatus(index, mode);
         const fallbackProgress = demoSceneCount > 1 ? index / (demoSceneCount - 1) : 1;
         updateDemoProgress(fallbackProgress);
-        if (demoReplayButton) demoReplayButton.textContent = "Play Demo";
+        if (demoReplayButton) demoReplayButton.textContent = mode === "manual" ? "Resume Demo" : "Play Demo";
     }
 
     demoStepButtons.forEach((button, index) => {
         button.addEventListener("click", () => {
-            if (demoState.autoPlaying || !(reducedMotionQuery && reducedMotionQuery.matches)) {
-                startDemo(index);
-            } else {
-                showDemoFrame(index);
-            }
+            showDemoFrame(index);
         });
     });
 
     if (demoReplayButton) {
-        demoReplayButton.addEventListener("click", () => startDemo(0));
+        demoReplayButton.addEventListener("click", () => {
+            const resumeIndex = demoState.autoPlaying ? 0 : demoState.index;
+            startDemo(resumeIndex);
+        });
     }
 
     if (demoFullscreenButton) {
