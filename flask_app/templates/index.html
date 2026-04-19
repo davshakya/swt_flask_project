@@ -174,7 +174,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                         <div class="customer-intro-line">Home Water View</div>
                         {% endif %}
                         <h1>{% if is_admin %}Dashboard{% else %}Home Water Dashboard{% endif %}</h1>
-                        <div id="logoStatus" class="brand-status">Pump logo <strong>idle</strong></div>
+                        <div id="logoStatus" class="brand-status">Pump Status <strong>idle</strong></div>
                     {% if selected_device_id %}
                         <div class="sub" style="margin-top:10px">Viewing device <strong>{{ selected_device_id }}</strong></div>
                     {% endif %}
@@ -483,7 +483,7 @@ function toneForSignalQuality(value){
 function buildMotorBehaviorSeries(motor){const time=Array.isArray(motor?.time)?motor.time:[];const values=Array.isArray(motor?.values)?motor.values:[];const size=Math.min(time.length,values.length);if(!size)return{time:[],values:[]};const compactTime=[];const compactValues=[];let last=null;for(let i=0;i<size;i+=1){const raw=values[i];if(raw===null||raw===undefined||raw===""){compactTime.push(time[i]);compactValues.push(null);last=null;continue;}const current=Number(raw)===1?1:0;if(last===null||current!==last){compactTime.push(time[i]);compactValues.push(current);last=current;}}if(compactTime[compactTime.length-1]!==time[size-1]){const tail=values[size-1];compactTime.push(time[size-1]);compactValues.push(tail===null||tail===undefined||tail===""?null:(Number(tail)===1?1:0));}return{time:compactTime,values:compactValues};}
 function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)return;el.style.fontWeight="700";if(tone==="ok"){el.style.color="var(--good)";return;}if(tone==="warn"){el.style.color="var(--warn)";return;}if(tone==="bad"){el.style.color="var(--danger)";return;}el.style.color="";}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
-function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump logo <strong>arming</strong>":"Pump logo <strong>spinning</strong>"):"Pump logo <strong>idle</strong>";}
+function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>"):"Pump Status <strong>idle</strong>";}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;

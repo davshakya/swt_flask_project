@@ -2495,11 +2495,13 @@ padding:12px;
                 class="nav-button js-open-login {% if login_mode != 'admin' %}is-primary is-current{% endif %}"
                 href="{{ url_for('customer_login', next=next_url) }}"
                 data-role="customer"
+                data-testid="open-customer-login"
             >Customer Login</a>
             <a
                 class="nav-button js-open-login {% if login_mode == 'admin' %}is-primary is-current{% endif %}"
                 href="{{ url_for('admin_login', next=next_url) }}"
                 data-role="admin"
+                data-testid="open-admin-login"
             >Admin Login</a>
         </div>
     </header>
@@ -3483,7 +3485,7 @@ padding:12px;
                 </div>
             </div>
 
-            <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
+            <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}" data-testid="sales-enquiry-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
                 {% if sales_success %}
@@ -3569,6 +3571,7 @@ padding:12px;
     class="modal {% if error or request.path != url_for('dashboard') %}is-open{% endif %}"
     id="loginModal"
     aria-hidden="{% if error or request.path != url_for('dashboard') %}false{% else %}true{% endif %}"
+    data-testid="login-modal"
 >
     <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
@@ -3608,7 +3611,7 @@ padding:12px;
             <h3>Customer Login</h3>
             <p>Use your registered tank credentials.</p>
             <div class="login-help">Use <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</div>
-            <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
+            <form method="post" action="{{ url_for('customer_login') }}" class="portal-form" data-testid="customer-login-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
                     <label for="customer_username">Device ID</label>
@@ -3626,7 +3629,7 @@ padding:12px;
             <h3>Admin Login</h3>
             <p>For installer and service access.</p>
             <div class="login-help">Use your admin username and password.</div>
-            <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
+            <form method="post" action="{{ url_for('admin_login') }}" class="portal-form" data-testid="admin-login-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
                     <label for="admin_username">Username</label>

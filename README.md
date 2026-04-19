@@ -283,6 +283,13 @@ If the artifact is missing, `/ml/predict` returns an error explaining how to tra
 
 The backend is covered by pytest-based integration and utility tests under `tests/`.
 
+Install the test tooling once on a local machine:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python -m playwright install chromium
+```
+
 Run the main suite from the project root:
 
 ```powershell
@@ -295,6 +302,8 @@ Useful focused runs:
 pytest tests/test_ui_flask_server.py
 pytest tests/test_startup_env_parsing.py tests/test_virtual_device_env.py
 pytest tests/test_ml_training.py
+pytest -m api tests/test_api_auth.py
+pytest -m ui tests/test_ui_playwright.py
 ```
 
 For end-to-end local exercising, pair Flask with the virtual device runner documented in [`tests/virtual_devices/README.md`](tests/virtual_devices/README.md).
