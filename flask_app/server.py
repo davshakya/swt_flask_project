@@ -122,6 +122,7 @@ DEVICE_SOURCE_HEADER = "X-Device-Source"
 IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
+DEFAULT_PROJECT_ROOT = PROJECT_ROOT
 STATIC_DIR = APP_ROOT / "static"
 RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
 
@@ -529,7 +530,12 @@ TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
 TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
 TEMP_HARD_DB_CAP_MAX_BATCHES = max(1, env_int("TEMP_HARD_DB_CAP_MAX_BATCHES", 24))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
-SEED_VIRTUAL_DEVICE_ENVS = env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+# Keep local sibling test-repo virtual devices discoverable without extra shell setup.
+SEED_VIRTUAL_DEVICE_ENVS = (
+    not IS_RENDER
+    if str(os.environ.get("SWT_FLASK_TEST_REPO") or "").strip()
+    else env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+)
 PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
 RESET_DEVICE_SOURCE_MODE_ON_BOOT = env_flag("RESET_DEVICE_SOURCE_MODE_ON_BOOT", default=IS_RENDER)
 CONTROL_POLICY = "AUTO_PROTECTED"
@@ -957,7 +963,15 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
 
 def iter_virtual_device_tests_roots():
     seen = set()
-    for tests_root in (TEST_REPO_ROOT / "tests", PROJECT_ROOT / "tests"):
+    roots = [PROJECT_ROOT / "tests"]
+    try:
+        project_root_is_overridden = PROJECT_ROOT.resolve() != DEFAULT_PROJECT_ROOT.resolve()
+    except OSError:
+        project_root_is_overridden = str(PROJECT_ROOT) != str(DEFAULT_PROJECT_ROOT)
+    if not project_root_is_overridden:
+        roots.append(TEST_REPO_ROOT / "tests")
+
+    for tests_root in roots:
         resolved = str(tests_root.resolve()) if tests_root.exists() else str(tests_root)
         if resolved in seen:
             continue
@@ -984,7 +998,7 @@ def iter_virtual_device_env_paths():
 
 def relative_to_project_or_str(path):
     resolved_path = path.resolve() if path.exists() else path
-    for project_root in (TEST_REPO_ROOT, PROJECT_ROOT):
+    for project_root in (PROJECT_ROOT, TEST_REPO_ROOT):
         try:
             return str(resolved_path.relative_to(project_root))
         except ValueError:
@@ -1167,15 +1181,9 @@ def delete_known_device(device_id):
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
 DEVICE_KEY_WILDCARD_RULES = parse_device_key_wildcard_rules(DEVICE_KEYS)
-LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
-LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
-    device_id: entry["key"]
-    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
-}
-LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
-    device_id: entry["key_rule"]
-    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
-}
+LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = {}
+LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {}
+LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {}
 
 
 def refresh_configured_virtual_device_auth():
@@ -1884,8 +1892,9 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
     )
 
 
-def build_admin_known_devices(accounts, available_devices):
-    seed_registered_devices_from_configuration()
+def build_admin_known_devices(accounts, available_devices, include_registered_devices=False, seed_configuration=False):
+    if seed_configuration:
+        seed_registered_devices_from_configuration()
     ignored_device_ids = list_ignored_device_ids()
     merged = {}
     accounts_by_device = {}
@@ -1912,29 +1921,18 @@ def build_admin_known_devices(accounts, available_devices):
         entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
         accounts_by_device[normalized_device_id] = account
 
-    for device_id in list_registered_device_ids(limit=200):
-        normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id or normalized_device_id in ignored_device_ids:
-            continue
+    if include_registered_devices:
+        for device_id in list_registered_device_ids(limit=200):
+            normalized_device_id = normalize_device_id(device_id)
+            if not normalized_device_id or normalized_device_id in ignored_device_ids:
+                continue
 
-        entry = merged.get(normalized_device_id)
-        if entry is None:
-            entry = build_admin_device_entry(normalized_device_id)
-            merged[normalized_device_id] = entry
+            entry = merged.get(normalized_device_id)
+            if entry is None:
+                entry = build_admin_device_entry(normalized_device_id)
+                merged[normalized_device_id] = entry
 
-        entry["server_registered"] = True
-
-    for device_id in sorted(DEVICE_KEY_MAP.keys()):
-        normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id or normalized_device_id in ignored_device_ids:
-            continue
-
-        entry = merged.get(normalized_device_id)
-        if entry is None:
-            entry = build_admin_device_entry(normalized_device_id)
-            merged[normalized_device_id] = entry
-
-        entry["server_registered"] = True
+            entry["server_registered"] = True
 
     service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
 
@@ -1989,6 +1987,15 @@ def filter_admin_search_results(items, search_query):
         if normalized_query in haystack:
             filtered.append(item)
     return filtered
+
+
+def load_admin_known_devices(accounts, inventory_limit=100):
+    return build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=inventory_limit),
+        include_registered_devices=True,
+        seed_configuration=True,
+    )
 
 
 def authenticate_device_request(payload=None):
@@ -2429,6 +2436,11 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         """
         DELETE FROM ops_audit_log
         WHERE created_at < datetime('now', ?)
+          AND id NOT IN (
+              SELECT MAX(id)
+              FROM ops_audit_log
+              GROUP BY COALESCE(device_id, '')
+          )
         """,
         (f"-{OPS_AUDIT_RETENTION_DAYS} day",),
     )
@@ -2608,20 +2620,83 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
-    cleaned.pop("simulator", None)
-    cleaned.pop("source_tank_simulator", None)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned["simulator"] = (
+        str(cleaned.get("simulator") or "OFF").strip().upper()
+        if str(cleaned.get("simulator") or "").strip()
+        else "OFF"
+    )
+    if cleaned["simulator"] not in {"ON", "OFF"}:
+        cleaned["simulator"] = "OFF"
+    cleaned["source_tank_simulator"] = (
+        str(cleaned.get("source_tank_simulator") or "OFF").strip().upper()
+        if str(cleaned.get("source_tank_simulator") or "").strip()
+        else "OFF"
+    )
+    if cleaned["source_tank_simulator"] not in {"ON", "OFF"}:
+        cleaned["source_tank_simulator"] = "OFF"
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
 
     latest_row_id = None
+    insert_values = (
+        cleaned.get("level"),
+        cleaned.get("motor"),
+        mode,
+        cleaned.get("runtime"),
+        cleaned.get("current_runtime"),
+        cleaned.get("last_runtime"),
+        cleaned.get("fill_time"),
+        cleaned.get("leak"),
+        cleaned.get("pump_failure"),
+        cleaned.get("abnormal"),
+        cleaned.get("drip"),
+        cleaned.get("slow_leak"),
+        cleaned.get("pipe_leak"),
+        cleaned.get("ai_usage_rate"),
+        cleaned.get("tomorrow_prediction"),
+        cleaned.get("dry_run"),
+        cleaned.get("simulator"),
+        cleaned.get("source_tank_simulator"),
+        cleaned.get("wifi"),
+        cleaned.get("wifi_rssi"),
+        cleaned.get("sensor"),
+        cleaned.get("device_source"),
+        cleaned.get("sensor_info"),
+        cleaned.get("sensor_distance_cm"),
+        cleaned.get("tank_height_cm"),
+        cleaned.get("tank_capacity_liters"),
+        cleaned.get("auto_status"),
+        cleaned.get("auto_status_tone"),
+        cleaned.get("auto_timer"),
+        cleaned.get("tank_health"),
+        cleaned.get("free_heap"),
+        cleaned.get("uptime_s"),
+        cleaned.get("lower_tank_level"),
+        cleaned.get("lower_sensor"),
+        cleaned.get("lower_sensor_info"),
+        cleaned.get("lower_sensor_distance_cm"),
+        cleaned.get("device_id"),
+        cleaned.get("firmware_version"),
+        cleaned.get("reset_reason"),
+        source_ip or transport,
+        cleaned.get("device_local_url"),
+        cleaned.get("channel_mode"),
+        cleaned.get("telemetry_service"),
+        cleaned.get("command_service"),
+        cleaned.get("ota_service"),
+        cleaned.get("lower_tank_service"),
+        cleaned.get("buzzer_service"),
+        cleaned.get("led_display_service"),
+    )
+    placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
         cursor = db.cursor()
         cursor.execute(
-            """
+            f"""
             INSERT INTO tank_data (
                 level, motor, mode,
                 runtime, current_runtime, last_runtime,
@@ -2629,7 +2704,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 leak, pump_failure, abnormal,
                 drip, slow_leak, pipe_leak,
                 ai_usage_rate, tomorrow_prediction,
-                dry_run,
+                dry_run, simulator, source_tank_simulator,
                 wifi, wifi_rssi, sensor,
                 device_source,
                 sensor_info, sensor_distance_cm,
@@ -2641,62 +2716,16 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES ({placeholders})
             """,
-            (
-                cleaned.get("level"),
-                cleaned.get("motor"),
-                mode,
-                cleaned.get("runtime"),
-                cleaned.get("current_runtime"),
-                cleaned.get("last_runtime"),
-                cleaned.get("fill_time"),
-                cleaned.get("leak"),
-                cleaned.get("pump_failure"),
-                cleaned.get("abnormal"),
-                cleaned.get("drip"),
-                cleaned.get("slow_leak"),
-                cleaned.get("pipe_leak"),
-                cleaned.get("ai_usage_rate"),
-                cleaned.get("tomorrow_prediction"),
-                cleaned.get("dry_run"),
-                cleaned.get("wifi"),
-                cleaned.get("wifi_rssi"),
-                cleaned.get("sensor"),
-                cleaned.get("device_source"),
-                cleaned.get("sensor_info"),
-                cleaned.get("sensor_distance_cm"),
-                cleaned.get("tank_height_cm"),
-                cleaned.get("tank_capacity_liters"),
-                cleaned.get("auto_status"),
-                cleaned.get("auto_status_tone"),
-                cleaned.get("auto_timer"),
-                cleaned.get("tank_health"),
-                cleaned.get("free_heap"),
-                cleaned.get("uptime_s"),
-                cleaned.get("lower_tank_level"),
-                cleaned.get("lower_sensor"),
-                cleaned.get("lower_sensor_info"),
-                cleaned.get("lower_sensor_distance_cm"),
-                cleaned.get("device_id"),
-                cleaned.get("firmware_version"),
-                cleaned.get("reset_reason"),
-                source_ip or transport,
-                cleaned.get("device_local_url"),
-                cleaned.get("channel_mode"),
-                cleaned.get("telemetry_service"),
-                cleaned.get("command_service"),
-                cleaned.get("ota_service"),
-                cleaned.get("lower_tank_service"),
-                cleaned.get("buzzer_service"),
-                cleaned.get("led_display_service"),
-            ),
+            insert_values,
         )
         latest_row_id = cursor.lastrowid
 
     maybe_prune_retained_rows(
         device_id=cleaned.get("device_id"),
         latest_row_id=latest_row_id,
+        force=True,
     )
     clear_runtime_caches(cleaned.get("device_id"))
     logger.info(
@@ -2730,6 +2759,8 @@ def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
         "device_source": "TEXT",
+        "simulator": "TEXT",
+        "source_tank_simulator": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -3139,6 +3170,8 @@ def init_db():
                 ai_usage_rate REAL,
                 tomorrow_prediction REAL,
                 dry_run TEXT,
+                simulator TEXT,
+                source_tank_simulator TEXT,
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
@@ -3167,12 +3200,13 @@ def init_db():
                 command_service TEXT,
                 ota_service TEXT,
                 lower_tank_service TEXT,
+                buzzer_service TEXT,
+                led_display_service TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         ensure_tank_data_columns(cursor)
-        rebuild_tank_data_without_simulator_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_alerts_table(cursor)
@@ -3249,7 +3283,6 @@ def init_db():
             "Purged %s configured virtual devices from startup database state.",
             deleted_counts["device_ids"],
         )
-    seed_registered_devices_from_configuration()
     logger.info("Database initialization complete")
 
 
@@ -4176,8 +4209,12 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    data.pop("simulator", None)
-    data.pop("source_tank_simulator", None)
+    data["simulator"] = str(data.get("simulator") or "OFF").strip().upper() or "OFF"
+    if data["simulator"] not in {"ON", "OFF"}:
+        data["simulator"] = "OFF"
+    data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
+    if data["source_tank_simulator"] not in {"ON", "OFF"}:
+        data["source_tank_simulator"] = "OFF"
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
     data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
@@ -4516,6 +4553,8 @@ def build_empty_snapshot_payload(device_id=None):
     payload = {
         "level": 0,
         "mode": "AUTO",
+        "simulator": "OFF",
+        "source_tank_simulator": "OFF",
         "device_source": get_device_source_mode(),
         "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
@@ -5967,9 +6006,6 @@ def relay_backoff_seconds(attempts):
 
 
 def drain_relay_queue(max_items=3):
-    if not RELAY_STATUS_URL_LIST:
-        return
-
     with get_db() as db:
         rows = db.execute(
             """
@@ -6683,8 +6719,6 @@ def get_command():
         request_source = resolve_request_device_source()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if request_source != get_device_source_mode():
-        return active_device_source_conflict_response(request_source)
 
     auth_ok, auth_payload, auth_status = authenticate_device_request()
     if not auth_ok:
@@ -6722,8 +6756,6 @@ def acknowledge_device_command():
         request_source = resolve_request_device_source(payload)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if request_source != get_device_source_mode():
-        return active_device_source_conflict_response(request_source)
 
     auth_ok, auth_payload, auth_status = authenticate_device_request(payload)
     if not auth_ok:
@@ -6894,10 +6926,7 @@ def admin_customers():
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -6944,10 +6973,7 @@ def admin_customer_password_reset(device_id):
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -6993,10 +7019,7 @@ def admin_customer_edit(device_id):
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7050,10 +7073,7 @@ def admin_customer_cloud_feed(device_id):
         )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7124,10 +7144,7 @@ def admin_customer_services(device_id):
         )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7177,10 +7194,7 @@ def admin_device_reboot(device_id):
             )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7218,10 +7232,7 @@ def admin_delete_known_device(device_id):
         error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7644,6 +7655,7 @@ def events():
 @login_required
 def dashboard_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
+    audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -7656,7 +7668,9 @@ def dashboard_bootstrap():
         {
             "snapshot": public_snapshot,
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+            "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
             "events": build_events(event_limit, device_id=scoped_device_id),
+            "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
             "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
             "viewer": {
                 "role": current_user_role(),
