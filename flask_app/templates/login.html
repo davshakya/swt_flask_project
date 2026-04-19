@@ -2326,7 +2326,11 @@ min-height:280px;
 }
 @media (max-width:900px){
 .nav-links{
-display:none;
+display:flex;
+justify-content:flex-start;
+flex-wrap:wrap;
+gap:8px;
+overflow:visible;
 }
 .nav{
 position:static;
@@ -2334,6 +2338,21 @@ grid-template-columns:1fr;
 }
 .brand{
 justify-content:flex-start;
+}
+.nav-links a{
+min-height:38px;
+padding:9px 14px;
+border-radius:999px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.5);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.45);
+}
+.nav-links a + a{
+padding-left:14px;
+margin-left:0;
+}
+.nav-links a + a::before{
+display:none;
 }
 .nav-actions{
 justify-content:flex-start;
@@ -2522,7 +2541,10 @@ padding:12px;
                 <div class="preview-overlay preview-overlay--top">
                     <span>Live tank status</span>
                     <strong>72% full</strong>
-                    <p>Show buyers how much water is available without sending anyone to the roof.</p>
+                    <p>Save water. Save electricity. Save effort—every single day.
+Reduce water waste and electricity bills automatically.
+Turn daily water problems into long-term savings.
+Smart control that pays for itself.</p>
                 </div>
                 <div class="preview-overlay preview-overlay--bottom">
                     <span>Pump protection</span>
@@ -2603,7 +2625,7 @@ padding:12px;
         <div class="section-header">
             <div>
                 <div class="eyebrow">Why It Matters</div>
-                <h2>Why properties choose smart tank monitoring.</h2>
+                <h2>Why choose smart tank monitoring.</h2>
             </div>
             <p class="section-copy">The value is simple to scan: protect pumps, reduce water waste, detect leaks earlier, and keep daily water operations under control.</p>
         </div>
@@ -2674,7 +2696,7 @@ padding:12px;
         <div class="section-header">
             <div>
                 <div class="eyebrow">30-Second Demo</div>
-                <h2>See how it works</h2>
+                <h2>See how it works.</h2>
             </div>
         </div>                                                  
 
