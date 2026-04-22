@@ -4,6 +4,7 @@ from functools import wraps
 import base64
 import csv
 import hashlib
+import hmac
 import ipaddress
 import io
 import json
@@ -1232,6 +1233,24 @@ def clear_runtime_caches(device_id=None):
     forget_alert_touches_for_device(normalized_device_id)
 
 
+def current_session_auth_marker():
+    if not session.get("logged_in"):
+        return None
+    return current_auth_marker_for_identity(
+        session.get("role") or "admin",
+        username=session.get("username"),
+        device_id=session.get("device_id"),
+    )
+
+
+def refresh_current_session_auth_marker():
+    auth_marker = current_session_auth_marker()
+    if not auth_marker:
+        return False
+    session["auth_marker"] = auth_marker
+    return True
+
+
 def current_user_role():
     if not is_logged_in():
         return None
@@ -1411,7 +1430,14 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
 
 
 def is_logged_in():
-    return bool(session.get("logged_in"))
+    if not bool(session.get("logged_in")):
+        return False
+    stored_auth_marker = str(session.get("auth_marker") or "").strip()
+    expected_auth_marker = current_session_auth_marker()
+    if stored_auth_marker and expected_auth_marker and secrets.compare_digest(stored_auth_marker, expected_auth_marker):
+        return True
+    session.clear()
+    return False
 
 
 def login_required(view):
@@ -1619,6 +1645,7 @@ def handle_role_login(mode):
             session["username"] = authenticated_user["username"]
             session["role"] = authenticated_user["role"]
             session["device_id"] = authenticated_user.get("device_id")
+            session["auth_marker"] = authenticated_user.get("auth_marker")
             session.permanent = True
             destination = next_url if can_access_next_url(authenticated_user["role"], next_url) else dashboard_home_url(authenticated_user["role"])
             logger.info(
@@ -3396,6 +3423,44 @@ def password_looks_hashed(value):
     return text.startswith("scrypt:") or text.startswith("pbkdf2:")
 
 
+def build_auth_marker(*parts):
+    payload = "||".join(str(part or "") for part in parts).encode("utf-8")
+    secret = str(app.secret_key or "").encode("utf-8")
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def current_dashboard_auth_marker():
+    stored_value = get_app_setting("dashboard_password")
+    password_state = f"stored:{stored_value}" if stored_value is not None else f"env:{LOGIN_PASSWORD}"
+    return build_auth_marker("admin", LOGIN_USERNAME, password_state)
+
+
+def customer_auth_marker(device_id, account=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    resolved_account = account
+    if normalize_device_id((resolved_account or {}).get("device_id")) != normalized_device_id:
+        resolved_account = fetch_customer_account(normalized_device_id)
+    if not resolved_account or int(resolved_account.get("active", 0) or 0) != 1:
+        return None
+    password_hash = str(resolved_account.get("password_hash") or "").strip()
+    if not password_hash:
+        return None
+    return build_auth_marker("customer", normalized_device_id, password_hash)
+
+
+def current_auth_marker_for_identity(role, username=None, device_id=None, account=None):
+    resolved_role = str(role or "").strip()
+    resolved_username = str(username or "").strip()
+    resolved_device_id = normalize_device_id(device_id or resolved_username)
+    if resolved_role == "admin" and resolved_username == LOGIN_USERNAME:
+        return current_dashboard_auth_marker()
+    if resolved_role == "customer":
+        return customer_auth_marker(resolved_device_id, account=account)
+    return None
+
+
 def get_dashboard_password():
     stored_value = get_app_setting("dashboard_password")
     if stored_value is None:
@@ -3838,6 +3903,7 @@ def authenticate_dashboard_user(username, password):
             "username": normalized_username,
             "device_id": None,
             "display_name": "Administrator",
+            "auth_marker": current_dashboard_auth_marker(),
         }
     customer = fetch_customer_account(normalized_username)
     if not customer or int(customer.get("active", 0)) != 1:
@@ -3853,15 +3919,26 @@ def authenticate_dashboard_user(username, password):
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
+        "auth_marker": current_auth_marker_for_identity("customer", device_id=normalized_username, account=customer),
     }
 
 
 
 def issue_mobile_token(user):
+    auth_marker = str(
+        user.get("auth_marker")
+        or current_auth_marker_for_identity(
+            user.get("role"),
+            username=user.get("username"),
+            device_id=user.get("device_id"),
+        )
+        or ""
+    ).strip()
     payload = {
         "role": user.get("role"),
         "username": user.get("username"),
         "device_id": normalize_device_id(user.get("device_id")),
+        "auth_marker": auth_marker,
     }
     return MOBILE_TOKEN_SERIALIZER.dumps(payload)
 
@@ -3890,8 +3967,17 @@ def resolve_mobile_user():
     role = payload.get("role")
     username = str(payload.get("username") or "").strip()
     device_id = normalize_device_id(payload.get("device_id"))
+    token_auth_marker = str(payload.get("auth_marker") or "").strip()
+
+    if not token_auth_marker:
+        g.mobile_user = None
+        return None
 
     if role == "admin" and username == LOGIN_USERNAME:
+        current_auth_marker = current_dashboard_auth_marker()
+        if not secrets.compare_digest(token_auth_marker, current_auth_marker):
+            g.mobile_user = None
+            return None
         user = {
             "role": "admin",
             "username": username,
@@ -3904,6 +3990,10 @@ def resolve_mobile_user():
     elif role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
+            g.mobile_user = None
+            return None
+        current_auth_marker = current_auth_marker_for_identity("customer", device_id=device_id, account=customer)
+        if not current_auth_marker or not secrets.compare_digest(token_auth_marker, current_auth_marker):
             g.mobile_user = None
             return None
         service_config = fetch_device_service_config(device_id, account=customer)
@@ -6396,18 +6486,9 @@ def mobile_queue_command_response(command, target_device=None, message=None):
     return jsonify(payload)
 
 
-@app.route("/api/mobile/auth/login", methods=["POST"])
-def mobile_auth_login():
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "")
-    password = data.get("password", "")
-    authenticated_user = authenticate_dashboard_user(username, password)
-    if not authenticated_user:
-        time.sleep(0.5)
-        return jsonify({"error": "invalid username or password"}), 401
-    token = issue_mobile_token(authenticated_user)
-    return jsonify({
-        "token": token,
+def build_mobile_auth_response_payload(authenticated_user, message=None):
+    payload = {
+        "token": issue_mobile_token(authenticated_user),
         "viewer": {
             "role": authenticated_user.get("role"),
             "username": authenticated_user.get("username"),
@@ -6418,7 +6499,22 @@ def mobile_auth_login():
             "ai_analysis_enabled": authenticated_user.get("ai_analysis_enabled", True),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
-    })
+    }
+    if message:
+        payload["message"] = message
+    return payload
+
+
+@app.route("/api/mobile/auth/login", methods=["POST"])
+def mobile_auth_login():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "")
+    password = data.get("password", "")
+    authenticated_user = authenticate_dashboard_user(username, password)
+    if not authenticated_user:
+        time.sleep(0.5)
+        return jsonify({"error": "invalid username or password"}), 401
+    return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
 @app.route("/api/mobile/bootstrap")
@@ -6492,6 +6588,16 @@ def mobile_account_password():
         if not verify_dashboard_password(current_password):
             return jsonify({"error": "Current password is incorrect."}), 400
         set_dashboard_password(new_password)
+        updated_user = {
+            "role": "admin",
+            "username": username or LOGIN_USERNAME,
+            "device_id": None,
+            "display_name": "Administrator",
+            "cloud_feed_enabled": True,
+            "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
+            "ai_analysis_enabled": True,
+            "auth_marker": current_dashboard_auth_marker(),
+        }
         log_audit_event(
             actor=username or current_actor_username(),
             action="reset_dashboard_password",
@@ -6499,7 +6605,7 @@ def mobile_account_password():
             target_id=LOGIN_USERNAME,
             details={"username": LOGIN_USERNAME, "source": "mobile_api"},
         )
-        return jsonify({"message": "Dashboard password updated successfully."})
+        return jsonify(build_mobile_auth_response_payload(updated_user, message="Dashboard password updated successfully."))
 
     if role == "customer" and device_id:
         account = fetch_customer_account(device_id)
@@ -6509,6 +6615,16 @@ def mobile_account_password():
             return jsonify({"error": "Current password is incorrect."}), 400
         updated_account = update_customer_password(device_id, new_password)
         updated_service_config = fetch_device_service_config(device_id, account=updated_account)
+        updated_user = {
+            "role": role,
+            "username": username or device_id,
+            "device_id": device_id,
+            "display_name": updated_account.get("display_name") or device_id,
+            "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
+            "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
+            "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
+            "auth_marker": current_auth_marker_for_identity("customer", device_id=device_id, account=updated_account),
+        }
         log_audit_event(
             actor=username or device_id,
             action="reset_customer_password",
@@ -6517,20 +6633,7 @@ def mobile_account_password():
             device_id=updated_account["device_id"],
             details={"display_name": updated_account.get("display_name"), "source": "mobile_api_self_service"},
         )
-        return jsonify(
-            {
-                "message": "Cloud password updated successfully.",
-                "viewer": {
-                    "role": role,
-                    "username": username,
-                    "device_id": device_id,
-                    "display_name": updated_account.get("display_name") or device_id,
-                    "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
-                    "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
-                    "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
-                },
-            }
-        )
+        return jsonify(build_mobile_auth_response_payload(updated_user, message="Cloud password updated successfully."))
 
     return jsonify({"error": "Unsupported account type."}), 400
 
@@ -6868,6 +6971,7 @@ def account_password():
             error = "Use at least 6 characters for the new password."
         else:
             set_dashboard_password(new_password)
+            refresh_current_session_auth_marker()
             actor = current_actor_username()
             log_audit_event(
                 actor=actor,
