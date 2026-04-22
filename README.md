@@ -22,6 +22,7 @@ Within the wider workspace:
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
 - Optional HTTP relay and MQTT bridge support
 - Optional ML-based tank level forecasting through `/ml/predict`
+- Static Android update manifest at `/static/version.json`
 - Render-ready deployment config with persistent SQLite disk support
 
 ## Repository Layout
@@ -32,7 +33,7 @@ Within the wider workspace:
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
-| `flask_app/static/` | PWA manifest, service worker, icons, and frontend JS |
+| `flask_app/static/` | PWA assets, frontend JS, and `version.json` for Android update checks |
 | `flask_app/.env.example` | Example backend environment file |
 | `device.env.example` | Example shared device identity/settings file |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
