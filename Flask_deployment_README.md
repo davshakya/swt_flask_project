@@ -188,8 +188,6 @@ Notes:
 ```dotenv
 SWT_DEVICE_ID=swt-000-000-000-001
 SWT_DEVICE_API_KEY=replace-with-a-real-device-key
-SWT_OTA_HOSTNAME=SmartWaterTank01
-SWT_OTA_PASSWORD=replace-with-a-real-ota-password
 SWT_LOCAL_WEB_AUTH_USERNAME=swtadmin
 SWT_LOCAL_WEB_AUTH_PASSWORD=replace-with-a-strong-local-password
 SWT_LOCAL_DEVICE_URL=http://192.168.1.50/

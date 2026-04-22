@@ -11,7 +11,7 @@ Within the wider workspace:
 - [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
-- [`tests/virtual_devices/README.md`](tests/virtual_devices/README.md) explains the virtual MCU fleet used for local backend testing
+- [`../swt_flask_test_project/README.md`](../swt_flask_test_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
 
 ## What This Project Includes
 
@@ -22,6 +22,7 @@ Within the wider workspace:
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
 - Optional HTTP relay and MQTT bridge support
 - Optional ML-based tank level forecasting through `/ml/predict`
+- Static Android update manifest at `/static/version.json`
 - Render-ready deployment config with persistent SQLite disk support
 
 ## Repository Layout
@@ -32,7 +33,7 @@ Within the wider workspace:
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
-| `flask_app/static/` | PWA manifest, service worker, icons, and frontend JS |
+| `flask_app/static/` | PWA assets, frontend JS, and `version.json` for Android update checks |
 | `flask_app/.env.example` | Example backend environment file |
 | `device.env.example` | Example shared device identity/settings file |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
@@ -43,7 +44,7 @@ Within the wider workspace:
 | `scripts/` | Operational and data utility scripts |
 | `docs/` | Production rollout and support guidance |
 | `data/` | Default local SQLite database location |
-| `tests/` | Pytest suite, startup/env parsing checks, ML tests, and virtual device fixtures |
+| `tests/` | Small backend-only pytest checks for startup/env parsing and optional simulator imports |
 
 ## Runtime Flow
 
@@ -63,8 +64,6 @@ PowerShell:
 ```powershell
 Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
-New-Item -ItemType Directory -Force tests\virtual_devices | Out-Null
-Copy-Item tests\virtual_devices\device-template.env.example tests\virtual_devices\device-002.env
 ```
 
 ### 2. Edit the copied files before first run
@@ -75,7 +74,6 @@ At minimum, update these values:
 - `LOGIN_PASSWORD`
 - `SWT_DEVICE_ID`
 - `SWT_DEVICE_API_KEY`
-- `SWT_OTA_PASSWORD`
 - `SESSION_COOKIE_SECURE=false` for local plain HTTP development
 
 For local-only testing, also consider clearing these so telemetry is not relayed to a shared cloud target:
@@ -118,9 +116,9 @@ Values already present in the real process environment are preserved. Among the 
 
 - system environment variables win
 - `device.env` can override values loaded from `.env` files
-- per-device files in `tests/virtual_devices/*.env` can override shared values, but only for `scripts/run_virtual_devices.py`
+- the sibling test repo can layer per-device virtual-device env files on top of the shared settings for its emulator tooling
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and emulator-only overrides in `tests/virtual_devices/*.env`.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_flask_test_project` repo.
 
 ## Important Environment Variables
 
@@ -140,9 +138,9 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_URL`: Optional fixed device URL used when building firmware update redirects.
-- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with `scripts/run_virtual_devices.py`.
+- `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with the sibling repo's virtual-device runner.
 - `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
-- `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
+- `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `SWT_FLASK_TEST_REPO/tests/virtual_device*.env` when that sibling repo is available, then falls back to local `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
 - `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
 
 ### Storage and retention
@@ -195,7 +193,6 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
 | `/devices/<device_id>` | Device detail page | Logged-in user |
-| `/firmware/update` | Redirects to the latest or scoped device OTA page | Logged-in user |
 
 ### Device-facing endpoints
 
@@ -237,7 +234,6 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
-| `/api/mobile/motor/auto` | `POST` | Queue `AUTO` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
 | `/api/mobile/sensor/configure` | `POST` | Queue tank config update |
 | `/api/mobile/account/password` | `POST` | Self-service password change |
@@ -281,9 +277,15 @@ If the artifact is missing, `/ml/predict` returns an error explaining how to tra
 
 ## Testing
 
-The backend is covered by pytest-based integration and utility tests under `tests/`.
+This repo now keeps only a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
 
-Run the main suite from the project root:
+Install the local unit-test tooling:
+
+```powershell
+python -m pip install -r requirements-dev.txt
+```
+
+Run the unit-style suite from the project root:
 
 ```powershell
 pytest
@@ -292,12 +294,17 @@ pytest
 Useful focused runs:
 
 ```powershell
-pytest tests/test_ui_flask_server.py
-pytest tests/test_startup_env_parsing.py tests/test_virtual_device_env.py
-pytest tests/test_ml_training.py
+pytest tests/test_startup_env_parsing.py
+pytest tests/test_external_simulator.py
 ```
 
-For end-to-end local exercising, pair Flask with the virtual device runner documented in [`tests/virtual_devices/README.md`](tests/virtual_devices/README.md).
+Flask integration, API, Playwright UI, ML script, and virtual-device tests now live in the sibling repository `../swt_flask_test_project`.
+
+If you use the sibling test repo's virtual-device runner, point Flask at it with:
+
+```powershell
+$env:SWT_FLASK_TEST_REPO = "..\\swt_flask_test_project"
+```
 
 ## Utility Scripts
 
@@ -331,88 +338,16 @@ python scripts/cleanup_single_device_db.py --db-path data/tank.db --keep-device-
 
 By default, the script creates a timestamped backup before deleting rows.
 
-### Run the virtual device emulator
+### Virtual Device Emulator
 
-The emulator behaves like the MCU and is useful for Flask-side testing:
+The virtual-device runner and its generated env tooling now live in the sibling repository `../swt_flask_test_project`.
 
-- sends telemetry to `/status`
-- polls `/device/command`
-- acknowledges `/device/command/ack`
-- simulates relay/service connect-disconnect periods
+Use that repo for:
 
-Recommended flow:
-
-1. Set `SWT_DEVICE_SOURCE_MODE=virtual` in `device.env`.
-2. Configure one or more device files in `tests/virtual_devices/`.
-3. Start Flask.
-4. Run:
-
-```powershell
-python scripts/run_virtual_devices.py
-```
-
-The emulator automatically scans `tests/virtual_devices/*.env` and starts one virtual device per file. This lets one script process simulate multiple devices at once.
-
-Local Flask runs now auto-load the device ID/key pairs from those `tests/virtual_devices/*.env` files for API auth when `SEED_VIRTUAL_DEVICE_ENVS=true`, so the default generated fleet can poll `/device/command` without extra `SWT_DEVICE_KEYS` setup. If you point the emulator at env files outside that local test directory or another backend, register those IDs manually through `SWT_DEVICE_KEYS` or `DEVICE_KEYS`.
-
-Virtual devices stay on the local Flask server by default. `scripts/run_virtual_devices.py` uses `SWT_VIRTUAL_DEVICE_BASE_URL`, then `SWT_LOCAL_FLASK_BASE_URL`, and otherwise falls back to `http://127.0.0.1:8000/`; it does not fall back to `SWT_CLOUD_BASE_URL`.
-
-On Render/cloud deployments, Flask now ignores `tests/virtual_device*.env` for registration by default and purges those configured virtual-device records on boot, so the shared cloud server stays focused on the real device configuration.
-
-If you want separate steps for fleet testing, generate the env files first:
-
-```powershell
-python scripts/generate_virtual_device_envs.py --base-url http://127.0.0.1:8000/ --device_count 10
-```
-
-Then start feeding live telemetry from those env files:
-
-```powershell
-python scripts/run_virtual_devices.py
-```
-
-`run_virtual_devices.py` now handles both flows: it looks in `tests/virtual_devices/generated/` first, then falls back to `tests/virtual_devices/`.
-If those device IDs were deleted from the local admin page earlier, generating or running the env files restores them in the local admin registry automatically.
-
-If you want the one-step flow, `run_virtual_devices.py` can still create a batch and run it immediately with `--device_count`:
-
-```powershell
-python scripts/run_virtual_devices.py --base-url http://127.0.0.1:8000/ --device_count 10
-```
-
-That command creates numbered env files under `tests/virtual_devices/generated/` and then runs exactly those generated devices in one process.
-
-Suggested layout:
-
-- `tests/virtual_devices/device-001.env`
-- `tests/virtual_devices/device-002.env`
-- `tests/virtual_devices/device-003.env`
-
-Use `tests/virtual_devices/device-template.env.example` as the starting point for each additional device file.
-
-If you want to target specific files instead of the whole directory, you can pass `--env-file` more than once:
-
-```powershell
-python scripts/run_virtual_devices.py --env-file tests/virtual_devices/device-001.env --env-file tests/virtual_devices/device-003.env
-```
-
-You can also point the single script at explicit files:
-
-```powershell
-python scripts/run_virtual_devices.py --env-file tests/virtual_devices/generated/device-001.env --env-file tests/virtual_devices/generated/device-002.env
-```
-
-If you pass explicit per-device CLI flags like `--device-id` or `--device-key`, the script falls back to classic single-device mode and does not auto-scan the directory.
-
-When `--device_count` is used, the generated devices all share the same `SWT_VIRTUAL_DEVICE_KEY` by default, and the script prints a suggested wildcard `SWT_DEVICE_KEYS=...` rule for Flask.
-
-Helpful options:
-
-- `--run-seconds 120`
-- `--connected-seconds 90 --disconnected-seconds 30`
-- `--no-enable-source-tank`
-
-If you want to switch modes without restarting Flask, `GET/POST /admin/device-source-mode` is available for admin sessions. `POST` uses the normal CSRF protection.
+- `scripts/run_virtual_devices.py`
+- `scripts/generate_virtual_device_envs.py`
+- `tests/virtual_devices/*.env`
+- moved ML and virtual-device pytest coverage
 
 ## Deployment Guidance
 

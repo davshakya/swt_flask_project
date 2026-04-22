@@ -12,15 +12,18 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from external_tank_simulator import (
-    FirmwareClient,
-    SimulatorState,
-    advance_main_tank_level,
-    advance_source_tank_level,
-    build_feed_payload,
-    parse_args,
-    run,
+external_tank_simulator = pytest.importorskip(
+    "external_tank_simulator",
+    reason="external_tank_simulator.py is not present under scripts/ in this checkout.",
 )
+
+FirmwareClient = external_tank_simulator.FirmwareClient
+SimulatorState = external_tank_simulator.SimulatorState
+advance_main_tank_level = external_tank_simulator.advance_main_tank_level
+advance_source_tank_level = external_tank_simulator.advance_source_tank_level
+build_feed_payload = external_tank_simulator.build_feed_payload
+parse_args = external_tank_simulator.parse_args
+run = external_tank_simulator.run
 
 
 def test_advance_main_tank_level_drops_when_motor_is_off():

@@ -413,7 +413,7 @@
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Edit Name</a>
                                     {% endif %}
-                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">{{ "Reset Password" if device.registered_account else "Set Password" }}</a>
+                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Reset Password</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Delete</button>
                                     </form>

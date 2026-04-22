@@ -4,6 +4,7 @@ from functools import wraps
 import base64
 import csv
 import hashlib
+import hmac
 import ipaddress
 import io
 import json
@@ -122,8 +123,22 @@ DEVICE_SOURCE_HEADER = "X-Device-Source"
 IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
+DEFAULT_PROJECT_ROOT = PROJECT_ROOT
 STATIC_DIR = APP_ROOT / "static"
 RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
+
+
+def resolve_test_repo_root():
+    configured_path = str(os.environ.get("SWT_FLASK_TEST_REPO") or "").strip()
+    if configured_path:
+        candidate = Path(configured_path).expanduser()
+        if not candidate.is_absolute():
+            candidate = (PROJECT_ROOT / candidate).resolve()
+        return candidate.resolve()
+    return (PROJECT_ROOT.parent / "swt_flask_test_project").resolve()
+
+
+TEST_REPO_ROOT = resolve_test_repo_root()
 
 
 def normalize_db_path(raw_path):
@@ -516,7 +531,12 @@ TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
 TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
 TEMP_HARD_DB_CAP_MAX_BATCHES = max(1, env_int("TEMP_HARD_DB_CAP_MAX_BATCHES", 24))
 REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
-SEED_VIRTUAL_DEVICE_ENVS = env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+# Keep local sibling test-repo virtual devices discoverable without extra shell setup.
+SEED_VIRTUAL_DEVICE_ENVS = (
+    not IS_RENDER
+    if str(os.environ.get("SWT_FLASK_TEST_REPO") or "").strip()
+    else env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
+)
 PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
 RESET_DEVICE_SOURCE_MODE_ON_BOOT = env_flag("RESET_DEVICE_SOURCE_MODE_ON_BOOT", default=IS_RENDER)
 CONTROL_POLICY = "AUTO_PROTECTED"
@@ -549,6 +569,8 @@ RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_
 RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
 RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
+LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC = env_float("LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC", 2.5)
+LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC = env_float("LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC", 5.0)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -942,15 +964,32 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
     note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
 
-def iter_virtual_device_env_paths():
-    tests_root = PROJECT_ROOT / "tests"
+def iter_virtual_device_tests_roots():
     seen = set()
-    candidates = [
-        tests_root / "virtual_device.env",
-    ]
-    virtual_devices_dir = tests_root / "virtual_devices"
-    if virtual_devices_dir.exists():
-        candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
+    roots = [PROJECT_ROOT / "tests"]
+    try:
+        project_root_is_overridden = PROJECT_ROOT.resolve() != DEFAULT_PROJECT_ROOT.resolve()
+    except OSError:
+        project_root_is_overridden = str(PROJECT_ROOT) != str(DEFAULT_PROJECT_ROOT)
+    if not project_root_is_overridden:
+        roots.append(TEST_REPO_ROOT / "tests")
+
+    for tests_root in roots:
+        resolved = str(tests_root.resolve()) if tests_root.exists() else str(tests_root)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        yield tests_root
+
+
+def iter_virtual_device_env_paths():
+    seen = set()
+    candidates = []
+    for tests_root in iter_virtual_device_tests_roots():
+        candidates.append(tests_root / "virtual_device.env")
+        virtual_devices_dir = tests_root / "virtual_devices"
+        if virtual_devices_dir.exists():
+            candidates.extend(sorted(path for path in virtual_devices_dir.rglob("*.env") if path.is_file()))
 
     for path in candidates:
         resolved = str(path.resolve()) if path.exists() else str(path)
@@ -961,10 +1000,13 @@ def iter_virtual_device_env_paths():
 
 
 def relative_to_project_or_str(path):
-    try:
-        return str(path.relative_to(PROJECT_ROOT))
-    except ValueError:
-        return str(path)
+    resolved_path = path.resolve() if path.exists() else path
+    for project_root in (PROJECT_ROOT, TEST_REPO_ROOT):
+        try:
+            return str(resolved_path.relative_to(project_root))
+        except ValueError:
+            continue
+    return str(path)
 
 
 def configured_virtual_device_ids():
@@ -1142,15 +1184,9 @@ def delete_known_device(device_id):
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
 DEVICE_KEY_WILDCARD_RULES = parse_device_key_wildcard_rules(DEVICE_KEYS)
-LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = configured_virtual_device_auth_entries()
-LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {
-    device_id: entry["key"]
-    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
-}
-LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {
-    device_id: entry["key_rule"]
-    for device_id, entry in LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES.items()
-}
+LOCAL_VIRTUAL_DEVICE_AUTH_ENTRIES = {}
+LOCAL_VIRTUAL_DEVICE_AUTH_MAP = {}
+LOCAL_VIRTUAL_DEVICE_AUTH_KEY_RULES = {}
 
 
 def refresh_configured_virtual_device_auth():
@@ -1197,6 +1233,24 @@ def clear_runtime_caches(device_id=None):
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
     forget_alert_touches_for_device(normalized_device_id)
+
+
+def current_session_auth_marker():
+    if not session.get("logged_in"):
+        return None
+    return current_auth_marker_for_identity(
+        session.get("role") or "admin",
+        username=session.get("username"),
+        device_id=session.get("device_id"),
+    )
+
+
+def refresh_current_session_auth_marker():
+    auth_marker = current_session_auth_marker()
+    if not auth_marker:
+        return False
+    session["auth_marker"] = auth_marker
+    return True
 
 
 def current_user_role():
@@ -1378,7 +1432,14 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
 
 
 def is_logged_in():
-    return bool(session.get("logged_in"))
+    if not bool(session.get("logged_in")):
+        return False
+    stored_auth_marker = str(session.get("auth_marker") or "").strip()
+    expected_auth_marker = current_session_auth_marker()
+    if stored_auth_marker and expected_auth_marker and secrets.compare_digest(stored_auth_marker, expected_auth_marker):
+        return True
+    session.clear()
+    return False
 
 
 def login_required(view):
@@ -1586,6 +1647,7 @@ def handle_role_login(mode):
             session["username"] = authenticated_user["username"]
             session["role"] = authenticated_user["role"]
             session["device_id"] = authenticated_user.get("device_id")
+            session["auth_marker"] = authenticated_user.get("auth_marker")
             session.permanent = True
             destination = next_url if can_access_next_url(authenticated_user["role"], next_url) else dashboard_home_url(authenticated_user["role"])
             logger.info(
@@ -1603,40 +1665,6 @@ def handle_role_login(mode):
         logger.warning("Dashboard login failed for user %s on %s mode", username, mode)
 
     return render_login_page(mode=mode, error=error, next_url=next_url)
-
-
-def render_firmware_update_unavailable(device_id=None):
-    return render_template_string(
-        """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Firmware Update Unavailable</title>
-<style>
-:root{--bg:#08111f;--panel:#0f1c2f;--line:rgba(148,163,184,.18);--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(56,189,248,.16),transparent 24%),linear-gradient(180deg,#091120 0%,#07101d 100%)}
-.card{width:min(520px,calc(100% - 24px));padding:28px;border-radius:20px;background:rgba(15,28,47,.92);border:1px solid var(--line);box-shadow:0 18px 40px rgba(2,8,23,.35)}
-.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
-h1{margin:0 0 10px}p{margin:0 0 12px;color:var(--muted);line-height:1.55}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-a{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.24);color:var(--text);text-decoration:none}
-</style>
-</head>
-<body>
-<div class="card">
-    <div class="eyebrow">Firmware Update</div>
-    <h1>Device OTA page is not available yet</h1>
-    <p>{% if device_id %}No recent network address is available for device <strong>{{ device_id }}</strong>.{% else %}No recent device network address is available yet.{% endif %}</p>
-    <p>Let the ESP connect and send telemetry first, then try the OTA button again from the dashboard.</p>
-    <div class="actions">
-        <a href="/">Back to Dashboard</a>
-        {% if device_id %}<a href="/devices/{{ device_id }}">Back to Device</a>{% endif %}
-    </div>
-</div>
-</body>
-</html>""",
-        device_id=device_id,
-    ), 404
 
 
 def render_dashboard_password_page(error=None, success=None):
@@ -1859,8 +1887,9 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
     )
 
 
-def build_admin_known_devices(accounts, available_devices):
-    seed_registered_devices_from_configuration()
+def build_admin_known_devices(accounts, available_devices, include_registered_devices=False, seed_configuration=False):
+    if seed_configuration:
+        seed_registered_devices_from_configuration()
     ignored_device_ids = list_ignored_device_ids()
     merged = {}
     accounts_by_device = {}
@@ -1887,29 +1916,18 @@ def build_admin_known_devices(accounts, available_devices):
         entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
         accounts_by_device[normalized_device_id] = account
 
-    for device_id in list_registered_device_ids(limit=200):
-        normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id or normalized_device_id in ignored_device_ids:
-            continue
+    if include_registered_devices:
+        for device_id in list_registered_device_ids(limit=200):
+            normalized_device_id = normalize_device_id(device_id)
+            if not normalized_device_id or normalized_device_id in ignored_device_ids:
+                continue
 
-        entry = merged.get(normalized_device_id)
-        if entry is None:
-            entry = build_admin_device_entry(normalized_device_id)
-            merged[normalized_device_id] = entry
+            entry = merged.get(normalized_device_id)
+            if entry is None:
+                entry = build_admin_device_entry(normalized_device_id)
+                merged[normalized_device_id] = entry
 
-        entry["server_registered"] = True
-
-    for device_id in sorted(DEVICE_KEY_MAP.keys()):
-        normalized_device_id = normalize_device_id(device_id)
-        if not normalized_device_id or normalized_device_id in ignored_device_ids:
-            continue
-
-        entry = merged.get(normalized_device_id)
-        if entry is None:
-            entry = build_admin_device_entry(normalized_device_id)
-            merged[normalized_device_id] = entry
-
-        entry["server_registered"] = True
+            entry["server_registered"] = True
 
     service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
 
@@ -1964,6 +1982,15 @@ def filter_admin_search_results(items, search_query):
         if normalized_query in haystack:
             filtered.append(item)
     return filtered
+
+
+def load_admin_known_devices(accounts, inventory_limit=100):
+    return build_admin_known_devices(
+        accounts=accounts,
+        available_devices=fetch_device_inventory(limit=inventory_limit),
+        include_registered_devices=True,
+        seed_configuration=True,
+    )
 
 
 def authenticate_device_request(payload=None):
@@ -2404,6 +2431,11 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         """
         DELETE FROM ops_audit_log
         WHERE created_at < datetime('now', ?)
+          AND id NOT IN (
+              SELECT MAX(id)
+              FROM ops_audit_log
+              GROUP BY COALESCE(device_id, '')
+          )
         """,
         (f"-{OPS_AUDIT_RETENTION_DAYS} day",),
     )
@@ -2583,20 +2615,83 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
-    cleaned.pop("simulator", None)
-    cleaned.pop("source_tank_simulator", None)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned["simulator"] = (
+        str(cleaned.get("simulator") or "OFF").strip().upper()
+        if str(cleaned.get("simulator") or "").strip()
+        else "OFF"
+    )
+    if cleaned["simulator"] not in {"ON", "OFF"}:
+        cleaned["simulator"] = "OFF"
+    cleaned["source_tank_simulator"] = (
+        str(cleaned.get("source_tank_simulator") or "OFF").strip().upper()
+        if str(cleaned.get("source_tank_simulator") or "").strip()
+        else "OFF"
+    )
+    if cleaned["source_tank_simulator"] not in {"ON", "OFF"}:
+        cleaned["source_tank_simulator"] = "OFF"
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
 
     latest_row_id = None
+    insert_values = (
+        cleaned.get("level"),
+        cleaned.get("motor"),
+        mode,
+        cleaned.get("runtime"),
+        cleaned.get("current_runtime"),
+        cleaned.get("last_runtime"),
+        cleaned.get("fill_time"),
+        cleaned.get("leak"),
+        cleaned.get("pump_failure"),
+        cleaned.get("abnormal"),
+        cleaned.get("drip"),
+        cleaned.get("slow_leak"),
+        cleaned.get("pipe_leak"),
+        cleaned.get("ai_usage_rate"),
+        cleaned.get("tomorrow_prediction"),
+        cleaned.get("dry_run"),
+        cleaned.get("simulator"),
+        cleaned.get("source_tank_simulator"),
+        cleaned.get("wifi"),
+        cleaned.get("wifi_rssi"),
+        cleaned.get("sensor"),
+        cleaned.get("device_source"),
+        cleaned.get("sensor_info"),
+        cleaned.get("sensor_distance_cm"),
+        cleaned.get("tank_height_cm"),
+        cleaned.get("tank_capacity_liters"),
+        cleaned.get("auto_status"),
+        cleaned.get("auto_status_tone"),
+        cleaned.get("auto_timer"),
+        cleaned.get("tank_health"),
+        cleaned.get("free_heap"),
+        cleaned.get("uptime_s"),
+        cleaned.get("lower_tank_level"),
+        cleaned.get("lower_sensor"),
+        cleaned.get("lower_sensor_info"),
+        cleaned.get("lower_sensor_distance_cm"),
+        cleaned.get("device_id"),
+        cleaned.get("firmware_version"),
+        cleaned.get("reset_reason"),
+        source_ip or transport,
+        cleaned.get("device_local_url"),
+        cleaned.get("channel_mode"),
+        cleaned.get("telemetry_service"),
+        cleaned.get("command_service"),
+        cleaned.get("ota_service"),
+        cleaned.get("lower_tank_service"),
+        cleaned.get("buzzer_service"),
+        cleaned.get("led_display_service"),
+    )
+    placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
         cursor = db.cursor()
         cursor.execute(
-            """
+            f"""
             INSERT INTO tank_data (
                 level, motor, mode,
                 runtime, current_runtime, last_runtime,
@@ -2604,7 +2699,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 leak, pump_failure, abnormal,
                 drip, slow_leak, pipe_leak,
                 ai_usage_rate, tomorrow_prediction,
-                dry_run,
+                dry_run, simulator, source_tank_simulator,
                 wifi, wifi_rssi, sensor,
                 device_source,
                 sensor_info, sensor_distance_cm,
@@ -2616,62 +2711,16 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES ({placeholders})
             """,
-            (
-                cleaned.get("level"),
-                cleaned.get("motor"),
-                mode,
-                cleaned.get("runtime"),
-                cleaned.get("current_runtime"),
-                cleaned.get("last_runtime"),
-                cleaned.get("fill_time"),
-                cleaned.get("leak"),
-                cleaned.get("pump_failure"),
-                cleaned.get("abnormal"),
-                cleaned.get("drip"),
-                cleaned.get("slow_leak"),
-                cleaned.get("pipe_leak"),
-                cleaned.get("ai_usage_rate"),
-                cleaned.get("tomorrow_prediction"),
-                cleaned.get("dry_run"),
-                cleaned.get("wifi"),
-                cleaned.get("wifi_rssi"),
-                cleaned.get("sensor"),
-                cleaned.get("device_source"),
-                cleaned.get("sensor_info"),
-                cleaned.get("sensor_distance_cm"),
-                cleaned.get("tank_height_cm"),
-                cleaned.get("tank_capacity_liters"),
-                cleaned.get("auto_status"),
-                cleaned.get("auto_status_tone"),
-                cleaned.get("auto_timer"),
-                cleaned.get("tank_health"),
-                cleaned.get("free_heap"),
-                cleaned.get("uptime_s"),
-                cleaned.get("lower_tank_level"),
-                cleaned.get("lower_sensor"),
-                cleaned.get("lower_sensor_info"),
-                cleaned.get("lower_sensor_distance_cm"),
-                cleaned.get("device_id"),
-                cleaned.get("firmware_version"),
-                cleaned.get("reset_reason"),
-                source_ip or transport,
-                cleaned.get("device_local_url"),
-                cleaned.get("channel_mode"),
-                cleaned.get("telemetry_service"),
-                cleaned.get("command_service"),
-                cleaned.get("ota_service"),
-                cleaned.get("lower_tank_service"),
-                cleaned.get("buzzer_service"),
-                cleaned.get("led_display_service"),
-            ),
+            insert_values,
         )
         latest_row_id = cursor.lastrowid
 
     maybe_prune_retained_rows(
         device_id=cleaned.get("device_id"),
         latest_row_id=latest_row_id,
+        force=True,
     )
     clear_runtime_caches(cleaned.get("device_id"))
     logger.info(
@@ -2705,6 +2754,8 @@ def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
         "device_source": "TEXT",
+        "simulator": "TEXT",
+        "source_tank_simulator": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -3114,6 +3165,8 @@ def init_db():
                 ai_usage_rate REAL,
                 tomorrow_prediction REAL,
                 dry_run TEXT,
+                simulator TEXT,
+                source_tank_simulator TEXT,
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
@@ -3142,12 +3195,13 @@ def init_db():
                 command_service TEXT,
                 ota_service TEXT,
                 lower_tank_service TEXT,
+                buzzer_service TEXT,
+                led_display_service TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         ensure_tank_data_columns(cursor)
-        rebuild_tank_data_without_simulator_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_alerts_table(cursor)
@@ -3224,7 +3278,6 @@ def init_db():
             "Purged %s configured virtual devices from startup database state.",
             deleted_counts["device_ids"],
         )
-    seed_registered_devices_from_configuration()
     logger.info("Database initialization complete")
 
 
@@ -3336,6 +3389,44 @@ def ensure_app_secret_key_persisted():
 def password_looks_hashed(value):
     text = str(value or "")
     return text.startswith("scrypt:") or text.startswith("pbkdf2:")
+
+
+def build_auth_marker(*parts):
+    payload = "||".join(str(part or "") for part in parts).encode("utf-8")
+    secret = str(app.secret_key or "").encode("utf-8")
+    return hmac.new(secret, payload, hashlib.sha256).hexdigest()
+
+
+def current_dashboard_auth_marker():
+    stored_value = get_app_setting("dashboard_password")
+    password_state = f"stored:{stored_value}" if stored_value is not None else f"env:{LOGIN_PASSWORD}"
+    return build_auth_marker("admin", LOGIN_USERNAME, password_state)
+
+
+def customer_auth_marker(device_id, account=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    resolved_account = account
+    if normalize_device_id((resolved_account or {}).get("device_id")) != normalized_device_id:
+        resolved_account = fetch_customer_account(normalized_device_id)
+    if not resolved_account or int(resolved_account.get("active", 0) or 0) != 1:
+        return None
+    password_hash = str(resolved_account.get("password_hash") or "").strip()
+    if not password_hash:
+        return None
+    return build_auth_marker("customer", normalized_device_id, password_hash)
+
+
+def current_auth_marker_for_identity(role, username=None, device_id=None, account=None):
+    resolved_role = str(role or "").strip()
+    resolved_username = str(username or "").strip()
+    resolved_device_id = normalize_device_id(device_id or resolved_username)
+    if resolved_role == "admin" and resolved_username == LOGIN_USERNAME:
+        return current_dashboard_auth_marker()
+    if resolved_role == "customer":
+        return customer_auth_marker(resolved_device_id, account=account)
+    return None
 
 
 def get_dashboard_password():
@@ -3780,6 +3871,7 @@ def authenticate_dashboard_user(username, password):
             "username": normalized_username,
             "device_id": None,
             "display_name": "Administrator",
+            "auth_marker": current_dashboard_auth_marker(),
         }
     customer = fetch_customer_account(normalized_username)
     if not customer or int(customer.get("active", 0)) != 1:
@@ -3795,15 +3887,26 @@ def authenticate_dashboard_user(username, password):
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
+        "auth_marker": current_auth_marker_for_identity("customer", device_id=normalized_username, account=customer),
     }
 
 
 
 def issue_mobile_token(user):
+    auth_marker = str(
+        user.get("auth_marker")
+        or current_auth_marker_for_identity(
+            user.get("role"),
+            username=user.get("username"),
+            device_id=user.get("device_id"),
+        )
+        or ""
+    ).strip()
     payload = {
         "role": user.get("role"),
         "username": user.get("username"),
         "device_id": normalize_device_id(user.get("device_id")),
+        "auth_marker": auth_marker,
     }
     return MOBILE_TOKEN_SERIALIZER.dumps(payload)
 
@@ -3832,8 +3935,17 @@ def resolve_mobile_user():
     role = payload.get("role")
     username = str(payload.get("username") or "").strip()
     device_id = normalize_device_id(payload.get("device_id"))
+    token_auth_marker = str(payload.get("auth_marker") or "").strip()
+
+    if not token_auth_marker:
+        g.mobile_user = None
+        return None
 
     if role == "admin" and username == LOGIN_USERNAME:
+        current_auth_marker = current_dashboard_auth_marker()
+        if not secrets.compare_digest(token_auth_marker, current_auth_marker):
+            g.mobile_user = None
+            return None
         user = {
             "role": "admin",
             "username": username,
@@ -3846,6 +3958,10 @@ def resolve_mobile_user():
     elif role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
+            g.mobile_user = None
+            return None
+        current_auth_marker = current_auth_marker_for_identity("customer", device_id=device_id, account=customer)
+        if not current_auth_marker or not secrets.compare_digest(token_auth_marker, current_auth_marker):
             g.mobile_user = None
             return None
         service_config = fetch_device_service_config(device_id, account=customer)
@@ -4151,8 +4267,12 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    data.pop("simulator", None)
-    data.pop("source_tank_simulator", None)
+    data["simulator"] = str(data.get("simulator") or "OFF").strip().upper() or "OFF"
+    if data["simulator"] not in {"ON", "OFF"}:
+        data["simulator"] = "OFF"
+    data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
+    if data["source_tank_simulator"] not in {"ON", "OFF"}:
+        data["source_tank_simulator"] = "OFF"
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
     data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
@@ -4491,6 +4611,8 @@ def build_empty_snapshot_payload(device_id=None):
     payload = {
         "level": 0,
         "mode": "AUTO",
+        "simulator": "OFF",
+        "source_tank_simulator": "OFF",
         "device_source": get_device_source_mode(),
         "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
@@ -5670,25 +5792,106 @@ def is_literal_ip_device_target(value):
         return False
 
 
-def build_device_update_url(device_id=None):
-    snapshot = fetch_device_snapshot(device_id) if device_id else None
-    candidates = []
+def sync_local_firmware_password_if_reachable(device_id, new_password):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return {
+            "updated": False,
+            "attempted": False,
+            "status": "missing_device",
+            "message": "Local firmware password was not updated because no device was selected.",
+        }
 
-    if snapshot and snapshot.get("device_local_url") and not is_loopback_device_target(snapshot.get("device_local_url")):
-        candidates.append(snapshot.get("device_local_url"))
+    snapshot = fetch_device_snapshot(normalized_device_id)
+    base_url = normalize_device_base_url((snapshot or {}).get("device_local_url"))
+    if not base_url:
+        return {
+            "updated": False,
+            "attempted": False,
+            "status": "missing_local_url",
+            "message": "Local firmware password was not updated because the device has not reported a reachable local address yet.",
+        }
 
-    if snapshot and snapshot.get("source_ip") and not is_loopback_device_target(snapshot.get("source_ip")) and not is_literal_ip_device_target(snapshot.get("source_ip")):
-        candidates.append(snapshot.get("source_ip"))
+    headers = relay_headers_for_device(normalized_device_id)
+    if "X-Device-Id" not in headers or "X-Device-Key" not in headers:
+        return {
+            "updated": False,
+            "attempted": False,
+            "status": "missing_device_credentials",
+            "message": "Local firmware password was not updated because device relay credentials are not configured.",
+        }
 
-    if DEVICE and not is_loopback_device_target(DEVICE):
-        candidates.append(DEVICE)
+    headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8"
+    sync_url = f"{base_url.rstrip('/')}/api/admin/password-sync"
+    try:
+        response = requests.post(
+            sync_url,
+            data={"new_password": new_password},
+            headers=headers,
+            timeout=(
+                LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC,
+                LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC,
+            ),
+            verify=RELAY_VERIFY_TLS,
+        )
+    except requests.RequestException as exc:
+        logger.info("Local firmware password sync failed for %s: %s", normalized_device_id, exc)
+        return {
+            "updated": False,
+            "attempted": True,
+            "status": "unreachable",
+            "message": "Local firmware password was not updated because the device is unreachable from Flask right now.",
+        }
 
-    for candidate in candidates:
-        base_url = normalize_device_base_url(candidate)
-        if base_url:
-            return f"{base_url.rstrip('/')}/update"
+    response_message = None
+    try:
+        payload = response.json()
+        response_message = (payload.get("message") or payload.get("error") or "").strip()
+    except (ValueError, AttributeError):
+        response_message = ""
 
-    return None
+    if response.ok:
+        logger.info("Local firmware password synced for %s via %s", normalized_device_id, sync_url)
+        return {
+            "updated": True,
+            "attempted": True,
+            "status": "updated",
+            "message": "Local firmware password also updated.",
+        }
+
+    if response.status_code == 404:
+        return {
+            "updated": False,
+            "attempted": True,
+            "status": "unsupported",
+            "message": "Local firmware password was not updated because the device firmware needs the latest password-sync build.",
+        }
+
+    if response.status_code in {401, 403}:
+        return {
+            "updated": False,
+            "attempted": True,
+            "status": "auth_failed",
+            "message": "Local firmware password was not updated because the device rejected the trusted sync request.",
+        }
+
+    detail = response_message or f"HTTP {response.status_code}"
+    return {
+        "updated": False,
+        "attempted": True,
+        "status": "sync_failed",
+        "message": f"Local firmware password was not updated because the device returned {detail}.",
+    }
+
+
+def append_local_firmware_sync_message(message, sync_result):
+    summary = str((sync_result or {}).get("message") or "").strip()
+    base_message = str(message or "").strip()
+    if not summary:
+        return base_message
+    if not base_message:
+        return summary
+    return f"{base_message} {summary}"
 
 
 def resolve_command_target(target_device=None):
@@ -5942,9 +6145,6 @@ def relay_backoff_seconds(attempts):
 
 
 def drain_relay_queue(max_items=3):
-    if not RELAY_STATUS_URL_LIST:
-        return
-
     with get_db() as db:
         rows = db.execute(
             """
@@ -6267,18 +6467,6 @@ def motor_off():
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
-@app.route("/motor/auto", methods=["POST"])
-@login_required
-@csrf_protect
-def motor_auto():
-    response = customer_cloud_feed_block_response()
-    if response:
-        return response
-    payload = queue_command("AUTO", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
-    payload["message"] = "AUTO command queued for the device."
-    return payload
-
-
 @app.route("/sensor/calibrate", methods=["POST"])
 @login_required
 @csrf_protect
@@ -6335,18 +6523,9 @@ def mobile_queue_command_response(command, target_device=None, message=None):
     return jsonify(payload)
 
 
-@app.route("/api/mobile/auth/login", methods=["POST"])
-def mobile_auth_login():
-    data = request.get_json(silent=True) or {}
-    username = data.get("username", "")
-    password = data.get("password", "")
-    authenticated_user = authenticate_dashboard_user(username, password)
-    if not authenticated_user:
-        time.sleep(0.5)
-        return jsonify({"error": "invalid username or password"}), 401
-    token = issue_mobile_token(authenticated_user)
-    return jsonify({
-        "token": token,
+def build_mobile_auth_response_payload(authenticated_user, message=None):
+    payload = {
+        "token": issue_mobile_token(authenticated_user),
         "viewer": {
             "role": authenticated_user.get("role"),
             "username": authenticated_user.get("username"),
@@ -6357,7 +6536,22 @@ def mobile_auth_login():
             "ai_analysis_enabled": authenticated_user.get("ai_analysis_enabled", True),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
-    })
+    }
+    if message:
+        payload["message"] = message
+    return payload
+
+
+@app.route("/api/mobile/auth/login", methods=["POST"])
+def mobile_auth_login():
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "")
+    password = data.get("password", "")
+    authenticated_user = authenticate_dashboard_user(username, password)
+    if not authenticated_user:
+        time.sleep(0.5)
+        return jsonify({"error": "invalid username or password"}), 401
+    return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
 @app.route("/api/mobile/bootstrap")
@@ -6431,6 +6625,16 @@ def mobile_account_password():
         if not verify_dashboard_password(current_password):
             return jsonify({"error": "Current password is incorrect."}), 400
         set_dashboard_password(new_password)
+        updated_user = {
+            "role": "admin",
+            "username": username or LOGIN_USERNAME,
+            "device_id": None,
+            "display_name": "Administrator",
+            "cloud_feed_enabled": True,
+            "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
+            "ai_analysis_enabled": True,
+            "auth_marker": current_dashboard_auth_marker(),
+        }
         log_audit_event(
             actor=username or current_actor_username(),
             action="reset_dashboard_password",
@@ -6438,7 +6642,7 @@ def mobile_account_password():
             target_id=LOGIN_USERNAME,
             details={"username": LOGIN_USERNAME, "source": "mobile_api"},
         )
-        return jsonify({"message": "Dashboard password updated successfully."})
+        return jsonify(build_mobile_auth_response_payload(updated_user, message="Dashboard password updated successfully."))
 
     if role == "customer" and device_id:
         account = fetch_customer_account(device_id)
@@ -6447,29 +6651,38 @@ def mobile_account_password():
         if not check_password_hash(account.get("password_hash", ""), current_password):
             return jsonify({"error": "Current password is incorrect."}), 400
         updated_account = update_customer_password(device_id, new_password)
+        local_sync_result = sync_local_firmware_password_if_reachable(device_id, new_password)
         updated_service_config = fetch_device_service_config(device_id, account=updated_account)
+        updated_user = {
+            "role": role,
+            "username": username or device_id,
+            "device_id": device_id,
+            "display_name": updated_account.get("display_name") or device_id,
+            "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
+            "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
+            "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
+            "auth_marker": current_auth_marker_for_identity("customer", device_id=device_id, account=updated_account),
+        }
         log_audit_event(
             actor=username or device_id,
             action="reset_customer_password",
             target_type="customer_account",
             target_id=updated_account["device_id"],
             device_id=updated_account["device_id"],
-            details={"display_name": updated_account.get("display_name"), "source": "mobile_api_self_service"},
+            details={
+                "display_name": updated_account.get("display_name"),
+                "source": "mobile_api_self_service",
+                "local_firmware_password_sync": local_sync_result.get("status"),
+            },
         )
-        return jsonify(
-            {
-                "message": "Cloud password updated successfully.",
-                "viewer": {
-                    "role": role,
-                    "username": username,
-                    "device_id": device_id,
-                    "display_name": updated_account.get("display_name") or device_id,
-                    "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
-                    "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
-                    "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
-                },
-            }
+        payload = build_mobile_auth_response_payload(
+            updated_user,
+            message=append_local_firmware_sync_message("Cloud password updated successfully.", local_sync_result),
         )
+        payload["local_firmware_password_updated"] = bool(local_sync_result.get("updated"))
+        payload["local_firmware_password_status"] = local_sync_result.get("status")
+        payload["local_firmware_password_message"] = local_sync_result.get("message")
+        return jsonify(payload)
 
     return jsonify({"error": "Unsupported account type."}), 400
 
@@ -6503,19 +6716,6 @@ def mobile_motor_off():
     if response:
         return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
-
-
-@app.route("/api/mobile/motor/auto", methods=["POST"])
-@mobile_auth_required
-def mobile_motor_auto():
-    response = mobile_customer_cloud_feed_block_response()
-    if response:
-        return response
-    return mobile_queue_command_response(
-        "AUTO",
-        target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
-        message="AUTO command queued for the device.",
-    )
 
 
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])
@@ -6658,8 +6858,6 @@ def get_command():
         request_source = resolve_request_device_source()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if request_source != get_device_source_mode():
-        return active_device_source_conflict_response(request_source)
 
     auth_ok, auth_payload, auth_status = authenticate_device_request()
     if not auth_ok:
@@ -6697,8 +6895,6 @@ def acknowledge_device_command():
         request_source = resolve_request_device_source(payload)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    if request_source != get_device_source_mode():
-        return active_device_source_conflict_response(request_source)
 
     auth_ok, auth_payload, auth_status = authenticate_device_request(payload)
     if not auth_ok:
@@ -6811,6 +7007,7 @@ def account_password():
             error = "Use at least 6 characters for the new password."
         else:
             set_dashboard_password(new_password)
+            refresh_current_session_auth_marker()
             actor = current_actor_username()
             log_audit_event(
                 actor=actor,
@@ -6856,23 +7053,27 @@ def admin_customers():
         password = request.form.get("password", "")
         try:
             account = upsert_customer_account(device_id, password, display_name=display_name)
+            local_sync_result = sync_local_firmware_password_if_reachable(account["device_id"], password)
             log_audit_event(
                 actor=current_actor_username(),
                 action="upsert_customer_account",
                 target_type="customer_account",
                 target_id=account["device_id"],
                 device_id=account["device_id"],
-                details={"display_name": account.get("display_name")},
+                details={
+                    "display_name": account.get("display_name"),
+                    "local_firmware_password_sync": local_sync_result.get("status"),
+                },
             )
-            success = f"Customer account saved for {account['device_id']}."
+            success = append_local_firmware_sync_message(
+                f"Customer account saved for {account['device_id']}.",
+                local_sync_result,
+            )
         except ValueError as exc:
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -6906,23 +7107,27 @@ def admin_customer_password_reset(device_id):
                 new_password,
                 display_name=account.get("display_name"),
             )
+            local_sync_result = sync_local_firmware_password_if_reachable(updated_account["device_id"], new_password)
             log_audit_event(
                 actor=current_actor_username(),
                 action="reset_customer_password",
                 target_type="customer_account",
                 target_id=updated_account["device_id"],
                 device_id=updated_account["device_id"],
-                details={"display_name": updated_account.get("display_name")},
+                details={
+                    "display_name": updated_account.get("display_name"),
+                    "local_firmware_password_sync": local_sync_result.get("status"),
+                },
             )
-            success = f"Customer password reset for {updated_account['device_id']}."
+            success = append_local_firmware_sync_message(
+                f"Customer password reset for {updated_account['device_id']}.",
+                local_sync_result,
+            )
         except ValueError as exc:
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -6968,10 +7173,7 @@ def admin_customer_edit(device_id):
             error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7025,10 +7227,7 @@ def admin_customer_cloud_feed(device_id):
         )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7099,10 +7298,7 @@ def admin_customer_services(device_id):
         )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7152,10 +7348,7 @@ def admin_device_reboot(device_id):
             )
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7193,10 +7386,7 @@ def admin_delete_known_device(device_id):
         error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
-    available_devices = build_admin_known_devices(
-        accounts=accounts,
-        available_devices=fetch_device_inventory(limit=100),
-    )
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
@@ -7302,48 +7492,6 @@ def device_detail_page(device_id):
     customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     return render_template("device_detail.html", device_id=scoped_device_id, is_admin=is_admin_user())
-
-
-@app.route("/firmware/update")
-@login_required
-def firmware_update_redirect():
-    customer_cloud_feed_abort_if_disabled()
-    device_id = current_scope_device_id(request.args.get("device_id", type=str)) or latest_device_id()
-    target_url = build_device_update_url(device_id)
-    if not target_url:
-        return render_firmware_update_unavailable(device_id)
-
-    actor = current_actor_username()
-    log_audit_event(
-        actor=actor,
-        action="open_firmware_update",
-        target_type="device",
-        target_id=device_id or "latest",
-        device_id=device_id,
-        details={"target_url": target_url},
-    )
-    return redirect(target_url)
-
-
-@app.route("/devices/<device_id>/firmware/update")
-@login_required
-def device_firmware_update_redirect(device_id):
-    customer_cloud_feed_abort_if_disabled()
-    scoped_device_id = current_scope_device_id(device_id)
-    target_url = build_device_update_url(scoped_device_id)
-    if not target_url:
-        return render_firmware_update_unavailable(scoped_device_id)
-
-    actor = current_actor_username()
-    log_audit_event(
-        actor=actor,
-        action="open_firmware_update",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={"target_url": target_url},
-    )
-    return redirect(target_url)
 
 
 @app.route("/devices/<device_id>/status")
@@ -7619,6 +7767,7 @@ def events():
 @login_required
 def dashboard_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
+    audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -7631,7 +7780,9 @@ def dashboard_bootstrap():
         {
             "snapshot": public_snapshot,
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+            "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
             "events": build_events(event_limit, device_id=scoped_device_id),
+            "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
             "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
             "viewer": {
                 "role": current_user_role(),

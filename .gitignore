@@ -10,6 +10,7 @@ env/
 
 # Test and tool caches
 .pytest_cache/
+.pytest-temp/
 .pytest-tmp/
 .tmp/
 sandbox-tmp/

@@ -8,7 +8,7 @@ This project is beyond lab-only status, but it still needs deliberate rollout co
 
 As the repo stands today:
 
-- firmware, Flask, Android, and OTA flows are implemented
+- firmware, Flask, and Android flows are implemented
 - automated tests exist for Flask and ML helpers
 - Render deployment wiring exists with persistent disk support
 - pilot and support workflows still need disciplined execution before scale
@@ -27,13 +27,11 @@ Before any field install:
 - register device credentials in Flask before deployment
 - replace default dashboard credentials
 - replace default firmware UI credentials
-- replace default OTA credentials
 - keep secrets out of Git and screenshots
 
 Minimum secret set to rotate:
 
 - `SWT_DEVICE_API_KEY`
-- `SWT_OTA_PASSWORD`
 - firmware UI password
 - Flask admin password
 - `APP_SECRET_KEY`
@@ -81,14 +79,12 @@ Production alert categories to verify end-to-end:
 
 If you use external notification channels, test your current webhook configuration before site handover.
 
-## 5. Firmware And OTA Readiness
+## 5. Firmware Readiness
 
 Before field rollout:
 
 - confirm the correct `device.env` values were used for the flashed device
 - confirm the device reports the right `device_id`
-- confirm the OTA page opens at `http://<device-ip>/update`
-- confirm Flask OTA redirects resolve to the correct device-local URL
 - confirm Wi-Fi reset and rejoin workflow are documented for support
 
 Current repo note:
@@ -121,7 +117,6 @@ Minimum validation set:
 - validate start/stop thresholds on the actual tank
 - validate Wi-Fi recovery after router restart
 - validate safe behavior during sensor faults
-- validate OTA recovery after reboot
 - validate customer and admin login paths
 - validate Android local and cloud flows if the app is part of delivery
 
@@ -148,7 +143,6 @@ Treat rollout as `GO` only when all are true:
 - production secrets replaced the defaults
 - persistent backend storage is confirmed
 - telemetry, command queue, and alert routes are healthy
-- OTA path is validated
 - 7-day soak is complete
 - pilot feedback is reviewed
 - hardware wiring review is signed off
