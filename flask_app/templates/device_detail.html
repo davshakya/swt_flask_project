@@ -26,9 +26,6 @@
                 <p id="headline">Loading live device status...</p>
             </div>
             <div class="hero-actions">
-                {% if is_admin %}
-                <a class="btn" href="/devices/{{ device_id }}/firmware/update" target="_blank" rel="noopener">Firmware Update</a>
-                {% endif %}
                 <a class="btn" href="/">Back to Dashboard</a>
                 <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="btn" type="submit">Logout</button></form>
             </div>

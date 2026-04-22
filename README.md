@@ -74,7 +74,6 @@ At minimum, update these values:
 - `LOGIN_PASSWORD`
 - `SWT_DEVICE_ID`
 - `SWT_DEVICE_API_KEY`
-- `SWT_OTA_PASSWORD`
 - `SESSION_COOKIE_SECURE=false` for local plain HTTP development
 
 For local-only testing, also consider clearing these so telemetry is not relayed to a shared cloud target:
@@ -194,7 +193,6 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
 | `/devices/<device_id>` | Device detail page | Logged-in user |
-| `/firmware/update` | Redirects to the latest or scoped device OTA page | Logged-in user |
 
 ### Device-facing endpoints
 
@@ -236,7 +234,6 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
-| `/api/mobile/motor/auto` | `POST` | Queue `AUTO` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
 | `/api/mobile/sensor/configure` | `POST` | Queue tank config update |
 | `/api/mobile/account/password` | `POST` | Self-service password change |

@@ -1667,40 +1667,6 @@ def handle_role_login(mode):
     return render_login_page(mode=mode, error=error, next_url=next_url)
 
 
-def render_firmware_update_unavailable(device_id=None):
-    return render_template_string(
-        """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Firmware Update Unavailable</title>
-<style>
-:root{--bg:#08111f;--panel:#0f1c2f;--line:rgba(148,163,184,.18);--text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(56,189,248,.16),transparent 24%),linear-gradient(180deg,#091120 0%,#07101d 100%)}
-.card{width:min(520px,calc(100% - 24px));padding:28px;border-radius:20px;background:rgba(15,28,47,.92);border:1px solid var(--line);box-shadow:0 18px 40px rgba(2,8,23,.35)}
-.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 10px}
-h1{margin:0 0 10px}p{margin:0 0 12px;color:var(--muted);line-height:1.55}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
-a{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.24);color:var(--text);text-decoration:none}
-</style>
-</head>
-<body>
-<div class="card">
-    <div class="eyebrow">Firmware Update</div>
-    <h1>Device OTA page is not available yet</h1>
-    <p>{% if device_id %}No recent network address is available for device <strong>{{ device_id }}</strong>.{% else %}No recent device network address is available yet.{% endif %}</p>
-    <p>Let the ESP connect and send telemetry first, then try the OTA button again from the dashboard.</p>
-    <div class="actions">
-        <a href="/">Back to Dashboard</a>
-        {% if device_id %}<a href="/devices/{{ device_id }}">Back to Device</a>{% endif %}
-    </div>
-</div>
-</body>
-</html>""",
-        device_id=device_id,
-    ), 404
-
-
 def render_dashboard_password_page(error=None, success=None):
     return render_template_string(
         """<!DOCTYPE html>
@@ -5826,27 +5792,6 @@ def is_literal_ip_device_target(value):
         return False
 
 
-def build_device_update_url(device_id=None):
-    snapshot = fetch_device_snapshot(device_id) if device_id else None
-    candidates = []
-
-    if snapshot and snapshot.get("device_local_url") and not is_loopback_device_target(snapshot.get("device_local_url")):
-        candidates.append(snapshot.get("device_local_url"))
-
-    if snapshot and snapshot.get("source_ip") and not is_loopback_device_target(snapshot.get("source_ip")) and not is_literal_ip_device_target(snapshot.get("source_ip")):
-        candidates.append(snapshot.get("source_ip"))
-
-    if DEVICE and not is_loopback_device_target(DEVICE):
-        candidates.append(DEVICE)
-
-    for candidate in candidates:
-        base_url = normalize_device_base_url(candidate)
-        if base_url:
-            return f"{base_url.rstrip('/')}/update"
-
-    return None
-
-
 def sync_local_firmware_password_if_reachable(device_id, new_password):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -6522,18 +6467,6 @@ def motor_off():
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
-@app.route("/motor/auto", methods=["POST"])
-@login_required
-@csrf_protect
-def motor_auto():
-    response = customer_cloud_feed_block_response()
-    if response:
-        return response
-    payload = queue_command("AUTO", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
-    payload["message"] = "AUTO command queued for the device."
-    return payload
-
-
 @app.route("/sensor/calibrate", methods=["POST"])
 @login_required
 @csrf_protect
@@ -6783,19 +6716,6 @@ def mobile_motor_off():
     if response:
         return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
-
-
-@app.route("/api/mobile/motor/auto", methods=["POST"])
-@mobile_auth_required
-def mobile_motor_auto():
-    response = mobile_customer_cloud_feed_block_response()
-    if response:
-        return response
-    return mobile_queue_command_response(
-        "AUTO",
-        target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
-        message="AUTO command queued for the device.",
-    )
 
 
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])
@@ -7572,48 +7492,6 @@ def device_detail_page(device_id):
     customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
     return render_template("device_detail.html", device_id=scoped_device_id, is_admin=is_admin_user())
-
-
-@app.route("/firmware/update")
-@login_required
-def firmware_update_redirect():
-    customer_cloud_feed_abort_if_disabled()
-    device_id = current_scope_device_id(request.args.get("device_id", type=str)) or latest_device_id()
-    target_url = build_device_update_url(device_id)
-    if not target_url:
-        return render_firmware_update_unavailable(device_id)
-
-    actor = current_actor_username()
-    log_audit_event(
-        actor=actor,
-        action="open_firmware_update",
-        target_type="device",
-        target_id=device_id or "latest",
-        device_id=device_id,
-        details={"target_url": target_url},
-    )
-    return redirect(target_url)
-
-
-@app.route("/devices/<device_id>/firmware/update")
-@login_required
-def device_firmware_update_redirect(device_id):
-    customer_cloud_feed_abort_if_disabled()
-    scoped_device_id = current_scope_device_id(device_id)
-    target_url = build_device_update_url(scoped_device_id)
-    if not target_url:
-        return render_firmware_update_unavailable(scoped_device_id)
-
-    actor = current_actor_username()
-    log_audit_event(
-        actor=actor,
-        action="open_firmware_update",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={"target_url": target_url},
-    )
-    return redirect(target_url)
 
 
 @app.route("/devices/<device_id>/status")

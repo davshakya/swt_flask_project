@@ -45,7 +45,6 @@ Minimum commissioning checklist:
 - local UI login works
 - Flask dashboard shows the same device
 - `/monitoring/summary` is healthy
-- OTA page opens from the expected LAN URL
 - Wi-Fi reset path is understood
 
 ## 4. Handover Checklist
@@ -115,5 +114,4 @@ Escalate beyond first-line support when:
 - relay or motor safety is in question
 - repeated reboots continue after reprovisioning
 - dry-run or pump-failure alerts appear repeatedly without clear cause
-- OTA redirects point to the wrong host repeatedly
 - SQLite persistence or hosted deployment health appears compromised
