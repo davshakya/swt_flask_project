@@ -410,7 +410,7 @@
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Reboot Device</button>
                                     </form>
-                                    <a href="#firmware_shell_{{ loop.index }}" data-panel-toggle aria-controls="firmware_shell_{{ loop.index }}" aria-expanded="false">Firmware OTA</a>
+                                    <a href="#firmware_shell_{{ loop.index }}" data-panel-toggle aria-controls="firmware_shell_{{ loop.index }}" aria-expanded="false">Firmware File</a>
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Edit Name</a>
                                     {% endif %}
@@ -479,9 +479,9 @@
                                             <label for="firmware_version_{{ loop.index }}">Version Label</label>
                                             <input id="firmware_version_{{ loop.index }}" name="version_label" type="text" value="{{ device.firmware_version or '' }}" placeholder="e.g. 1.2.0">
                                         </div>
-                                        <button type="submit">Queue OTA</button>
+                                        <button type="submit">Upload Firmware</button>
                                     </form>
-                                    <p class="inline-note">Admin-only OTA queues the uploaded <code>.bin</code> for this device's next cloud command poll. The local firmware password stays app-managed over LAN.</p>
+                                    <p class="inline-note">Upload the latest <code>firmware.bin</code> here, then the Android app can deliver it to this device over local Wi-Fi. The local firmware password stays app-managed over LAN.</p>
                                 </div>
                                 <div id="password_shell_{{ loop.index }}" class="inline-panel" hidden>
                                 {% if device.registered_account %}
