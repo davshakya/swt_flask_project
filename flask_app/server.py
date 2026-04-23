@@ -27,7 +27,7 @@ try:
     import paho.mqtt.client as mqtt
 except Exception:
     mqtt = None
-from flask import Flask, abort, g, jsonify, redirect, render_template, render_template_string, request, send_from_directory, session, url_for
+from flask import Flask, abort, g, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
 from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -569,8 +569,10 @@ RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_
 RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
 RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
-LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC = env_float("LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC", 2.5)
-LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC = env_float("LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC", 5.0)
+FIRMWARE_ARTIFACT_DIR = normalize_db_path(
+    os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DB_PATH.parent / "firmware_artifacts"))
+)
+FIRMWARE_ARTIFACT_MAX_BYTES = max(256 * 1024, env_int("FIRMWARE_ARTIFACT_MAX_MB", 4) * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -2896,6 +2898,26 @@ def ensure_device_command_queue_table(cursor):
     )
 
 
+def ensure_firmware_artifacts_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS firmware_artifacts(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_device TEXT NOT NULL,
+            original_filename TEXT NOT NULL,
+            stored_filename TEXT NOT NULL,
+            version_label TEXT,
+            notes TEXT,
+            md5 TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            content_type TEXT,
+            uploaded_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_alerts_table(cursor):
     cursor.execute(
         """
@@ -3204,6 +3226,7 @@ def init_db():
         ensure_tank_data_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
+        ensure_firmware_artifacts_table(cursor)
         ensure_alerts_table(cursor)
         ensure_audit_table(cursor)
         ensure_app_settings_table(cursor)
@@ -3242,8 +3265,8 @@ def init_db():
         )
         cursor.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_device_command_queue_target_pending
-            ON device_command_queue(target_device, delivered_at, id DESC)
+            CREATE INDEX IF NOT EXISTS idx_firmware_artifacts_target_created
+            ON firmware_artifacts(target_device, created_at DESC, id DESC)
             """
         )
         cursor.execute(
@@ -5792,106 +5815,127 @@ def is_literal_ip_device_target(value):
         return False
 
 
-def sync_local_firmware_password_if_reachable(device_id, new_password):
+def ensure_firmware_artifact_dir():
+    FIRMWARE_ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
+    return FIRMWARE_ARTIFACT_DIR
+
+
+def sanitize_firmware_filename(filename):
+    raw_name = Path(str(filename or "")).name.strip()
+    if not raw_name:
+        return "firmware.bin"
+    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name).strip(" .-_")
+    if not safe_name:
+        safe_name = "firmware"
+    if not safe_name.lower().endswith(".bin"):
+        safe_name = f"{safe_name}.bin"
+    return safe_name
+
+
+def firmware_artifact_storage_path(stored_filename):
+    return ensure_firmware_artifact_dir() / Path(str(stored_filename or "")).name
+
+
+def fetch_firmware_artifact(artifact_id, device_id=None):
+    try:
+        normalized_artifact_id = int(artifact_id)
+    except (TypeError, ValueError):
+        return None
+
+    if normalized_artifact_id <= 0:
+        return None
+
+    normalized_device_id = normalize_device_id(device_id)
+    query = """
+        SELECT id, target_device, original_filename, stored_filename, version_label, notes,
+               md5, size_bytes, content_type, uploaded_by, created_at
+        FROM firmware_artifacts
+        WHERE id = ?
+    """
+    params = [normalized_artifact_id]
+    if normalized_device_id:
+        query += " AND target_device = ?"
+        params.append(normalized_device_id)
+
+    with get_db() as db:
+        row = db.execute(query, tuple(params)).fetchone()
+    if not row:
+        return None
+
+    artifact = dict(row)
+    artifact["storage_path"] = str(firmware_artifact_storage_path(artifact.get("stored_filename")))
+    return artifact
+
+
+def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="", uploaded_by="admin"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
-        return {
-            "updated": False,
-            "attempted": False,
-            "status": "missing_device",
-            "message": "Local firmware password was not updated because no device was selected.",
-        }
+        raise ValueError("Choose a valid device before uploading firmware.")
 
-    snapshot = fetch_device_snapshot(normalized_device_id)
-    base_url = normalize_device_base_url((snapshot or {}).get("device_local_url"))
-    if not base_url:
-        return {
-            "updated": False,
-            "attempted": False,
-            "status": "missing_local_url",
-            "message": "Local firmware password was not updated because the device has not reported a reachable local address yet.",
-        }
+    if uploaded_file is None:
+        raise ValueError("Choose a compiled firmware .bin file to upload.")
 
-    headers = relay_headers_for_device(normalized_device_id)
-    if "X-Device-Id" not in headers or "X-Device-Key" not in headers:
-        return {
-            "updated": False,
-            "attempted": False,
-            "status": "missing_device_credentials",
-            "message": "Local firmware password was not updated because device relay credentials are not configured.",
-        }
+    raw_name = Path(str(uploaded_file.filename or "")).name.strip()
+    if not raw_name:
+        raise ValueError("Choose a compiled firmware .bin file to upload.")
+    if Path(raw_name).suffix.lower() != ".bin":
+        raise ValueError("Upload a compiled firmware .bin file.")
 
-    headers["Content-Type"] = "application/x-www-form-urlencoded;charset=UTF-8"
-    sync_url = f"{base_url.rstrip('/')}/api/admin/password-sync"
-    try:
-        response = requests.post(
-            sync_url,
-            data={"new_password": new_password},
-            headers=headers,
-            timeout=(
-                LOCAL_FIRMWARE_PASSWORD_SYNC_CONNECT_TIMEOUT_SEC,
-                LOCAL_FIRMWARE_PASSWORD_SYNC_TIMEOUT_SEC,
-            ),
-            verify=RELAY_VERIFY_TLS,
+    safe_name = sanitize_firmware_filename(raw_name)
+    payload = uploaded_file.stream.read(FIRMWARE_ARTIFACT_MAX_BYTES + 1)
+    if not payload:
+        raise ValueError("Uploaded firmware file was empty.")
+    if len(payload) > FIRMWARE_ARTIFACT_MAX_BYTES:
+        raise ValueError(
+            f"Firmware upload is too large. Current limit is {FIRMWARE_ARTIFACT_MAX_BYTES // (1024 * 1024)} MB."
         )
-    except requests.RequestException as exc:
-        logger.info("Local firmware password sync failed for %s: %s", normalized_device_id, exc)
-        return {
-            "updated": False,
-            "attempted": True,
-            "status": "unreachable",
-            "message": "Local firmware password was not updated because the device is unreachable from Flask right now.",
-        }
 
-    response_message = None
+    artifact_md5 = hashlib.md5(payload).hexdigest()
+    stored_filename = f"{normalized_device_id}-{int(time.time())}-{secrets.token_hex(4)}.bin"
+    storage_path = firmware_artifact_storage_path(stored_filename)
+    version_text = str(version_label or "").strip() or None
+    notes_text = str(notes or "").strip() or None
+    content_type = str(uploaded_file.mimetype or "application/octet-stream").strip() or "application/octet-stream"
+
     try:
-        payload = response.json()
-        response_message = (payload.get("message") or payload.get("error") or "").strip()
-    except (ValueError, AttributeError):
-        response_message = ""
+        storage_path.write_bytes(payload)
+    except OSError as exc:
+        raise ValueError("Unable to store the uploaded firmware on disk.") from exc
 
-    if response.ok:
-        logger.info("Local firmware password synced for %s via %s", normalized_device_id, sync_url)
-        return {
-            "updated": True,
-            "attempted": True,
-            "status": "updated",
-            "message": "Local firmware password also updated.",
-        }
+    try:
+        with get_db() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO firmware_artifacts(
+                    target_device, original_filename, stored_filename, version_label, notes,
+                    md5, size_bytes, content_type, uploaded_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    normalized_device_id,
+                    safe_name,
+                    stored_filename,
+                    version_text,
+                    notes_text,
+                    artifact_md5,
+                    len(payload),
+                    content_type,
+                    str(uploaded_by or "admin").strip() or "admin",
+                ),
+            )
+            artifact_id = int(cursor.lastrowid or 0)
+    except sqlite3.DatabaseError as exc:
+        try:
+            storage_path.unlink()
+        except OSError:
+            pass
+        raise ValueError("Unable to register the uploaded firmware artifact.") from exc
 
-    if response.status_code == 404:
-        return {
-            "updated": False,
-            "attempted": True,
-            "status": "unsupported",
-            "message": "Local firmware password was not updated because the device firmware needs the latest password-sync build.",
-        }
-
-    if response.status_code in {401, 403}:
-        return {
-            "updated": False,
-            "attempted": True,
-            "status": "auth_failed",
-            "message": "Local firmware password was not updated because the device rejected the trusted sync request.",
-        }
-
-    detail = response_message or f"HTTP {response.status_code}"
-    return {
-        "updated": False,
-        "attempted": True,
-        "status": "sync_failed",
-        "message": f"Local firmware password was not updated because the device returned {detail}.",
-    }
-
-
-def append_local_firmware_sync_message(message, sync_result):
-    summary = str((sync_result or {}).get("message") or "").strip()
-    base_message = str(message or "").strip()
-    if not summary:
-        return base_message
-    if not base_message:
-        return summary
-    return f"{base_message} {summary}"
+    artifact = fetch_firmware_artifact(artifact_id, device_id=normalized_device_id)
+    if not artifact:
+        raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
+    return artifact
 
 
 def resolve_command_target(target_device=None):
@@ -6651,7 +6695,6 @@ def mobile_account_password():
         if not check_password_hash(account.get("password_hash", ""), current_password):
             return jsonify({"error": "Current password is incorrect."}), 400
         updated_account = update_customer_password(device_id, new_password)
-        local_sync_result = sync_local_firmware_password_if_reachable(device_id, new_password)
         updated_service_config = fetch_device_service_config(device_id, account=updated_account)
         updated_user = {
             "role": role,
@@ -6672,16 +6715,13 @@ def mobile_account_password():
             details={
                 "display_name": updated_account.get("display_name"),
                 "source": "mobile_api_self_service",
-                "local_firmware_password_sync": local_sync_result.get("status"),
+                "password_scope": "cloud_only",
             },
         )
         payload = build_mobile_auth_response_payload(
             updated_user,
-            message=append_local_firmware_sync_message("Cloud password updated successfully.", local_sync_result),
+            message="Cloud password updated successfully.",
         )
-        payload["local_firmware_password_updated"] = bool(local_sync_result.get("updated"))
-        payload["local_firmware_password_status"] = local_sync_result.get("status")
-        payload["local_firmware_password_message"] = local_sync_result.get("message")
         return jsonify(payload)
 
     return jsonify({"error": "Unsupported account type."}), 400
@@ -6923,6 +6963,38 @@ def acknowledge_device_command():
     }, status_code
 
 
+@app.route("/device/firmware/<int:artifact_id>")
+def download_device_firmware(artifact_id):
+    auth_ok, auth_payload, auth_status = authenticate_device_request()
+    if not auth_ok:
+        return auth_payload, auth_status
+    device_id = auth_payload
+
+    artifact = fetch_firmware_artifact(artifact_id, device_id=device_id)
+    if not artifact:
+        return jsonify({"error": "firmware artifact not found"}), 404
+
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
+        return jsonify({"error": "firmware artifact file is missing"}), 404
+
+    response = send_file(
+        str(storage_path),
+        mimetype=artifact.get("content_type") or "application/octet-stream",
+        as_attachment=False,
+        download_name=artifact.get("original_filename") or storage_path.name,
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["x-MD5"] = artifact.get("md5") or ""
+    if artifact.get("version_label"):
+        response.headers["X-Firmware-Version"] = artifact["version_label"]
+    response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
+    return response
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     next_url = request.values.get("next")
@@ -7053,7 +7125,6 @@ def admin_customers():
         password = request.form.get("password", "")
         try:
             account = upsert_customer_account(device_id, password, display_name=display_name)
-            local_sync_result = sync_local_firmware_password_if_reachable(account["device_id"], password)
             log_audit_event(
                 actor=current_actor_username(),
                 action="upsert_customer_account",
@@ -7062,12 +7133,12 @@ def admin_customers():
                 device_id=account["device_id"],
                 details={
                     "display_name": account.get("display_name"),
-                    "local_firmware_password_sync": local_sync_result.get("status"),
+                    "password_scope": "cloud_only",
                 },
             )
-            success = append_local_firmware_sync_message(
-                f"Customer account saved for {account['device_id']}.",
-                local_sync_result,
+            success = (
+                f"Customer account saved for {account['device_id']}. "
+                "Local firmware password changes are handled from the Android app on the LAN."
             )
         except ValueError as exc:
             error = str(exc)
@@ -7107,7 +7178,6 @@ def admin_customer_password_reset(device_id):
                 new_password,
                 display_name=account.get("display_name"),
             )
-            local_sync_result = sync_local_firmware_password_if_reachable(updated_account["device_id"], new_password)
             log_audit_event(
                 actor=current_actor_username(),
                 action="reset_customer_password",
@@ -7116,13 +7186,83 @@ def admin_customer_password_reset(device_id):
                 device_id=updated_account["device_id"],
                 details={
                     "display_name": updated_account.get("display_name"),
-                    "local_firmware_password_sync": local_sync_result.get("status"),
+                    "password_scope": "cloud_only",
                 },
             )
-            success = append_local_firmware_sync_message(
-                f"Customer password reset for {updated_account['device_id']}.",
-                local_sync_result,
+            success = (
+                f"Customer cloud password reset for {updated_account['device_id']}. "
+                "Local firmware password changes are handled from the Android app on the LAN."
             )
+        except ValueError as exc:
+            error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/firmware", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_firmware_upload(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    if not normalized_device_id:
+        error = "Choose a valid device before queueing firmware OTA."
+    else:
+        firmware_file = request.files.get("firmware_file")
+        version_label = request.form.get("version_label", "")
+        notes = request.form.get("notes", "")
+        try:
+            artifact = create_firmware_artifact(
+                normalized_device_id,
+                firmware_file,
+                version_label=version_label,
+                notes=notes,
+                uploaded_by=current_actor_username(),
+            )
+            queued_command = f"OTA:{artifact['id']}"
+            queue_result = queue_command(queued_command, target_device=normalized_device_id)
+            if isinstance(queue_result, tuple):
+                payload, _status_code = queue_result
+                error = payload.get("error") or f"Unable to queue firmware OTA for {normalized_device_id}."
+            else:
+                log_audit_event(
+                    actor=current_actor_username(),
+                    action="queue_device_firmware_ota",
+                    target_type="device",
+                    target_id=normalized_device_id,
+                    device_id=normalized_device_id,
+                    details={
+                        "artifact_id": artifact["id"],
+                        "version_label": artifact.get("version_label"),
+                        "original_filename": artifact.get("original_filename"),
+                        "md5": artifact.get("md5"),
+                        "size_bytes": artifact.get("size_bytes"),
+                        "notes": artifact.get("notes"),
+                        "queued_command": queued_command,
+                        "queue_result": queue_result,
+                    },
+                )
+                version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+                success = (
+                    f"Firmware OTA queued for {normalized_device_id}. "
+                    f"{artifact['original_filename']}{version_suffix} will download on the next device command poll."
+                )
         except ValueError as exc:
             error = str(exc)
 
