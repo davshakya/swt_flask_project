@@ -73,6 +73,10 @@
 .section-helper{margin:8px 0 0;color:var(--admin-text-soft);line-height:1.65;max-width:70ch}
 .section-badges{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .form-grid{display:grid;gap:14px;margin-top:16px}
+.customer-access-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:18px;align-items:start;margin-top:14px}
+.customer-access-layout .form-grid{margin-top:0}
+.customer-access-form .row{margin-top:2px}
+.form-helper-stack{display:grid;gap:10px}
 .form-helper-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(150px,1fr));margin-top:16px}
 .form-helper-card{padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.58);border:1px solid var(--admin-border)}
 .form-helper-card strong{display:block;margin-bottom:6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--admin-accent-strong);white-space:nowrap}
@@ -138,7 +142,7 @@
 @media (max-width:1180px){
 .hero-grid,.split{grid-template-columns:1fr}
 .admin-control-room .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-.form-helper-grid{grid-template-columns:1fr}
+.customer-access-layout,.form-helper-grid{grid-template-columns:1fr}
 }
 @media (max-width:760px){
 .admin-control-room{padding:16px}
@@ -361,35 +365,37 @@
         {% if success %}
         <div class="message success" style="margin-top:14px">{{ success }}</div>
         {% endif %}
-        <form method="post" action="/admin/customers" class="form-grid"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <div class="group">
-                <label for="device_id">Device ID / Username</label>
-                <input id="device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-001" required>
-            </div>
-            <div class="group">
-                <label for="display_name">Customer Name</label>
-                <input id="display_name" name="display_name" type="text" placeholder="e.g. Sharma Family">
-            </div>
-            <div class="group">
-                <label for="password">Customer Password</label>
-                <input id="password" name="password" type="password" minlength="6" required>
-            </div>
-            <div class="row">
-                <button type="submit">Save Customer</button>
-            </div>
-        </form>
-        <div class="form-helper-grid">
-            <div class="form-helper-card">
-                <strong>Fast Setup</strong>
-                <span>Use the same device ID the firmware already reports so the login matches the hardware record.</span>
-            </div>
-            <div class="form-helper-card">
-                <strong>Clear Naming</strong>
-                <span>Add a family or property name so the fleet table is easier to scan during triage.</span>
-            </div>
-            <div class="form-helper-card">
-                <strong>Inline Recovery</strong>
-                <span>If the device already exists below, you can set or reset the password without retyping everything here.</span>
+        <div class="customer-access-layout">
+            <form method="post" action="/admin/customers" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <div class="group">
+                    <label for="device_id">Device ID / Username</label>
+                    <input id="device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-001" required>
+                </div>
+                <div class="group">
+                    <label for="display_name">Customer Name</label>
+                    <input id="display_name" name="display_name" type="text" placeholder="e.g. Sharma Family">
+                </div>
+                <div class="group">
+                    <label for="password">Customer Password</label>
+                    <input id="password" name="password" type="password" minlength="6" required>
+                </div>
+                <div class="row">
+                    <button type="submit">Save Customer</button>
+                </div>
+            </form>
+            <div class="form-helper-stack">
+                <div class="form-helper-card">
+                    <strong>Fast Setup</strong>
+                    <span>Use the same device ID the firmware already reports so the login matches the hardware record.</span>
+                </div>
+                <div class="form-helper-card">
+                    <strong>Clear Naming</strong>
+                    <span>Add a family or property name so the fleet table is easier to scan during triage.</span>
+                </div>
+                <div class="form-helper-card">
+                    <strong>Inline Recovery</strong>
+                    <span>If the device already exists below, you can set or reset the password without retyping everything here.</span>
+                </div>
             </div>
         </div>
     </div>
