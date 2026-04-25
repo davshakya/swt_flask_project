@@ -3907,6 +3907,7 @@ def authenticate_dashboard_user(username, password):
         "username": normalized_username,
         "device_id": normalized_username,
         "display_name": customer.get("display_name") or normalized_username,
+        "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
@@ -3993,6 +3994,7 @@ def resolve_mobile_user():
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
+            "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
             "cloud_feed_mode": service_config.get("cloud_feed_mode"),
             "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
@@ -5867,6 +5869,48 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
     return artifact
 
 
+def fetch_latest_firmware_artifact(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT id
+            FROM firmware_artifacts
+            WHERE target_device = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return fetch_firmware_artifact(row["id"], device_id=normalized_device_id)
+
+
+def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None):
+    if not artifact:
+        return None
+
+    payload = {
+        "id": int(artifact.get("id") or 0),
+        "device_id": normalize_device_id(target_device or artifact.get("target_device")),
+        "original_filename": artifact.get("original_filename") or "firmware.bin",
+        "version_label": artifact.get("version_label") or "",
+        "notes": artifact.get("notes") or "",
+        "md5": artifact.get("md5") or "",
+        "size_bytes": int(artifact.get("size_bytes") or 0),
+        "content_type": artifact.get("content_type") or "application/octet-stream",
+        "uploaded_by": artifact.get("uploaded_by") or "",
+        "created_at": artifact.get("created_at") or "",
+    }
+    if download_endpoint:
+        payload["download_url"] = download_endpoint
+    return payload
+
+
 def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="", uploaded_by="admin"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -5936,6 +5980,23 @@ def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="
     if not artifact:
         raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
     return artifact
+
+
+def build_firmware_artifact_file_response(artifact, storage_path):
+    response = send_file(
+        str(storage_path),
+        mimetype=artifact.get("content_type") or "application/octet-stream",
+        as_attachment=False,
+        download_name=artifact.get("original_filename") or storage_path.name,
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["x-MD5"] = artifact.get("md5") or ""
+    if artifact.get("version_label"):
+        response.headers["X-Firmware-Version"] = artifact["version_label"]
+    response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
+    return response
 
 
 def resolve_command_target(target_device=None):
@@ -6575,6 +6636,7 @@ def build_mobile_auth_response_payload(authenticated_user, message=None):
             "username": authenticated_user.get("username"),
             "device_id": authenticated_user.get("device_id"),
             "display_name": authenticated_user.get("display_name"),
+            "source_tank_monitoring_enabled": authenticated_user.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": authenticated_user.get("cloud_feed_enabled", True),
             "cloud_feed_mode": authenticated_user.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
             "ai_analysis_enabled": authenticated_user.get("ai_analysis_enabled", True),
@@ -6701,6 +6763,7 @@ def mobile_account_password():
             "username": username or device_id,
             "device_id": device_id,
             "display_name": updated_account.get("display_name") or device_id,
+            "source_tank_monitoring_enabled": updated_service_config.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
             "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
             "ai_analysis_enabled": updated_service_config.get("effective_ai_analysis_enabled", True),
@@ -6892,6 +6955,53 @@ def mobile_device_services():
     response_payload.update(queue_result)
     return jsonify(response_payload)
 
+
+@app.route("/api/mobile/device/firmware")
+@mobile_auth_required
+def mobile_device_firmware():
+    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+
+    artifact = fetch_latest_firmware_artifact(target_device)
+    if not artifact:
+        return jsonify({"error": "No firmware upload is available for this device yet."}), 404
+
+    download_url = url_for(
+        "mobile_device_firmware_download",
+        artifact_id=int(artifact["id"]),
+        device_id=target_device,
+    )
+    return jsonify(
+        {
+            "device_id": target_device,
+            "artifact": build_firmware_artifact_payload(
+                artifact,
+                target_device=target_device,
+                download_endpoint=download_url,
+            ),
+        }
+    )
+
+
+@app.route("/api/mobile/device/firmware/<int:artifact_id>/download")
+@mobile_auth_required
+def mobile_device_firmware_download(artifact_id):
+    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+
+    artifact = fetch_firmware_artifact(artifact_id, device_id=target_device)
+    if not artifact:
+        return jsonify({"error": "firmware artifact not found"}), 404
+
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
+        return jsonify({"error": "firmware artifact file is missing"}), 404
+
+    return build_firmware_artifact_file_response(artifact, storage_path)
+
 @app.route("/device/command")
 def get_command():
     try:
@@ -6961,38 +7071,6 @@ def acknowledge_device_command():
         "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
     }, status_code
-
-
-@app.route("/device/firmware/<int:artifact_id>")
-def download_device_firmware(artifact_id):
-    auth_ok, auth_payload, auth_status = authenticate_device_request()
-    if not auth_ok:
-        return auth_payload, auth_status
-    device_id = auth_payload
-
-    artifact = fetch_firmware_artifact(artifact_id, device_id=device_id)
-    if not artifact:
-        return jsonify({"error": "firmware artifact not found"}), 404
-
-    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
-    if not storage_path.is_file():
-        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
-        return jsonify({"error": "firmware artifact file is missing"}), 404
-
-    response = send_file(
-        str(storage_path),
-        mimetype=artifact.get("content_type") or "application/octet-stream",
-        as_attachment=False,
-        download_name=artifact.get("original_filename") or storage_path.name,
-        conditional=False,
-        max_age=0,
-    )
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["x-MD5"] = artifact.get("md5") or ""
-    if artifact.get("version_label"):
-        response.headers["X-Firmware-Version"] = artifact["version_label"]
-    response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
-    return response
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -7222,7 +7300,7 @@ def admin_device_firmware_upload(device_id):
     normalized_device_id = normalize_device_id(device_id)
 
     if not normalized_device_id:
-        error = "Choose a valid device before queueing firmware OTA."
+        error = "Choose a valid device before uploading firmware."
     else:
         firmware_file = request.files.get("firmware_file")
         version_label = request.form.get("version_label", "")
@@ -7235,34 +7313,27 @@ def admin_device_firmware_upload(device_id):
                 notes=notes,
                 uploaded_by=current_actor_username(),
             )
-            queued_command = f"OTA:{artifact['id']}"
-            queue_result = queue_command(queued_command, target_device=normalized_device_id)
-            if isinstance(queue_result, tuple):
-                payload, _status_code = queue_result
-                error = payload.get("error") or f"Unable to queue firmware OTA for {normalized_device_id}."
-            else:
-                log_audit_event(
-                    actor=current_actor_username(),
-                    action="queue_device_firmware_ota",
-                    target_type="device",
-                    target_id=normalized_device_id,
-                    device_id=normalized_device_id,
-                    details={
-                        "artifact_id": artifact["id"],
-                        "version_label": artifact.get("version_label"),
-                        "original_filename": artifact.get("original_filename"),
-                        "md5": artifact.get("md5"),
-                        "size_bytes": artifact.get("size_bytes"),
-                        "notes": artifact.get("notes"),
-                        "queued_command": queued_command,
-                        "queue_result": queue_result,
-                    },
-                )
-                version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
-                success = (
-                    f"Firmware OTA queued for {normalized_device_id}. "
-                    f"{artifact['original_filename']}{version_suffix} will download on the next device command poll."
-                )
+            log_audit_event(
+                actor=current_actor_username(),
+                action="upload_device_firmware_artifact",
+                target_type="device",
+                target_id=normalized_device_id,
+                device_id=normalized_device_id,
+                details={
+                    "artifact_id": artifact["id"],
+                    "version_label": artifact.get("version_label"),
+                    "original_filename": artifact.get("original_filename"),
+                    "md5": artifact.get("md5"),
+                    "size_bytes": artifact.get("size_bytes"),
+                    "notes": artifact.get("notes"),
+                    "delivery": "android_local_wifi",
+                },
+            )
+            version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+            success = (
+                f"Firmware uploaded for {normalized_device_id}. "
+                f"{artifact['original_filename']}{version_suffix} is now available to the Android app for local Wi-Fi upgrades."
+            )
         except ValueError as exc:
             error = str(exc)
 
