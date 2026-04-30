@@ -1,6 +1,6 @@
 # Installer And Support Runbook
 
-Last refreshed: `2026-04-03`
+Last refreshed: `2026-04-30`
 
 Use this runbook to keep installations, handovers, and first-line support consistent across the current Smart Water Tank stack.
 
@@ -11,6 +11,7 @@ Before traveling to site:
 - assign the final `device_id`
 - confirm the matching device API key exists on the backend
 - prepare the correct firmware build inputs
+- upload the intended firmware artifact in Flask if a Wi-Fi firmware update is planned
 - label the enclosure with the device ID
 - carry the Wi-Fi setup steps and support contact path
 
@@ -34,6 +35,8 @@ Recommended order at site:
 6. confirm current level, motor status, and sensor health
 7. confirm Flask receives telemetry
 8. confirm the correct customer/admin account mapping
+9. confirm service settings match the customer plan
+10. verify Android local/cloud access when the app is part of delivery
 
 ## 3. Commissioning Checks
 
@@ -45,6 +48,8 @@ Minimum commissioning checklist:
 - local UI login works
 - Flask dashboard shows the same device
 - `/monitoring/summary` is healthy
+- Android local view and cloud login work when applicable
+- service settings are correct for cloud feed, AI analysis, source tank, buzzer, and LED
 - Wi-Fi reset path is understood
 
 ## 4. Handover Checklist
@@ -55,6 +60,7 @@ Before leaving site:
 - customer knows whether they use local, cloud, or both
 - customer login is verified
 - device ID and site name are recorded
+- firmware version is recorded
 - local Wi-Fi reset flow is explained
 - expected alarm or status behavior is explained
 - support contact path is recorded
@@ -84,8 +90,7 @@ Ask for these first:
 ### Sensor reading looks wrong
 
 - inspect mounting height and splash conditions
-- inspect HC-SR04 wiring
-- confirm echo line protection
+- inspect JSN-SR04T wiring and echo-line protection
 - compare the dashboard reading against a manual tank-level check
 
 ### Motor does not start or stop as expected
@@ -107,6 +112,14 @@ Ask for these first:
 - reconnect to `SMART_TANK_SETUP`
 - reprovision the device
 
+### Firmware update fails
+
+- confirm the phone is on the same Wi-Fi as the controller
+- confirm local firmware credentials are current
+- confirm the local device ID matches the cloud device selected in the app
+- confirm a firmware artifact exists for that device in Flask
+- fall back to USB flashing if local Wi-Fi upload is not reliable
+
 ## 7. Escalation Triggers
 
 Escalate beyond first-line support when:
@@ -114,4 +127,5 @@ Escalate beyond first-line support when:
 - relay or motor safety is in question
 - repeated reboots continue after reprovisioning
 - dry-run or pump-failure alerts appear repeatedly without clear cause
+- firmware upload/update repeatedly fails on known-good Wi-Fi
 - SQLite persistence or hosted deployment health appears compromised

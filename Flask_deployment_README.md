@@ -1,5 +1,7 @@
 # Smart Water Tank Flask Deployment Guide
 
+Last refreshed: `2026-04-30`
+
 This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
 Use this file together with:
@@ -46,7 +48,7 @@ This document focuses on:
 - dependency installation
 - restart and validation steps
 
-It does not replace the main backend README, which covers routes, background jobs, virtual devices, ML tooling, and day-to-day development.
+It does not replace the main backend README, which covers routes, background jobs, mobile APIs, service controls, firmware artifacts, virtual devices, ML tooling, and day-to-day development.
 
 ## Recommended cPanel Layout
 
@@ -314,7 +316,9 @@ After the basic smoke test, also verify:
 
 - the device can post telemetry to `https://salewell.co.in/status`
 - `/api/mobile/bootstrap` responds after a successful mobile login
+- `/api/mobile/device/services` responds after a successful mobile login
 - customer login works for at least one mapped device account
+- admin firmware uploads land in the configured artifact directory
 - the SQLite file is being written under the persistent path you configured
 
 ## Quick Create Checklist
@@ -335,6 +339,7 @@ After the basic smoke test, also verify:
 - replace every `change-me` value before first launch
 - back up the SQLite database regularly
 - keep `DB_FILE` on persistent storage
+- keep firmware artifact storage on persistent storage too; by default it is placed beside the active SQLite database
 - `requirements.txt` already includes the dependency needed by `/ml/predict`
 
 ## Common Problems

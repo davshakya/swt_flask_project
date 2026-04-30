@@ -1,6 +1,6 @@
 # Production Readiness Guide
 
-Last refreshed: `2026-04-03`
+Last refreshed: `2026-04-30`
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
@@ -9,8 +9,9 @@ This project is beyond lab-only status, but it still needs deliberate rollout co
 As the repo stands today:
 
 - firmware, Flask, and Android flows are implemented
-- automated tests exist for Flask and ML helpers
+- automated tests exist for Flask, API, UI, ML helpers, and virtual-device tooling in `../swt_test_cases_project`
 - Render deployment wiring exists with persistent disk support
+- cPanel/Passenger deployment guidance exists in `../Flask_deployment_README.md`
 - pilot and support workflows still need disciplined execution before scale
 
 The right framing today is:
@@ -45,6 +46,8 @@ The backend is stateful today because it stores:
 - alerts and audit data
 - customer accounts
 - persisted dashboard/auth settings
+- device service settings
+- firmware artifact metadata and uploaded firmware binaries
 
 For hosted deployment:
 
@@ -53,7 +56,7 @@ For hosted deployment:
 - avoid ephemeral filesystems for production state
 - monitor disk usage and retention windows
 
-The repo already points Render at `/var/data/tank.db` in [render.yaml](/d:/Dev_Progs/smart_water_tank/render.yaml). Keep that pattern or an equivalent persistent DB strategy.
+The repo already points Render at `/var/data/tank.db` in [`../render.yaml`](../render.yaml). Keep that pattern or an equivalent persistent DB strategy.
 
 ## 4. Monitoring And Alerting
 
@@ -86,11 +89,12 @@ Before field rollout:
 - confirm the correct `device.env` values were used for the flashed device
 - confirm the device reports the right `device_id`
 - confirm Wi-Fi reset and rejoin workflow are documented for support
+- confirm local firmware upload/update behavior on a non-critical device before using it for customer updates
 
 Current repo note:
 
-- `FORCE_BUILD_WEB_AUTH_PASS=1` means flashing will restore the build/default firmware UI password
-- `FORCE_BUILD_CHANNEL_MODE=1` means flashing will restore the build/default channel mode
+- `SWT_FORCE_BUILD_WEB_AUTH_PASS=1` means flashing will restore the build/default firmware UI password
+- `SWT_FORCE_BUILD_DEVICE_ID=0` preserves a stored exact provisioned device ID across later flashes
 
 Those are useful for controlled rollouts but should be understood by installers and support staff.
 
@@ -106,7 +110,7 @@ Before production:
 - validate power stability with the real relay load attached
 - protect sensor and logic wiring from noise, splash, and corrosion
 
-Use [HARDWARE_HARDENING.md](/d:/Dev_Progs/smart_water_tank/docs/HARDWARE_HARDENING.md) as the field checklist.
+Use [`../../swt_firmware_project/docs/HARDWARE_HARDENING.md`](../../swt_firmware_project/docs/HARDWARE_HARDENING.md) as the field checklist.
 
 ## 7. Validation Before Customer Rollout
 
@@ -119,8 +123,9 @@ Minimum validation set:
 - validate safe behavior during sensor faults
 - validate customer and admin login paths
 - validate Android local and cloud flows if the app is part of delivery
+- validate service-control settings and firmware artifact workflow if those features are part of support
 
-Use [PILOT_SOAK_TEST_PLAN.md](/d:/Dev_Progs/smart_water_tank/docs/PILOT_SOAK_TEST_PLAN.md) as the execution plan.
+Keep soak-test evidence with the project records; no separate pilot-plan document is currently checked into this workspace.
 
 ## 8. Support And Installer Readiness
 
@@ -133,7 +138,7 @@ Before wider rollout:
 - prepare screenshots or exact endpoints support should request first
 - confirm the runbook is usable by someone other than the main developer
 
-Use [INSTALLER_SUPPORT_RUNBOOK.md](/d:/Dev_Progs/smart_water_tank/docs/INSTALLER_SUPPORT_RUNBOOK.md) during rollout.
+Use [`INSTALLER_SUPPORT_RUNBOOK.md`](INSTALLER_SUPPORT_RUNBOOK.md) during rollout.
 
 ## 9. Go / No-Go Checklist
 

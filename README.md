@@ -1,5 +1,7 @@
 # Smart Water Tank Flask Backend
 
+Last refreshed: `2026-04-30`
+
 This repository contains the Flask backend for the Smart Water Tank system. It receives telemetry from tank controllers, stores operational state in SQLite, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
 This backend is only one part of the wider Smart Water Tank stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
@@ -11,7 +13,7 @@ Within the wider workspace:
 - [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
-- [`../swt_flask_test_project/README.md`](../swt_flask_test_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
+- [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
 
 ## What This Project Includes
 
@@ -20,6 +22,8 @@ Within the wider workspace:
 - Admin and customer login flows with separate scopes
 - Browser dashboard, customer dashboard, and per-device detail pages
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
+- Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
+- Firmware artifact upload/download flow for device-scoped OTA-style updates
 - Optional HTTP relay and MQTT bridge support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Static Android update manifest at `/static/version.json`
@@ -118,7 +122,7 @@ Values already present in the real process environment are preserved. Among the 
 - `device.env` can override values loaded from `.env` files
 - the sibling test repo can layer per-device virtual-device env files on top of the shared settings for its emulator tooling
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_flask_test_project` repo.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_test_cases_project` repo.
 
 ## Important Environment Variables
 
@@ -192,6 +196,9 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/login/admin` | Admin login page | Public |
 | `/login/customer` | Customer login page | Public |
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
+| `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload a firmware artifact for one device | Admin |
+| `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
 | `/devices/<device_id>` | Device detail page | Logged-in user |
 
@@ -233,6 +240,9 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/analytics` | `GET` | Analytics payload |
 | `/api/mobile/last` | `GET` | Latest snapshot |
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
+| `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
+| `/api/mobile/device/firmware` | `GET` | Latest firmware artifact metadata for the scoped device |
+| `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
@@ -250,6 +260,8 @@ The backend auto-creates and maintains its SQLite database on startup. Important
 - `ops_audit_log`: Audit trail for admin and account actions
 - `customer_accounts`: Customer login records keyed by `device_id`
 - `registered_devices`: Known devices seen by the backend
+- `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
+- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped updates
 - `app_settings`: Persisted app secret and dashboard password settings
 
 SQLite is configured with WAL mode. This works well for a small hosted Flask service, but it still needs persistent storage in production.
@@ -278,7 +290,7 @@ If the artifact is missing, `/ml/predict` returns an error explaining how to tra
 
 ## Testing
 
-This repo now keeps only a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
+This repo keeps a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
 
 Install the local unit-test tooling:
 
@@ -299,12 +311,12 @@ pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
 ```
 
-Flask integration, API, Playwright UI, ML script, and virtual-device tests now live in the sibling repository `../swt_flask_test_project`.
+Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.
 
 If you use the sibling test repo's virtual-device runner, point Flask at it with:
 
 ```powershell
-$env:SWT_FLASK_TEST_REPO = "..\\swt_flask_test_project"
+$env:SWT_FLASK_TEST_REPO = "..\\swt_test_cases_project"
 ```
 
 ## Utility Scripts
@@ -341,7 +353,7 @@ By default, the script creates a timestamped backup before deleting rows.
 
 ### Virtual Device Emulator
 
-The virtual-device runner and its generated env tooling now live in the sibling repository `../swt_flask_test_project`.
+The virtual-device runner and its generated env tooling live in the sibling repository `../swt_test_cases_project`.
 
 Use that repo for:
 
@@ -407,3 +419,4 @@ For rollout and support work, see:
 - Workspace overview: [`../README.md`](../README.md)
 - Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
 - Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)
+- Test harness: [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md)
