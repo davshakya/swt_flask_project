@@ -5838,6 +5838,16 @@ def firmware_artifact_storage_path(stored_filename):
     return ensure_firmware_artifact_dir() / Path(str(stored_filename or "")).name
 
 
+def extract_firmware_version_label(payload):
+    matches = re.findall(rb"\b\d+\.\d+\.\d+\+\d+\b", payload)
+    if not matches:
+        raise ValueError(
+            "Firmware version was not found inside the uploaded binary. "
+            "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
+        )
+    return matches[-1].decode("ascii")
+
+
 def fetch_firmware_artifact(artifact_id, device_id=None):
     try:
         normalized_artifact_id = int(artifact_id)
@@ -5911,7 +5921,7 @@ def build_firmware_artifact_payload(artifact, target_device=None, download_endpo
     return payload
 
 
-def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="", uploaded_by="admin"):
+def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         raise ValueError("Choose a valid device before uploading firmware.")
@@ -5937,7 +5947,7 @@ def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="
     artifact_md5 = hashlib.md5(payload).hexdigest()
     stored_filename = f"{normalized_device_id}-{int(time.time())}-{secrets.token_hex(4)}.bin"
     storage_path = firmware_artifact_storage_path(stored_filename)
-    version_text = str(version_label or "").strip() or None
+    version_text = extract_firmware_version_label(payload)
     notes_text = str(notes or "").strip() or None
     content_type = str(uploaded_file.mimetype or "application/octet-stream").strip() or "application/octet-stream"
 
@@ -6591,28 +6601,19 @@ def sensor_configure():
     response = customer_cloud_feed_block_response()
     if response:
         return response
-    height_cm = request.values.get("height_cm", type=float)
-    capacity_liters = request.values.get("capacity_liters", type=float)
-    target_device = current_scope_device_id(request.values.get("device_id", type=str))
-    height_cm = request.values.get("height_cm", type=float)
     capacity_liters = request.values.get("capacity_liters", type=float)
     target_device = current_scope_device_id(request.values.get("device_id", type=str))
 
-    if height_cm is None or capacity_liters is None:
-        return jsonify({"error": "height_cm and capacity_liters are required"}), 400
-
-    if height_cm < 30 or height_cm > 500:
-        return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+    if capacity_liters is None:
+        return jsonify({"error": "capacity_liters is required"}), 400
 
     if capacity_liters < 50 or capacity_liters > 50000:
         return jsonify({"error": "capacity_liters must be between 50 and 50000"}), 400
 
-    command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
+    command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
     payload = queue_command(command, target_device=target_device)
-    payload = queue_command(command, target_device=target_device)
-    payload["height_cm"] = round(height_cm, 1)
     payload["capacity_liters"] = round(capacity_liters, 1)
-    payload["message"] = "Tank configuration command queued."
+    payload["message"] = "Tank capacity command queued. Calibrate to learn tank height."
     return payload
 
 
@@ -6845,23 +6846,30 @@ def mobile_sensor_configure():
     capacity_liters = data.get("capacity_liters")
     target_device = current_mobile_scope_device_id(data.get("device_id"))
     try:
-        height_cm = float(height_cm)
         capacity_liters = float(capacity_liters)
     except (TypeError, ValueError):
-        return jsonify({"error": "height_cm and capacity_liters are required"}), 400
-    if height_cm < 30 or height_cm > 500:
-        return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+        return jsonify({"error": "capacity_liters is required"}), 400
     if capacity_liters < 50 or capacity_liters > 50000:
         return jsonify({"error": "capacity_liters must be between 50 and 50000"}), 400
-    command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
+    if height_cm is None:
+        command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
+    else:
+        try:
+            height_cm = float(height_cm)
+        except (TypeError, ValueError):
+            return jsonify({"error": "height_cm must be a number when provided"}), 400
+        if height_cm < 30 or height_cm > 500:
+            return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+        command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
     result = queue_command(command, target_device=target_device)
     if isinstance(result, tuple):
         payload, status_code = result
         return jsonify(payload), status_code
     payload = dict(result)
-    payload["height_cm"] = round(height_cm, 1)
+    if height_cm is not None:
+        payload["height_cm"] = round(height_cm, 1)
     payload["capacity_liters"] = round(capacity_liters, 1)
-    payload["message"] = "Tank configuration command queued."
+    payload["message"] = "Tank capacity command queued. Calibrate to learn tank height."
     return jsonify(payload)
 
 
@@ -7303,13 +7311,11 @@ def admin_device_firmware_upload(device_id):
         error = "Choose a valid device before uploading firmware."
     else:
         firmware_file = request.files.get("firmware_file")
-        version_label = request.form.get("version_label", "")
         notes = request.form.get("notes", "")
         try:
             artifact = create_firmware_artifact(
                 normalized_device_id,
                 firmware_file,
-                version_label=version_label,
                 notes=notes,
                 uploaded_by=current_actor_username(),
             )

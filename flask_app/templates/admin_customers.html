@@ -558,18 +558,14 @@
                                 </div>
                                 {% endif %}
                                 <div id="firmware_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/firmware" class="inline-form inline-form-wide" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                    <form method="post" action="/admin/customers/{{ device.device_id }}/firmware" class="inline-form" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <div class="group" style="margin:0">
                                             <label for="firmware_file_{{ loop.index }}">Firmware Binary</label>
                                             <input id="firmware_file_{{ loop.index }}" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
                                         </div>
-                                        <div class="group" style="margin:0">
-                                            <label for="firmware_version_{{ loop.index }}">Version Label</label>
-                                            <input id="firmware_version_{{ loop.index }}" name="version_label" type="text" value="{{ device.firmware_version or '' }}" placeholder="e.g. 1.2.0">
-                                        </div>
                                         <button type="submit">Upload Firmware</button>
                                     </form>
-                                    <p class="inline-note">Upload the latest <code>firmware.bin</code> here, then the Android app can deliver it to this device over local Wi-Fi. The local firmware password stays app-managed over LAN.</p>
+                                    <p class="inline-note">Upload the latest <code>firmware.bin</code> here. The version is read from the compiled binary, then the Android app can deliver it to this device over local Wi-Fi.</p>
                                 </div>
                                 <div id="password_shell_{{ loop.index }}" class="inline-panel" hidden>
                                 {% if device.registered_account %}
