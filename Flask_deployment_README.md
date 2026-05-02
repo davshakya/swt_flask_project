@@ -1,5 +1,7 @@
 # Smart Water Tank Flask Deployment Guide
 
+Last refreshed: `2026-04-30`
+
 This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
 Use this file together with:
@@ -46,7 +48,7 @@ This document focuses on:
 - dependency installation
 - restart and validation steps
 
-It does not replace the main backend README, which covers routes, background jobs, virtual devices, ML tooling, and day-to-day development.
+It does not replace the main backend README, which covers routes, background jobs, mobile APIs, service controls, firmware artifacts, virtual devices, ML tooling, and day-to-day development.
 
 ## Recommended cPanel Layout
 
@@ -67,7 +69,7 @@ Recommended server-side paths:
 
 ```text
 /home/<cpanel-user>/apps/swt_flask_project
-/home/<cpanel-user>/swt_data/tank.db
+/home/<cpanel-user>/swt_data/
 ```
 
 Keep the app code outside `public_html` when possible and let cPanel map the domain to the Passenger app.
@@ -107,37 +109,65 @@ Current built-in defaults:
 - Username: `swt_flask@salewell.co.in`
 - Protocol: explicit FTPS
 - Compatibility mode: FTPS certificate validation is disabled by default because this host presented a certificate hostname mismatch during testing
+- Passive transfer command: EPSV by default, with PASV available via `--passive-command pasv`
 - Remote root default: empty
 - With an empty remote root, files upload into the FTP account's current login directory
 
 Run it from the project root:
 
 ```powershell
-python .\scripts\upload_repo_ftps.py "your-ftp-password"
+python .\scripts\upload_repo_ftps.py
+```
+
+For repeated uploads, store the FTP password in a protected local config file that the uploader skips, such as `device.env`:
+
+```text
+SWT_FTP_PASSWORD=replace-with-ftp-password
 ```
 
 Dry run:
 
 ```powershell
-python .\scripts\upload_repo_ftps.py "your-ftp-password" --dry-run
+python .\scripts\upload_repo_ftps.py --dry-run
+```
+
+If upload fails during `STOR` with a data-connection timeout, try the older PASV passive command:
+
+```powershell
+python .\scripts\upload_repo_ftps.py --passive-command pasv
+```
+
+Active mode is available for diagnosis:
+
+```powershell
+python .\scripts\upload_repo_ftps.py --active-mode
+```
+
+If active mode says the server will not open a connection to a `192.168.x.x` address, active FTP is being blocked by NAT. Use passive mode and ask the host to open/fix the FTPS passive data port range for this FTP account.
+
+You can also shorten or lengthen the socket timeout while diagnosing the host:
+
+```powershell
+python .\scripts\upload_repo_ftps.py --timeout 30
 ```
 
 If your cPanel `Application root` is `apps/swt_flask_project`, override the remote folder when uploading:
 
 ```powershell
-python .\scripts\upload_repo_ftps.py "your-ftp-password" --remote-root apps/swt_flask_project
+python .\scripts\upload_repo_ftps.py --remote-root apps/swt_flask_project
 ```
 
 If your server certificate starts working correctly later and you want normal FTPS validation again:
 
 ```powershell
-python .\scripts\upload_repo_ftps.py "your-ftp-password" --secure-ftps
+python .\scripts\upload_repo_ftps.py --secure-ftps
 ```
 
 Security note:
 
-- passing a password on the command line can expose it in shell history
-- using an environment variable or prompt is safer, but the script supports a positional password for convenience
+- command-line FTP passwords are not accepted because they can expose secrets in shell history
+- the uploader checks the process environment first, then protected local config files such as `device.env`
+- the uploader intentionally skips runtime files such as `device.env`, `.env`, local databases, `data/`, and logs; create or update those files directly on the server
 - if `DEFAULT_REMOTE_ROOT = ""`, keep it that way unless you explicitly want uploads to go into a subfolder
 
 ## cPanel Startup Target
@@ -168,7 +198,13 @@ Use real secrets, not the placeholder values:
 
 ```dotenv
 APP_SECRET_KEY=replace-with-a-long-random-secret
-DB_FILE=/home/<cpanel-user>/swt_data/tank.db
+DB_BACKEND=mysql
+DATABASE_URL=
+MYSQL_HOST=localhost
+MYSQL_PORT=3306
+MYSQL_USER=<cpanel-user>_swtadmin
+MYSQL_PASSWORD=replace-with-mysql-password
+MYSQL_DATABASE=<cpanel-user>_swtadmin
 LOGIN_USERNAME=admin
 LOGIN_PASSWORD=replace-with-a-strong-password
 SESSION_COOKIE_SECURE=true
@@ -179,7 +215,7 @@ RELAY_COMMAND_URLS=
 
 Notes:
 
-- `DB_FILE` should point to a writable persistent path
+- create the MySQL database and assign the MySQL user in cPanel before restarting the app
 - leave `RELAY_STATUS_URLS` and `RELAY_COMMAND_URLS` blank when `salewell.co.in` is the main backend
 - blank relay settings avoid accidental forwarding to another server or back into the same app
 
@@ -274,17 +310,11 @@ If your cPanel UI has a dependency install button such as `Run Pip Install` or `
 
 ## Folder Preparation
 
-Before the first restart, make sure these paths exist on the server:
+Before the first restart, make sure this path exists on the server for upload artifacts:
 
 ```text
 /home/<cpanel-user>/apps/swt_flask_project/
 /home/<cpanel-user>/swt_data/
-```
-
-Then place the SQLite database at:
-
-```text
-/home/<cpanel-user>/swt_data/tank.db
 ```
 
 ## Restart The App
@@ -314,8 +344,11 @@ After the basic smoke test, also verify:
 
 - the device can post telemetry to `https://salewell.co.in/status`
 - `/api/mobile/bootstrap` responds after a successful mobile login
+- `/api/mobile/device/services` responds after a successful mobile login
 - customer login works for at least one mapped device account
-- the SQLite file is being written under the persistent path you configured
+- admin firmware uploads land in the configured artifact directory
+- admin Android APK uploads are visible at `/static/version.json` and `/downloads/android/latest.apk`
+- MySQL tables are created in the configured database
 
 ## Quick Create Checklist
 
@@ -333,8 +366,9 @@ After the basic smoke test, also verify:
 
 - keep `SESSION_COOKIE_SECURE=true` because the site should run on HTTPS
 - replace every `change-me` value before first launch
-- back up the SQLite database regularly
-- keep `DB_FILE` on persistent storage
+- back up the MySQL database regularly
+- keep firmware artifact storage on persistent storage
+- keep Android release storage on persistent storage
 - `requirements.txt` already includes the dependency needed by `/ml/predict`
 
 ## Common Problems
@@ -361,8 +395,9 @@ Check:
 
 Check:
 
-- `DB_FILE` points to a persistent folder
-- the SQLite folder is writable
+- MySQL service is running
+- `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` are correct
+- the MySQL user is assigned to the database
 - `APP_SECRET_KEY` is stable and not changing between restarts
 
 ### Device telemetry does not reach the dashboard

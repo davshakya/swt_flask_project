@@ -3561,6 +3561,7 @@ padding:12px;
     <footer class="footer surface">
         <div><strong>Smart Water Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in | +91-8299812878</a></div>
+        <div><a href="{{ url_for('android_app_download') }}">Download Android App</a></div>
         <div class="footer-note">&copy; Smart Water Tank by SaleWell. All rights reserved.</div>
     </footer>
 </div>
@@ -3620,6 +3621,7 @@ padding:12px;
                 </div>
                 <button class="button" type="submit">Open Customer Dashboard</button>
             </form>
+            <div class="login-help"><a href="{{ url_for('customer_forgot_password') }}">Forgot customer password?</a></div>
         </section>
 
         <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">

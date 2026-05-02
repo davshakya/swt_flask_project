@@ -1,6 +1,6 @@
 # Production Readiness Guide
 
-Last refreshed: `2026-04-03`
+Last refreshed: `2026-04-30`
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
@@ -9,14 +9,23 @@ This project is beyond lab-only status, but it still needs deliberate rollout co
 As the repo stands today:
 
 - firmware, Flask, and Android flows are implemented
-- automated tests exist for Flask and ML helpers
+- automated tests exist for Flask, API, UI, ML helpers, and virtual-device tooling in `../swt_test_cases_project`
 - Render deployment wiring exists with persistent disk support
+- cPanel/Passenger deployment guidance exists in `../Flask_deployment_README.md`
 - pilot and support workflows still need disciplined execution before scale
 
 The right framing today is:
 
 - suitable for internal testing and controlled pilots
 - not a plug-and-play mass-deployment product without rollout discipline
+
+Commercial deployments must pass the workspace-level gate in
+[`../../COMMERCIAL_DEPLOYMENT.md`](../../COMMERCIAL_DEPLOYMENT.md), including:
+
+- `python scripts\production_preflight.py --env-file <secure-production-env>`
+- CI test/build completion
+- signed Android release when Android is delivered
+- hardware sign-off and field acceptance
 
 ## 2. Identity, Secrets, And Access
 
@@ -45,6 +54,8 @@ The backend is stateful today because it stores:
 - alerts and audit data
 - customer accounts
 - persisted dashboard/auth settings
+- device service settings
+- firmware artifact metadata and uploaded firmware binaries
 
 For hosted deployment:
 
@@ -53,7 +64,7 @@ For hosted deployment:
 - avoid ephemeral filesystems for production state
 - monitor disk usage and retention windows
 
-The repo already points Render at `/var/data/tank.db` in [render.yaml](/d:/Dev_Progs/smart_water_tank/render.yaml). Keep that pattern or an equivalent persistent DB strategy.
+The repo already points Render at `/var/data/tank.db` in [`../render.yaml`](../render.yaml). Keep that pattern or an equivalent persistent DB strategy.
 
 ## 4. Monitoring And Alerting
 
@@ -86,11 +97,12 @@ Before field rollout:
 - confirm the correct `device.env` values were used for the flashed device
 - confirm the device reports the right `device_id`
 - confirm Wi-Fi reset and rejoin workflow are documented for support
+- confirm local firmware upload/update behavior on a non-critical device before using it for customer updates
 
 Current repo note:
 
-- `FORCE_BUILD_WEB_AUTH_PASS=1` means flashing will restore the build/default firmware UI password
-- `FORCE_BUILD_CHANNEL_MODE=1` means flashing will restore the build/default channel mode
+- `SWT_FORCE_BUILD_WEB_AUTH_PASS=1` means flashing will restore the build/default firmware UI password
+- `SWT_FORCE_BUILD_DEVICE_ID=0` preserves a stored exact provisioned device ID across later flashes
 
 Those are useful for controlled rollouts but should be understood by installers and support staff.
 
@@ -106,7 +118,7 @@ Before production:
 - validate power stability with the real relay load attached
 - protect sensor and logic wiring from noise, splash, and corrosion
 
-Use [HARDWARE_HARDENING.md](/d:/Dev_Progs/smart_water_tank/docs/HARDWARE_HARDENING.md) as the field checklist.
+Use [`../../swt_firmware_project/docs/HARDWARE_HARDENING.md`](../../swt_firmware_project/docs/HARDWARE_HARDENING.md) as the field checklist.
 
 ## 7. Validation Before Customer Rollout
 
@@ -114,13 +126,18 @@ Minimum validation set:
 
 - complete a 7-day bench soak
 - complete at least one real-site pilot
+- validate the enclosure against the exact board, relay/control module, sensor board, connectors, and cable bend radius
 - validate start/stop thresholds on the actual tank
 - validate Wi-Fi recovery after router restart
 - validate safe behavior during sensor faults
 - validate customer and admin login paths
 - validate Android local and cloud flows if the app is part of delivery
+- validate service-control settings and firmware artifact workflow if those features are part of support
 
-Use [PILOT_SOAK_TEST_PLAN.md](/d:/Dev_Progs/smart_water_tank/docs/PILOT_SOAK_TEST_PLAN.md) as the execution plan.
+Keep soak-test and pilot evidence with the project records. Use
+[`../../swt_firmware_project/docs/FIELD_VALIDATION.md`](../../swt_firmware_project/docs/FIELD_VALIDATION.md)
+and [`../../swt_3d_print_enclosure/ENCLOSURE_VALIDATION.md`](../../swt_3d_print_enclosure/ENCLOSURE_VALIDATION.md)
+as the release checklists.
 
 ## 8. Support And Installer Readiness
 
@@ -133,7 +150,7 @@ Before wider rollout:
 - prepare screenshots or exact endpoints support should request first
 - confirm the runbook is usable by someone other than the main developer
 
-Use [INSTALLER_SUPPORT_RUNBOOK.md](/d:/Dev_Progs/smart_water_tank/docs/INSTALLER_SUPPORT_RUNBOOK.md) during rollout.
+Use [`INSTALLER_SUPPORT_RUNBOOK.md`](INSTALLER_SUPPORT_RUNBOOK.md) during rollout.
 
 ## 9. Go / No-Go Checklist
 
@@ -145,6 +162,7 @@ Treat rollout as `GO` only when all are true:
 - telemetry, command queue, and alert routes are healthy
 - 7-day soak is complete
 - pilot feedback is reviewed
+- enclosure validation is complete for the exact hardware variant
 - hardware wiring review is signed off
 - installer handover checklist is ready
 - rollback and reflash path is documented

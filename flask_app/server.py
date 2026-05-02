@@ -14,15 +14,23 @@ from pathlib import Path
 import binascii
 import re
 import secrets
+import smtplib
 import sqlite3
 import subprocess
 import time
 import threading
 import math
+from email.message import EmailMessage
 
 pd = None
 PANDAS_IMPORT_ERROR = None
 import requests
+try:
+    import pymysql
+    from pymysql.cursors import DictCursor as MySqlDictCursor
+except Exception:
+    pymysql = None
+    MySqlDictCursor = None
 try:
     import paho.mqtt.client as mqtt
 except Exception:
@@ -35,6 +43,27 @@ from jinja2 import TemplateNotFound
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
+from flask_app.android_releases import (
+    android_release_storage_path as android_release_storage_path_for_dir,
+    build_android_apk_file_response as build_android_apk_file_response_payload,
+    build_android_release_manifest,
+    make_stored_android_apk_filename,
+    read_uploaded_android_apk,
+)
+from flask_app.forecast_payloads import (
+    build_level_forecast_payload as build_level_forecast_response_payload,
+    build_unavailable_level_forecast_payload as build_unavailable_level_forecast_response_payload,
+)
+from flask_app.firmware_artifacts import (
+    build_firmware_artifact_file_response as build_firmware_artifact_file_response_payload,
+    build_firmware_artifact_payload as build_firmware_artifact_response_payload,
+    firmware_artifact_storage_path as firmware_artifact_storage_path_for_dir,
+    make_stored_firmware_filename,
+    read_uploaded_firmware,
+    sanitize_firmware_filename as sanitize_firmware_filename_value,
+    extract_firmware_version_label as extract_firmware_version_label_from_payload,
+)
+from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
 from flask_app.runtime_utils import (
     db_parent_is_writable,
     env_float,
@@ -108,7 +137,7 @@ DEFAULT_APP_SECRET_KEY = "change-me-before-production"
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "change-me-admin-password"
 DEFAULT_DEVICE_KEY = "change-me-device-key"
-DEFAULT_DEVICE_KEYS = f"swt-node-01:{DEFAULT_DEVICE_KEY}"
+DEFAULT_DEVICE_KEYS = ""
 DATE_ONLY_FORMAT = "%Y-%m-%d"
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
@@ -209,6 +238,8 @@ def resolve_db_path():
 
 
 def validate_runtime_db_configuration():
+    if USING_MYSQL:
+        return
     if not IS_RENDER or not REQUIRE_RENDER_PERSISTENT_DB:
         return
     if render_persistent_db_active():
@@ -230,6 +261,8 @@ def resolve_app_secret_key(db_path):
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
+    if resolve_database_backend() == "mysql":
+        raise RuntimeError("APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL.")
 
     try:
         if db_path.exists():
@@ -322,8 +355,27 @@ def resolve_device_key_registry():
     return DEFAULT_DEVICE_KEYS, "default"
 
 
+def resolve_database_backend():
+    configured_backend = os.environ.get("DB_BACKEND", "").strip().lower()
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    allow_sqlite_tests = os.environ.get("SWT_ALLOW_SQLITE_FOR_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}
+    if configured_backend:
+        if configured_backend in {"mysql", "mariadb"}:
+            return "mysql"
+        if configured_backend == "sqlite" and allow_sqlite_tests:
+            return "sqlite"
+        raise RuntimeError("SQLite is no longer supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
+    if database_url.lower().startswith(("mysql://", "mysql+pymysql://", "mariadb://")):
+        return "mysql"
+    if database_url:
+        raise RuntimeError("Only MySQL/MariaDB DATABASE_URL values are supported.")
+    return "mysql"
+
+
 DB_PATH, DB_PATH_SOURCE, DB_PATH_REJECTED = resolve_db_path()
 DB_FILE = str(DB_PATH)
+DB_BACKEND = resolve_database_backend()
+USING_MYSQL = DB_BACKEND == "mysql"
 APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key(DB_PATH)
 
 app = Flask(__name__)
@@ -503,11 +555,17 @@ API_VERSION = SWT_VERSION
 DEVICE = os.environ.get("DEVICE_URL", "").strip()
 DEFAULT_CUSTOMER_PASSWORD = os.environ.get("DEFAULT_CUSTOMER_PASSWORD", "").strip()
 SEED_DEFAULT_CUSTOMERS = os.environ.get("SEED_DEFAULT_CUSTOMERS", "false").lower() in {"1", "true", "yes"}
-DEFAULT_CUSTOMER_ACCOUNTS = (
-    ("swt-node-01", "Tank Owner"),
-    ("swt-node-customer", "Customer Demo"),
-    ("swt-node-other", "Tank Owner"),
-)
+DEFAULT_CUSTOMER_DEVICE_ID = os.environ.get("SWT_DEVICE_ID", "").strip() or "swt-node-01"
+DEFAULT_CUSTOMER_ACCOUNTS = ((DEFAULT_CUSTOMER_DEVICE_ID, "Tank Owner"),)
+CUSTOMER_PASSWORD_RESET_TTL_MINUTES = max(10, env_int("CUSTOMER_PASSWORD_RESET_TTL_MINUTES", 60))
+CUSTOMER_COMMUNICATION_FROM_EMAIL = os.environ.get("CUSTOMER_COMMUNICATION_FROM_EMAIL", "support@salewell.co.in").strip()
+CUSTOMER_COMMUNICATION_FROM_NAME = os.environ.get("CUSTOMER_COMMUNICATION_FROM_NAME", "Smart Water Tank Support").strip()
+SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
+SMTP_PORT = env_int("SMTP_PORT", 587)
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
+SMTP_USE_TLS = env_flag("SMTP_USE_TLS", default=True)
+SMTP_TIMEOUT_SECONDS = max(3, env_int("SMTP_TIMEOUT_SECONDS", 10))
 LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
@@ -538,6 +596,7 @@ SEED_VIRTUAL_DEVICE_ENVS = (
     else env_flag("SEED_VIRTUAL_DEVICE_ENVS", default=not IS_RENDER)
 )
 PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT = env_flag("PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT", default=IS_RENDER)
+SEED_CONFIGURED_DEVICES_ON_VIEW = env_flag("SEED_CONFIGURED_DEVICES_ON_VIEW", default=False)
 RESET_DEVICE_SOURCE_MODE_ON_BOOT = env_flag("RESET_DEVICE_SOURCE_MODE_ON_BOOT", default=IS_RENDER)
 CONTROL_POLICY = "AUTO_PROTECTED"
 DEFAULT_DEVICE_SOURCE_MODE = (
@@ -573,6 +632,11 @@ FIRMWARE_ARTIFACT_DIR = normalize_db_path(
     os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DB_PATH.parent / "firmware_artifacts"))
 )
 FIRMWARE_ARTIFACT_MAX_BYTES = max(256 * 1024, env_int("FIRMWARE_ARTIFACT_MAX_MB", 4) * 1024 * 1024)
+GLOBAL_FIRMWARE_TARGET = "__all_customers__"
+ANDROID_RELEASE_DIR = normalize_db_path(
+    os.environ.get("ANDROID_RELEASE_DIR", str(DB_PATH.parent / "android_releases"))
+)
+ANDROID_RELEASE_MAX_BYTES = max(1024 * 1024, env_int("ANDROID_RELEASE_MAX_MB", 128) * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -876,7 +940,13 @@ def forget_registered_device_touch(device_id):
 
 def database_is_locked_error(exc):
     message = str(exc or "").strip().lower()
-    return "database is locked" in message or "database table is locked" in message or "database is busy" in message
+    return (
+        "database is locked" in message
+        or "database table is locked" in message
+        or "database is busy" in message
+        or "lock wait timeout" in message
+        or "deadlock found" in message
+    )
 
 
 def alert_touch_key(kind, device_id=None):
@@ -1045,6 +1115,9 @@ def configured_virtual_device_auth_entries():
 
 
 def seed_registered_devices_from_configuration():
+    if not SEED_CONFIGURED_DEVICES_ON_VIEW:
+        return
+
     seeded_device_ids = set()
     ignored_device_ids = list_ignored_device_ids()
 
@@ -1426,6 +1499,7 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
     </form>
     <div class="row">
         <a href="{{ switch_href }}">{{ switch_label }}</a>
+        {% if login_mode != "admin" %}<a href="{{ url_for('customer_forgot_password') }}">Forgot Password</a>{% endif %}
     </div>
     <div class="hint">{% if login_mode == "admin" %}Use the admin dashboard account here. Customers should sign in from the customer page with their exact device ID.{% else %}Customer usernames must exactly match the registered device_id, for example swt-000-000-000-001.{% endif %}</div>
 </div>
@@ -1847,6 +1921,9 @@ def build_admin_device_entry(device_id, snapshot=None):
         "registered_account": False,
         "account_active": False,
         "cloud_feed_enabled": False,
+        "email": None,
+        "service_updates_enabled": True,
+        "marketing_emails_enabled": False,
     }
 
 
@@ -1886,6 +1963,8 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         device_summary=device_summary or build_admin_device_summary(available_devices),
         global_alerts=fetch_filtered_alerts(limit=10),
         persistence_warnings=auth_persistence_warnings(),
+        latest_android_release=fetch_latest_android_app_release(),
+        latest_global_firmware=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET),
     )
 
 
@@ -1913,12 +1992,25 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
             merged[normalized_device_id] = entry
 
         entry["display_name"] = account.get("display_name") or entry.get("display_name")
+        entry["email"] = account.get("email")
         entry["registered_account"] = True
         entry["account_active"] = int(account.get("active", 1) or 0) == 1
         entry["cloud_feed_enabled"] = int(account.get("cloud_feed_enabled", 1) or 0) == 1
+        entry["service_updates_enabled"] = int(account.get("service_updates_enabled", 1) or 0) == 1
+        entry["marketing_emails_enabled"] = int(account.get("marketing_emails_enabled", 0) or 0) == 1
         accounts_by_device[normalized_device_id] = account
 
     if include_registered_devices:
+        for device_id in sorted(DEVICE_KEY_MAP.keys()):
+            normalized_device_id = normalize_device_id(device_id)
+            if not normalized_device_id or normalized_device_id in ignored_device_ids:
+                continue
+            entry = merged.get(normalized_device_id)
+            if entry is None:
+                entry = build_admin_device_entry(normalized_device_id)
+                merged[normalized_device_id] = entry
+            entry["server_registered"] = True
+
         for device_id in list_registered_device_ids(limit=200):
             normalized_device_id = normalize_device_id(device_id)
             if not normalized_device_id or normalized_device_id in ignored_device_ids:
@@ -1979,7 +2071,7 @@ def filter_admin_search_results(items, search_query):
     for item in items:
         haystack = " ".join(
             str(value or "").strip().lower()
-            for value in (item.get("device_id"), item.get("display_name"))
+            for value in (item.get("device_id"), item.get("display_name"), item.get("email"))
         )
         if normalized_query in haystack:
             filtered.append(item)
@@ -2032,7 +2124,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
         return False, None, "invalid device credentials", 403
 
-    if require_key and device_key != matched_rule["key"]:
+    if require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
         logger.warning("Rejected device auth for %s", normalized_device_id)
         return False, None, "invalid device credentials", 403
 
@@ -2142,6 +2234,16 @@ def load_level_forecast_artifact(force_reload=False):
     return artifact, artifact_path, loaded_at
 
 
+def build_unavailable_level_forecast_payload(device_id, reason_code, message, remediation=None):
+    return build_unavailable_level_forecast_response_payload(
+        normalize_device_id(device_id),
+        reason_code,
+        message,
+        resolve_level_forecast_artifact_path(),
+        remediation=remediation,
+    )
+
+
 def build_level_forecast_payload(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -2163,60 +2265,15 @@ def build_level_forecast_payload(device_id):
         raw = query_device_forecast_rows(db, normalized_device_id, device_source=get_device_source_mode())
     prediction = predict_latest_level(raw, artifact)
 
-    metrics = {}
-    for key, value in dict(artifact.get("metrics") or {}).items():
-        try:
-            metrics[key] = round(float(value), 4)
-        except (TypeError, ValueError):
-            metrics[key] = value
-
-    metadata = dict(artifact.get("metadata") or {})
-    try:
-        artifact_label = str(artifact_path.relative_to(PROJECT_ROOT))
-    except ValueError:
-        artifact_label = str(artifact_path)
-    artifact_label = artifact_label.replace("\\", "/")
-
-    current_level_percent = prediction.get("current_level_percent")
-    predicted_level_percent = prediction.get("predicted_level_percent")
-    predicted_delta_percent = prediction.get("predicted_delta_percent")
-    predicted_remaining_liters = prediction.get("predicted_remaining_liters")
-    raw_predicted_level_percent = prediction.get("raw_predicted_level_percent")
-
-    return {
-        "device_id": prediction.get("device_id") or normalized_device_id,
-        "observed_at": format_timestamp(prediction.get("observed_at")),
-        "forecast_for": format_timestamp(prediction.get("forecast_for")),
-        "current_level_percent": None
-        if current_level_percent is None
-        else round(float(current_level_percent), 4),
-        "predicted_level_percent": None
-        if predicted_level_percent is None
-        else round(float(predicted_level_percent), 4),
-        "predicted_delta_percent": None
-        if predicted_delta_percent is None
-        else round(float(predicted_delta_percent), 4),
-        "predicted_remaining_liters": None
-        if predicted_remaining_liters is None
-        else round(float(predicted_remaining_liters), 2),
-        "raw_predicted_level_percent": None
-        if raw_predicted_level_percent is None
-        else round(float(raw_predicted_level_percent), 4),
-        "prediction_clamped": bool(prediction.get("prediction_clamped")),
-        "rows_considered": int(prediction.get("rows_considered") or 0),
-        "model": {
-            "artifact_path": artifact_label,
-            "artifact_updated_at": format_timestamp(artifact_updated_at),
-            "family": metadata.get("model_family"),
-            "target": metadata.get("target"),
-            "horizon_hours": metadata.get("horizon_hours"),
-            "resample_minutes": metadata.get("resample_minutes"),
-            "device_id_filter": metadata.get("device_id_filter"),
-            "train_rows": artifact.get("train_rows"),
-            "test_rows": artifact.get("test_rows"),
-            "metrics": metrics,
-        },
-    }
+    return build_level_forecast_response_payload(
+        normalized_device_id,
+        prediction,
+        artifact,
+        artifact_path,
+        artifact_updated_at,
+        PROJECT_ROOT,
+        format_timestamp,
+    )
 
 
 def sanitize_payload(payload):
@@ -2270,6 +2327,8 @@ def apply_source_tank_aliases(payload, include_aliases=False):
 
 
 def collect_database_file_sizes(db_path=None):
+    if USING_MYSQL:
+        return {"main_bytes": 0, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 0}
     base_path = normalize_db_path(str(db_path or DB_FILE))
     paths = {
         "main_bytes": base_path,
@@ -2522,6 +2581,8 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
 
 
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
+    if USING_MYSQL:
+        return False
     if not DB_MAINTENANCE_ENABLED and not force:
         return False
 
@@ -2743,11 +2804,338 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     return cleaned
 
 
+def mysql_connection_config():
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    configured_database = resolve_mysql_database_name(os.environ.get("MYSQL_DATABASE", ""))
+    if database_url:
+        parsed = urlparse(database_url)
+        return {
+            "host": parsed.hostname or "127.0.0.1",
+            "port": parsed.port or 3306,
+            "user": parsed.username or "",
+            "password": parsed.password or "",
+            "database": resolve_mysql_database_name((parsed.path or "").lstrip("/") or configured_database),
+        }
+    return {
+        "host": os.environ.get("MYSQL_HOST", "127.0.0.1").strip() or "127.0.0.1",
+        "port": env_int("MYSQL_PORT", 3306),
+        "user": os.environ.get("MYSQL_USER", "").strip(),
+        "password": os.environ.get("MYSQL_PASSWORD", ""),
+        "database": configured_database,
+    }
+
+
+def mysql_database_name_is_placeholder(value):
+    normalized_value = str(value or "").strip().lower()
+    return (
+        not normalized_value
+        or "replace-with" in normalized_value
+        or "replace_with" in normalized_value
+        or normalized_value in {"change-me", "database", "dbname"}
+    )
+
+
+def resolve_mysql_database_name(value=None):
+    configured_database = str(value if value is not None else os.environ.get("MYSQL_DATABASE", "")).strip()
+    if not mysql_database_name_is_placeholder(configured_database):
+        return configured_database
+    database_from_user = os.environ.get("MYSQL_USER", "").strip()
+    if database_from_user:
+        return database_from_user
+    return ""
+
+
+def quote_mysql_identifier(identifier):
+    identifier = str(identifier or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_$]+", identifier):
+        raise RuntimeError(f"Unsafe MySQL database name: {identifier!r}")
+    return f"`{identifier.replace('`', '``')}`"
+
+
+def ensure_mysql_database_exists(config):
+    database_name = config["database"]
+    if not database_name:
+        return
+    if os.environ.get("MYSQL_AUTO_CREATE_DATABASE", "true").strip().lower() in {"0", "false", "no", "off"}:
+        return
+    server_conn = pymysql.connect(
+        host=config["host"],
+        port=int(config["port"]),
+        user=config["user"],
+        password=config["password"],
+        charset="utf8mb4",
+        cursorclass=MySqlDictCursor,
+        autocommit=True,
+    )
+    try:
+        with server_conn.cursor() as cursor:
+            cursor.execute(
+                f"CREATE DATABASE IF NOT EXISTS {quote_mysql_identifier(database_name)} "
+                "CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+            )
+    finally:
+        server_conn.close()
+
+
+def normalize_mysql_interval_modifier(value):
+    text = str(value or "").strip().lower()
+    match = re.fullmatch(r"([+-]?\d+)\s*(day|days|second|seconds)", text)
+    if not match:
+        return None
+    amount = int(match.group(1))
+    unit = "DAY" if match.group(2).startswith("day") else "SECOND"
+    return amount, unit
+
+
+def translate_mysql_datetime_offsets(sql, params):
+    source_params = list(params or ())
+    consumed_indexes = set()
+
+    def replace_param_offset(match):
+        param_index = sql[:match.start()].count("?")
+        if param_index >= len(source_params):
+            return "UTC_TIMESTAMP()"
+        consumed_indexes.add(param_index)
+        modifier = normalize_mysql_interval_modifier(source_params[param_index])
+        if modifier is None:
+            return "UTC_TIMESTAMP()"
+        amount, unit = modifier
+        return f"DATE_ADD(UTC_TIMESTAMP(), INTERVAL {amount} {unit})"
+
+    sql = re.sub(r"datetime\s*\(\s*'now'\s*,\s*\?\s*\)", replace_param_offset, sql, flags=re.I)
+
+    def replace_literal_offset(match):
+        modifier = normalize_mysql_interval_modifier(match.group(1))
+        if modifier is None:
+            return "UTC_TIMESTAMP()"
+        amount, unit = modifier
+        return f"DATE_ADD(UTC_TIMESTAMP(), INTERVAL {amount} {unit})"
+
+    sql = re.sub(r"datetime\s*\(\s*'now'\s*,\s*'([^']+)'\s*\)", replace_literal_offset, sql, flags=re.I)
+    next_params = [value for index, value in enumerate(source_params) if index not in consumed_indexes]
+    return sql, tuple(next_params)
+
+
+def translate_mysql_schema_sql(sql):
+    replacements = {
+        "INTEGER PRIMARY KEY AUTOINCREMENT": "BIGINT PRIMARY KEY AUTO_INCREMENT",
+        "key TEXT PRIMARY KEY": "`key` VARCHAR(191) PRIMARY KEY",
+        "device_id TEXT PRIMARY KEY": "device_id VARCHAR(191) PRIMARY KEY",
+        "device_id TEXT": "device_id VARCHAR(191)",
+        "email TEXT": "email VARCHAR(255)",
+        "target_device TEXT NOT NULL": "target_device VARCHAR(191) NOT NULL",
+        "token_hash TEXT NOT NULL UNIQUE": "token_hash VARCHAR(128) NOT NULL UNIQUE",
+        "expires_at TEXT NOT NULL": "expires_at DATETIME NOT NULL",
+        "target_id TEXT": "target_id VARCHAR(191)",
+        "key_rule TEXT": "key_rule VARCHAR(191)",
+        "command TEXT NOT NULL": "command VARCHAR(64) NOT NULL",
+        "kind TEXT NOT NULL": "kind VARCHAR(96) NOT NULL",
+        "severity TEXT NOT NULL": "severity VARCHAR(32) NOT NULL",
+        "actor TEXT NOT NULL": "actor VARCHAR(191) NOT NULL",
+        "action TEXT NOT NULL": "action VARCHAR(191) NOT NULL",
+        "target_type TEXT NOT NULL": "target_type VARCHAR(96) NOT NULL",
+        "registration_source TEXT NOT NULL": "registration_source VARCHAR(191) NOT NULL",
+        "cloud_feed_mode TEXT NOT NULL": "cloud_feed_mode VARCHAR(32) NOT NULL",
+        "created_at TEXT DEFAULT CURRENT_TIMESTAMP": "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "updated_at TEXT DEFAULT CURRENT_TIMESTAMP": "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP": "first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP": "last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP",
+        "resolved_at TEXT": "resolved_at DATETIME",
+        "delivered_at TEXT": "delivered_at DATETIME",
+        "used_at TEXT": "used_at DATETIME",
+        "next_attempt_at TEXT": "next_attempt_at DATETIME",
+        "uploaded_by TEXT": "uploaded_by VARCHAR(191)",
+        "original_filename TEXT NOT NULL": "original_filename VARCHAR(255) NOT NULL",
+        "stored_filename TEXT NOT NULL": "stored_filename VARCHAR(255) NOT NULL",
+        "version_name TEXT NOT NULL": "version_name VARCHAR(96) NOT NULL",
+        "version_label TEXT": "version_label VARCHAR(96)",
+        "md5 TEXT NOT NULL": "md5 VARCHAR(64) NOT NULL",
+        "content_type TEXT": "content_type VARCHAR(128)",
+    }
+    for old, new in replacements.items():
+        sql = sql.replace(old, new)
+    return sql
+
+
+def translate_mysql_upsert_sql(sql):
+    conflict_match = re.search(r"\s+ON\s+CONFLICT\s*\(([^)]+)\)\s+DO\s+NOTHING\s*$", sql, flags=re.I | re.S)
+    if conflict_match:
+        sql = re.sub(r"^\s*INSERT\s+INTO", "INSERT IGNORE INTO", sql, flags=re.I)
+        return sql[:conflict_match.start()]
+
+    conflict_match = re.search(r"\s+ON\s+CONFLICT\s*\(([^)]+)\)\s+DO\s+UPDATE\s+SET\s+(.+?)\s*$", sql, flags=re.I | re.S)
+    if not conflict_match:
+        return sql
+
+    update_clause = conflict_match.group(2)
+    update_clause = re.sub(r"excluded\.([A-Za-z_][A-Za-z0-9_]*)", r"VALUES(\1)", update_clause)
+    return f"{sql[:conflict_match.start()]} ON DUPLICATE KEY UPDATE {update_clause}"
+
+
+def translate_mysql_query(sql, params=None):
+    sql, params = translate_mysql_datetime_offsets(sql, params or ())
+    sql = translate_mysql_schema_sql(sql)
+    sql = translate_mysql_upsert_sql(sql)
+    sql = sql.replace("app_settings(key", "app_settings(`key`")
+    sql = re.sub(r"\bWHERE\s+key\s*=", "WHERE `key` =", sql, flags=re.I)
+    sql = re.sub(r"\bLIMIT\s+-1\s+OFFSET\b", "LIMIT 18446744073709551615 OFFSET", sql, flags=re.I)
+    sql = sql.replace("?", "%s")
+    return sql, tuple(params or ())
+
+
+class DbRow(dict):
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return list(self.values())[key]
+        return super().__getitem__(key)
+
+
+def adapt_mysql_row(row):
+    if row is None or isinstance(row, tuple):
+        return row
+    return DbRow(row)
+
+
+class MySqlCursorAdapter:
+    def __init__(self, cursor):
+        self.cursor = cursor
+        self.lastrowid = None
+        self.rowcount = -1
+        self._buffered_rows = None
+
+    def execute(self, sql, params=None):
+        table_info_match = re.match(r"\s*PRAGMA\s+table_info\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)\s*$", sql, flags=re.I)
+        if table_info_match:
+            table_name = table_info_match.group(1)
+            self.cursor.execute(
+                """
+                SELECT COLUMN_NAME, COLUMN_DEFAULT, IS_NULLABLE, COLUMN_KEY, DATA_TYPE
+                FROM information_schema.COLUMNS
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+                ORDER BY ORDINAL_POSITION
+                """,
+                (table_name,),
+            )
+            self._buffered_rows = [
+                (index, row["COLUMN_NAME"], row["DATA_TYPE"], 0 if row["IS_NULLABLE"] == "YES" else 1, row["COLUMN_DEFAULT"], 1 if row["COLUMN_KEY"] == "PRI" else 0)
+                for index, row in enumerate(self.cursor.fetchall())
+            ]
+            self.rowcount = len(self._buffered_rows)
+            return self
+        self._buffered_rows = None
+        translated_sql, translated_params = translate_mysql_query(sql, params)
+        self.cursor.execute(translated_sql, translated_params)
+        self.lastrowid = self.cursor.lastrowid
+        self.rowcount = self.cursor.rowcount
+        return self
+
+    def fetchone(self):
+        if self._buffered_rows is not None:
+            return self._buffered_rows.pop(0) if self._buffered_rows else None
+        return adapt_mysql_row(self.cursor.fetchone())
+
+    def fetchall(self):
+        if self._buffered_rows is not None:
+            rows = self._buffered_rows
+            self._buffered_rows = []
+            return rows
+        return [adapt_mysql_row(row) for row in self.cursor.fetchall()]
+
+    def __iter__(self):
+        if self._buffered_rows is not None:
+            return iter(self._buffered_rows)
+        return iter(adapt_mysql_row(row) for row in self.cursor)
+
+
+class MySqlConnectionAdapter:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def cursor(self):
+        return MySqlCursorAdapter(self.connection.cursor())
+
+    def execute(self, sql, params=None):
+        cursor = self.cursor()
+        cursor.execute(sql, params)
+        return cursor
+
+    def commit(self):
+        return self.connection.commit()
+
+    def rollback(self):
+        return self.connection.rollback()
+
+    def close(self):
+        return self.connection.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            self.commit()
+        else:
+            self.rollback()
+        self.close()
+        return False
+
+
+def connect_mysql():
+    if pymysql is None:
+        raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
+    config = mysql_connection_config()
+    if not config["user"] or not config["database"]:
+        raise RuntimeError("MySQL requires MYSQL_USER plus MYSQL_DATABASE, or a DATABASE_URL.")
+    ssl_ca = os.environ.get("MYSQL_SSL_CA", "").strip()
+    connect_kwargs = {
+        "host": config["host"],
+        "port": int(config["port"]),
+        "user": config["user"],
+        "password": config["password"],
+        "database": config["database"],
+        "charset": "utf8mb4",
+        "cursorclass": MySqlDictCursor,
+        "autocommit": False,
+        "ssl": {"ca": ssl_ca} if ssl_ca else None,
+    }
+    try:
+        conn = pymysql.connect(**connect_kwargs)
+    except Exception as exc:
+        error_code = getattr(exc, "args", [None])[0]
+        if error_code != 1049:
+            raise RuntimeError(
+                "MySQL is required but the server is not reachable or credentials are invalid. "
+                f"Check MYSQL_HOST={config['host']!r}, MYSQL_PORT={config['port']}, "
+                f"MYSQL_USER={config['user']!r}, and make sure the MySQL service is running."
+            ) from exc
+        logger.info("MySQL database %s does not exist; attempting to create it.", config["database"])
+        try:
+            ensure_mysql_database_exists(config)
+        except Exception as create_exc:
+            raise RuntimeError(
+                "MySQL database could not be created automatically. In cPanel, create "
+                f"database {config['database']!r}, assign user {config['user']!r} to it, "
+                "then restart the app."
+            ) from create_exc
+        try:
+            conn = pymysql.connect(**connect_kwargs)
+        except Exception as reconnect_exc:
+            raise RuntimeError(
+                "MySQL database was created or already exists, but Flask still could not connect. "
+                "Check MYSQL_* credentials and database-user permissions."
+            ) from reconnect_exc
+    with conn.cursor() as cursor:
+        cursor.execute("SET time_zone = '+00:00'")
+    return MySqlConnectionAdapter(conn)
+
+
 def get_db():
+    if USING_MYSQL:
+        return connect_mysql()
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_FILE, timeout=20, check_same_thread=False)
+    conn = sqlite3.connect(DB_FILE, timeout=30, check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=20000")
+    conn.execute("PRAGMA busy_timeout=30000")
     conn.execute(f"PRAGMA wal_autocheckpoint={DB_WAL_AUTOCHECKPOINT_PAGES}")
     return conn
 
@@ -2918,6 +3306,26 @@ def ensure_firmware_artifacts_table(cursor):
     )
 
 
+def ensure_android_app_releases_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS android_app_releases(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_filename TEXT NOT NULL,
+            stored_filename TEXT NOT NULL,
+            version_name TEXT NOT NULL,
+            version_code INTEGER NOT NULL,
+            notes TEXT,
+            md5 TEXT NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            content_type TEXT,
+            uploaded_by TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_alerts_table(cursor):
     cursor.execute(
         """
@@ -2971,9 +3379,12 @@ def ensure_customer_accounts_table(cursor):
         CREATE TABLE IF NOT EXISTS customer_accounts(
             device_id TEXT PRIMARY KEY,
             display_name TEXT,
+            email TEXT,
             password_hash TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
             cloud_feed_enabled INTEGER NOT NULL DEFAULT 1,
+            service_updates_enabled INTEGER NOT NULL DEFAULT 1,
+            marketing_emails_enabled INTEGER NOT NULL DEFAULT 0,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -2985,14 +3396,32 @@ def ensure_customer_accounts_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(customer_accounts)").fetchall()}
     required = {
         "display_name": "TEXT",
+        "email": "TEXT",
         "active": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "service_updates_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "marketing_emails_enabled": "INTEGER NOT NULL DEFAULT 0",
         "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
     }
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE customer_accounts ADD COLUMN {column} {definition}")
+
+
+def ensure_customer_password_reset_tokens_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS customer_password_reset_tokens(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            used_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
 
 
 def ensure_device_service_configs_table(cursor):
@@ -3110,17 +3539,32 @@ def seed_bootstrap_customer_accounts(cursor):
         normalized_device_id = normalize_device_id(item.get("device_id"))
         password_hash = str(item.get("password_hash") or "").strip()
         display_name = str(item.get("display_name") or "").strip() or None
+        email = normalize_customer_email(item.get("email")) if item.get("email") else None
         active = 1 if int(item.get("active", 1) or 0) == 1 else 0
         cloud_feed_enabled = 1 if int(item.get("cloud_feed_enabled", 1) or 0) == 1 else 0
+        service_updates_enabled = 1 if int(item.get("service_updates_enabled", 1) or 0) == 1 else 0
+        marketing_emails_enabled = 1 if int(item.get("marketing_emails_enabled", 0) or 0) == 1 else 0
         if not normalized_device_id or not password_hash:
             continue
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(
+                device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+                service_updates_enabled, marketing_emails_enabled, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
-            (normalized_device_id, display_name, password_hash, active, cloud_feed_enabled),
+            (
+                normalized_device_id,
+                display_name,
+                email,
+                password_hash,
+                active,
+                cloud_feed_enabled,
+                service_updates_enabled,
+                marketing_emails_enabled,
+            ),
         )
         seeded_count += 1
     if seeded_count:
@@ -3141,8 +3585,8 @@ def seed_default_customer_accounts(cursor):
     for device_id, display_name in DEFAULT_CUSTOMER_ACCOUNTS:
         cursor.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
-            VALUES (?, ?, ?, 1, 1, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, service_updates_enabled, marketing_emails_enabled, updated_at)
+            VALUES (?, ?, ?, 1, 1, 1, 0, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO NOTHING
             """,
             (device_id, display_name, password_hash),
@@ -3150,6 +3594,111 @@ def seed_default_customer_accounts(cursor):
 
 
 def init_db():
+    if USING_MYSQL:
+        logger.info("Initializing MySQL database schema")
+        with get_db() as db:
+            cursor = db.cursor()
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS tank_data(
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    level REAL,
+                    motor TEXT,
+                    mode TEXT,
+                    runtime REAL,
+                    current_runtime REAL,
+                    last_runtime REAL,
+                    fill_time REAL,
+                    leak TEXT,
+                    pump_failure TEXT,
+                    abnormal TEXT,
+                    drip TEXT,
+                    slow_leak TEXT,
+                    pipe_leak TEXT,
+                    ai_usage_rate REAL,
+                    tomorrow_prediction REAL,
+                    dry_run TEXT,
+                    simulator TEXT,
+                    source_tank_simulator TEXT,
+                    wifi TEXT,
+                    wifi_rssi INTEGER,
+                    sensor TEXT,
+                    device_source TEXT,
+                    sensor_info TEXT,
+                    sensor_distance_cm REAL,
+                    tank_height_cm REAL,
+                    tank_capacity_liters REAL,
+                    auto_status TEXT,
+                    auto_status_tone TEXT,
+                    auto_timer TEXT,
+                    tank_health REAL,
+                    free_heap INTEGER,
+                    uptime_s INTEGER,
+                    lower_tank_level REAL,
+                    lower_sensor TEXT,
+                    lower_sensor_info TEXT,
+                    lower_sensor_distance_cm REAL,
+                    device_id TEXT,
+                    firmware_version TEXT,
+                    reset_reason TEXT,
+                    source_ip TEXT,
+                    device_local_url TEXT,
+                    channel_mode TEXT,
+                    telemetry_service TEXT,
+                    command_service TEXT,
+                    ota_service TEXT,
+                    lower_tank_service TEXT,
+                    buzzer_service TEXT,
+                    led_display_service TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+            ensure_tank_data_columns(cursor)
+            ensure_relay_queue_table(cursor)
+            ensure_device_command_queue_table(cursor)
+            ensure_firmware_artifacts_table(cursor)
+            ensure_android_app_releases_table(cursor)
+            ensure_alerts_table(cursor)
+            ensure_audit_table(cursor)
+            ensure_app_settings_table(cursor)
+            seed_bootstrap_dashboard_password(cursor)
+            ensure_customer_accounts_table(cursor)
+            ensure_customer_accounts_columns(cursor)
+            ensure_customer_password_reset_tokens_table(cursor)
+            ensure_device_service_configs_table(cursor)
+            ensure_device_service_configs_columns(cursor)
+            ensure_registered_devices_table(cursor)
+            ensure_ignored_devices_table(cursor)
+            seed_bootstrap_customer_accounts(cursor)
+            seed_default_customer_accounts(cursor)
+            for statement in (
+                "CREATE INDEX idx_created_at ON tank_data(created_at)",
+                "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
+                "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
+                "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
+                "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
+                "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
+                "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
+                "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
+                "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
+                "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
+            ):
+                try:
+                    cursor.execute(statement)
+                except Exception as exc:
+                    if "duplicate" not in str(exc).lower():
+                        raise
+        maybe_reset_device_source_mode_on_boot()
+        deleted_counts = purge_configured_virtual_device_records()
+        if deleted_counts.get("device_ids"):
+            logger.info(
+                "Purged %s configured virtual devices from startup database state.",
+                deleted_counts["device_ids"],
+            )
+        logger.info("MySQL database initialization complete")
+        return
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db_exists = os.path.exists(DB_FILE)
 
@@ -3227,12 +3776,14 @@ def init_db():
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
+        ensure_android_app_releases_table(cursor)
         ensure_alerts_table(cursor)
         ensure_audit_table(cursor)
         ensure_app_settings_table(cursor)
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
         ensure_customer_accounts_columns(cursor)
+        ensure_customer_password_reset_tokens_table(cursor)
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
         ensure_registered_devices_table(cursor)
@@ -3267,6 +3818,12 @@ def init_db():
             """
             CREATE INDEX IF NOT EXISTS idx_firmware_artifacts_target_created
             ON firmware_artifacts(target_device, created_at DESC, id DESC)
+            """
+        )
+        cursor.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_android_app_releases_created
+            ON android_app_releases(created_at DESC, id DESC)
             """
         )
         cursor.execute(
@@ -3502,6 +4059,33 @@ def maybe_reset_admin_password_on_boot():
     logger.warning("Admin dashboard password was reset from LOGIN_PASSWORD during startup because RESET_ADMIN_PASSWORD_ON_BOOT is enabled.")
 
 
+def normalize_customer_email(value):
+    email = str(value or "").strip().lower()
+    if not email:
+        return None
+    if len(email) > 254 or "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise ValueError("Enter a valid customer email address.")
+    local, domain = email.rsplit("@", 1)
+    if not local or "." not in domain or any(ch.isspace() for ch in email):
+        raise ValueError("Enter a valid customer email address.")
+    return email
+
+
+def form_flag(name, default=False):
+    if name not in request.form:
+        return 1 if default else 0
+    return 1 if str(request.form.get(name) or "").strip().lower() in {"1", "true", "yes", "on"} else 0
+
+
+def utc_timestamp(delta=None):
+    value = datetime.now(timezone.utc) + (delta or timedelta())
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def sha256_text(value):
+    return hashlib.sha256(str(value or "").encode("utf-8")).hexdigest()
+
+
 def fetch_customer_account(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -3509,7 +4093,8 @@ def fetch_customer_account(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, display_name, password_hash, active, cloud_feed_enabled, created_at, updated_at
+            SELECT device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+                   service_updates_enabled, marketing_emails_enabled, created_at, updated_at
             FROM customer_accounts
             WHERE device_id = ?
             """,
@@ -3522,7 +4107,8 @@ def list_customer_accounts(limit=100):
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT device_id, display_name, active, cloud_feed_enabled, created_at, updated_at
+            SELECT device_id, display_name, email, active, cloud_feed_enabled,
+                   service_updates_enabled, marketing_emails_enabled, created_at, updated_at
             FROM customer_accounts
             ORDER BY updated_at DESC, device_id ASC
             LIMIT ?
@@ -3539,9 +4125,68 @@ def customer_cloud_feed_enabled(device_id):
     return int(account.get("cloud_feed_enabled", 1) or 0) == 1
 
 
-def upsert_customer_account(device_id, password, display_name=None, active=None, cloud_feed_enabled=None):
+def fetch_customer_account_by_email(email):
+    normalized_email = normalize_customer_email(email)
+    if not normalized_email:
+        return None
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+                   service_updates_enabled, marketing_emails_enabled, created_at, updated_at
+            FROM customer_accounts
+            WHERE lower(email) = lower(?)
+            ORDER BY updated_at DESC
+            LIMIT 1
+            """,
+            (normalized_email,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def send_customer_email(to_email, subject, body, category="transactional", account=None):
+    normalized_email = normalize_customer_email(to_email)
+    if not normalized_email:
+        return False
+    if category in {"updates", "service_update"} and account and int(account.get("service_updates_enabled", 1) or 0) != 1:
+        logger.info("Customer service update email skipped because consent is off for %s", account.get("device_id"))
+        return False
+    if category in {"marketing", "advertisement", "offer"} and account and int(account.get("marketing_emails_enabled", 0) or 0) != 1:
+        logger.info("Customer marketing email skipped because consent is off for %s", account.get("device_id"))
+        return False
+
+    if not SMTP_HOST:
+        logger.info("SMTP is not configured. Customer email queued for %s: %s", normalized_email, subject)
+        return False
+
+    message = EmailMessage()
+    from_header = f"{CUSTOMER_COMMUNICATION_FROM_NAME} <{CUSTOMER_COMMUNICATION_FROM_EMAIL}>" if CUSTOMER_COMMUNICATION_FROM_NAME else CUSTOMER_COMMUNICATION_FROM_EMAIL
+    message["From"] = from_header
+    message["To"] = normalized_email
+    message["Subject"] = subject
+    message.set_content(body)
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
+        if SMTP_USE_TLS:
+            smtp.starttls()
+        if SMTP_USERNAME:
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+        smtp.send_message(message)
+    return True
+
+
+def upsert_customer_account(
+    device_id,
+    password,
+    display_name=None,
+    email=None,
+    active=None,
+    cloud_feed_enabled=None,
+    service_updates_enabled=None,
+    marketing_emails_enabled=None,
+):
     normalized_device_id = normalize_device_id(device_id)
     normalized_display_name = str(display_name or "").strip()
+    normalized_email = normalize_customer_email(email)
     if not normalized_device_id:
         raise ValueError("device_id is required")
     if not password or len(password) < 6:
@@ -3555,25 +4200,42 @@ def upsert_customer_account(device_id, password, display_name=None, active=None,
         if cloud_feed_enabled is None and not existing
         else (1 if int(cloud_feed_enabled if cloud_feed_enabled is not None else existing.get("cloud_feed_enabled", 1) or 0) == 1 else 0)
     )
+    resolved_service_updates_enabled = (
+        1 if service_updates_enabled is None and not existing
+        else (1 if int(service_updates_enabled if service_updates_enabled is not None else existing.get("service_updates_enabled", 1) or 0) == 1 else 0)
+    )
+    resolved_marketing_emails_enabled = (
+        0 if marketing_emails_enabled is None and not existing
+        else (1 if int(marketing_emails_enabled if marketing_emails_enabled is not None else existing.get("marketing_emails_enabled", 0) or 0) == 1 else 0)
+    )
     with get_db() as db:
         db.execute("DELETE FROM ignored_devices WHERE device_id = ?", (normalized_device_id,))
         db.execute(
             """
-            INSERT INTO customer_accounts(device_id, display_name, password_hash, active, cloud_feed_enabled, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            INSERT INTO customer_accounts(
+                device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+                service_updates_enabled, marketing_emails_enabled, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 display_name=excluded.display_name,
+                email=excluded.email,
                 password_hash=excluded.password_hash,
                 active=excluded.active,
                 cloud_feed_enabled=excluded.cloud_feed_enabled,
+                service_updates_enabled=excluded.service_updates_enabled,
+                marketing_emails_enabled=excluded.marketing_emails_enabled,
                 updated_at=CURRENT_TIMESTAMP
             """,
             (
                 normalized_device_id,
                 normalized_display_name or None,
+                normalized_email,
                 password_hash,
                 resolved_active,
                 resolved_cloud_feed_enabled,
+                resolved_service_updates_enabled,
+                resolved_marketing_emails_enabled,
             ),
         )
     return fetch_customer_account(normalized_device_id)
@@ -3587,21 +4249,43 @@ def update_customer_password(device_id, password):
         account["device_id"],
         password,
         display_name=account.get("display_name"),
+        email=account.get("email"),
         active=account.get("active", 1),
         cloud_feed_enabled=account.get("cloud_feed_enabled", 1),
+        service_updates_enabled=account.get("service_updates_enabled", 1),
+        marketing_emails_enabled=account.get("marketing_emails_enabled", 0),
     )
 
 
-def update_customer_account_profile(device_id, display_name=None, active=None, cloud_feed_enabled=None):
+def update_customer_account_profile(
+    device_id,
+    display_name=None,
+    email=None,
+    active=None,
+    cloud_feed_enabled=None,
+    service_updates_enabled=None,
+    marketing_emails_enabled=None,
+):
     account = fetch_customer_account(device_id)
     if not account:
         raise ValueError("customer account not found")
 
     resolved_display_name = account.get("display_name") if display_name is None else (str(display_name).strip() or None)
+    resolved_email = account.get("email") if email is None else normalize_customer_email(email)
     resolved_active = 1 if int(active if active is not None else account.get("active", 1) or 0) == 1 else 0
     resolved_cloud_feed_enabled = (
         1
         if int(cloud_feed_enabled if cloud_feed_enabled is not None else account.get("cloud_feed_enabled", 1) or 0) == 1
+        else 0
+    )
+    resolved_service_updates_enabled = (
+        1
+        if int(service_updates_enabled if service_updates_enabled is not None else account.get("service_updates_enabled", 1) or 0) == 1
+        else 0
+    )
+    resolved_marketing_emails_enabled = (
+        1
+        if int(marketing_emails_enabled if marketing_emails_enabled is not None else account.get("marketing_emails_enabled", 0) or 0) == 1
         else 0
     )
 
@@ -3610,20 +4294,96 @@ def update_customer_account_profile(device_id, display_name=None, active=None, c
             """
             UPDATE customer_accounts
             SET display_name = ?,
+                email = ?,
                 active = ?,
                 cloud_feed_enabled = ?,
+                service_updates_enabled = ?,
+                marketing_emails_enabled = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE device_id = ?
             """,
             (
                 resolved_display_name,
+                resolved_email,
                 resolved_active,
                 resolved_cloud_feed_enabled,
+                resolved_service_updates_enabled,
+                resolved_marketing_emails_enabled,
                 account["device_id"],
             ),
         )
 
     return fetch_customer_account(account["device_id"])
+
+
+def create_customer_password_reset(account):
+    token = secrets.token_urlsafe(32)
+    token_hash = sha256_text(token)
+    expires_at = utc_timestamp(timedelta(minutes=CUSTOMER_PASSWORD_RESET_TTL_MINUTES))
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE customer_password_reset_tokens
+            SET used_at = CURRENT_TIMESTAMP
+            WHERE device_id = ? AND used_at IS NULL
+            """,
+            (account["device_id"],),
+        )
+        db.execute(
+            """
+            INSERT INTO customer_password_reset_tokens(device_id, token_hash, expires_at)
+            VALUES (?, ?, ?)
+            """,
+            (account["device_id"], token_hash, expires_at),
+        )
+    return token, expires_at
+
+
+def fetch_customer_password_reset(token):
+    token_hash = sha256_text(token)
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT id, device_id, token_hash, expires_at, used_at, created_at
+            FROM customer_password_reset_tokens
+            WHERE token_hash = ?
+            LIMIT 1
+            """,
+            (token_hash,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def customer_password_reset_valid(reset_row):
+    if not reset_row or reset_row.get("used_at"):
+        return False
+    expires_at = str(reset_row.get("expires_at") or "")
+    return bool(expires_at and expires_at > utc_timestamp())
+
+
+def mark_customer_password_reset_used(reset_id):
+    with get_db() as db:
+        db.execute(
+            "UPDATE customer_password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (reset_id,),
+        )
+
+
+def send_customer_password_reset(account, token):
+    reset_url = url_for("customer_reset_password", token=token, _external=True)
+    subject = "Reset your Smart Water Tank password"
+    body = (
+        f"Hello {account.get('display_name') or account['device_id']},\n\n"
+        "We received a request to reset your Smart Water Tank customer password.\n\n"
+        f"Reset link: {reset_url}\n\n"
+        f"This link expires in {CUSTOMER_PASSWORD_RESET_TTL_MINUTES} minutes. "
+        "If you did not request this, you can ignore this email.\n\n"
+        "Smart Water Tank Support"
+    )
+    sent = send_customer_email(account["email"], subject, body, category="transactional", account=account)
+    if not sent:
+        logger.info("Customer password reset link for %s: %s", account["device_id"], reset_url)
+    return sent
 
 
 DEVICE_SERVICE_CLOUD_FEED_OFF = "off"
@@ -4247,9 +5007,9 @@ def recent_counts(db, limit=200):
                 WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
-            )
+            ) recent_motor_rows
             ORDER BY id
-        )
+        ) motor_transitions
         WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
         """,
         tuple(params),
@@ -4266,9 +5026,9 @@ def recent_counts(db, limit=200):
                 WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
-            )
+            ) recent_leak_rows
             ORDER BY id
-        )
+        ) leak_transitions
         WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
         """,
         tuple(params),
@@ -4802,6 +5562,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 def build_db_summary_payload():
     file_sizes = collect_database_file_sizes()
     active_mode = get_device_source_mode()
+    mysql_config = mysql_connection_config() if USING_MYSQL else None
     with get_db() as db:
         telemetry_row = db.execute(
             """
@@ -4834,21 +5595,39 @@ def build_db_summary_payload():
         graph_reason = "Telemetry history is disabled on this deployment."
     elif telemetry_rows < 2:
         graph_reason = "At least two telemetry rows are needed before trend graphs can render."
-    elif IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB and not render_persistent_db_active():
+    elif not USING_MYSQL and IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB and not render_persistent_db_active():
         graph_reason = (
             "Render is not using /var/data/tank.db, so graph history can disappear after restarts."
         )
 
+    database_payload = {
+        "backend": DB_BACKEND,
+        "is_render": IS_RENDER,
+    }
+    if USING_MYSQL:
+        database_payload.update(
+            {
+                "host": mysql_config.get("host") if mysql_config else None,
+                "port": mysql_config.get("port") if mysql_config else None,
+                "database": mysql_config.get("database") if mysql_config else None,
+                "user": mysql_config.get("user") if mysql_config else None,
+                "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
+            }
+        )
+    else:
+        database_payload.update(
+            {
+                "path": DB_FILE,
+                "path_source": DB_PATH_SOURCE,
+                "persistent_db_expected": bool(IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB),
+                "persistent_db_active": render_persistent_db_active(),
+                "rejected_paths": DB_PATH_REJECTED,
+                "file_sizes_bytes": file_sizes,
+            }
+        )
+
     return {
-        "database": {
-            "path": DB_FILE,
-            "path_source": DB_PATH_SOURCE,
-            "is_render": IS_RENDER,
-            "persistent_db_expected": bool(IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB),
-            "persistent_db_active": render_persistent_db_active(),
-            "rejected_paths": DB_PATH_REJECTED,
-            "file_sizes_bytes": file_sizes,
-        },
+        "database": database_payload,
         "analytics": {
             "history_enabled": TELEMETRY_HISTORY_ENABLED,
             "device_source_mode": active_mode,
@@ -5684,9 +6463,9 @@ def fetch_device_snapshot(device_id):
                       AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
-                )
+                ) recent_motor_rows
                 ORDER BY id
-            )
+            ) motor_transitions
             WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
             """,
             (normalized_device_id, *source_params),
@@ -5703,9 +6482,9 @@ def fetch_device_snapshot(device_id):
                       AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
-                )
+                ) recent_leak_rows
                 ORDER BY id
-            )
+            ) leak_transitions
             WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
             """,
             (normalized_device_id, *source_params),
@@ -5823,19 +6602,15 @@ def ensure_firmware_artifact_dir():
 
 
 def sanitize_firmware_filename(filename):
-    raw_name = Path(str(filename or "")).name.strip()
-    if not raw_name:
-        return "firmware.bin"
-    safe_name = re.sub(r"[^A-Za-z0-9._-]+", "-", raw_name).strip(" .-_")
-    if not safe_name:
-        safe_name = "firmware"
-    if not safe_name.lower().endswith(".bin"):
-        safe_name = f"{safe_name}.bin"
-    return safe_name
+    return sanitize_firmware_filename_value(filename)
 
 
 def firmware_artifact_storage_path(stored_filename):
-    return ensure_firmware_artifact_dir() / Path(str(stored_filename or "")).name
+    return firmware_artifact_storage_path_for_dir(ensure_firmware_artifact_dir(), stored_filename)
+
+
+def extract_firmware_version_label(payload):
+    return extract_firmware_version_label_from_payload(payload)
 
 
 def fetch_firmware_artifact(artifact_id, device_id=None):
@@ -5856,8 +6631,8 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
     """
     params = [normalized_artifact_id]
     if normalized_device_id:
-        query += " AND target_device = ?"
-        params.append(normalized_device_id)
+        query += " AND target_device IN (?, ?)"
+        params.extend([normalized_device_id, GLOBAL_FIRMWARE_TARGET])
 
     with get_db() as db:
         row = db.execute(query, tuple(params)).fetchone()
@@ -5879,11 +6654,11 @@ def fetch_latest_firmware_artifact(device_id):
             """
             SELECT id
             FROM firmware_artifacts
-            WHERE target_device = ?
-            ORDER BY created_at DESC, id DESC
+            WHERE target_device IN (?, ?)
+            ORDER BY CASE WHEN target_device = ? THEN 0 ELSE 1 END, created_at DESC, id DESC
             LIMIT 1
             """,
-            (normalized_device_id,),
+            (normalized_device_id, GLOBAL_FIRMWARE_TARGET, normalized_device_id),
         ).fetchone()
     if not row:
         return None
@@ -5891,55 +6666,24 @@ def fetch_latest_firmware_artifact(device_id):
 
 
 def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None):
-    if not artifact:
-        return None
-
-    payload = {
-        "id": int(artifact.get("id") or 0),
-        "device_id": normalize_device_id(target_device or artifact.get("target_device")),
-        "original_filename": artifact.get("original_filename") or "firmware.bin",
-        "version_label": artifact.get("version_label") or "",
-        "notes": artifact.get("notes") or "",
-        "md5": artifact.get("md5") or "",
-        "size_bytes": int(artifact.get("size_bytes") or 0),
-        "content_type": artifact.get("content_type") or "application/octet-stream",
-        "uploaded_by": artifact.get("uploaded_by") or "",
-        "created_at": artifact.get("created_at") or "",
-    }
-    if download_endpoint:
-        payload["download_url"] = download_endpoint
-    return payload
+    return build_firmware_artifact_response_payload(
+        artifact,
+        target_device=target_device,
+        download_endpoint=download_endpoint,
+        normalize_device_id=normalize_device_id,
+    )
 
 
-def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="", uploaded_by="admin"):
+def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         raise ValueError("Choose a valid device before uploading firmware.")
 
-    if uploaded_file is None:
-        raise ValueError("Choose a compiled firmware .bin file to upload.")
-
-    raw_name = Path(str(uploaded_file.filename or "")).name.strip()
-    if not raw_name:
-        raise ValueError("Choose a compiled firmware .bin file to upload.")
-    if Path(raw_name).suffix.lower() != ".bin":
-        raise ValueError("Upload a compiled firmware .bin file.")
-
-    safe_name = sanitize_firmware_filename(raw_name)
-    payload = uploaded_file.stream.read(FIRMWARE_ARTIFACT_MAX_BYTES + 1)
-    if not payload:
-        raise ValueError("Uploaded firmware file was empty.")
-    if len(payload) > FIRMWARE_ARTIFACT_MAX_BYTES:
-        raise ValueError(
-            f"Firmware upload is too large. Current limit is {FIRMWARE_ARTIFACT_MAX_BYTES // (1024 * 1024)} MB."
-        )
-
-    artifact_md5 = hashlib.md5(payload).hexdigest()
-    stored_filename = f"{normalized_device_id}-{int(time.time())}-{secrets.token_hex(4)}.bin"
+    upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
+    payload = upload["payload"]
+    stored_filename = make_stored_firmware_filename(normalized_device_id)
     storage_path = firmware_artifact_storage_path(stored_filename)
-    version_text = str(version_label or "").strip() or None
     notes_text = str(notes or "").strip() or None
-    content_type = str(uploaded_file.mimetype or "application/octet-stream").strip() or "application/octet-stream"
 
     try:
         storage_path.write_bytes(payload)
@@ -5958,13 +6702,13 @@ def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="
                 """,
                 (
                     normalized_device_id,
-                    safe_name,
+                    upload["original_filename"],
                     stored_filename,
-                    version_text,
+                    upload["version_label"],
                     notes_text,
-                    artifact_md5,
+                    upload["md5"],
                     len(payload),
-                    content_type,
+                    upload["content_type"],
                     str(uploaded_by or "admin").strip() or "admin",
                 ),
             )
@@ -5982,21 +6726,151 @@ def create_firmware_artifact(device_id, uploaded_file, version_label="", notes="
     return artifact
 
 
+def create_global_firmware_artifact(uploaded_file, notes="", uploaded_by="admin"):
+    upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
+    payload = upload["payload"]
+    stored_filename = make_stored_firmware_filename(GLOBAL_FIRMWARE_TARGET)
+    storage_path = firmware_artifact_storage_path(stored_filename)
+    notes_text = str(notes or "").strip() or None
+
+    try:
+        storage_path.write_bytes(payload)
+    except OSError as exc:
+        raise ValueError("Unable to store the uploaded firmware on disk.") from exc
+
+    try:
+        with get_db() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO firmware_artifacts(
+                    target_device, original_filename, stored_filename, version_label, notes,
+                    md5, size_bytes, content_type, uploaded_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    GLOBAL_FIRMWARE_TARGET,
+                    upload["original_filename"],
+                    stored_filename,
+                    upload["version_label"],
+                    notes_text,
+                    upload["md5"],
+                    len(payload),
+                    upload["content_type"],
+                    str(uploaded_by or "admin").strip() or "admin",
+                ),
+            )
+            artifact_id = int(cursor.lastrowid or 0)
+    except sqlite3.DatabaseError as exc:
+        try:
+            storage_path.unlink()
+        except OSError:
+            pass
+        raise ValueError("Unable to register the uploaded firmware artifact.") from exc
+
+    artifact = fetch_firmware_artifact(artifact_id)
+    if not artifact:
+        raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
+    return artifact
+
+
+def ensure_android_release_dir():
+    ANDROID_RELEASE_DIR.mkdir(parents=True, exist_ok=True)
+    return ANDROID_RELEASE_DIR
+
+
+def android_release_storage_path(stored_filename):
+    return android_release_storage_path_for_dir(ensure_android_release_dir(), stored_filename)
+
+
+def fetch_android_app_release(release_id=None):
+    query = """
+        SELECT id, original_filename, stored_filename, version_name, version_code, notes,
+               md5, size_bytes, content_type, uploaded_by, created_at
+        FROM android_app_releases
+    """
+    params = []
+    if release_id is not None:
+        try:
+            normalized_release_id = int(release_id)
+        except (TypeError, ValueError):
+            return None
+        if normalized_release_id <= 0:
+            return None
+        query += " WHERE id = ?"
+        params.append(normalized_release_id)
+    query += " ORDER BY version_code DESC, created_at DESC, id DESC LIMIT 1"
+
+    with get_db() as db:
+        row = db.execute(query, tuple(params)).fetchone()
+    if not row:
+        return None
+
+    release = dict(row)
+    release["storage_path"] = str(android_release_storage_path(release.get("stored_filename")))
+    return release
+
+
+def fetch_latest_android_app_release():
+    return fetch_android_app_release()
+
+
+def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
+    upload = read_uploaded_android_apk(uploaded_file, ANDROID_RELEASE_MAX_BYTES)
+    normalized_version_name = upload["version_name"]
+    normalized_version_code = upload["version_code"]
+    payload = upload["payload"]
+    stored_filename = make_stored_android_apk_filename(normalized_version_code)
+    storage_path = android_release_storage_path(stored_filename)
+    notes_text = str(notes or "").strip() or None
+
+    try:
+        storage_path.write_bytes(payload)
+    except OSError as exc:
+        raise ValueError("Unable to store the uploaded Android app on disk.") from exc
+
+    try:
+        with get_db() as db:
+            cursor = db.execute(
+                """
+                INSERT INTO android_app_releases(
+                    original_filename, stored_filename, version_name, version_code, notes,
+                    md5, size_bytes, content_type, uploaded_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    upload["original_filename"],
+                    stored_filename,
+                    normalized_version_name,
+                    normalized_version_code,
+                    notes_text,
+                    upload["md5"],
+                    len(payload),
+                    upload["content_type"],
+                    str(uploaded_by or "admin").strip() or "admin",
+                ),
+            )
+            release_id = int(cursor.lastrowid or 0)
+    except sqlite3.DatabaseError as exc:
+        try:
+            storage_path.unlink()
+        except OSError:
+            pass
+        raise ValueError("Unable to register the uploaded Android app release.") from exc
+
+    release = fetch_android_app_release(release_id)
+    if not release:
+        raise ValueError("Uploaded Android app release could not be loaded after it was saved.")
+    return release
+
+
+def build_android_apk_file_response(release, storage_path):
+    return build_android_apk_file_response_payload(send_file, release, storage_path)
+
+
 def build_firmware_artifact_file_response(artifact, storage_path):
-    response = send_file(
-        str(storage_path),
-        mimetype=artifact.get("content_type") or "application/octet-stream",
-        as_attachment=False,
-        download_name=artifact.get("original_filename") or storage_path.name,
-        conditional=False,
-        max_age=0,
-    )
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["x-MD5"] = artifact.get("md5") or ""
-    if artifact.get("version_label"):
-        response.headers["X-Firmware-Version"] = artifact["version_label"]
-    response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
-    return response
+    return build_firmware_artifact_file_response_payload(send_file, artifact, storage_path)
 
 
 def resolve_command_target(target_device=None):
@@ -6591,28 +7465,19 @@ def sensor_configure():
     response = customer_cloud_feed_block_response()
     if response:
         return response
-    height_cm = request.values.get("height_cm", type=float)
-    capacity_liters = request.values.get("capacity_liters", type=float)
-    target_device = current_scope_device_id(request.values.get("device_id", type=str))
-    height_cm = request.values.get("height_cm", type=float)
     capacity_liters = request.values.get("capacity_liters", type=float)
     target_device = current_scope_device_id(request.values.get("device_id", type=str))
 
-    if height_cm is None or capacity_liters is None:
-        return jsonify({"error": "height_cm and capacity_liters are required"}), 400
-
-    if height_cm < 30 or height_cm > 500:
-        return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+    if capacity_liters is None:
+        return jsonify({"error": "capacity_liters is required"}), 400
 
     if capacity_liters < 50 or capacity_liters > 50000:
         return jsonify({"error": "capacity_liters must be between 50 and 50000"}), 400
 
-    command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
+    command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
     payload = queue_command(command, target_device=target_device)
-    payload = queue_command(command, target_device=target_device)
-    payload["height_cm"] = round(height_cm, 1)
     payload["capacity_liters"] = round(capacity_liters, 1)
-    payload["message"] = "Tank configuration command queued."
+    payload["message"] = "Tank capacity command queued. Calibrate to learn tank height."
     return payload
 
 
@@ -6845,23 +7710,30 @@ def mobile_sensor_configure():
     capacity_liters = data.get("capacity_liters")
     target_device = current_mobile_scope_device_id(data.get("device_id"))
     try:
-        height_cm = float(height_cm)
         capacity_liters = float(capacity_liters)
     except (TypeError, ValueError):
-        return jsonify({"error": "height_cm and capacity_liters are required"}), 400
-    if height_cm < 30 or height_cm > 500:
-        return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+        return jsonify({"error": "capacity_liters is required"}), 400
     if capacity_liters < 50 or capacity_liters > 50000:
         return jsonify({"error": "capacity_liters must be between 50 and 50000"}), 400
-    command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
+    if height_cm is None:
+        command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
+    else:
+        try:
+            height_cm = float(height_cm)
+        except (TypeError, ValueError):
+            return jsonify({"error": "height_cm must be a number when provided"}), 400
+        if height_cm < 30 or height_cm > 500:
+            return jsonify({"error": "height_cm must be between 30 and 500"}), 400
+        command = f"CONFIG:{height_cm:.1f}:{capacity_liters:.1f}"
     result = queue_command(command, target_device=target_device)
     if isinstance(result, tuple):
         payload, status_code = result
         return jsonify(payload), status_code
     payload = dict(result)
-    payload["height_cm"] = round(height_cm, 1)
+    if height_cm is not None:
+        payload["height_cm"] = round(height_cm, 1)
     payload["capacity_liters"] = round(capacity_liters, 1)
-    payload["message"] = "Tank configuration command queued."
+    payload["message"] = "Tank capacity command queued. Calibrate to learn tank height."
     return jsonify(payload)
 
 
@@ -6956,51 +7828,17 @@ def mobile_device_services():
     return jsonify(response_payload)
 
 
-@app.route("/api/mobile/device/firmware")
-@mobile_auth_required
-def mobile_device_firmware():
-    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    if not target_device:
-        return jsonify({"error": "device not found"}), 404
-
-    artifact = fetch_latest_firmware_artifact(target_device)
-    if not artifact:
-        return jsonify({"error": "No firmware upload is available for this device yet."}), 404
-
-    download_url = url_for(
-        "mobile_device_firmware_download",
-        artifact_id=int(artifact["id"]),
-        device_id=target_device,
-    )
-    return jsonify(
-        {
-            "device_id": target_device,
-            "artifact": build_firmware_artifact_payload(
-                artifact,
-                target_device=target_device,
-                download_endpoint=download_url,
-            ),
-        }
-    )
-
-
-@app.route("/api/mobile/device/firmware/<int:artifact_id>/download")
-@mobile_auth_required
-def mobile_device_firmware_download(artifact_id):
-    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    if not target_device:
-        return jsonify({"error": "device not found"}), 404
-
-    artifact = fetch_firmware_artifact(artifact_id, device_id=target_device)
-    if not artifact:
-        return jsonify({"error": "firmware artifact not found"}), 404
-
-    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
-    if not storage_path.is_file():
-        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
-        return jsonify({"error": "firmware artifact file is missing"}), 404
-
-    return build_firmware_artifact_file_response(artifact, storage_path)
+register_mobile_firmware_routes(
+    app,
+    mobile_auth_required=mobile_auth_required,
+    current_mobile_scope_device_id=current_mobile_scope_device_id,
+    fetch_latest_firmware_artifact=fetch_latest_firmware_artifact,
+    fetch_firmware_artifact=fetch_firmware_artifact,
+    build_firmware_artifact_payload=build_firmware_artifact_payload,
+    firmware_artifact_storage_path=firmware_artifact_storage_path,
+    build_firmware_artifact_file_response=build_firmware_artifact_file_response,
+    logger=logger,
+)
 
 @app.route("/device/command")
 def get_command():
@@ -7093,6 +7931,140 @@ def customer_login():
 @app.route("/login/admin", methods=["GET", "POST"])
 def admin_login():
     return handle_role_login("admin")
+
+
+CUSTOMER_PASSWORD_RESET_TEMPLATE = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ title }}</title>
+<style>
+body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Segoe UI",sans-serif;background:#edf4fb;color:#0f172a}
+.card{width:min(440px,calc(100% - 24px));background:#fff;border:1px solid #d8e2ee;border-radius:18px;padding:26px;box-shadow:0 18px 40px rgba(15,23,42,.12)}
+h1{margin:0 0 8px;font-size:30px}p{line-height:1.55;color:#475569}.group{display:grid;gap:6px;margin:14px 0}
+label{font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:800;color:#64748b}
+input{padding:12px 14px;border-radius:12px;border:1px solid #cbd5e1;font:inherit}
+button,.link{display:inline-flex;align-items:center;justify-content:center;min-height:42px;border-radius:12px;padding:10px 16px;font-weight:800;text-decoration:none}
+button{border:0;background:#1769e0;color:#fff}.link{border:1px solid #cbd5e1;color:#0f172a;margin-left:8px}
+.message{padding:12px 14px;border-radius:12px;margin:12px 0}.error{background:#fee2e2;color:#991b1b}.success{background:#dcfce7;color:#166534}
+</style>
+</head>
+<body>
+<main class="card">
+<h1>{{ title }}</h1>
+<p>{{ description }}</p>
+{% if error %}<div class="message error">{{ error }}</div>{% endif %}
+{% if success %}<div class="message success">{{ success }}</div>{% endif %}
+{% if mode == "request" %}
+<form method="post" action="{{ url_for('customer_forgot_password') }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="group"><label for="identifier">Device ID or Email</label><input id="identifier" name="identifier" type="text" autocomplete="username email" required></div>
+<button type="submit">Send Reset Link</button><a class="link" href="{{ url_for('customer_login') }}">Back to Login</a>
+</form>
+{% elif mode == "reset" %}
+<form method="post" action="{{ url_for('customer_reset_password', token=token) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="group"><label for="password">New Password</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="6" required></div>
+<div class="group"><label for="confirm_password">Confirm Password</label><input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="6" required></div>
+<button type="submit">Reset Password</button><a class="link" href="{{ url_for('customer_login') }}">Back to Login</a>
+</form>
+{% else %}
+<a class="link" href="{{ url_for('customer_login') }}">Back to Customer Login</a>
+{% endif %}
+</main>
+</body>
+</html>"""
+
+
+@app.route("/login/customer/forgot-password", methods=["GET", "POST"])
+@csrf_protect
+def customer_forgot_password():
+    error = None
+    success = None
+    if request.method == "POST":
+        identifier = str(request.form.get("identifier", "")).strip()
+        account = None
+        if "@" in identifier:
+            try:
+                account = fetch_customer_account_by_email(identifier)
+            except ValueError:
+                account = None
+        else:
+            account = fetch_customer_account(identifier)
+        if account and account.get("email") and int(account.get("active", 1) or 0) == 1:
+            token, _expires_at = create_customer_password_reset(account)
+            send_customer_password_reset(account, token)
+            log_audit_event(
+                actor="customer-self-service",
+                action="request_customer_password_reset",
+                target_type="customer_account",
+                target_id=account["device_id"],
+                device_id=account["device_id"],
+                details={"email": account.get("email")},
+            )
+        success = "If that customer account has an email on file, a reset link has been sent."
+    return render_template_string(
+        CUSTOMER_PASSWORD_RESET_TEMPLATE,
+        mode="request",
+        title="Forgot Password",
+        description="Enter your registered device ID or email. We will send a reset link to the customer email on file.",
+        error=error,
+        success=success,
+    )
+
+
+@app.route("/login/customer/reset-password/<token>", methods=["GET", "POST"])
+@csrf_protect
+def customer_reset_password(token):
+    reset_row = fetch_customer_password_reset(token)
+    if not customer_password_reset_valid(reset_row):
+        return render_template_string(
+            CUSTOMER_PASSWORD_RESET_TEMPLATE,
+            mode="done",
+            title="Reset Link Expired",
+            description="This password reset link is invalid or expired. Request a new reset link from the customer login page.",
+            error=None,
+            success=None,
+        ), 400
+
+    error = None
+    success = None
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+        if password != confirm_password:
+            error = "New password and confirm password do not match."
+        elif len(password) < 6:
+            error = "Use at least 6 characters for the new password."
+        else:
+            update_customer_password(reset_row["device_id"], password)
+            mark_customer_password_reset_used(reset_row["id"])
+            log_audit_event(
+                actor="customer-self-service",
+                action="complete_customer_password_reset",
+                target_type="customer_account",
+                target_id=reset_row["device_id"],
+                device_id=reset_row["device_id"],
+            )
+            success = "Password reset successfully. You can now sign in with the new password."
+            return render_template_string(
+                CUSTOMER_PASSWORD_RESET_TEMPLATE,
+                mode="done",
+                title="Password Updated",
+                description="Your customer password has been updated.",
+                error=None,
+                success=success,
+            )
+    return render_template_string(
+        CUSTOMER_PASSWORD_RESET_TEMPLATE,
+        mode="reset",
+        token=token,
+        title="Reset Password",
+        description="Choose a new customer dashboard password.",
+        error=error,
+        success=success,
+    )
 
 
 @app.route("/pricing")
@@ -7200,9 +8172,17 @@ def admin_customers():
     if request.method == "POST":
         device_id = request.form.get("device_id", "")
         display_name = request.form.get("display_name", "")
+        email = request.form.get("email", "")
         password = request.form.get("password", "")
         try:
-            account = upsert_customer_account(device_id, password, display_name=display_name)
+            account = upsert_customer_account(
+                device_id,
+                password,
+                display_name=display_name,
+                email=email,
+                service_updates_enabled=form_flag("service_updates_enabled", default=True),
+                marketing_emails_enabled=form_flag("marketing_emails_enabled", default=False),
+            )
             log_audit_event(
                 actor=current_actor_username(),
                 action="upsert_customer_account",
@@ -7211,6 +8191,9 @@ def admin_customers():
                 device_id=account["device_id"],
                 details={
                     "display_name": account.get("display_name"),
+                    "email": account.get("email"),
+                    "service_updates_enabled": bool(account.get("service_updates_enabled")),
+                    "marketing_emails_enabled": bool(account.get("marketing_emails_enabled")),
                     "password_scope": "cloud_only",
                 },
             )
@@ -7303,13 +8286,11 @@ def admin_device_firmware_upload(device_id):
         error = "Choose a valid device before uploading firmware."
     else:
         firmware_file = request.files.get("firmware_file")
-        version_label = request.form.get("version_label", "")
         notes = request.form.get("notes", "")
         try:
             artifact = create_firmware_artifact(
                 normalized_device_id,
                 firmware_file,
-                version_label=version_label,
                 notes=notes,
                 uploaded_by=current_actor_username(),
             )
@@ -7353,6 +8334,140 @@ def admin_device_firmware_upload(device_id):
     )
 
 
+@app.route("/admin/releases/firmware", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_global_firmware_upload():
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+
+    firmware_file = request.files.get("firmware_file")
+    notes = request.form.get("notes", "")
+    try:
+        artifact = create_global_firmware_artifact(
+            firmware_file,
+            notes=notes,
+            uploaded_by=current_actor_username(),
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="upload_global_firmware_artifact",
+            target_type="release",
+            target_id=str(artifact["id"]),
+            details={
+                "artifact_id": artifact["id"],
+                "version_label": artifact.get("version_label"),
+                "original_filename": artifact.get("original_filename"),
+                "md5": artifact.get("md5"),
+                "size_bytes": artifact.get("size_bytes"),
+                "notes": artifact.get("notes"),
+                "delivery": "all_customers_android_local_wifi",
+            },
+        )
+        version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+        success = (
+            f"Global firmware uploaded. {artifact['original_filename']}{version_suffix} "
+            "is now available to all customer Android apps for local Wi-Fi upgrades."
+        )
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/releases/android", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_android_release_upload():
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+
+    apk_file = request.files.get("apk_file")
+    notes = request.form.get("notes", "")
+    try:
+        release = create_android_app_release(
+            apk_file,
+            notes=notes,
+            uploaded_by=current_actor_username(),
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="upload_android_app_release",
+            target_type="release",
+            target_id=str(release["id"]),
+            details={
+                "release_id": release["id"],
+                "version_name": release.get("version_name"),
+                "version_code": release.get("version_code"),
+                "original_filename": release.get("original_filename"),
+                "md5": release.get("md5"),
+                "size_bytes": release.get("size_bytes"),
+                "notes": release.get("notes"),
+                "download_url": url_for("android_app_download", _external=True),
+                "manifest_url": url_for("android_version_manifest", _external=True),
+            },
+        )
+        success = (
+            f"Android app {release['version_name']} ({release['version_code']}) uploaded. "
+            "It is now available from the website footer and Android update checks."
+        )
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/static/version.json")
+def android_version_manifest():
+    release = fetch_latest_android_app_release()
+    apk_url = url_for("android_app_download", _external=True) if release else ""
+    response = jsonify(build_android_release_manifest(release, apk_url))
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/downloads/android/latest.apk")
+def android_app_download():
+    release = fetch_latest_android_app_release()
+    if not release:
+        return Response("Android app release has not been uploaded yet.", status=404, mimetype="text/plain")
+
+    storage_path = android_release_storage_path(release.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Android app release %s is registered but missing on disk: %s", release.get("id"), storage_path)
+        return Response("Android app release file is missing.", status=404, mimetype="text/plain")
+
+    return build_android_apk_file_response(release, storage_path)
+
+
 @app.route("/admin/customers/<device_id>/edit", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -7361,6 +8476,7 @@ def admin_customer_edit(device_id):
     success = None
     search_query = request.values.get("q", "", type=str) or ""
     display_name = request.form.get("display_name", "")
+    email = request.form.get("email", "")
     account = fetch_customer_account(device_id)
 
     if not account:
@@ -7370,6 +8486,9 @@ def admin_customer_edit(device_id):
             updated_account = update_customer_account_profile(
                 account["device_id"],
                 display_name=display_name,
+                email=email,
+                service_updates_enabled=form_flag("service_updates_enabled", default=False),
+                marketing_emails_enabled=form_flag("marketing_emails_enabled", default=False),
             )
             log_audit_event(
                 actor=current_actor_username(),
@@ -7377,9 +8496,14 @@ def admin_customer_edit(device_id):
                 target_type="customer_account",
                 target_id=updated_account["device_id"],
                 device_id=updated_account["device_id"],
-                details={"display_name": updated_account.get("display_name")},
+                details={
+                    "display_name": updated_account.get("display_name"),
+                    "email": updated_account.get("email"),
+                    "service_updates_enabled": bool(updated_account.get("service_updates_enabled")),
+                    "marketing_emails_enabled": bool(updated_account.get("marketing_emails_enabled")),
+                },
             )
-            success = f"Customer name updated for {updated_account['device_id']}."
+            success = f"Customer profile updated for {updated_account['device_id']}."
         except ValueError as exc:
             error = str(exc)
 
@@ -8072,19 +9196,32 @@ def ml_predict():
         return jsonify({"error": "device not found"}), 404
     except FileNotFoundError:
         return jsonify(
-            {
-                "error": (
-                    "Level forecast model artifact not found. Train it first with: "
-                    "python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-hours 1"
-                ),
-                "device_id": scoped_device_id,
-            }
-        ), 404
+            build_unavailable_level_forecast_payload(
+                scoped_device_id,
+                "missing_artifact",
+                "Level forecast model artifact is not installed.",
+                "Train it first with: python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-hours 1",
+            )
+        ), 200
     except ValueError as exc:
-        return jsonify({"error": str(exc), "device_id": scoped_device_id}), 409
+        return jsonify(
+            build_unavailable_level_forecast_payload(
+                scoped_device_id,
+                "insufficient_telemetry",
+                str(exc),
+                "Collect more real telemetry for this device before using ML prediction.",
+            )
+        ), 200
     except RuntimeError as exc:
         logger.warning("ML prediction unavailable for %s: %s", scoped_device_id, exc)
-        return jsonify({"error": str(exc), "device_id": scoped_device_id}), 503
+        return jsonify(
+            build_unavailable_level_forecast_payload(
+                scoped_device_id,
+                "ml_unavailable",
+                str(exc),
+                "Verify ML dependencies and retrain or replace the forecast artifact.",
+            )
+        ), 200
     except Exception:
         logger.exception("Unexpected ML prediction failure for %s", scoped_device_id)
         return jsonify({"error": "ML prediction failed unexpectedly.", "device_id": scoped_device_id}), 500
@@ -8093,13 +9230,23 @@ def ml_predict():
 
 
 logger.info("Initializing database")
-logger.info("Database path resolved to %s (%s)", DB_FILE, DB_PATH_SOURCE)
-for rejected_db_path in DB_PATH_REJECTED:
-    logger.warning(
-        "Database path %s (%s) is not writable; skipping it.",
-        rejected_db_path["path"],
-        rejected_db_path["source"],
+if USING_MYSQL:
+    _mysql_config_for_log = mysql_connection_config()
+    logger.info(
+        "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
+        _mysql_config_for_log.get("host"),
+        _mysql_config_for_log.get("port"),
+        _mysql_config_for_log.get("database"),
+        _mysql_config_for_log.get("user"),
     )
+else:
+    logger.info("Database path resolved to %s (%s)", DB_FILE, DB_PATH_SOURCE)
+    for rejected_db_path in DB_PATH_REJECTED:
+        logger.warning(
+            "Database path %s (%s) is not writable; skipping it.",
+            rejected_db_path["path"],
+            rejected_db_path["source"],
+        )
 validate_runtime_db_configuration()
 init_db()
 ensure_app_secret_key_persisted()

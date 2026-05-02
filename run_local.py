@@ -1,6 +1,11 @@
 import os
+import sys
 
-from flask_app import server as flask_server
+try:
+    from flask_app import server as flask_server
+except RuntimeError as exc:
+    print(f"Smart Water Tank Flask startup failed: {exc}", file=sys.stderr)
+    raise SystemExit(1) from exc
 
 
 app = flask_server.app

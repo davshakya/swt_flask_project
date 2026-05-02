@@ -1,6 +1,8 @@
 # Smart Water Tank Flask Backend
 
-This repository contains the Flask backend for the Smart Water Tank system. It receives telemetry from tank controllers, stores operational state in SQLite, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
+Last refreshed: `2026-04-30`
+
+This repository contains the Flask backend for the Smart Water Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
 This backend is only one part of the wider Smart Water Tank stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
 
@@ -11,7 +13,7 @@ Within the wider workspace:
 - [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
-- [`../swt_flask_test_project/README.md`](../swt_flask_test_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
+- [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
 
 ## What This Project Includes
 
@@ -20,10 +22,13 @@ Within the wider workspace:
 - Admin and customer login flows with separate scopes
 - Browser dashboard, customer dashboard, and per-device detail pages
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
+- Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
+- Firmware artifact upload/download flow for device-scoped and fleet-wide OTA-style updates
+- Admin-managed Android APK releases with customer download and in-app update manifest
 - Optional HTTP relay and MQTT bridge support
 - Optional ML-based tank level forecasting through `/ml/predict`
-- Static Android update manifest at `/static/version.json`
-- Render-ready deployment config with persistent SQLite disk support
+- Android update manifest at `/static/version.json`
+- MySQL/MariaDB schema initialization for local and hosted deployment
 
 ## Repository Layout
 
@@ -33,7 +38,7 @@ Within the wider workspace:
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
-| `flask_app/static/` | PWA assets, frontend JS, and `version.json` for Android update checks |
+| `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
 | `flask_app/.env.example` | Example backend environment file |
 | `device.env.example` | Example shared device identity/settings file |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
@@ -43,14 +48,14 @@ Within the wider workspace:
 | `Flask_deployment_README.md` | cPanel / Passenger deployment guide |
 | `scripts/` | Operational and data utility scripts |
 | `docs/` | Production rollout and support guidance |
-| `data/` | Default local SQLite database location |
+| `data/` | Default local upload/artifact storage location |
 | `tests/` | Small backend-only pytest checks for startup/env parsing and optional simulator imports |
 
 ## Runtime Flow
 
 1. A device sends telemetry to `POST /status`.
-2. Flask authenticates the device using `X-Device-Id` and `X-Device-Key` headers, or `device_id` and `device_key` fields in the JSON body.
-3. Telemetry is stored in SQLite, device registration is refreshed, and operational alerts can be updated.
+2. Flask authenticates the device using the `X-Device-Id` and `X-Device-Key` headers. The legacy `device_id` and `device_key` JSON fields remain accepted for compatibility, but new clients should use headers.
+3. Telemetry is stored in MySQL, device registration is refreshed, and operational alerts can be updated.
 4. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
 5. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
 6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
@@ -71,6 +76,8 @@ Copy-Item device.env.example device.env
 At minimum, update these values:
 
 - `APP_SECRET_KEY`
+- `DB_BACKEND=mysql`
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` or `DATABASE_URL`
 - `LOGIN_PASSWORD`
 - `SWT_DEVICE_ID`
 - `SWT_DEVICE_API_KEY`
@@ -118,7 +125,7 @@ Values already present in the real process environment are preserved. Among the 
 - `device.env` can override values loaded from `.env` files
 - the sibling test repo can layer per-device virtual-device env files on top of the shared settings for its emulator tooling
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_flask_test_project` repo.
+To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_test_cases_project` repo.
 
 ## Important Environment Variables
 
@@ -134,7 +141,7 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 
 ### Device authentication
 
-- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup.
+- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup. Use a unique random API key with at least 32 characters.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with the sibling repo's virtual-device runner.
@@ -142,9 +149,17 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `SWT_FLASK_TEST_REPO/tests/virtual_device*.env` when that sibling repo is available, then falls back to local `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
 - `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
 
+To keep the key synchronized with firmware and Android local builds, run this from the workspace root:
+
+```powershell
+python scripts\sync_device_identity.py --generate-if-placeholder
+```
+
 ### Storage and retention
 
-- `DB_FILE`: SQLite file path. Defaults to `data/tank.db` locally.
+- `DB_BACKEND`: Must be `mysql`.
+- `DATABASE_URL`: Optional MySQL/MariaDB connection URL.
+- `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DATABASE`: MySQL connection settings when `DATABASE_URL` is blank.
 - `DATA_RETENTION_DAYS`: How long telemetry is retained.
 - `TELEMETRY_HISTORY_ENABLED`: If `false`, only the latest snapshot is effectively kept.
 - `MAX_TELEMETRY_ROWS_PER_DEVICE`: Hard cap per device for telemetry history.
@@ -154,14 +169,15 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `DB_MAINTENANCE_ENABLED`: Enables cleanup/maintenance passes.
 - `DB_TARGET_SIZE_MB`: Soft database size target used by maintenance logic.
 - `DB_MAINTENANCE_MIN_INTERVAL_SECONDS`: Minimum spacing between maintenance runs.
-- `DB_WAL_AUTOCHECKPOINT_PAGES`: WAL checkpoint tuning.
+- `DB_WAL_AUTOCHECKPOINT_PAGES`: Legacy setting ignored by MySQL-only deployments.
 - `TEMP_DB_SIZE_GUARD_ENABLED`: Temporary safety flag that skips post-retention maintenance when nothing was pruned and the database is still under the configured size target.
 - `TEMP_HARD_DB_CAP_ENABLED`: Temporary hard-cap flag that trims the oldest telemetry rows when the database stays above the configured size target.
 - `TEMP_HARD_DB_CAP_BATCH_ROWS`: Number of oldest telemetry rows to remove per hard-cap batch while preserving the newest row for each device.
 - `TEMP_HARD_DB_CAP_MAX_BATCHES`: Maximum hard-cap cleanup batches to run in one pass before giving up and logging that the DB is still over target.
-- `REQUIRE_RENDER_PERSISTENT_DB`: If `true`, startup fails on Render unless `/var/data/tank.db` is active.
-- `FIRMWARE_ARTIFACT_DIR`: Optional directory for admin-uploaded OTA firmware binaries. Defaults beside the active SQLite database.
+- `FIRMWARE_ARTIFACT_DIR`: Optional directory for admin-uploaded OTA firmware binaries. Defaults under local `data/`.
 - `FIRMWARE_ARTIFACT_MAX_MB`: Maximum size accepted for an admin OTA firmware upload. Defaults to `4`.
+- `ANDROID_RELEASE_DIR`: Optional directory for admin-uploaded Android APK releases. Defaults under local `data/`.
+- `ANDROID_RELEASE_MAX_MB`: Maximum size accepted for an admin Android APK upload. Defaults to `128`.
 
 ### Relay, notifications, and MQTT
 
@@ -192,8 +208,15 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/login/admin` | Admin login page | Public |
 | `/login/customer` | Customer login page | Public |
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
+| `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload a firmware artifact for one device | Admin |
+| `/admin/releases/firmware` | Upload a global firmware artifact for all customers | Admin |
+| `/admin/releases/android` | Upload a customer Android APK release | Admin |
+| `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
 | `/devices/<device_id>` | Device detail page | Logged-in user |
+| `/static/version.json` | Android update manifest for the latest uploaded APK | Public |
+| `/downloads/android/latest.apk` | Download the latest uploaded Android APK | Public |
 
 ### Device-facing endpoints
 
@@ -233,6 +256,9 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/analytics` | `GET` | Analytics payload |
 | `/api/mobile/last` | `GET` | Latest snapshot |
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
+| `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
+| `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware, falling back to the global fleet firmware |
+| `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device or global fleet release |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
@@ -241,7 +267,9 @@ The mobile API uses signed tokens, not browser sessions.
 
 ## Database and Persistence
 
-The backend auto-creates and maintains its SQLite database on startup. Important tables include:
+The backend auto-creates and maintains its MySQL/MariaDB database schema on startup. Use `DB_BACKEND=mysql` with `DATABASE_URL` or `MYSQL_*` values. SQLite is no longer supported by the Flask app.
+
+Important tables include:
 
 - `tank_data`: Telemetry history and the latest device snapshot fields
 - `device_command_queue`: Commands waiting for or already delivered to devices
@@ -250,14 +278,14 @@ The backend auto-creates and maintains its SQLite database on startup. Important
 - `ops_audit_log`: Audit trail for admin and account actions
 - `customer_accounts`: Customer login records keyed by `device_id`
 - `registered_devices`: Known devices seen by the backend
+- `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
+- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped and global fleet updates
+- `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
-
-SQLite is configured with WAL mode. This works well for a small hosted Flask service, but it still needs persistent storage in production.
 
 Important production notes:
 
-- Do not rely on ephemeral filesystems for production data.
-- On Render, use a mounted disk and keep the DB at `/var/data/tank.db`.
+- Set `DB_BACKEND=mysql` and provide `DATABASE_URL` or `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`.
 - Set `APP_SECRET_KEY` explicitly in production even though the app can persist a generated value.
 - If sessions or stored passwords appear to reset after redeploy, check both `APP_SECRET_KEY` and DB persistence first.
 
@@ -268,17 +296,15 @@ The `/ml/predict` endpoint depends on:
 - the normal `requirements.txt` install
 - a trained artifact, default path: `artifacts/level_forecast_model.pkl`
 
-Train a model from existing telemetry:
+Train a model from exported or migrated telemetry only after preparing a compatible training dataset. The legacy SQLite training helper is no longer part of the normal MySQL runtime path.
 
-```powershell
-python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-hours 1
-```
-
-If the artifact is missing, `/ml/predict` returns an error explaining how to train it.
+If the artifact is missing, ML dependencies are unavailable, or the selected device has too little telemetry,
+`/ml/predict` returns a normal JSON payload with `available=false`, a `reason_code`, and remediation text.
+Core dashboard and telemetry features do not depend on ML being ready.
 
 ## Testing
 
-This repo now keeps only a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
+This repo keeps a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
 
 Install the local unit-test tooling:
 
@@ -299,49 +325,23 @@ pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
 ```
 
-Flask integration, API, Playwright UI, ML script, and virtual-device tests now live in the sibling repository `../swt_flask_test_project`.
+Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.
 
 If you use the sibling test repo's virtual-device runner, point Flask at it with:
 
 ```powershell
-$env:SWT_FLASK_TEST_REPO = "..\\swt_flask_test_project"
+$env:SWT_FLASK_TEST_REPO = "..\\swt_test_cases_project"
 ```
 
 ## Utility Scripts
 
-### Train the forecast model
+### Legacy SQLite Migration Helpers
 
-```powershell
-python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-hours 1
-```
-
-### Export bootstrap values from an existing DB
-
-This is useful when moving an existing DB-backed deployment to environment-backed bootstrap variables.
-
-```powershell
-python scripts/export_render_bootstrap.py data/tank.db
-```
-
-It prints:
-
-- `APP_SECRET_KEY`
-- `DASHBOARD_PASSWORD_HASH`
-- `CUSTOMER_ACCOUNTS_BOOTSTRAP_B64`
-
-### Keep only one device in a database
-
-Useful when cleaning a pilot DB or preparing a single-site handoff.
-
-```powershell
-python scripts/cleanup_single_device_db.py --db-path data/tank.db --keep-device-id swt-000-000-000-001
-```
-
-By default, the script creates a timestamped backup before deleting rows.
+Some scripts remain for one-time migration from older SQLite pilot data, but the Flask app itself now runs MySQL/MariaDB only. Do not use those helpers as the production database path.
 
 ### Virtual Device Emulator
 
-The virtual-device runner and its generated env tooling now live in the sibling repository `../swt_flask_test_project`.
+The virtual-device runner and its generated env tooling live in the sibling repository `../swt_test_cases_project`.
 
 Use that repo for:
 
@@ -370,9 +370,10 @@ Current Render wiring:
 Before deploying:
 
 - replace all placeholder secrets
-- set `DB_FILE=/var/data/tank.db`
+- set `DB_BACKEND=mysql`
+- configure `DATABASE_URL` or `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`
 - keep `SESSION_COOKIE_SECURE=true`
-- attach a persistent disk
+- keep firmware and Android release artifact directories on persistent storage
 - decide whether relay URLs should be enabled in that environment
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
@@ -389,7 +390,7 @@ For rollout and support work, see:
 - `403 invalid device credentials`: Check that the device is sending the correct `device_id` and API key, and that Flask is reading the same values from `device.env` or `DEVICE_KEYS`.
 - Login works but session does not stick locally: Set `SESSION_COOKIE_SECURE=false` when serving over plain `http://`.
 - Graphs or analytics look empty: Confirm `TELEMETRY_HISTORY_ENABLED=true` and make sure the database has at least a few telemetry rows.
-- State disappears after restart or redeploy: Use persistent storage for `DB_FILE` and set a stable `APP_SECRET_KEY`.
+- State disappears after restart or redeploy: Check MySQL persistence and set a stable `APP_SECRET_KEY`.
 - `/ml/predict` fails with missing artifact: Make sure `requirements.txt` is installed and train a model with `scripts/train_level_forecast_model.py`.
 
 ## Recommended First-Run Checklist
@@ -407,3 +408,4 @@ For rollout and support work, see:
 - Workspace overview: [`../README.md`](../README.md)
 - Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
 - Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)
+- Test harness: [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md)

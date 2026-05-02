@@ -56,6 +56,9 @@ def cleanup_test_artifacts() -> None:
 
 
 def pytest_sessionstart(session):
+    os.environ["SWT_ALLOW_SQLITE_FOR_TESTS"] = "1"
+    os.environ["DB_BACKEND"] = "sqlite"
+    os.environ["DATABASE_URL"] = ""
     cleanup_test_artifacts()
 
 

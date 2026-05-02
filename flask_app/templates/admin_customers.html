@@ -76,6 +76,11 @@
 .customer-access-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:18px;align-items:start;margin-top:14px}
 .customer-access-layout .form-grid{margin-top:0}
 .customer-access-form .row{margin-top:2px}
+.release-channel-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;margin-top:16px}
+.release-form-card{display:grid;gap:14px;margin:0;padding:16px;border:1px solid var(--admin-border);border-radius:20px;background:rgba(255,255,255,.5)}
+.release-form-card .row{align-self:end}
+.release-form-card .inline-note{margin:0}
+.customer-access-form{align-content:start}
 .form-helper-stack{display:grid;gap:10px}
 .form-helper-grid{display:grid;gap:10px;grid-template-columns:repeat(3,minmax(150px,1fr));margin-top:16px}
 .form-helper-card{padding:12px 14px;border-radius:18px;background:rgba(255,255,255,.58);border:1px solid var(--admin-border)}
@@ -128,7 +133,7 @@
 .admin-control-room .panel{animation:admin-rise .42s ease both}
 @media (prefers-color-scheme: dark){
 .admin-control-room{--admin-surface:linear-gradient(180deg,rgba(12,28,38,.96),rgba(10,21,30,.92));--admin-panel-highlight:linear-gradient(135deg,rgba(10,82,100,.98),rgba(12,54,80,.96));--admin-card:rgba(10,27,37,.76);--admin-card-strong:rgba(12,31,42,.84);--admin-border:rgba(151,208,221,.12);--admin-shadow:0 34px 72px rgba(0,0,0,.4);--admin-text-soft:#abc4cb;--admin-accent:#78dae7;--admin-accent-strong:#c4f8ff;--admin-table-row:rgba(10,27,37,.64);--admin-table-row-hover:rgba(13,34,44,.92);--admin-match:rgba(120,218,231,.1)}
-.admin-control-room .hero-actions .hero-secondary,.admin-control-room .searchControls .clearLink,.admin-control-room .hero-pill,.admin-control-room .form-helper-card{background:rgba(10,27,37,.74)}
+.admin-control-room .hero-actions .hero-secondary,.admin-control-room .searchControls .clearLink,.admin-control-room .hero-pill,.admin-control-room .form-helper-card,.release-form-card{background:rgba(10,27,37,.74)}
 .hero-focus-card p,.section-helper,.summary-caption,.device-helper,.focus-note{color:var(--admin-text-soft)}
 .action-links a,.action-links button{background:rgba(120,218,231,.08);color:var(--admin-accent-strong)}
 .service-group,.service-preset{background:rgba(10,27,37,.74)}
@@ -142,7 +147,7 @@
 @media (max-width:1180px){
 .hero-grid,.split{grid-template-columns:1fr}
 .admin-control-room .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
-.customer-access-layout,.form-helper-grid{grid-template-columns:1fr}
+.customer-access-layout,.form-helper-grid,.release-channel-layout{grid-template-columns:1fr}
 }
 @media (max-width:760px){
 .admin-control-room{padding:16px}
@@ -347,7 +352,66 @@
         </div>
     </div>
 
-    <div class="panel section-panel" id="add_customer_panel">
+    <div class="panel section-panel" id="release_channel_panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Release Channel</div>
+                <h2>Publish Android and firmware updates</h2>
+                <p class="section-helper">Upload one approved release here and every customer can receive it through the website footer, Android update checks, and local Wi-Fi firmware upgrade flow.</p>
+            </div>
+            <div class="section-badges">
+                {% if latest_android_release %}
+                <span class="pill pill-info">Android {{ latest_android_release.version_name }} ({{ latest_android_release.version_code }})</span>
+                {% else %}
+                <span class="pill pill-warning">No Android APK uploaded</span>
+                {% endif %}
+                {% if latest_global_firmware %}
+                <span class="pill pill-info">Firmware {{ latest_global_firmware.version_label or "--" }}</span>
+                {% else %}
+                <span class="pill pill-warning">No global firmware uploaded</span>
+                {% endif %}
+            </div>
+        </div>
+        {% if error %}
+        <div class="message error" style="margin-top:14px">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="message success" style="margin-top:14px">{{ success }}</div>
+        {% endif %}
+        <div class="release-channel-layout">
+            <form method="post" action="/admin/releases/android" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                <div class="group">
+                    <label for="apk_file">Android APK</label>
+                    <input id="apk_file" name="apk_file" type="file" accept=".apk,application/vnd.android.package-archive" required>
+                </div>
+                <div class="group">
+                    <label for="android_release_notes">Release Notes</label>
+                    <input id="android_release_notes" name="notes" type="text" placeholder="What changed for customers?">
+                </div>
+                <div class="row">
+                    <button type="submit">Publish Android App</button>
+                    <a class="clearLink" href="{{ url_for('android_version_manifest') }}">Version Manifest</a>
+                    <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
+                </div>
+            </form>
+            <form method="post" action="/admin/releases/firmware" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                <div class="group">
+                    <label for="global_firmware_file">Firmware Binary</label>
+                    <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                </div>
+                <div class="group">
+                    <label for="global_firmware_notes">Release Notes</label>
+                    <input id="global_firmware_notes" name="notes" type="text" placeholder="Firmware change summary">
+                </div>
+                <div class="row">
+                    <button type="submit">Publish Global Firmware</button>
+                </div>
+                <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
+            </form>
+        </div>
+    </div>
+
+    <div class="panel section-panel" id="add_customer_panel" style="margin-top:18px">
         <div class="section-head">
             <div>
                 <div class="eyebrow">Add Customer</div>
@@ -366,7 +430,7 @@
         <div class="message success" style="margin-top:14px">{{ success }}</div>
         {% endif %}
         <div class="customer-access-layout">
-            <form method="post" action="/admin/customers" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <form method="post" action="/admin/customers" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1">
                 <div class="group">
                     <label for="device_id">Device ID / Username</label>
                     <input id="device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-001" required>
@@ -374,6 +438,10 @@
                 <div class="group">
                     <label for="display_name">Customer Name</label>
                     <input id="display_name" name="display_name" type="text" placeholder="e.g. Sharma Family">
+                </div>
+                <div class="group">
+                    <label for="email">Customer Email</label>
+                    <input id="email" name="email" type="email" placeholder="customer@example.com" autocomplete="email">
                 </div>
                 <div class="group">
                     <label for="password">Customer Password</label>
@@ -454,6 +522,7 @@
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
                                 <div class="cell-sub">Username: {{ device.device_id }}</div>
+                                <div class="cell-sub">Email: {{ device.email or "Not added" }}</div>
                             </td>
                             <td>
                                 <span class="pill pill-{{ 'online' if device.admin_status == 'online' else 'offline' }}">{{ device.admin_status_label or "Offline" }}</span>
@@ -498,7 +567,6 @@
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Restart</button>
                                     </form>
-                                    <a href="#firmware_shell_{{ loop.index }}" data-panel-toggle aria-controls="firmware_shell_{{ loop.index }}" aria-expanded="false">Firmware</a>
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Name</a>
                                     {% endif %}
@@ -553,24 +621,16 @@
                                             <label for="display_name_{{ loop.index }}">Customer Name</label>
                                             <input id="display_name_{{ loop.index }}" name="display_name" type="text" value="{{ device.display_name or '' }}" placeholder="Customer name">
                                         </div>
-                                        <button type="submit">Save Name</button>
+                                        <div class="group" style="margin:0">
+                                            <label for="email_{{ loop.index }}">Customer Email</label>
+                                            <input id="email_{{ loop.index }}" name="email" type="email" value="{{ device.email or '' }}" placeholder="customer@example.com">
+                                        </div>
+                                        <input type="hidden" name="service_updates_enabled" value="{{ 1 if device.service_updates_enabled else 0 }}">
+                                        <input type="hidden" name="marketing_emails_enabled" value="{{ 1 if device.marketing_emails_enabled else 0 }}">
+                                        <button type="submit">Save Profile</button>
                                     </form>
                                 </div>
                                 {% endif %}
-                                <div id="firmware_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/firmware" class="inline-form inline-form-wide" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <div class="group" style="margin:0">
-                                            <label for="firmware_file_{{ loop.index }}">Firmware Binary</label>
-                                            <input id="firmware_file_{{ loop.index }}" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
-                                        </div>
-                                        <div class="group" style="margin:0">
-                                            <label for="firmware_version_{{ loop.index }}">Version Label</label>
-                                            <input id="firmware_version_{{ loop.index }}" name="version_label" type="text" value="{{ device.firmware_version or '' }}" placeholder="e.g. 1.2.0">
-                                        </div>
-                                        <button type="submit">Upload Firmware</button>
-                                    </form>
-                                    <p class="inline-note">Upload the latest <code>firmware.bin</code> here, then the Android app can deliver it to this device over local Wi-Fi. The local firmware password stays app-managed over LAN.</p>
-                                </div>
                                 <div id="password_shell_{{ loop.index }}" class="inline-panel" hidden>
                                 {% if device.registered_account %}
                                 <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
@@ -581,7 +641,7 @@
                                     <button type="submit">Save Cloud Password</button>
                                 </form>
                                 {% else %}
-                                <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                     <div class="group" style="margin:0">
                                         <label for="password_{{ loop.index }}">Set Cloud Password</label>
                                         <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create cloud password" required>

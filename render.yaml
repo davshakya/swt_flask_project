@@ -16,6 +16,16 @@ services:
         value: 3.11.11
       - key: DB_FILE
         value: /var/data/tank.db
+      - key: DB_BACKEND
+        value: mysql
+      - key: DATABASE_URL
+        sync: false
+      - key: APP_SECRET_KEY
+        sync: false
+      - key: LOGIN_PASSWORD
+        sync: false
+      - key: SWT_DEVICE_KEYS
+        sync: false
       - key: SESSION_COOKIE_SECURE
         value: true
       - key: SESSION_COOKIE_SAMESITE
@@ -49,7 +59,7 @@ services:
       - key: TEMP_HARD_DB_CAP_MAX_BATCHES
         value: 24
       - key: REQUIRE_RENDER_PERSISTENT_DB
-        value: false
+        value: true
       - key: SWT_DEVICE_SOURCE_MODE
         value: real
       - key: RESET_DEVICE_SOURCE_MODE_ON_BOOT
@@ -62,6 +72,8 @@ services:
         value: warning
       - key: GUNICORN_ACCESS_LOG_ENABLED
         value: false
+      - key: RELAY_VERIFY_TLS
+        value: true
       - key: WEB_CONCURRENCY
         value: 1
       - key: GUNICORN_THREADS

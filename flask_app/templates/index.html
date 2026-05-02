@@ -256,14 +256,11 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                     </div>
                     <div class="tank-config" {% if not can_control %}style="display:none"{% endif %}>
                         <div class="input-group">
-                            <label for="tankHeightCm">Tank Height (cm)</label>
-                            <input id="tankHeightCm" type="number" min="30" max="500" step="0.1" placeholder="e.g. 120.0">
-                        </div>
-                        <div class="input-group">
                             <label for="tankCapacityLiters">Tank Capacity (L)</label>
                             <input id="tankCapacityLiters" type="number" min="50" max="50000" step="1" placeholder="e.g. 1000">
                         </div>
-                        <button id="btn_config" class="btn-lite" onclick="sendTankConfig()">Save Tank Config</button>
+                        <button id="btn_config" class="btn-lite" onclick="sendTankConfig()">Save Capacity</button>
+                        <button id="btn_config_calibrate" class="btn-calibrate" onclick="sendTankConfig({calibrateAfter:true})">Save & Calibrate</button>
                     </div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source tank monitoring is off. Start Pump uses only the main tank state.</div>
                     <div id="controlSummary" class="subvalue">{% if can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}Remote control is unavailable for this dashboard right now.{% endif %}</div>
@@ -362,8 +359,10 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             {% else %}
             <div class="card customer-only"><span class="label">Connection</span><div id="customerConnectionStatus" class="value">--</div><div id="customerConnectionInfo" class="subvalue">Waiting for signal quality data.</div></div>
             {% endif %}
-            <div class="card admin-only"><span class="label">Sensor Health</span><div id="sensor_status" class="value">--</div><div id="sensor_info" class="subvalue">HC-SR04 --</div><div id="wifi" class="subvalue">Wi-Fi --</div></div>
-            <div id="lowerTankCard" class="card admin-only"><span class="label">Source Tank</span><div id="lower_tank_status" class="value">--</div><div id="lower_tank_info" class="subvalue">Lower tank data unavailable</div></div>
+            <div class="card admin-only"><span class="label">Tank Height</span><div id="tank_height_cm" class="value">--</div><div class="subvalue">Learned during calibration</div></div>
+            <div class="card admin-only"><span class="label">Upper Main Sensor</span><div id="sensor_status" class="value">--</div><div id="sensor_info" class="subvalue">JSN-SR04T --</div><div id="wifi" class="subvalue">Wi-Fi --</div></div>
+            <div id="lowerTankCard" class="card admin-only"><span class="label">Lower Source Sensor</span><div id="lower_tank_status" class="value">--</div><div id="lower_tank_info" class="subvalue">Lower tank data unavailable</div></div>
+            <div class="card admin-only"><span class="label">Outputs</span><div id="buzzer_status" class="value">--</div><div id="led_display_status" class="subvalue">LED display --</div></div>
             <div class="card admin-only"><span class="label">Recent Starts</span><div id="motor_cycles" class="value">--</div><div class="subvalue">Recent start events</div></div>
             <div class="card admin-only"><span class="label">Recent Leaks</span><div id="leak_events" class="value">--</div><div class="subvalue">Recent leak detections</div></div>
             <div class="card"><span class="label">Consumption Rate</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Percent used per hour</div></div>
@@ -612,6 +611,8 @@ function toneForSignalQuality(value){
 }
 function buildMotorBehaviorSeries(motor){const time=Array.isArray(motor?.time)?motor.time:[];const values=Array.isArray(motor?.values)?motor.values:[];const size=Math.min(time.length,values.length);if(!size)return{time:[],values:[]};const compactTime=[];const compactValues=[];let last=null;for(let i=0;i<size;i+=1){const raw=values[i];if(raw===null||raw===undefined||raw===""){compactTime.push(time[i]);compactValues.push(null);last=null;continue;}const current=Number(raw)===1?1:0;if(last===null||current!==last){compactTime.push(time[i]);compactValues.push(current);last=current;}}if(compactTime[compactTime.length-1]!==time[size-1]){const tail=values[size-1];compactTime.push(time[size-1]);compactValues.push(tail===null||tail===undefined||tail===""?null:(Number(tail)===1?1:0));}return{time:compactTime,values:compactValues};}
 function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)return;el.style.fontWeight="700";if(tone==="ok"){el.style.color="var(--good)";return;}if(tone==="warn"){el.style.color="var(--warn)";return;}if(tone==="bad"){el.style.color="var(--danger)";return;}el.style.color="";}
+function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
+function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
 function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>"):"Pump Status <strong>idle</strong>";}
 function buildSourceTankState(snapshot){
@@ -630,10 +631,14 @@ function buildSourceTankState(snapshot){
     let infoText="Source tank interlock is off.";
     let statusText="Off";
     let statusTone="";
+    let sensorStatusText="Disabled";
+    let sensorStatusTone="warn";
     if(monitoringActive){
         visualLevel=levelAvailable?fmtPct(level):"--";
         volumeText=snapshot?.lower_water_available_label||"--";
         statusText=levelAvailable?fmtPct(level):"--";
+        sensorStatusText=sensorHealthy?"Connected":"Disconnected";
+        sensorStatusTone=sensorHealthy?"ok":"bad";
         if(!levelAvailable||!sensorHealthy){
             hintText="Source tank data is unavailable. Start Pump will stay locked until the source reading recovers.";
             hintTone="warn";
@@ -651,7 +656,7 @@ function buildSourceTankState(snapshot){
             statusTone="ok";
         }
     }
-    return{monitoringActive,serviceOn,levelAvailable,level,sensorHealthy,canStart,hintText,hintTone,visualLevel,volumeText,infoText,statusText,statusTone,lowerSensorRaw};
+    return{monitoringActive,serviceOn,levelAvailable,level,sensorHealthy,canStart,hintText,hintTone,visualLevel,volumeText,infoText,statusText,statusTone,sensorStatusText,sensorStatusTone,lowerSensorRaw};
 }
 function updateCommandAvailability(snapshot=state.data.snapshot){
     const sourceState=buildSourceTankState(snapshot);
@@ -660,10 +665,12 @@ function updateCommandAvailability(snapshot=state.data.snapshot){
     const stopButton=document.getElementById("btn_off");
     const calibrateButton=document.getElementById("btn_calibrate");
     const configButton=document.getElementById("btn_config");
+    const configCalibrateButton=document.getElementById("btn_config_calibrate");
     if(startButton)startButton.disabled=!baseEnabled||!sourceState.canStart;
     if(stopButton)stopButton.disabled=!baseEnabled;
     if(calibrateButton)calibrateButton.disabled=!baseEnabled;
     if(configButton)configButton.disabled=!baseEnabled;
+    if(configCalibrateButton)configCalibrateButton.disabled=!baseEnabled;
 }
 function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.systemStatus){
     if(!snapshot){
@@ -1265,7 +1272,7 @@ function drawAnalyticsCharts(data){
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
-function initTankConfigInputs(){const h=document.getElementById("tankHeightCm");const c=document.getElementById("tankCapacityLiters");if(h&&!h.value)h.value="120";if(c&&!c.value)c.value="1000";}
+function initTankConfigInputs(){const c=document.getElementById("tankCapacityLiters");if(c&&!c.value)c.value="1000";}
 async function savePreferences(){state.preferences={lowThreshold:Number(document.getElementById("lowThreshold").value||20),overflowThreshold:Number(document.getElementById("overflowThreshold").value||95),leakAlerts:document.getElementById("toggleLeak").checked,systemAlerts:document.getElementById("toggleSystem").checked,desktopAlerts:document.getElementById("toggleDesktop").checked};localStorage.setItem("tankDashboardPreferences",JSON.stringify(state.preferences));if(state.preferences.desktopAlerts&&"Notification"in window&&Notification.permission==="default"){await Notification.requestPermission();}if(state.data.snapshot)renderSnapshot(state.data.snapshot);banner("commandBanner","Notification preferences saved on this browser.","info");}
 function desktopNotify(message){if(!state.preferences.desktopAlerts||!("Notification"in window)||Notification.permission!=="granted"||state.lastAlert===message)return;state.lastAlert=message;new Notification("Smart Water Tank",{body:message});}
 function syncSection(key,payload,renderer){state.data[key]=payload;const serialized=JSON.stringify(payload??null);if(state.cache[key]===serialized)return false;state.cache[key]=serialized;renderer(payload);return true;}
@@ -1353,7 +1360,7 @@ function renderSnapshot(snapshot){
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
     const sourceState=buildSourceTankState(snapshot);
     const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
-    setElementVisibility("lowerTankCard",sourceState.monitoringActive);
+    setElementVisibility("lowerTankCard",true);
     setText("mode",currentMode==="MANUAL"?"Manual mode":"Auto mode");
     setText("auto_status",snapshot.auto_status||"--");
     setText("auto_timer",snapshot.auto_timer||"--");
@@ -1370,13 +1377,19 @@ function renderSnapshot(snapshot){
     const sensorConnected=sensorRaw==="OK";
     setText("sensor_status",sensorRaw?(sensorConnected?"Connected":"Disconnected"):"--");
     applyStatusTone("sensor_status",sensorRaw?(sensorConnected?"ok":"bad"):"");
-    setText("sensor_info",sensorRaw?`HC-SR04 ${sensorConnected?"responding":"not responding"}`:"HC-SR04 status unavailable");
+    setText("sensor_info",snapshot.sensor_info||"JSN-SR04T status unavailable");
     setText("wifi",`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi??"--"}`);
-    setText("lower_tank_status",sourceState.statusText);
+    setText("lower_tank_status",sourceState.sensorStatusText);
     setText("lower_tank_info",sourceState.monitoringActive
-        ?`${sourceState.infoText} | ${snapshot.lower_sensor_distance_cm??"--"} cm`
+        ?`${sourceState.statusText} | ${sourceState.infoText} | ${snapshot.lower_sensor_distance_cm??"--"} cm`
         :sourceState.infoText);
-    applyStatusTone("lower_tank_status",sourceState.statusTone);
+    applyStatusTone("lower_tank_status",sourceState.sensorStatusTone);
+    setText("buzzer_status",`Buzzer ${serviceLabel(snapshot.buzzer_service)}`);
+    setText("led_display_status",`LED display ${serviceLabel(snapshot.led_display_service)}`);
+    applyStatusTone("buzzer_status",serviceTone(snapshot.buzzer_service));
+    applyStatusTone("led_display_status",serviceTone(snapshot.led_display_service));
+    const tankHeight=Number(snapshot.tank_height_cm);
+    setText("tank_height_cm",Number.isFinite(tankHeight)&&tankHeight>0?`${tankHeight.toFixed(1)} cm`:"--");
     setText("motor_cycles",snapshot.motor_cycles??"--");
     setText("leak_events",snapshot.leak_events??"--");
     setText("healthStatus",snapshot.tank_health_status||"--");
@@ -1477,8 +1490,8 @@ function renderEvents(events){const timeline=document.getElementById("eventTimel
 
 function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCommandAvailability();}
 async function sendMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
-async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. Keep tank near empty for accurate height learning.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
-async function sendTankConfig(){const height=Number(document.getElementById("tankHeightCm").value);const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(height)||!Number.isFinite(capacity)){banner("commandBanner","Enter both tank height and capacity values.","warn");return;}if(height<30||height>500){banner("commandBanner","Tank height must be between 30 and 500 cm.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({height_cm:String(height),capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});banner("commandBanner",`Tank config queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.height_cm).toFixed(1)} cm, ${Number(payload.capacity_liters).toFixed(1)} L.`,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will use the current sensor reading.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(capacity)){banner("commandBanner","Enter tank capacity in liters.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});let message=`Tank capacity queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.capacity_liters).toFixed(1)} L.`;if(calibrateAfter){const calibrationPayload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});message+=` Calibration queued at ${localizedTimeText(calibrationPayload.queued_at,"now")} to learn tank height.`;}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markRefreshed("Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
 async function refreshLive({force=false}={}){if(customerFeedBlocked()||state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markRefreshed("Live status synced");}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
 async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
