@@ -261,56 +261,13 @@ def resolve_app_secret_key(db_path):
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
-    if resolve_database_backend() == "mysql":
-        raise RuntimeError("APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL.")
+    database_backend = resolve_database_backend()
 
-    try:
-        if db_path.exists():
-            with sqlite3.connect(str(db_path)) as db:
-                row = db.execute(
-                    "SELECT value FROM app_settings WHERE key = ?",
-                    (APP_SECRET_KEY_SETTING,),
-                ).fetchone()
-            persisted_secret = str(row[0] or "").strip() if row else ""
-            if persisted_secret:
-                return persisted_secret, f"{db_path}:app_settings"
-    except (sqlite3.DatabaseError, OSError, IndexError, TypeError):
-        pass
-
-    secret_file = db_path.parent / ".app_secret_key"
-    try:
-        if secret_file.exists():
-            persisted_secret = secret_file.read_text(encoding="utf-8").strip()
-            if persisted_secret:
-                try:
-                    db_path.parent.mkdir(parents=True, exist_ok=True)
-                    with sqlite3.connect(str(db_path)) as db:
-                        db.execute(
-                            """
-                            CREATE TABLE IF NOT EXISTS app_settings(
-                                key TEXT PRIMARY KEY,
-                                value TEXT,
-                                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                            )
-                            """
-                        )
-                        db.execute(
-                            """
-                            INSERT INTO app_settings(key, value, updated_at)
-                            VALUES (?, ?, CURRENT_TIMESTAMP)
-                            ON CONFLICT(key) DO UPDATE SET
-                                value=excluded.value,
-                                updated_at=CURRENT_TIMESTAMP
-                            """,
-                            (APP_SECRET_KEY_SETTING, persisted_secret),
-                        )
-                except (sqlite3.DatabaseError, OSError):
-                    pass
-                return persisted_secret, str(secret_file)
-        secret_file.parent.mkdir(parents=True, exist_ok=True)
-        generated_secret = secrets.token_hex(32)
-        secret_file.write_text(generated_secret, encoding="utf-8")
+    def persist_secret_to_sqlite_settings(secret_value):
+        if database_backend != "sqlite":
+            return
         try:
+            db_path.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(str(db_path)) as db:
                 db.execute(
                     """
@@ -329,12 +286,46 @@ def resolve_app_secret_key(db_path):
                         value=excluded.value,
                         updated_at=CURRENT_TIMESTAMP
                     """,
-                    (APP_SECRET_KEY_SETTING, generated_secret),
+                    (APP_SECRET_KEY_SETTING, secret_value),
                 )
         except (sqlite3.DatabaseError, OSError):
             pass
+
+    if database_backend == "sqlite":
+        try:
+            if db_path.exists():
+                with sqlite3.connect(str(db_path)) as db:
+                    row = db.execute(
+                        "SELECT value FROM app_settings WHERE key = ?",
+                        (APP_SECRET_KEY_SETTING,),
+                    ).fetchone()
+                persisted_secret = str(row[0] or "").strip() if row else ""
+                if persisted_secret:
+                    return persisted_secret, f"{db_path}:app_settings"
+        except (sqlite3.DatabaseError, OSError, IndexError, TypeError):
+            pass
+
+    configured_secret_file = os.environ.get("APP_SECRET_KEY_FILE", "").strip()
+    secret_file = Path(configured_secret_file).expanduser() if configured_secret_file else db_path.parent / ".app_secret_key"
+    if not secret_file.is_absolute():
+        secret_file = (PROJECT_ROOT / secret_file).resolve()
+    try:
+        if secret_file.exists():
+            persisted_secret = secret_file.read_text(encoding="utf-8").strip()
+            if persisted_secret:
+                persist_secret_to_sqlite_settings(persisted_secret)
+                return persisted_secret, str(secret_file)
+        secret_file.parent.mkdir(parents=True, exist_ok=True)
+        generated_secret = secrets.token_hex(32)
+        secret_file.write_text(generated_secret, encoding="utf-8")
+        persist_secret_to_sqlite_settings(generated_secret)
         return generated_secret, str(secret_file)
     except OSError:
+        if database_backend == "mysql":
+            raise RuntimeError(
+                "APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL, "
+                "because no writable APP_SECRET_KEY_FILE fallback is available."
+            )
         return DEFAULT_APP_SECRET_KEY, "default"
 
 

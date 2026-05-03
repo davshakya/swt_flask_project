@@ -129,6 +129,38 @@ print(json.dumps({
     }
 
 
+def test_root_server_exposes_wsgi_application_alias():
+    code = """
+import json
+from server import app, application
+
+print(json.dumps({
+    "same_app": app is application,
+    "import_name": app.import_name,
+    "has_health": any(rule.rule == "/health" for rule in app.url_map.iter_rules()),
+}))
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=PROJECT_ROOT,
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip())
+
+    assert payload == {
+        "same_app": True,
+        "import_name": "flask_app.server",
+        "has_health": True,
+    }
+
+
 def test_local_runner_starts_dev_server_when_executed_as_main(monkeypatch):
     import flask
 
