@@ -128,4 +128,4 @@ Escalate beyond first-line support when:
 - repeated reboots continue after reprovisioning
 - dry-run or pump-failure alerts appear repeatedly without clear cause
 - firmware upload/update repeatedly fails on known-good Wi-Fi
-- SQLite persistence or hosted deployment health appears compromised
+- MySQL/MariaDB persistence or hosted deployment health appears compromised

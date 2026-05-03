@@ -4,8 +4,6 @@ import atexit
 import os
 import shutil
 import stat
-import subprocess
-import time
 from pathlib import Path
 
 
@@ -25,74 +23,6 @@ TEST_ARTIFACT_FILES = (
     PROJECT_ROOT / "data" / "test-startup-env.db-shm",
     PROJECT_ROOT / "data" / "test-startup-env.db-wal",
 )
-MYSQL_ROOT = Path(r"C:\Program Files\MySQL\MySQL Server 8.0")
-MYSQLD = MYSQL_ROOT / "bin" / "mysqld.exe"
-MYSQL_DATA_DIR = PROJECT_ROOT.parent / "mysql-data"
-MYSQL_STDOUT_LOG = PROJECT_ROOT.parent / "mysql-local.out.log"
-MYSQL_STDERR_LOG = PROJECT_ROOT.parent / "mysql-local.err.log"
-
-
-def _mysql_is_listening() -> bool:
-    try:
-        result = subprocess.run(
-            [
-                "powershell",
-                "-NoProfile",
-                "-Command",
-                "if (Get-NetTCPConnection -LocalPort 3306 -State Listen -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return False
-    return result.returncode == 0
-
-
-def _start_local_mysql_if_available() -> None:
-    if _mysql_is_listening() or not MYSQLD.exists():
-        return
-
-    MYSQL_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if not (MYSQL_DATA_DIR / "mysql").exists():
-        subprocess.run(
-            [
-                str(MYSQLD),
-                "--no-defaults",
-                "--initialize-insecure",
-                f"--basedir={MYSQL_ROOT}",
-                f"--datadir={MYSQL_DATA_DIR}",
-            ],
-            timeout=120,
-            check=True,
-        )
-
-    args = [
-        str(MYSQLD),
-        "--no-defaults",
-        f"--basedir={MYSQL_ROOT}",
-        f"--datadir={MYSQL_DATA_DIR}",
-        "--port=3306",
-        "--bind-address=127.0.0.1",
-        "--console",
-    ]
-    with MYSQL_STDOUT_LOG.open("ab") as stdout, MYSQL_STDERR_LOG.open("ab") as stderr:
-        subprocess.Popen(
-            args,
-            stdout=stdout,
-            stderr=stderr,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
-
-    deadline = time.time() + 30
-    while time.time() < deadline:
-        if _mysql_is_listening():
-            return
-        time.sleep(1)
-
-    raise RuntimeError("Local MySQL did not start on 127.0.0.1:3306.")
 
 
 def _remove_readonly(func, path, _exc_info):
@@ -126,15 +56,14 @@ def cleanup_test_artifacts() -> None:
 
 
 def pytest_sessionstart(session):
-    _start_local_mysql_if_available()
     os.environ["DB_BACKEND"] = "mysql"
     os.environ["DATABASE_URL"] = ""
-    os.environ["MYSQL_HOST"] = "127.0.0.1"
-    os.environ["MYSQL_PORT"] = "3306"
-    os.environ["MYSQL_USER"] = "root"
-    os.environ["MYSQL_PASSWORD"] = ""
-    os.environ["MYSQL_DATABASE"] = "swt_pytest"
-    os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-for-local-pytest-only-123456")
+    os.environ.setdefault("MYSQL_HOST", "127.0.0.1")
+    os.environ.setdefault("MYSQL_PORT", "3306")
+    os.environ.setdefault("MYSQL_USER", "root")
+    os.environ.setdefault("MYSQL_PASSWORD", "")
+    os.environ.setdefault("MYSQL_DATABASE", "swt_flask_test")
+    os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-for-mysql-only-backend-2026")
     cleanup_test_artifacts()
 
 

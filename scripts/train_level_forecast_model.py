@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Train a first-pass tank level forecasting model from SQLite telemetry."""
+"""Train a tank level forecasting model from MySQL/MariaDB telemetry."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from flask_app.ml_forecasting import build_feature_matrix, prepare_feature_frame, query_training_rows, validate_forecast_args
+from flask_app.ml_forecasting import build_feature_matrix, query_device_forecast_rows, prepare_feature_frame, validate_forecast_args
 
 # Keep training deterministic and avoid flaky multiprocessing/thread-pool issues
 # on small Windows environments.
@@ -33,7 +33,6 @@ except ImportError as exc:  # pragma: no cover - handled at runtime for optional
     ) from exc
 
 
-DEFAULT_DB_PATH = Path("data/tank.db")
 DEFAULT_OUTPUT_PATH = Path("artifacts/level_forecast_model.pkl")
 
 
@@ -58,14 +57,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Train a HistGradientBoostingRegressor to forecast future tank level.",
     )
     parser.add_argument(
-        "--db-path",
-        default=os.environ.get("DB_FILE") or str(DEFAULT_DB_PATH),
-        help="Path to the SQLite database containing tank_data.",
-    )
-    parser.add_argument(
         "--device-id",
         default="",
-        help="Optional device_id filter. Leave empty to train across all devices.",
+        help="Device ID to train from. Required because training now reads from MySQL through the Flask backend config.",
     )
     parser.add_argument(
         "--resample-minutes",
@@ -202,10 +196,15 @@ def main() -> None:
     args = parse_args()
     validate_args(args)
 
-    db_path = Path(args.db_path)
+    if not str(args.device_id or "").strip():
+        raise SystemExit("--device-id is required for MySQL-backed training.")
+
     output_path = Path(args.output)
     try:
-        raw = query_training_rows(db_path, args.device_id)
+        from flask_app.server import get_db, get_device_source_mode
+
+        with get_db() as db:
+            raw = query_device_forecast_rows(db, args.device_id, device_source=get_device_source_mode())
         training_frame, horizon_steps = prepare_feature_frame(
             raw,
             resample_minutes=args.resample_minutes,
@@ -252,7 +251,6 @@ def main() -> None:
         test_rows=len(test_x),
         metrics=metrics,
         metadata={
-            "db_path": str(db_path),
             "device_id_filter": args.device_id or None,
             "resample_minutes": args.resample_minutes,
             "horizon_hours": args.horizon_hours,

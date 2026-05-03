@@ -15,7 +15,6 @@ import binascii
 import re
 import secrets
 import smtplib
-import sqlite3
 import subprocess
 import time
 import threading
@@ -65,7 +64,6 @@ from flask_app.firmware_artifacts import (
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
 from flask_app.runtime_utils import (
-    db_parent_is_writable,
     env_float,
     env_int,
     env_flag as runtime_env_flag,
@@ -154,7 +152,7 @@ APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
 DEFAULT_PROJECT_ROOT = PROJECT_ROOT
 STATIC_DIR = APP_ROOT / "static"
-RENDER_PERSISTENT_DB_PATH = Path("/var/data/tank.db")
+DATA_DIR = PROJECT_ROOT / "data"
 
 
 def resolve_test_repo_root():
@@ -192,150 +190,15 @@ def strip_ip_address_fields(payload, keep_device_local_url=False):
     return cleaned
 
 
-def is_render_persistent_db_path(db_path):
-    try:
-        return db_path.resolve() == RENDER_PERSISTENT_DB_PATH.resolve()
-    except OSError:
-        return str(db_path).startswith(str(RENDER_PERSISTENT_DB_PATH.parent))
-
-
-def render_persistent_db_active(db_path=None):
-    if not IS_RENDER:
-        return False
-    candidate = normalize_db_path(str(db_path or DB_FILE))
-    return is_render_persistent_db_path(candidate)
-
-
-def resolve_db_path():
-    configured_path = os.environ.get("DB_FILE", "").strip()
-    candidates = []
-    if IS_RENDER:
-        persistent_path = str(RENDER_PERSISTENT_DB_PATH)
-        if configured_path:
-            normalized_configured_path = normalize_db_path(configured_path)
-            if is_render_persistent_db_path(normalized_configured_path):
-                candidates.append((configured_path, "env"))
-            else:
-                candidates.append((persistent_path, "render-persistent-preferred"))
-                candidates.append((configured_path, "env"))
-        else:
-            candidates.append((persistent_path, "render-default"))
-        candidates.append(("/tmp/smart-water-tank/tank.db", "render-fallback"))
-    elif configured_path:
-        candidates.append((configured_path, "env"))
-    else:
-        candidates.append(("data/tank.db", "project-default"))
-
-    rejected = []
-    for raw_path, source in candidates:
-        db_path = normalize_db_path(raw_path)
-        if db_parent_is_writable(db_path):
-            return db_path, source, rejected
-        rejected.append({"source": source, "path": str(db_path)})
-
-    fallback_path = normalize_db_path("data/tank.db")
-    return fallback_path, "forced-project-default", rejected
-
-
 def validate_runtime_db_configuration():
-    if USING_MYSQL:
-        return
-    if not IS_RENDER or not REQUIRE_RENDER_PERSISTENT_DB:
-        return
-    if render_persistent_db_active():
-        return
-
-    rejected_text = ", ".join(
-        f"{entry['path']} ({entry['source']})" for entry in DB_PATH_REJECTED
-    ) or "none recorded"
-    raise RuntimeError(
-        "Render persistent storage is required, but the application resolved "
-        f"DB_FILE={DB_FILE} ({DB_PATH_SOURCE}) instead of {RENDER_PERSISTENT_DB_PATH}. "
-        "Attach a mounted persistent disk at /var/data and deploy on a Render instance type "
-        "that supports disks before restarting this service. "
-        f"Rejected database paths: {rejected_text}."
-    )
+    return
 
 
-def resolve_app_secret_key(db_path):
+def resolve_app_secret_key():
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
-    if resolve_database_backend() == "mysql":
-        raise RuntimeError("APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL.")
-
-    try:
-        if db_path.exists():
-            with sqlite3.connect(str(db_path)) as db:
-                row = db.execute(
-                    "SELECT value FROM app_settings WHERE key = ?",
-                    (APP_SECRET_KEY_SETTING,),
-                ).fetchone()
-            persisted_secret = str(row[0] or "").strip() if row else ""
-            if persisted_secret:
-                return persisted_secret, f"{db_path}:app_settings"
-    except (sqlite3.DatabaseError, OSError, IndexError, TypeError):
-        pass
-
-    secret_file = db_path.parent / ".app_secret_key"
-    try:
-        if secret_file.exists():
-            persisted_secret = secret_file.read_text(encoding="utf-8").strip()
-            if persisted_secret:
-                try:
-                    db_path.parent.mkdir(parents=True, exist_ok=True)
-                    with sqlite3.connect(str(db_path)) as db:
-                        db.execute(
-                            """
-                            CREATE TABLE IF NOT EXISTS app_settings(
-                                key TEXT PRIMARY KEY,
-                                value TEXT,
-                                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                            )
-                            """
-                        )
-                        db.execute(
-                            """
-                            INSERT INTO app_settings(key, value, updated_at)
-                            VALUES (?, ?, CURRENT_TIMESTAMP)
-                            ON CONFLICT(key) DO UPDATE SET
-                                value=excluded.value,
-                                updated_at=CURRENT_TIMESTAMP
-                            """,
-                            (APP_SECRET_KEY_SETTING, persisted_secret),
-                        )
-                except (sqlite3.DatabaseError, OSError):
-                    pass
-                return persisted_secret, str(secret_file)
-        secret_file.parent.mkdir(parents=True, exist_ok=True)
-        generated_secret = secrets.token_hex(32)
-        secret_file.write_text(generated_secret, encoding="utf-8")
-        try:
-            with sqlite3.connect(str(db_path)) as db:
-                db.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS app_settings(
-                        key TEXT PRIMARY KEY,
-                        value TEXT,
-                        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                    )
-                    """
-                )
-                db.execute(
-                    """
-                    INSERT INTO app_settings(key, value, updated_at)
-                    VALUES (?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(key) DO UPDATE SET
-                        value=excluded.value,
-                        updated_at=CURRENT_TIMESTAMP
-                    """,
-                    (APP_SECRET_KEY_SETTING, generated_secret),
-                )
-        except (sqlite3.DatabaseError, OSError):
-            pass
-        return generated_secret, str(secret_file)
-    except OSError:
-        return DEFAULT_APP_SECRET_KEY, "default"
+    raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL backend.")
 
 
 def resolve_device_key_registry():
@@ -361,7 +224,7 @@ def resolve_database_backend():
     if configured_backend:
         if configured_backend in {"mysql", "mariadb"}:
             return "mysql"
-        raise RuntimeError("SQLite is no longer supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
+        raise RuntimeError("Only MySQL/MariaDB is supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
     if database_url.lower().startswith(("mysql://", "mysql+pymysql://", "mariadb://")):
         return "mysql"
     if database_url:
@@ -369,11 +232,9 @@ def resolve_database_backend():
     return "mysql"
 
 
-DB_PATH, DB_PATH_SOURCE, DB_PATH_REJECTED = resolve_db_path()
-DB_FILE = str(DB_PATH)
 DB_BACKEND = resolve_database_backend()
 USING_MYSQL = DB_BACKEND == "mysql"
-APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key(DB_PATH)
+APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key()
 
 app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
@@ -585,7 +446,6 @@ TEMP_DB_SIZE_GUARD_ENABLED = env_flag("TEMP_DB_SIZE_GUARD_ENABLED", default=Fals
 TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
 TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
 TEMP_HARD_DB_CAP_MAX_BATCHES = max(1, env_int("TEMP_HARD_DB_CAP_MAX_BATCHES", 24))
-REQUIRE_RENDER_PERSISTENT_DB = env_flag("REQUIRE_RENDER_PERSISTENT_DB", default=False)
 # Keep local sibling test-repo virtual devices discoverable without extra shell setup.
 SEED_VIRTUAL_DEVICE_ENVS = (
     not IS_RENDER
@@ -626,12 +486,12 @@ RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
 RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
 FIRMWARE_ARTIFACT_DIR = normalize_db_path(
-    os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DB_PATH.parent / "firmware_artifacts"))
+    os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DATA_DIR / "firmware_artifacts"))
 )
 FIRMWARE_ARTIFACT_MAX_BYTES = max(256 * 1024, env_int("FIRMWARE_ARTIFACT_MAX_MB", 4) * 1024 * 1024)
 GLOBAL_FIRMWARE_TARGET = "__all_customers__"
 ANDROID_RELEASE_DIR = normalize_db_path(
-    os.environ.get("ANDROID_RELEASE_DIR", str(DB_PATH.parent / "android_releases"))
+    os.environ.get("ANDROID_RELEASE_DIR", str(DATA_DIR / "android_releases"))
 )
 ANDROID_RELEASE_MAX_BYTES = max(1024 * 1024, env_int("ANDROID_RELEASE_MAX_MB", 128) * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
@@ -1021,14 +881,7 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
                 """,
                 (normalized_device_id, registration_source, key_rule),
             )
-    except sqlite3.OperationalError as exc:
-        if best_effort and database_is_locked_error(exc):
-            note_registered_device_touch(normalized_device_id, registration_source, key_rule)
-            logger.warning(
-                "Skipping registered device bookkeeping for %s because the SQLite database is busy.",
-                normalized_device_id,
-            )
-            return
+    except Exception:
         raise
     note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
@@ -1567,26 +1420,15 @@ def dashboard_home_url(role=None):
 
 def auth_persistence_warnings():
     warnings = []
-    render_persistent_db = render_persistent_db_active()
     if app.config.get("SESSION_COOKIE_SECURE") and not request.is_secure:
         warnings.append(
             "SESSION_COOKIE_SECURE is enabled but this page is being served over HTTP. "
             "Browsers will refuse to keep the login cookie, so users can appear to be logged out immediately. "
             "Use HTTPS or set SESSION_COOKIE_SECURE=false for local/LAN HTTP deployments."
         )
-    if IS_RENDER and not render_persistent_db:
-        warnings.append(
-            f"This Render deployment is using DB_FILE={DB_FILE} instead of /var/data/tank.db on a mounted disk. "
-            "Customer passwords and dashboard data can disappear after redeploys or restarts."
-        )
     if APP_SECRET_KEY_SOURCE == "default":
         warnings.append(
             "APP_SECRET_KEY is using the default fallback value. Browser and mobile sessions can be invalidated after restarts."
-        )
-    elif IS_RENDER and not render_persistent_db and APP_SECRET_KEY_SOURCE != "env":
-        warnings.append(
-            "APP_SECRET_KEY is not explicitly set in Render environment variables. "
-            "If the app falls back to ephemeral storage, everyone can be logged out after redeploys."
         )
     return warnings
 
@@ -1910,13 +1752,6 @@ def build_admin_device_entry(device_id, snapshot=None):
         "lower_tank_service": payload.get("lower_tank_service"),
         "buzzer_service": payload.get("buzzer_service"),
         "led_display_service": payload.get("led_display_service"),
-        "hardware_module": payload.get("hardware_module"),
-        "architecture_mode": payload.get("architecture_mode"),
-        "hardware_module_label": payload.get("hardware_module_label"),
-        "architecture_label": payload.get("architecture_label"),
-        "vertical_distance_m": payload.get("vertical_distance_m"),
-        "module_fit_status": payload.get("module_fit_status"),
-        "module_fit_message": payload.get("module_fit_message"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -2128,7 +1963,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
         return False, None, "invalid device credentials", 403
 
-    if require_key and device_key != matched_rule["key"]:
+    if require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
         logger.warning("Rejected device auth for %s", normalized_device_id)
         return False, None, "invalid device credentials", 403
 
@@ -2331,25 +2166,7 @@ def apply_source_tank_aliases(payload, include_aliases=False):
 
 
 def collect_database_file_sizes(db_path=None):
-    if USING_MYSQL:
-        return {"main_bytes": 0, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 0}
-    base_path = normalize_db_path(str(db_path or DB_FILE))
-    paths = {
-        "main_bytes": base_path,
-        "wal_bytes": Path(f"{base_path}-wal"),
-        "shm_bytes": Path(f"{base_path}-shm"),
-    }
-    sizes = {}
-    total_bytes = 0
-    for key, path in paths.items():
-        try:
-            size_bytes = path.stat().st_size
-        except OSError:
-            size_bytes = 0
-        sizes[key] = int(size_bytes)
-        total_bytes += int(size_bytes)
-    sizes["total_bytes"] = total_bytes
-    return sizes
+    return {"main_bytes": 0, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 0}
 
 
 def database_size_pressure(file_sizes=None):
@@ -2585,98 +2402,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
 
 
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
-    if USING_MYSQL:
-        return False
-    if not DB_MAINTENANCE_ENABLED and not force:
-        return False
-
-    now = time.time()
-    before_sizes = collect_database_file_sizes()
-    size_pressure = database_size_pressure(before_sizes)
-    if (
-        not force
-        and pruned_rows <= 0
-        and not size_pressure
-        and (now - float(db_maintenance_state.get("last_run_at") or 0.0)) < DB_MAINTENANCE_MIN_INTERVAL_SECONDS
-    ):
-        return False
-
-    if not db_maintenance_lock.acquire(blocking=False):
-        return False
-
-    try:
-        now = time.time()
-        before_sizes = collect_database_file_sizes()
-        size_pressure = database_size_pressure(before_sizes)
-        if (
-            not force
-            and pruned_rows <= 0
-            and not size_pressure
-            and (now - float(db_maintenance_state.get("last_run_at") or 0.0)) < DB_MAINTENANCE_MIN_INTERVAL_SECONDS
-        ):
-            return False
-
-        with sqlite3.connect(DB_FILE, timeout=30, check_same_thread=False) as db:
-            db.isolation_level = None
-            db.execute("PRAGMA busy_timeout=30000")
-            db.execute(f"PRAGMA wal_autocheckpoint={DB_WAL_AUTOCHECKPOINT_PAGES}")
-            db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            auto_vacuum_row = db.execute("PRAGMA auto_vacuum").fetchone()
-            auto_vacuum_mode = int(auto_vacuum_row[0] or 0) if auto_vacuum_row else 0
-
-            if auto_vacuum_mode == 2 and (pruned_rows > 0 or size_pressure):
-                page_size_row = db.execute("PRAGMA page_size").fetchone()
-                page_size = int(page_size_row[0] or 4096) if page_size_row else 4096
-                pages_to_free = max(128, min(8192, max(1, int(pruned_rows or 1)) * 2))
-                if size_pressure and DB_TARGET_SIZE_BYTES > 0 and before_sizes["total_bytes"] > DB_TARGET_SIZE_BYTES:
-                    extra_pages = int(
-                        math.ceil((before_sizes["total_bytes"] - DB_TARGET_SIZE_BYTES) / max(page_size, 1))
-                    )
-                    pages_to_free = max(pages_to_free, min(16384, max(256, extra_pages)))
-                db.execute(f"PRAGMA incremental_vacuum({int(pages_to_free)})")
-                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            elif size_pressure:
-                db.execute("VACUUM")
-                db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-
-            db.execute("PRAGMA optimize")
-
-        after_sizes = collect_database_file_sizes()
-        db_maintenance_state.update(
-            {
-                "last_run_at": now,
-                "last_reason": reason,
-                "last_error": None,
-                "last_total_bytes": after_sizes["total_bytes"],
-                "last_skip_at": 0.0,
-                "last_skip_reason": None,
-            }
-        )
-        if pruned_rows > 0 or size_pressure or after_sizes["total_bytes"] != before_sizes["total_bytes"]:
-            log_fn = logger.warning if size_pressure else logger.info
-            log_fn(
-                "Database maintenance (%s): pruned_rows=%s total_bytes=%s->%s target_bytes=%s",
-                reason,
-                pruned_rows,
-                before_sizes["total_bytes"],
-                after_sizes["total_bytes"],
-                DB_TARGET_SIZE_BYTES,
-            )
-        return True
-    except (sqlite3.DatabaseError, OSError) as exc:
-        db_maintenance_state.update(
-            {
-                "last_run_at": time.time(),
-                "last_reason": reason,
-                "last_error": str(exc),
-                "last_skip_at": 0.0,
-                "last_skip_reason": None,
-            }
-        )
-        logger.warning("Database maintenance failed (%s): %s", reason, exc)
-        return False
-    finally:
-        db_maintenance_lock.release()
+    return False
 
 
 def process_telemetry_payload(data, source_ip=None, transport="http"):
@@ -2753,16 +2479,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("lower_tank_service"),
         cleaned.get("buzzer_service"),
         cleaned.get("led_display_service"),
-        cleaned.get("hardware_module"),
-        cleaned.get("architecture_mode"),
-        cleaned.get("node_role"),
-        cleaned.get("sensor_link_type"),
-        cleaned.get("comms_link_type"),
-        cleaned.get("vertical_distance_m"),
-        cleaned.get("tank_node_id"),
-        cleaned.get("control_node_id"),
-        cleaned.get("peer_node_id"),
-        cleaned.get("data_stale_timeout_s"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2786,9 +2502,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
-                buzzer_service, led_display_service,
-                hardware_module, architecture_mode, node_role, sensor_link_type, comms_link_type,
-                vertical_distance_m, tank_node_id, control_node_id, peer_node_id, data_stale_timeout_s
+                buzzer_service, led_display_service
             )
             VALUES ({placeholders})
             """,
@@ -3146,9 +2860,7 @@ def connect_mysql():
 
 
 def get_db():
-    if USING_MYSQL:
-        return connect_mysql()
-    raise RuntimeError("SQLite is no longer supported. Configure MySQL before starting Flask.")
+    return connect_mysql()
 
 
 def ensure_tank_data_columns(cursor):
@@ -3183,21 +2895,16 @@ def ensure_tank_data_columns(cursor):
         "lower_tank_service": "TEXT",
         "buzzer_service": "TEXT",
         "led_display_service": "TEXT",
-        "hardware_module": "TEXT",
-        "architecture_mode": "TEXT",
-        "node_role": "TEXT",
-        "sensor_link_type": "TEXT",
-        "comms_link_type": "TEXT",
-        "vertical_distance_m": "REAL",
-        "tank_node_id": "TEXT",
-        "control_node_id": "TEXT",
-        "peer_node_id": "TEXT",
-        "data_stale_timeout_s": "INTEGER",
     }
 
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE tank_data ADD COLUMN {column} {definition}")
+
+
+def ensure_tank_data_mysql_column_types(cursor):
+    for column in ("runtime", "current_runtime", "last_runtime", "fill_time"):
+        cursor.execute(f"ALTER TABLE tank_data MODIFY COLUMN {column} TEXT")
 
 
 def rebuild_tank_data_without_simulator_columns(cursor):
@@ -3220,10 +2927,10 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             level REAL,
             motor TEXT,
             mode TEXT,
-            runtime REAL,
-            current_runtime REAL,
-            last_runtime REAL,
-            fill_time REAL,
+                    runtime TEXT,
+                    current_runtime TEXT,
+                    last_runtime TEXT,
+                    fill_time TEXT,
             leak TEXT,
             pump_failure TEXT,
             abnormal TEXT,
@@ -3263,16 +2970,6 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_tank_service TEXT,
             buzzer_service TEXT,
             led_display_service TEXT,
-            hardware_module TEXT,
-            architecture_mode TEXT,
-            node_role TEXT,
-            sensor_link_type TEXT,
-            comms_link_type TEXT,
-            vertical_distance_m REAL,
-            tank_node_id TEXT,
-            control_node_id TEXT,
-            peer_node_id TEXT,
-            data_stale_timeout_s INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3625,138 +3322,9 @@ def seed_default_customer_accounts(cursor):
 
 
 def init_db():
-    if USING_MYSQL:
-        logger.info("Initializing MySQL database schema")
-        with get_db() as db:
-            cursor = db.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS tank_data(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    level REAL,
-                    motor TEXT,
-                    mode TEXT,
-                    runtime REAL,
-                    current_runtime REAL,
-                    last_runtime REAL,
-                    fill_time REAL,
-                    leak TEXT,
-                    pump_failure TEXT,
-                    abnormal TEXT,
-                    drip TEXT,
-                    slow_leak TEXT,
-                    pipe_leak TEXT,
-                    ai_usage_rate REAL,
-                    tomorrow_prediction REAL,
-                    dry_run TEXT,
-                    simulator TEXT,
-                    source_tank_simulator TEXT,
-                    wifi TEXT,
-                    wifi_rssi INTEGER,
-                    sensor TEXT,
-                    device_source TEXT,
-                    sensor_info TEXT,
-                    sensor_distance_cm REAL,
-                    tank_height_cm REAL,
-                    tank_capacity_liters REAL,
-                    auto_status TEXT,
-                    auto_status_tone TEXT,
-                    auto_timer TEXT,
-                    tank_health REAL,
-                    free_heap INTEGER,
-                    uptime_s INTEGER,
-                    lower_tank_level REAL,
-                    lower_sensor TEXT,
-                    lower_sensor_info TEXT,
-                    lower_sensor_distance_cm REAL,
-                    device_id TEXT,
-                    firmware_version TEXT,
-                    reset_reason TEXT,
-                    source_ip TEXT,
-                    device_local_url TEXT,
-                    channel_mode TEXT,
-                    telemetry_service TEXT,
-                    command_service TEXT,
-                    ota_service TEXT,
-                    lower_tank_service TEXT,
-                    buzzer_service TEXT,
-                    led_display_service TEXT,
-                    hardware_module TEXT,
-                    architecture_mode TEXT,
-                    node_role TEXT,
-                    sensor_link_type TEXT,
-                    comms_link_type TEXT,
-                    vertical_distance_m REAL,
-                    tank_node_id TEXT,
-                    control_node_id TEXT,
-                    peer_node_id TEXT,
-                    data_stale_timeout_s INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
-            )
-            ensure_tank_data_columns(cursor)
-            ensure_relay_queue_table(cursor)
-            ensure_device_command_queue_table(cursor)
-            ensure_firmware_artifacts_table(cursor)
-            ensure_android_app_releases_table(cursor)
-            ensure_alerts_table(cursor)
-            ensure_audit_table(cursor)
-            ensure_app_settings_table(cursor)
-            seed_bootstrap_dashboard_password(cursor)
-            ensure_customer_accounts_table(cursor)
-            ensure_customer_accounts_columns(cursor)
-            ensure_customer_password_reset_tokens_table(cursor)
-            ensure_device_service_configs_table(cursor)
-            ensure_device_service_configs_columns(cursor)
-            ensure_registered_devices_table(cursor)
-            ensure_ignored_devices_table(cursor)
-            seed_bootstrap_customer_accounts(cursor)
-            seed_default_customer_accounts(cursor)
-            for statement in (
-                "CREATE INDEX idx_created_at ON tank_data(created_at)",
-                "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
-                "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
-                "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
-                "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
-                "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
-                "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
-                "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
-                "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
-                "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
-            ):
-                try:
-                    cursor.execute(statement)
-                except Exception as exc:
-                    if "duplicate" not in str(exc).lower():
-                        raise
-        maybe_reset_device_source_mode_on_boot()
-        deleted_counts = purge_configured_virtual_device_records()
-        if deleted_counts.get("device_ids"):
-            logger.info(
-                "Purged %s configured virtual devices from startup database state.",
-                deleted_counts["device_ids"],
-            )
-        logger.info("MySQL database initialization complete")
-        return
-
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    db_exists = os.path.exists(DB_FILE)
-
-    if db_exists:
-        logger.info("Database file already exists: %s", DB_FILE)
-    else:
-        logger.info("Creating new database file: %s", DB_FILE)
-
-    with sqlite3.connect(DB_FILE) as db:
+    logger.info("Initializing MySQL database schema")
+    with get_db() as db:
         cursor = db.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.execute("PRAGMA synchronous=NORMAL")
-        cursor.execute(f"PRAGMA wal_autocheckpoint={DB_WAL_AUTOCHECKPOINT_PAGES}")
-        auto_vacuum_row = cursor.execute("PRAGMA auto_vacuum").fetchone()
-        auto_vacuum_mode = int(auto_vacuum_row[0] or 0) if auto_vacuum_row else 0
-        if auto_vacuum_mode != 2:
-            cursor.execute("PRAGMA auto_vacuum=INCREMENTAL")
         cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS tank_data(
@@ -3809,21 +3377,12 @@ def init_db():
                 lower_tank_service TEXT,
                 buzzer_service TEXT,
                 led_display_service TEXT,
-                hardware_module TEXT,
-                architecture_mode TEXT,
-                node_role TEXT,
-                sensor_link_type TEXT,
-                comms_link_type TEXT,
-                vertical_distance_m REAL,
-                tank_node_id TEXT,
-                control_node_id TEXT,
-                peer_node_id TEXT,
-                data_stale_timeout_s INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
         ensure_tank_data_columns(cursor)
+        ensure_tank_data_mysql_column_types(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
@@ -3841,66 +3400,23 @@ def init_db():
         ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_created_at
-            ON tank_data(created_at)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_tank_data_device_created
-            ON tank_data(device_id, created_at DESC, id DESC)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_alerts_active
-            ON ops_alerts(active, kind, device_id)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_device_command_queue_target_pending
-            ON device_command_queue(target_device, delivered_at, id DESC)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_firmware_artifacts_target_created
-            ON firmware_artifacts(target_device, created_at DESC, id DESC)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_android_app_releases_created
-            ON android_app_releases(created_at DESC, id DESC)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_audit_device_created
-            ON ops_audit_log(device_id, created_at)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_registered_devices_last_seen
-            ON registered_devices(last_seen_at, device_id)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_device_service_configs_updated
-            ON device_service_configs(updated_at, device_id)
-            """
-        )
-        cursor.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_ignored_devices_updated
-            ON ignored_devices(updated_at, device_id)
-            """
-        )
+        for statement in (
+            "CREATE INDEX idx_created_at ON tank_data(created_at)",
+            "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
+            "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
+            "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
+            "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
+            "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
+            "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
+            "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
+            "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
+            "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
+        ):
+            try:
+                cursor.execute(statement)
+            except Exception as exc:
+                if "duplicate" not in str(exc).lower():
+                    raise
 
     maybe_reset_device_source_mode_on_boot()
     deleted_counts = purge_configured_virtual_device_records()
@@ -3909,7 +3425,7 @@ def init_db():
             "Purged %s configured virtual devices from startup database state.",
             deleted_counts["device_ids"],
         )
-    logger.info("Database initialization complete")
+    logger.info("MySQL database initialization complete")
 
 
 def get_app_setting(key, default=None):
@@ -4945,95 +4461,6 @@ def normalize_service_state(value):
     return "UNKNOWN"
 
 
-def normalize_module_token(value, default="unknown"):
-    text = str(value or "").strip().lower()
-    text = re.sub(r"[^a-z0-9]+", "_", text).strip("_")
-    return text or default
-
-
-def normalize_hardware_module(value, architecture_mode=None, vertical_distance_m=None):
-    raw = normalize_module_token(value)
-    if raw in {"single_controller", "single_esp8266", "single_esp32", "shielded_extension", "dual_esp32", "dual_node", "commercial_multi_node"}:
-        return "dual_esp32" if raw == "dual_node" else raw
-    architecture = normalize_module_token(architecture_mode)
-    if "dual" in architecture:
-        return "dual_esp32"
-    distance = safe_float(vertical_distance_m, -1)
-    if distance >= 20:
-        return "dual_esp32"
-    if distance >= 10:
-        return "shielded_extension"
-    return "single_controller"
-
-
-def normalize_architecture_mode(value, hardware_module=None):
-    raw = normalize_module_token(value)
-    if raw in {"single_esp8266", "single_esp32", "dual_esp32", "multi_node", "shielded_single_controller"}:
-        return raw
-    module = normalize_hardware_module(hardware_module)
-    if module == "dual_esp32":
-        return "dual_esp32"
-    if module == "shielded_extension":
-        return "shielded_single_controller"
-    return "single_esp32"
-
-
-def module_label(hardware_module):
-    return {
-        "single_controller": "Single Controller Kit",
-        "single_esp8266": "Legacy Single Controller Kit",
-        "single_esp32": "Single ESP32 Kit",
-        "shielded_extension": "Shielded Sensor Extension Kit",
-        "dual_esp32": "Dual ESP32 Wireless Kit",
-        "commercial_multi_node": "Commercial Multi-Node Kit",
-    }.get(normalize_module_token(hardware_module), "Module not set")
-
-
-def architecture_label(architecture_mode):
-    return {
-        "single_esp8266": "Legacy single-controller board",
-        "single_esp32": "Single ESP32 controller",
-        "shielded_single_controller": "Single controller with shielded sensor run",
-        "dual_esp32": "Dual ESP32 tank/control nodes",
-        "multi_node": "Multi-node commercial architecture",
-    }.get(normalize_module_token(architecture_mode), "Architecture not set")
-
-
-def infer_recommended_hardware_module(vertical_distance_m):
-    distance = safe_float(vertical_distance_m, -1)
-    if distance >= 20:
-        return "dual_esp32"
-    if distance >= 10:
-        return "shielded_extension"
-    if distance >= 0:
-        return "single_controller"
-    return "unknown"
-
-
-def module_fit_status(hardware_module, vertical_distance_m):
-    current = normalize_hardware_module(hardware_module, vertical_distance_m=vertical_distance_m)
-    recommended = infer_recommended_hardware_module(vertical_distance_m)
-    if recommended == "unknown":
-        return "unknown"
-    if current == recommended or (recommended == "shielded_extension" and current == "dual_esp32"):
-        return "fit"
-    if recommended == "dual_esp32" and current != "dual_esp32":
-        return "upgrade_recommended"
-    return "review"
-
-
-def module_fit_message(hardware_module, vertical_distance_m):
-    status = module_fit_status(hardware_module, vertical_distance_m)
-    recommended = module_label(infer_recommended_hardware_module(vertical_distance_m))
-    if status == "fit":
-        return "Installed module matches the measured site distance."
-    if status == "upgrade_recommended":
-        return f"Measured distance recommends {recommended}; avoid long ultrasonic wiring."
-    if status == "review":
-        return f"Review module selection. Recommended package: {recommended}."
-    return "Record measured vertical distance to confirm the right hardware module."
-
-
 def format_compact_uptime(seconds):
     value = safe_float(seconds, -1)
     if value < 0:
@@ -5244,31 +4671,6 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
     data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
     data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
-    vertical_distance = safe_float(data.get("vertical_distance_m"), -1)
-    data["vertical_distance_m"] = round(vertical_distance, 1) if vertical_distance >= 0 else None
-    data["hardware_module"] = normalize_hardware_module(
-        data.get("hardware_module"),
-        architecture_mode=data.get("architecture_mode"),
-        vertical_distance_m=data["vertical_distance_m"],
-    )
-    data["architecture_mode"] = normalize_architecture_mode(
-        data.get("architecture_mode"),
-        hardware_module=data["hardware_module"],
-    )
-    data["hardware_module_label"] = module_label(data["hardware_module"])
-    data["architecture_label"] = architecture_label(data["architecture_mode"])
-    data["node_role"] = normalize_module_token(data.get("node_role"), default="combined")
-    data["sensor_link_type"] = normalize_module_token(data.get("sensor_link_type"), default="wired_jsn_sr04t")
-    data["comms_link_type"] = normalize_module_token(data.get("comms_link_type"), default="wifi_http")
-    data["tank_node_id"] = normalize_device_id(data.get("tank_node_id")) or None
-    data["control_node_id"] = normalize_device_id(data.get("control_node_id")) or None
-    data["peer_node_id"] = normalize_device_id(data.get("peer_node_id")) or None
-    stale_timeout = safe_float(data.get("data_stale_timeout_s"), -1)
-    data["data_stale_timeout_s"] = int(stale_timeout) if stale_timeout >= 0 else None
-    data["recommended_hardware_module"] = infer_recommended_hardware_module(data["vertical_distance_m"])
-    data["recommended_hardware_module_label"] = module_label(data["recommended_hardware_module"])
-    data["module_fit_status"] = module_fit_status(data["hardware_module"], data["vertical_distance_m"])
-    data["module_fit_message"] = module_fit_message(data["hardware_module"], data["vertical_distance_m"])
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -5587,22 +4989,6 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_tank_service": "UNKNOWN",
         "buzzer_service": "UNKNOWN",
         "led_display_service": "UNKNOWN",
-        "hardware_module": "single_controller",
-        "architecture_mode": "single_esp32",
-        "hardware_module_label": "Single Controller Kit",
-        "architecture_label": "Single ESP32 controller",
-        "node_role": "combined",
-        "sensor_link_type": "wired_jsn_sr04t",
-        "comms_link_type": "wifi_http",
-        "vertical_distance_m": None,
-        "tank_node_id": None,
-        "control_node_id": None,
-        "peer_node_id": None,
-        "data_stale_timeout_s": None,
-        "recommended_hardware_module": "unknown",
-        "recommended_hardware_module_label": "Module not set",
-        "module_fit_status": "unknown",
-        "module_fit_message": "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
@@ -5670,22 +5056,6 @@ def build_system_status_payload(snapshot, device_id=None):
         "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
-        "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
-        "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp32",
-        "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
-        "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP32 controller",
-        "node_role": snapshot.get("node_role") if snapshot else "combined",
-        "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
-        "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
-        "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
-        "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
-        "control_node_id": snapshot.get("control_node_id") if snapshot else None,
-        "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
-        "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
-        "recommended_hardware_module": snapshot.get("recommended_hardware_module") if snapshot else "unknown",
-        "recommended_hardware_module_label": snapshot.get("recommended_hardware_module_label") if snapshot else "Module not set",
-        "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
-        "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -5726,20 +5096,6 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
             "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
             "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
-            "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
-            "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp32",
-            "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
-            "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP32 controller",
-            "node_role": snapshot.get("node_role") if snapshot else "combined",
-            "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
-            "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
-            "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
-            "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
-            "control_node_id": snapshot.get("control_node_id") if snapshot else None,
-            "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
-            "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
-            "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
-            "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
             "wifi": snapshot.get("wifi") if snapshot else None,
             "wifi_rssi": snapshot.get("wifi_rssi") if snapshot else None,
             "sensor": snapshot.get("sensor") if snapshot else None,
@@ -5773,7 +5129,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 def build_db_summary_payload():
     file_sizes = collect_database_file_sizes()
     active_mode = get_device_source_mode()
-    mysql_config = mysql_connection_config() if USING_MYSQL else None
+    mysql_config = mysql_connection_config()
     with get_db() as db:
         telemetry_row = db.execute(
             """
@@ -5806,36 +5162,16 @@ def build_db_summary_payload():
         graph_reason = "Telemetry history is disabled on this deployment."
     elif telemetry_rows < 2:
         graph_reason = "At least two telemetry rows are needed before trend graphs can render."
-    elif not USING_MYSQL and IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB and not render_persistent_db_active():
-        graph_reason = (
-            "Render is not using /var/data/tank.db, so graph history can disappear after restarts."
-        )
 
     database_payload = {
         "backend": DB_BACKEND,
         "is_render": IS_RENDER,
+        "host": mysql_config.get("host"),
+        "port": mysql_config.get("port"),
+        "database": mysql_config.get("database"),
+        "user": mysql_config.get("user"),
+        "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
     }
-    if USING_MYSQL:
-        database_payload.update(
-            {
-                "host": mysql_config.get("host") if mysql_config else None,
-                "port": mysql_config.get("port") if mysql_config else None,
-                "database": mysql_config.get("database") if mysql_config else None,
-                "user": mysql_config.get("user") if mysql_config else None,
-                "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
-            }
-        )
-    else:
-        database_payload.update(
-            {
-                "path": DB_FILE,
-                "path_source": DB_PATH_SOURCE,
-                "persistent_db_expected": bool(IS_RENDER and REQUIRE_RENDER_PERSISTENT_DB),
-                "persistent_db_active": render_persistent_db_active(),
-                "rejected_paths": DB_PATH_REJECTED,
-                "file_sizes_bytes": file_sizes,
-            }
-        )
 
     return {
         "database": database_payload,
@@ -6481,11 +5817,11 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
                     """,
                     (existing["id"],),
                 )
-    except sqlite3.OperationalError as exc:
+    except Exception as exc:
         if best_effort and database_is_locked_error(exc):
             note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
             logger.warning(
-                "Skipping alert bookkeeping for %s/%s because the SQLite database is busy.",
+                "Skipping alert bookkeeping for %s/%s because the database is busy.",
                 str(kind or "").strip() or "alert",
                 normalized_device_id or "global",
             )
@@ -6924,7 +6260,7 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
                 ),
             )
             artifact_id = int(cursor.lastrowid or 0)
-    except sqlite3.DatabaseError as exc:
+    except Exception as exc:
         try:
             storage_path.unlink()
         except OSError:
@@ -6972,7 +6308,7 @@ def create_global_firmware_artifact(uploaded_file, notes="", uploaded_by="admin"
                 ),
             )
             artifact_id = int(cursor.lastrowid or 0)
-    except sqlite3.DatabaseError as exc:
+    except Exception as exc:
         try:
             storage_path.unlink()
         except OSError:
@@ -7063,7 +6399,7 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
                 ),
             )
             release_id = int(cursor.lastrowid or 0)
-    except sqlite3.DatabaseError as exc:
+    except Exception as exc:
         try:
             storage_path.unlink()
         except OSError:
@@ -9186,9 +8522,11 @@ def history():
 
 @app.route("/health")
 def health():
+    mysql_config = mysql_connection_config()
     return {
         "status": "ok",
-        "database": DB_FILE,
+        "database": mysql_config.get("database"),
+        "database_backend": DB_BACKEND,
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
@@ -9441,23 +8779,14 @@ def ml_predict():
 
 
 logger.info("Initializing database")
-if USING_MYSQL:
-    _mysql_config_for_log = mysql_connection_config()
-    logger.info(
-        "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
-        _mysql_config_for_log.get("host"),
-        _mysql_config_for_log.get("port"),
-        _mysql_config_for_log.get("database"),
-        _mysql_config_for_log.get("user"),
-    )
-else:
-    logger.info("Database path resolved to %s (%s)", DB_FILE, DB_PATH_SOURCE)
-    for rejected_db_path in DB_PATH_REJECTED:
-        logger.warning(
-            "Database path %s (%s) is not writable; skipping it.",
-            rejected_db_path["path"],
-            rejected_db_path["source"],
-        )
+_mysql_config_for_log = mysql_connection_config()
+logger.info(
+    "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
+    _mysql_config_for_log.get("host"),
+    _mysql_config_for_log.get("port"),
+    _mysql_config_for_log.get("database"),
+    _mysql_config_for_log.get("user"),
+)
 validate_runtime_db_configuration()
 init_db()
 ensure_app_secret_key_persisted()
@@ -9468,8 +8797,6 @@ elif APP_SECRET_KEY_SOURCE == "default":
     logger.warning("APP_SECRET_KEY fallback is active because no persistent secret could be loaded. Set APP_SECRET_KEY before production.")
 else:
     logger.info("APP_SECRET_KEY loaded from persistent storage at %s.", APP_SECRET_KEY_SOURCE)
-if IS_RENDER and not render_persistent_db_active():
-    logger.warning("Render deployment is using DB_FILE=%s. Use /var/data/tank.db on a mounted disk to preserve dashboard and customer passwords across deploys.", DB_FILE)
 if not TELEMETRY_HISTORY_ENABLED:
     logger.warning("Telemetry history persistence is disabled. This deployment keeps only the latest snapshot per device.")
 elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:

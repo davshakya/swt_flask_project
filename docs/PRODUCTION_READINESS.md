@@ -10,7 +10,7 @@ As the repo stands today:
 
 - firmware, Flask, and Android flows are implemented
 - automated tests exist for Flask, API, UI, ML helpers, and virtual-device tooling in `../swt_test_cases_project`
-- Render deployment wiring exists with persistent disk support
+- Render deployment wiring exists for a MySQL/MariaDB-backed web service
 - cPanel/Passenger deployment guidance exists in `../Flask_deployment_README.md`
 - pilot and support workflows still need disciplined execution before scale
 
@@ -59,12 +59,12 @@ The backend is stateful today because it stores:
 
 For hosted deployment:
 
-- use persistent storage for SQLite
+- use a managed MySQL/MariaDB database with backups
 - back up the DB regularly
 - avoid ephemeral filesystems for production state
-- monitor disk usage and retention windows
+- monitor database storage, backup status, and retention windows
 
-The repo already points Render at `/var/data/tank.db` in [`../render.yaml`](../render.yaml). Keep that pattern or an equivalent persistent DB strategy.
+The repo's Render config expects MySQL/MariaDB connection settings through `DATABASE_URL` or `MYSQL_*` environment variables.
 
 ## 4. Monitoring And Alerting
 

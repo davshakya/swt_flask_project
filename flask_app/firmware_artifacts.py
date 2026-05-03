@@ -28,7 +28,7 @@ def extract_firmware_version_label(payload):
     if not matches:
         raise ValueError(
             "Firmware version was not found inside the uploaded binary. "
-            "Build the firmware first and upload .pio/build/esp32dev/firmware.bin."
+            "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
         )
     return matches[-1].decode("ascii")
 
