@@ -10,7 +10,7 @@ This backend is only one part of the wider Smart Water Tank stack. The shared `d
 
 Within the wider workspace:
 
-- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
+- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP32 controller that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
@@ -54,7 +54,7 @@ Within the wider workspace:
 ## Runtime Flow
 
 1. A device sends telemetry to `POST /status`.
-2. Flask authenticates the device using the `X-Device-Id` and `X-Device-Key` headers. The legacy `device_id` and `device_key` JSON fields remain accepted for compatibility, but new clients should use headers.
+2. Flask authenticates the device using `X-Device-Id` and `X-Device-Key` headers, or `device_id` and `device_key` fields in the JSON body.
 3. Telemetry is stored in MySQL, device registration is refreshed, and operational alerts can be updated.
 4. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
 5. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
@@ -141,19 +141,13 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 
 ### Device authentication
 
-- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup. Use a unique random API key with at least 32 characters.
+- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with the sibling repo's virtual-device runner.
 - `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
 - `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `SWT_FLASK_TEST_REPO/tests/virtual_device*.env` when that sibling repo is available, then falls back to local `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
 - `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
-
-To keep the key synchronized with firmware and Android local builds, run this from the workspace root:
-
-```powershell
-python scripts\sync_device_identity.py --generate-if-placeholder
-```
 
 ### Storage and retention
 

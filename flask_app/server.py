@@ -261,13 +261,56 @@ def resolve_app_secret_key(db_path):
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
-    database_backend = resolve_database_backend()
+    if resolve_database_backend() == "mysql":
+        raise RuntimeError("APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL.")
 
-    def persist_secret_to_sqlite_settings(secret_value):
-        if database_backend != "sqlite":
-            return
+    try:
+        if db_path.exists():
+            with sqlite3.connect(str(db_path)) as db:
+                row = db.execute(
+                    "SELECT value FROM app_settings WHERE key = ?",
+                    (APP_SECRET_KEY_SETTING,),
+                ).fetchone()
+            persisted_secret = str(row[0] or "").strip() if row else ""
+            if persisted_secret:
+                return persisted_secret, f"{db_path}:app_settings"
+    except (sqlite3.DatabaseError, OSError, IndexError, TypeError):
+        pass
+
+    secret_file = db_path.parent / ".app_secret_key"
+    try:
+        if secret_file.exists():
+            persisted_secret = secret_file.read_text(encoding="utf-8").strip()
+            if persisted_secret:
+                try:
+                    db_path.parent.mkdir(parents=True, exist_ok=True)
+                    with sqlite3.connect(str(db_path)) as db:
+                        db.execute(
+                            """
+                            CREATE TABLE IF NOT EXISTS app_settings(
+                                key TEXT PRIMARY KEY,
+                                value TEXT,
+                                updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+                            )
+                            """
+                        )
+                        db.execute(
+                            """
+                            INSERT INTO app_settings(key, value, updated_at)
+                            VALUES (?, ?, CURRENT_TIMESTAMP)
+                            ON CONFLICT(key) DO UPDATE SET
+                                value=excluded.value,
+                                updated_at=CURRENT_TIMESTAMP
+                            """,
+                            (APP_SECRET_KEY_SETTING, persisted_secret),
+                        )
+                except (sqlite3.DatabaseError, OSError):
+                    pass
+                return persisted_secret, str(secret_file)
+        secret_file.parent.mkdir(parents=True, exist_ok=True)
+        generated_secret = secrets.token_hex(32)
+        secret_file.write_text(generated_secret, encoding="utf-8")
         try:
-            db_path.parent.mkdir(parents=True, exist_ok=True)
             with sqlite3.connect(str(db_path)) as db:
                 db.execute(
                     """
@@ -286,46 +329,12 @@ def resolve_app_secret_key(db_path):
                         value=excluded.value,
                         updated_at=CURRENT_TIMESTAMP
                     """,
-                    (APP_SECRET_KEY_SETTING, secret_value),
+                    (APP_SECRET_KEY_SETTING, generated_secret),
                 )
         except (sqlite3.DatabaseError, OSError):
             pass
-
-    if database_backend == "sqlite":
-        try:
-            if db_path.exists():
-                with sqlite3.connect(str(db_path)) as db:
-                    row = db.execute(
-                        "SELECT value FROM app_settings WHERE key = ?",
-                        (APP_SECRET_KEY_SETTING,),
-                    ).fetchone()
-                persisted_secret = str(row[0] or "").strip() if row else ""
-                if persisted_secret:
-                    return persisted_secret, f"{db_path}:app_settings"
-        except (sqlite3.DatabaseError, OSError, IndexError, TypeError):
-            pass
-
-    configured_secret_file = os.environ.get("APP_SECRET_KEY_FILE", "").strip()
-    secret_file = Path(configured_secret_file).expanduser() if configured_secret_file else db_path.parent / ".app_secret_key"
-    if not secret_file.is_absolute():
-        secret_file = (PROJECT_ROOT / secret_file).resolve()
-    try:
-        if secret_file.exists():
-            persisted_secret = secret_file.read_text(encoding="utf-8").strip()
-            if persisted_secret:
-                persist_secret_to_sqlite_settings(persisted_secret)
-                return persisted_secret, str(secret_file)
-        secret_file.parent.mkdir(parents=True, exist_ok=True)
-        generated_secret = secrets.token_hex(32)
-        secret_file.write_text(generated_secret, encoding="utf-8")
-        persist_secret_to_sqlite_settings(generated_secret)
         return generated_secret, str(secret_file)
     except OSError:
-        if database_backend == "mysql":
-            raise RuntimeError(
-                "APP_SECRET_KEY must be set explicitly when DB_BACKEND=mysql or DATABASE_URL points to MySQL, "
-                "because no writable APP_SECRET_KEY_FILE fallback is available."
-            )
         return DEFAULT_APP_SECRET_KEY, "default"
 
 
@@ -349,12 +358,9 @@ def resolve_device_key_registry():
 def resolve_database_backend():
     configured_backend = os.environ.get("DB_BACKEND", "").strip().lower()
     database_url = os.environ.get("DATABASE_URL", "").strip()
-    allow_sqlite_tests = os.environ.get("SWT_ALLOW_SQLITE_FOR_TESTS", "").strip().lower() in {"1", "true", "yes", "on"}
     if configured_backend:
         if configured_backend in {"mysql", "mariadb"}:
             return "mysql"
-        if configured_backend == "sqlite" and allow_sqlite_tests:
-            return "sqlite"
         raise RuntimeError("SQLite is no longer supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
     if database_url.lower().startswith(("mysql://", "mysql+pymysql://", "mariadb://")):
         return "mysql"
@@ -1904,6 +1910,13 @@ def build_admin_device_entry(device_id, snapshot=None):
         "lower_tank_service": payload.get("lower_tank_service"),
         "buzzer_service": payload.get("buzzer_service"),
         "led_display_service": payload.get("led_display_service"),
+        "hardware_module": payload.get("hardware_module"),
+        "architecture_mode": payload.get("architecture_mode"),
+        "hardware_module_label": payload.get("hardware_module_label"),
+        "architecture_label": payload.get("architecture_label"),
+        "vertical_distance_m": payload.get("vertical_distance_m"),
+        "module_fit_status": payload.get("module_fit_status"),
+        "module_fit_message": payload.get("module_fit_message"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -2115,7 +2128,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
         return False, None, "invalid device credentials", 403
 
-    if require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
+    if require_key and device_key != matched_rule["key"]:
         logger.warning("Rejected device auth for %s", normalized_device_id)
         return False, None, "invalid device credentials", 403
 
@@ -2740,6 +2753,16 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("lower_tank_service"),
         cleaned.get("buzzer_service"),
         cleaned.get("led_display_service"),
+        cleaned.get("hardware_module"),
+        cleaned.get("architecture_mode"),
+        cleaned.get("node_role"),
+        cleaned.get("sensor_link_type"),
+        cleaned.get("comms_link_type"),
+        cleaned.get("vertical_distance_m"),
+        cleaned.get("tank_node_id"),
+        cleaned.get("control_node_id"),
+        cleaned.get("peer_node_id"),
+        cleaned.get("data_stale_timeout_s"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2763,7 +2786,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
-                buzzer_service, led_display_service
+                buzzer_service, led_display_service,
+                hardware_module, architecture_mode, node_role, sensor_link_type, comms_link_type,
+                vertical_distance_m, tank_node_id, control_node_id, peer_node_id, data_stale_timeout_s
             )
             VALUES ({placeholders})
             """,
@@ -3123,12 +3148,7 @@ def connect_mysql():
 def get_db():
     if USING_MYSQL:
         return connect_mysql()
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_FILE, timeout=30, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA busy_timeout=30000")
-    conn.execute(f"PRAGMA wal_autocheckpoint={DB_WAL_AUTOCHECKPOINT_PAGES}")
-    return conn
+    raise RuntimeError("SQLite is no longer supported. Configure MySQL before starting Flask.")
 
 
 def ensure_tank_data_columns(cursor):
@@ -3163,6 +3183,16 @@ def ensure_tank_data_columns(cursor):
         "lower_tank_service": "TEXT",
         "buzzer_service": "TEXT",
         "led_display_service": "TEXT",
+        "hardware_module": "TEXT",
+        "architecture_mode": "TEXT",
+        "node_role": "TEXT",
+        "sensor_link_type": "TEXT",
+        "comms_link_type": "TEXT",
+        "vertical_distance_m": "REAL",
+        "tank_node_id": "TEXT",
+        "control_node_id": "TEXT",
+        "peer_node_id": "TEXT",
+        "data_stale_timeout_s": "INTEGER",
     }
 
     for column, definition in required.items():
@@ -3233,6 +3263,16 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_tank_service TEXT,
             buzzer_service TEXT,
             led_display_service TEXT,
+            hardware_module TEXT,
+            architecture_mode TEXT,
+            node_role TEXT,
+            sensor_link_type TEXT,
+            comms_link_type TEXT,
+            vertical_distance_m REAL,
+            tank_node_id TEXT,
+            control_node_id TEXT,
+            peer_node_id TEXT,
+            data_stale_timeout_s INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3641,6 +3681,16 @@ def init_db():
                     lower_tank_service TEXT,
                     buzzer_service TEXT,
                     led_display_service TEXT,
+                    hardware_module TEXT,
+                    architecture_mode TEXT,
+                    node_role TEXT,
+                    sensor_link_type TEXT,
+                    comms_link_type TEXT,
+                    vertical_distance_m REAL,
+                    tank_node_id TEXT,
+                    control_node_id TEXT,
+                    peer_node_id TEXT,
+                    data_stale_timeout_s INTEGER,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
                 """
@@ -3759,6 +3809,16 @@ def init_db():
                 lower_tank_service TEXT,
                 buzzer_service TEXT,
                 led_display_service TEXT,
+                hardware_module TEXT,
+                architecture_mode TEXT,
+                node_role TEXT,
+                sensor_link_type TEXT,
+                comms_link_type TEXT,
+                vertical_distance_m REAL,
+                tank_node_id TEXT,
+                control_node_id TEXT,
+                peer_node_id TEXT,
+                data_stale_timeout_s INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -4885,6 +4945,95 @@ def normalize_service_state(value):
     return "UNKNOWN"
 
 
+def normalize_module_token(value, default="unknown"):
+    text = str(value or "").strip().lower()
+    text = re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+    return text or default
+
+
+def normalize_hardware_module(value, architecture_mode=None, vertical_distance_m=None):
+    raw = normalize_module_token(value)
+    if raw in {"single_controller", "single_esp8266", "single_esp32", "shielded_extension", "dual_esp32", "dual_node", "commercial_multi_node"}:
+        return "dual_esp32" if raw == "dual_node" else raw
+    architecture = normalize_module_token(architecture_mode)
+    if "dual" in architecture:
+        return "dual_esp32"
+    distance = safe_float(vertical_distance_m, -1)
+    if distance >= 20:
+        return "dual_esp32"
+    if distance >= 10:
+        return "shielded_extension"
+    return "single_controller"
+
+
+def normalize_architecture_mode(value, hardware_module=None):
+    raw = normalize_module_token(value)
+    if raw in {"single_esp8266", "single_esp32", "dual_esp32", "multi_node", "shielded_single_controller"}:
+        return raw
+    module = normalize_hardware_module(hardware_module)
+    if module == "dual_esp32":
+        return "dual_esp32"
+    if module == "shielded_extension":
+        return "shielded_single_controller"
+    return "single_esp32"
+
+
+def module_label(hardware_module):
+    return {
+        "single_controller": "Single Controller Kit",
+        "single_esp8266": "Legacy Single Controller Kit",
+        "single_esp32": "Single ESP32 Kit",
+        "shielded_extension": "Shielded Sensor Extension Kit",
+        "dual_esp32": "Dual ESP32 Wireless Kit",
+        "commercial_multi_node": "Commercial Multi-Node Kit",
+    }.get(normalize_module_token(hardware_module), "Module not set")
+
+
+def architecture_label(architecture_mode):
+    return {
+        "single_esp8266": "Legacy single-controller board",
+        "single_esp32": "Single ESP32 controller",
+        "shielded_single_controller": "Single controller with shielded sensor run",
+        "dual_esp32": "Dual ESP32 tank/control nodes",
+        "multi_node": "Multi-node commercial architecture",
+    }.get(normalize_module_token(architecture_mode), "Architecture not set")
+
+
+def infer_recommended_hardware_module(vertical_distance_m):
+    distance = safe_float(vertical_distance_m, -1)
+    if distance >= 20:
+        return "dual_esp32"
+    if distance >= 10:
+        return "shielded_extension"
+    if distance >= 0:
+        return "single_controller"
+    return "unknown"
+
+
+def module_fit_status(hardware_module, vertical_distance_m):
+    current = normalize_hardware_module(hardware_module, vertical_distance_m=vertical_distance_m)
+    recommended = infer_recommended_hardware_module(vertical_distance_m)
+    if recommended == "unknown":
+        return "unknown"
+    if current == recommended or (recommended == "shielded_extension" and current == "dual_esp32"):
+        return "fit"
+    if recommended == "dual_esp32" and current != "dual_esp32":
+        return "upgrade_recommended"
+    return "review"
+
+
+def module_fit_message(hardware_module, vertical_distance_m):
+    status = module_fit_status(hardware_module, vertical_distance_m)
+    recommended = module_label(infer_recommended_hardware_module(vertical_distance_m))
+    if status == "fit":
+        return "Installed module matches the measured site distance."
+    if status == "upgrade_recommended":
+        return f"Measured distance recommends {recommended}; avoid long ultrasonic wiring."
+    if status == "review":
+        return f"Review module selection. Recommended package: {recommended}."
+    return "Record measured vertical distance to confirm the right hardware module."
+
+
 def format_compact_uptime(seconds):
     value = safe_float(seconds, -1)
     if value < 0:
@@ -5095,6 +5244,31 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
     data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
     data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
+    vertical_distance = safe_float(data.get("vertical_distance_m"), -1)
+    data["vertical_distance_m"] = round(vertical_distance, 1) if vertical_distance >= 0 else None
+    data["hardware_module"] = normalize_hardware_module(
+        data.get("hardware_module"),
+        architecture_mode=data.get("architecture_mode"),
+        vertical_distance_m=data["vertical_distance_m"],
+    )
+    data["architecture_mode"] = normalize_architecture_mode(
+        data.get("architecture_mode"),
+        hardware_module=data["hardware_module"],
+    )
+    data["hardware_module_label"] = module_label(data["hardware_module"])
+    data["architecture_label"] = architecture_label(data["architecture_mode"])
+    data["node_role"] = normalize_module_token(data.get("node_role"), default="combined")
+    data["sensor_link_type"] = normalize_module_token(data.get("sensor_link_type"), default="wired_jsn_sr04t")
+    data["comms_link_type"] = normalize_module_token(data.get("comms_link_type"), default="wifi_http")
+    data["tank_node_id"] = normalize_device_id(data.get("tank_node_id")) or None
+    data["control_node_id"] = normalize_device_id(data.get("control_node_id")) or None
+    data["peer_node_id"] = normalize_device_id(data.get("peer_node_id")) or None
+    stale_timeout = safe_float(data.get("data_stale_timeout_s"), -1)
+    data["data_stale_timeout_s"] = int(stale_timeout) if stale_timeout >= 0 else None
+    data["recommended_hardware_module"] = infer_recommended_hardware_module(data["vertical_distance_m"])
+    data["recommended_hardware_module_label"] = module_label(data["recommended_hardware_module"])
+    data["module_fit_status"] = module_fit_status(data["hardware_module"], data["vertical_distance_m"])
+    data["module_fit_message"] = module_fit_message(data["hardware_module"], data["vertical_distance_m"])
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -5413,6 +5587,22 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_tank_service": "UNKNOWN",
         "buzzer_service": "UNKNOWN",
         "led_display_service": "UNKNOWN",
+        "hardware_module": "single_controller",
+        "architecture_mode": "single_esp32",
+        "hardware_module_label": "Single Controller Kit",
+        "architecture_label": "Single ESP32 controller",
+        "node_role": "combined",
+        "sensor_link_type": "wired_jsn_sr04t",
+        "comms_link_type": "wifi_http",
+        "vertical_distance_m": None,
+        "tank_node_id": None,
+        "control_node_id": None,
+        "peer_node_id": None,
+        "data_stale_timeout_s": None,
+        "recommended_hardware_module": "unknown",
+        "recommended_hardware_module_label": "Module not set",
+        "module_fit_status": "unknown",
+        "module_fit_message": "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
@@ -5480,6 +5670,22 @@ def build_system_status_payload(snapshot, device_id=None):
         "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
+        "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
+        "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp32",
+        "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
+        "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP32 controller",
+        "node_role": snapshot.get("node_role") if snapshot else "combined",
+        "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
+        "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
+        "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
+        "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
+        "control_node_id": snapshot.get("control_node_id") if snapshot else None,
+        "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
+        "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
+        "recommended_hardware_module": snapshot.get("recommended_hardware_module") if snapshot else "unknown",
+        "recommended_hardware_module_label": snapshot.get("recommended_hardware_module_label") if snapshot else "Module not set",
+        "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
+        "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -5520,6 +5726,20 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
             "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
             "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
+            "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
+            "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp32",
+            "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
+            "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP32 controller",
+            "node_role": snapshot.get("node_role") if snapshot else "combined",
+            "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
+            "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
+            "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
+            "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
+            "control_node_id": snapshot.get("control_node_id") if snapshot else None,
+            "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
+            "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
+            "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
+            "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
             "wifi": snapshot.get("wifi") if snapshot else None,
             "wifi_rssi": snapshot.get("wifi_rssi") if snapshot else None,
             "sensor": snapshot.get("sensor") if snapshot else None,
@@ -6602,16 +6822,6 @@ def firmware_artifact_storage_path(stored_filename):
 
 def extract_firmware_version_label(payload):
     return extract_firmware_version_label_from_payload(payload)
-
-
-def extract_firmware_version_label(payload):
-    matches = re.findall(rb"\b\d+\.\d+\.\d+\+\d+\b", payload)
-    if not matches:
-        raise ValueError(
-            "Firmware version was not found inside the uploaded binary. "
-            "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
-        )
-    return matches[-1].decode("ascii")
 
 
 def fetch_firmware_artifact(artifact_id, device_id=None):
