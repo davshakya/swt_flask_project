@@ -181,8 +181,8 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 
 ### Relay, notifications, and MQTT
 
-- `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets.
-- `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets.
+- `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets. Bare origins are treated as `/status`, and same-host request loops are skipped.
+- `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets. Bare origins are treated as `/device/command`, and same-host request loops are skipped.
 - `RELAY_VERIFY_TLS`: TLS verification for relay HTTP calls.
 - `ALERT_WEBHOOK_URL`, `SLACK_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `WHATSAPP_WEBHOOK_URL`: Optional alert integrations.
 - `MQTT_ENABLED`: Enables MQTT bridge behavior.

@@ -34,7 +34,7 @@ try:
     import paho.mqtt.client as mqtt
 except Exception:
     mqtt = None
-from flask import Flask, abort, g, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, g, has_request_context, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
 from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -565,6 +565,59 @@ def parse_url_list(value):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def url_origin(value):
+    parsed = urlparse(str(value or "").strip())
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def url_hostname(value):
+    parsed = urlparse(str(value or "").strip())
+    return (parsed.hostname or "").lower()
+
+
+def normalize_relay_target_url(value, default_path):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    parsed = urlparse(raw_value)
+    if not parsed.scheme or not parsed.netloc:
+        logger.warning("Ignoring relay URL without scheme and host: %s", raw_value)
+        return ""
+    if parsed.path in {"", "/"} and default_path:
+        return f"{parsed.scheme}://{parsed.netloc}{default_path}"
+    return raw_value.rstrip("/")
+
+
+def parse_relay_url_list(value, default_path):
+    urls = []
+    seen = set()
+    for item in parse_url_list(value):
+        url = normalize_relay_target_url(item, default_path)
+        if not url:
+            continue
+        key = url.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        urls.append(url)
+    return urls
+
+
+def current_request_origin():
+    if not has_request_context():
+        return ""
+    return url_origin(request.url_root)
+
+
+def relay_urls_for_current_request(urls):
+    request_host = url_hostname(current_request_origin())
+    if not request_host:
+        return list(urls)
+    return [url for url in urls if url_hostname(url) != request_host]
+
+
 def mqtt_feature_enabled():
     return mqtt_state["enabled"] and mqtt is not None
 
@@ -601,8 +654,8 @@ def mqtt_extract_device_id(topic, leaf_name):
     return normalize_device_id(middle)
 
 
-RELAY_STATUS_URL_LIST = parse_url_list(RELAY_STATUS_URLS)
-RELAY_COMMAND_URL_LIST = parse_url_list(RELAY_COMMAND_URLS)
+RELAY_STATUS_URL_LIST = parse_relay_url_list(RELAY_STATUS_URLS, "/status")
+RELAY_COMMAND_URL_LIST = parse_relay_url_list(RELAY_COMMAND_URLS, "/device/command")
 
 
 def parse_device_key_registry(value):
@@ -6592,7 +6645,9 @@ def queue_command(command, target_device=None):
 
 
 def relay_status_to_cloud(payload):
-    if not RELAY_STATUS_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST)
+    if not relay_urls:
+        set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
         return "ok"
     cleaned = sanitize_payload(payload)
     device_id = normalize_device_id(cleaned.get("device_id"))
@@ -6611,7 +6666,7 @@ def relay_status_to_cloud(payload):
             active=True,
         )
         return "drop"
-    for url in RELAY_STATUS_URL_LIST:
+    for url in relay_urls:
         for attempt in range(2):
             try:
                 response = requests.post(
@@ -6653,7 +6708,7 @@ def relay_status_to_cloud(payload):
 
 
 def enqueue_relay_payload(payload):
-    if not RELAY_STATUS_URL_LIST:
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST):
         return
     cleaned = sanitize_payload(payload)
     with get_db() as db:
@@ -6733,9 +6788,10 @@ def cloud_relay_enabled_for_device_source(device_source):
 def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return None
-    if not RELAY_COMMAND_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST)
+    if not relay_urls:
         return None
-    for url in RELAY_COMMAND_URL_LIST:
+    for url in relay_urls:
         for attempt in range(2):
             try:
                 response = requests.get(
@@ -6763,7 +6819,8 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
 def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return False
-    if not RELAY_COMMAND_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST)
+    if not relay_urls:
         return False
 
     try:
@@ -6778,7 +6835,7 @@ def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE
     if "X-Device-Id" not in headers or "X-Device-Key" not in headers:
         return False
 
-    for url in RELAY_COMMAND_URL_LIST:
+    for url in relay_urls:
         ack_url = f"{url.rstrip('/')}/ack"
         for attempt in range(2):
             try:
@@ -6803,7 +6860,8 @@ def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE
 
 
 def relay_status_async(payload):
-    if not RELAY_STATUS_URL_LIST:
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST):
+        set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
         return
     enqueue_relay_payload(payload)
     if not relay_lock.acquire(blocking=False):
@@ -6833,6 +6891,12 @@ def start_relay_drain_worker():
                 relay_lock.release()
 
     threading.Thread(target=loop, daemon=True).start()
+
+
+def resolve_relay_alert_when_disabled():
+    if RELAY_STATUS_URL_LIST:
+        return
+    set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
 
 
 def handle_mqtt_telemetry_message(topic, payload_text):
@@ -8789,6 +8853,7 @@ logger.info(
 )
 validate_runtime_db_configuration()
 init_db()
+resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()
 maybe_reset_admin_password_on_boot()
 if APP_SECRET_KEY_SOURCE == "env":
