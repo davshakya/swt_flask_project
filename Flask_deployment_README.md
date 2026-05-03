@@ -1,6 +1,6 @@
 # Smart Water Tank Flask Deployment Guide
 
-Last refreshed: `2026-05-03`
+Last refreshed: `2026-04-30`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
@@ -68,8 +68,8 @@ Reason:
 Recommended server-side paths:
 
 ```text
-/home/<cpanel-user>/apps/swt_flask_project
-/home/<cpanel-user>/swt_data/
+/home/<cpanel-user>/repositories/swt_flask_project
+/home/<cpanel-user>/swt_data/tank.db
 ```
 
 Keep the app code outside `public_html` when possible and let cPanel map the domain to the Passenger app.
@@ -77,7 +77,7 @@ Keep the app code outside `public_html` when possible and let cPanel map the dom
 Important:
 
 - the remote upload folder must match the `Application root` you configure in cPanel
-- this guide uses `apps/swt_flask_project` as the recommended cPanel application root
+- this guide uses `repositories/swt_flask_project` as the recommended cPanel application root
 - if your FTP hosting layout requires a different folder such as `salewell.co.in/swt_flask`, use that same folder consistently in both cPanel and your upload command
 
 ## Files To Upload
@@ -151,10 +151,10 @@ You can also shorten or lengthen the socket timeout while diagnosing the host:
 python .\scripts\upload_repo_ftps.py --timeout 30
 ```
 
-If your cPanel `Application root` is `apps/swt_flask_project`, override the remote folder when uploading:
+If your cPanel `Application root` is `repositories/swt_flask_project`, override the remote folder when uploading:
 
 ```powershell
-python .\scripts\upload_repo_ftps.py --remote-root apps/swt_flask_project
+python .\scripts\upload_repo_ftps.py "your-ftp-password" --remote-root repositories/swt_flask_project
 ```
 
 If your server certificate starts working correctly later and you want normal FTPS validation again:
@@ -172,12 +172,14 @@ Security note:
 
 ## cPanel Startup Target
 
-For cPanel's **Setup Python App** form, use the root [`server.py`](server.py) file directly.
+For the current working cPanel setup, use [`passenger_wsgi.py`](passenger_wsgi.py) as the startup file and `application` as the entry point.
 
 Why:
 
-- `server.py` already exposes the Flask WSGI app as `app`
-- the stable cPanel values for this project are `server.py` and `app`
+- `passenger_wsgi.py` adds the project root to `sys.path`
+- `passenger_wsgi.py` imports `server.app` and exposes it as `application`
+- `server.py` still exposes `app` and `application`, so direct WSGI imports remain compatible
+- the known-good cPanel values for the SaleWell host are `passenger_wsgi.py` and `application`
 
 The repo also keeps [`passenger_wsgi.py`](passenger_wsgi.py) compatible for hosts that auto-load Passenger's default `passenger_wsgi.py` file. It exposes the same app as `application`, so either cPanel mode can boot the backend.
 
@@ -244,7 +246,7 @@ If your host provides `Application Manager`, use:
 - Application name: `salewell`
 - Deployment domain: `salewell.co.in`
 - Base application URL: `/`
-- Application path: `apps/swt_flask_project`
+- Application path: `repositories/swt_flask_project`
 - Environment: `Production`
 
 After the app is registered, make sure the app uses the repo root as the source directory.
@@ -253,12 +255,12 @@ After the app is registered, make sure the app uses the repo root as the source 
 
 Some hosts show a Python app form with startup fields. If you see those fields, use:
 
-- Python version: `3.11.14`
-- Application root: `apps/swt_flask_project`
+- Python version: `3.11.15`
+- Application root: `repositories/swt_flask_project`
 - Application URL domain: `salewell.co.in`
 - Application URL path: leave the path box empty
-- Startup file: `server.py`
-- Entry point: `app`
+- Startup file: `passenger_wsgi.py`
+- Entry point: `application`
 
 If the URL path field does not allow blank, use `/`.
 
@@ -272,23 +274,49 @@ If your cPanel page looks like the Python form with these fields:
 - `Application startup file`
 - `Application Entry point`
 
-then enter exactly:
+then enter the values from the working SaleWell cPanel deployment:
 
 | Field | Value |
 | --- | --- |
-| Python version | `3.11.14` |
-| Application root | `apps/swt_flask_project` |
+| Python version | `3.11.15` |
+| Application root | `repositories/swt_flask_project` |
 | Application URL | domain `salewell.co.in`, path box empty |
-| Application startup file | `server.py` |
-| Application Entry point | `app` |
+| Application startup file | `passenger_wsgi.py` |
+| Application Entry point | `application` |
 
 Important:
 
 - `Application root` is relative to your cPanel home directory
-- the app files should end up in `/home/<cpanel-user>/apps/swt_flask_project/`
+- the app files should end up in `/home/<cpanel-user>/repositories/swt_flask_project/`
 - this setup makes `https://salewell.co.in/` serve the Flask app
-- prefer `server.py` with entry point `app` in Setup Python App
-- if your host auto-loads Passenger's default file, `passenger_wsgi.py` now exposes `application`
+- the current known-good cPanel branch is `swt_cpanel_changes`
+- `passenger_wsgi.py` imports `server.app` and exposes it as `application`
+- `server.py` also exposes both `app` and `application`, but the working cPanel screen uses `passenger_wsgi.py` and `application`
+
+### Working public_html .htaccess
+
+The Python app should create the Passenger mapping in `/home/<cpanel-user>/public_html/.htaccess`.
+For the current SaleWell host, the working content is:
+
+```apache
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/salewellco/repositories/swt_flask_project"
+PassengerBaseURI "/"
+PassengerPython "/home/salewellco/virtualenv/repositories/swt_flask_project/3.11/bin/python"
+PassengerAppType wsgi
+PassengerStartupFile passenger_wsgi.py
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+```
+
+Do not duplicate the CloudLinux Passenger block. If `.htaccess` contains two Passenger blocks, keep only one block and make it match the values above.
+
+If `https://salewell.co.in/` shows `Index of /`, the domain is still serving `public_html` directly instead of the Passenger app. Check that:
+
+- cPanel Python app `Application URL` is `salewell.co.in/`
+- cPanel Python app `Application root` is `repositories/swt_flask_project`
+- `.htaccess` exists in `public_html` and hidden files are visible in File Manager
+- the Passenger block points to `/home/salewellco/repositories/swt_flask_project`
+- the app was restarted after saving Python app settings and `.htaccess`
 
 ### Environment variables section in cPanel
 
@@ -314,7 +342,7 @@ If your cPanel UI has a dependency install button such as `Run Pip Install` or `
 Before the first restart, make sure this path exists on the server for upload artifacts:
 
 ```text
-/home/<cpanel-user>/apps/swt_flask_project/
+/home/<cpanel-user>/repositories/swt_flask_project/
 /home/<cpanel-user>/swt_data/
 ```
 
@@ -348,14 +376,13 @@ After the basic smoke test, also verify:
 - `/api/mobile/device/services` responds after a successful mobile login
 - customer login works for at least one mapped device account
 - admin firmware uploads land in the configured artifact directory
-- admin Android APK uploads are visible at `/static/version.json` and `/downloads/android/latest.apk`
-- MySQL tables are created in the configured database
+- the SQLite file is being written under the persistent path you configured
 
 ## Quick Create Checklist
 
 1. In cPanel, create the Python app with the values listed above.
 2. Upload the repo into the same folder you configured as the cPanel `Application root`.
-3. Recommended path: `/home/<cpanel-user>/apps/swt_flask_project/`.
+3. Recommended path: `/home/<cpanel-user>/repositories/swt_flask_project/`.
 4. Create `/home/<cpanel-user>/swt_data/`.
 5. Add `flask_app/.env`.
 6. Add `device.env`.
@@ -367,9 +394,9 @@ After the basic smoke test, also verify:
 
 - keep `SESSION_COOKIE_SECURE=true` because the site should run on HTTPS
 - replace every `change-me` value before first launch
-- back up the MySQL database regularly
-- keep firmware artifact storage on persistent storage
-- keep Android release storage on persistent storage
+- back up the SQLite database regularly
+- keep `DB_FILE` on persistent storage
+- keep firmware artifact storage on persistent storage too; by default it is placed beside the active SQLite database
 - `requirements.txt` already includes the dependency needed by `/ml/predict`
 
 ## Common Problems
@@ -382,8 +409,7 @@ Check:
 - missing environment variables
 - missing dependencies
 - wrong Passenger startup file
-- in Setup Python App, prefer `server.py` with entry point `app`
-- if your host only supports the default Passenger file, confirm `passenger_wsgi.py` is uploaded at the app root
+- for the current SaleWell cPanel setup, keep the startup file as `passenger_wsgi.py` and the entry point as `application`
 
 ### Login opens but session does not persist
 

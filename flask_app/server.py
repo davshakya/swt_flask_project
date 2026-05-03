@@ -6604,6 +6604,16 @@ def extract_firmware_version_label(payload):
     return extract_firmware_version_label_from_payload(payload)
 
 
+def extract_firmware_version_label(payload):
+    matches = re.findall(rb"\b\d+\.\d+\.\d+\+\d+\b", payload)
+    if not matches:
+        raise ValueError(
+            "Firmware version was not found inside the uploaded binary. "
+            "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
+        )
+    return matches[-1].decode("ascii")
+
+
 def fetch_firmware_artifact(artifact_id, device_id=None):
     try:
         normalized_artifact_id = int(artifact_id)
