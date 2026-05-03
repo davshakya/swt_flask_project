@@ -69,8 +69,6 @@ EXCLUDED_FILE_PATTERNS = (
     "*.db",
     "*.db-shm",
     "*.db-wal",
-    "*.sqlite",
-    "*.sqlite3",
     "*.log",
     "*.pem",
 )

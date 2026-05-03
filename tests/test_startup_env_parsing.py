@@ -72,11 +72,9 @@ print(json.dumps({{"bind": config["bind"], "workers": config["workers"], "thread
 
 
 def test_server_import_falls_back_when_startup_numeric_env_values_are_invalid():
-    db_path = PROJECT_ROOT / "data" / "startup-invalid-env.db"
     env = os.environ.copy()
     env.update(
         {
-            "DB_FILE": str(db_path),
             "SESSION_LIFETIME_HOURS": "",
             "TANK_CAPACITY_LITERS": "not-a-number",
             "DATA_RETENTION_DAYS": "bad",

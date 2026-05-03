@@ -8749,7 +8749,7 @@ def ml_predict():
                 scoped_device_id,
                 "missing_artifact",
                 "Level forecast model artifact is not installed.",
-                "Train it first with: python scripts/train_level_forecast_model.py --db-path data/tank.db --horizon-hours 1",
+                "Train it first with: python scripts/train_level_forecast_model.py --device-id <device-id> --horizon-hours 1",
             )
         ), 200
     except ValueError as exc:
