@@ -1,6 +1,6 @@
 # Smart Water Tank Flask Deployment Guide
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-05-03`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
@@ -31,8 +31,8 @@ swt_flask_project/
 
 How it works:
 
-- `server.py` exposes the Flask app as `app`
-- `passenger_wsgi.py` exposes that app to Passenger as `application`
+- `server.py` exposes the Flask app as both `app` and `application`
+- `passenger_wsgi.py` exposes the same Flask app as both `app` and `application` for hosts that auto-load Passenger's default file
 - `requirements.txt` is the single dependency file for the whole project
 - `flask_app/.env` holds backend settings
 - `device.env` holds shared device/cloud settings
@@ -172,13 +172,14 @@ Security note:
 
 ## cPanel Startup Target
 
-For this cPanel setup, use the root [`server.py`](server.py) file directly.
+For cPanel's **Setup Python App** form, use the root [`server.py`](server.py) file directly.
 
 Why:
 
 - `server.py` already exposes the Flask WSGI app as `app`
-- using `passenger_wsgi.py` as the cPanel startup target caused a recursive self-load on this host
 - the stable cPanel values for this project are `server.py` and `app`
+
+The repo also keeps [`passenger_wsgi.py`](passenger_wsgi.py) compatible for hosts that auto-load Passenger's default `passenger_wsgi.py` file. It exposes the same app as `application`, so either cPanel mode can boot the backend.
 
 ## Required Configuration Files
 
@@ -286,8 +287,8 @@ Important:
 - `Application root` is relative to your cPanel home directory
 - the app files should end up in `/home/<cpanel-user>/apps/swt_flask_project/`
 - this setup makes `https://salewell.co.in/` serve the Flask app
-- do not set the startup file to `passenger_wsgi.py` for this host; use `server.py`
-- do not set the entry point to `application`; use `app`
+- prefer `server.py` with entry point `app` in Setup Python App
+- if your host auto-loads Passenger's default file, `passenger_wsgi.py` now exposes `application`
 
 ### Environment variables section in cPanel
 
@@ -381,7 +382,8 @@ Check:
 - missing environment variables
 - missing dependencies
 - wrong Passenger startup file
-- if the log shows `imp.load_source(... 'passenger_wsgi.py')` repeating, switch cPanel to `server.py` with entry point `app`
+- in Setup Python App, prefer `server.py` with entry point `app`
+- if your host only supports the default Passenger file, confirm `passenger_wsgi.py` is uploaded at the app root
 
 ### Login opens but session does not persist
 

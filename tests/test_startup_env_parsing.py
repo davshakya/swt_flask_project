@@ -132,12 +132,46 @@ print(json.dumps({
 def test_root_server_exposes_wsgi_application_alias():
     code = """
 import json
-from server import app, application
+import server
 
 print(json.dumps({
-    "same_app": app is application,
-    "import_name": app.import_name,
-    "has_health": any(rule.rule == "/health" for rule in app.url_map.iter_rules()),
+    "same_app": server.app is server.application,
+    "import_name": server.app.import_name,
+    "has_health": any(rule.rule == "/health" for rule in server.app.url_map.iter_rules()),
+    "delegates_config": isinstance(server.TANK_CAPACITY_LITERS, float),
+}))
+"""
+
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=PROJECT_ROOT,
+        env=os.environ.copy(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads(result.stdout.strip())
+
+    assert payload == {
+        "same_app": True,
+        "import_name": "flask_app.server",
+        "has_health": True,
+        "delegates_config": True,
+    }
+
+
+def test_passenger_wsgi_exposes_app_and_application_aliases():
+    code = """
+import json
+import passenger_wsgi
+
+print(json.dumps({
+    "same_app": passenger_wsgi.app is passenger_wsgi.application,
+    "import_name": passenger_wsgi.application.import_name,
+    "has_health": any(rule.rule == "/health" for rule in passenger_wsgi.application.url_map.iter_rules()),
 }))
 """
 
