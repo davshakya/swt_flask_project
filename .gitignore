@@ -3,10 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# # Virtual environments
-# .venv/
-# venv/
-# env/
+# Virtual environments
+.venv/
+venv/
+env/
 
 # Test and tool caches
 .pytest_cache/
@@ -27,12 +27,12 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Local environment and secrets
-.env
-device.env
-flask_app/.env
-tests/virtual_device.env
-tests/virtual_devices/*.env
+# # Local environment and secrets
+# .env
+# device.env
+# flask_app/.env
+# tests/virtual_device.env
+# tests/virtual_devices/*.env
 
 # Runtime data and local databases
 data/
