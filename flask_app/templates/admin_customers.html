@@ -781,6 +781,9 @@
 
     function setPanelState(panel, open) {
         if (!panel) return;
+        if (open && isModalPanel(panel) && panel.parentElement !== document.body) {
+            document.body.appendChild(panel);
+        }
         panel.hidden = !open;
         panel.classList.toggle("is-open", open);
         const toggle = panelToggleFor(panel);
