@@ -6725,6 +6725,14 @@ def relay_status_to_cloud(payload):
                         active=True,
                     )
                     return "drop"
+                if response.status_code == 503:
+                    logger.info(
+                        "Relay telemetry target is temporarily unavailable for %s (%s). Payload will retry without raising an admin alert.",
+                        device_id,
+                        url,
+                    )
+                    set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
+                    return "retry"
                 set_alert("relay_failure", "warning", f"Cloud relay returned HTTP {response.status_code}.", active=True)
             except requests.RequestException as exc:
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)

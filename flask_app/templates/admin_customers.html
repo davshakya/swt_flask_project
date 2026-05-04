@@ -466,13 +466,13 @@
             <div class="section-head">
                 <div>
                     <div class="eyebrow">Devices</div>
-                    <h2>Fleet search, sort, and action center</h2>
-                    <p class="section-helper">Search by device ID or customer name, sort by status or alerts, and move straight into the next action.</p>
+                    <h2>Fleet search and live status</h2>
+                    <p class="section-helper">Search by device ID or customer name, then scan live firmware, telemetry, pump, alert, and sync state.</p>
                 </div>
                 <div class="section-badges">
                     <span class="pill pill-info">{{ ns.missing_accounts }} without customer access</span>
                     <span class="pill pill-warning">{{ ns.cloud_feed_off }} cloud feed paused</span>
-                    <span class="pill pill-clear">Sort by status or alerts to triage first</span>
+                    <span class="pill pill-clear">Status-only view for faster triage</span>
                 </div>
             </div>
             <form method="get" action="/admin/customers" class="searchBar">
@@ -496,13 +496,14 @@
                     <thead>
                         <tr>
                             <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
+                            <th>FW</th>
+                            <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Telemetry</button></th>
                             <th>Customer Name</th>
                             <th>Email</th>
-                            <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Telemetry</button></th>
                             <th>Pump Status</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Active Alerts / Warnings</button></th>
                             <th>Last Sync</th>
-                            <th>Actions</th>
+                            <th>Manage</th>
                         </tr>
                     </thead>
                     <tbody id="device_table_body">
@@ -510,15 +511,15 @@
                         <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
                             <td>
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
-                                <div class="cell-sub">Firmware: {{ device.firmware_version or "--" }}</div>
+                            </td>
+                            <td>{{ device.firmware_version or "--" }}</td>
+                            <td>
+                                <span class="pill pill-{{ 'online' if device.admin_status == 'online' else 'offline' }}">{{ device.telemetry_status_label or device.admin_status_label or "Offline" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
                             </td>
                             <td>{{ device.email or "Not added" }}</td>
-                            <td>
-                                <span class="pill pill-{{ 'online' if device.admin_status == 'online' else 'offline' }}">{{ device.telemetry_status_label or device.admin_status_label or "Offline" }}</span>
-                            </td>
                             <td>
                                 <div class="cell-main">
                                     {% if device.last_sync_at %}
@@ -535,95 +536,97 @@
                             <td><span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></td>
                             <td>
                                 <div class="action-links">
-                                    <a href="#services_shell_{{ loop.index }}" data-panel-toggle aria-controls="services_shell_{{ loop.index }}" aria-expanded="false">Services</a>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <button type="submit" class="danger">Restart</button>
-                                    </form>
-                                    {% if device.registered_account %}
-                                    <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Name</a>
-                                    {% endif %}
-                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Reset Password</a>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <button type="submit" class="danger">Delete</button>
-                                    </form>
+                                    <a href="#manage_shell_{{ loop.index }}" data-panel-toggle aria-controls="manage_shell_{{ loop.index }}" aria-expanded="false">Manage</a>
                                 </div>
-                                <div id="services_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="services_title_{{ loop.index }}" hidden>
+                                <div id="manage_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="manage_title_{{ loop.index }}" hidden>
                                     <div class="service-modal-backdrop" data-panel-dismiss></div>
                                     <div class="service-modal-dialog">
                                         <div class="service-modal-head">
                                             <div class="service-modal-copy">
-                                                <h3 id="services_title_{{ loop.index }}" class="service-modal-title">Manage Services</h3>
+                                                <h3 id="manage_title_{{ loop.index }}" class="service-modal-title">Manage Device</h3>
                                                 <p class="service-modal-note">{{ device.device_id }}</p>
                                             </div>
                                             <button type="button" class="service-modal-close" data-panel-dismiss>Close</button>
                                         </div>
-                                        <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                            <div class="service-checklist">
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
-                                                    <span>Source Tank Monitoring</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
-                                                    <span>AI Analysis</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="cloud_feed_disabled" value="1" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
-                                                    <span>Cloud Feed Disabled</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
-                                                    <span>Buzzer</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
-                                                    <span>LED Display</span>
-                                                </label>
-                                            </div>
-                                            <div class="inline-result message" aria-live="polite"></div>
-                                            <div class="service-form-footer">
-                                                <button type="submit">Save Services</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                                {% if device.registered_account %}
-                                <div id="edit_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/edit" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <div class="group" style="margin:0">
-                                            <label for="display_name_{{ loop.index }}">Customer Name</label>
-                                            <input id="display_name_{{ loop.index }}" name="display_name" type="text" value="{{ device.display_name or '' }}" placeholder="Customer name">
+                                        <div class="service-form">
+                                            <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="service-checklist">
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
+                                                        <span>Source Tank Monitoring</span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
+                                                        <span>AI Analysis</span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="cloud_feed_disabled" value="1" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
+                                                        <span>Cloud Feed Disabled</span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
+                                                        <span>Buzzer</span>
+                                                    </label>
+                                                    <label class="service-option">
+                                                        <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
+                                                        <span>LED Display</span>
+                                                    </label>
+                                                </div>
+                                                <div class="inline-result message" aria-live="polite"></div>
+                                                <div class="service-form-footer">
+                                                    <button type="submit">Save Services</button>
+                                                </div>
+                                            </form>
+                                            <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" class="service-form" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="service-form-footer">
+                                                    <button type="submit" class="danger">Restart</button>
+                                                </div>
+                                            </form>
+                                            {% if device.registered_account %}
+                                            <form method="post" action="/admin/customers/{{ device.device_id }}/edit" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="group">
+                                                    <label for="display_name_{{ loop.index }}">Customer Name</label>
+                                                    <input id="display_name_{{ loop.index }}" name="display_name" type="text" value="{{ device.display_name or '' }}" placeholder="Customer name">
+                                                </div>
+                                                <div class="group">
+                                                    <label for="email_{{ loop.index }}">Customer Email</label>
+                                                    <input id="email_{{ loop.index }}" name="email" type="email" value="{{ device.email or '' }}" placeholder="customer@example.com">
+                                                </div>
+                                                <input type="hidden" name="service_updates_enabled" value="{{ 1 if device.service_updates_enabled else 0 }}">
+                                                <input type="hidden" name="marketing_emails_enabled" value="{{ 1 if device.marketing_emails_enabled else 0 }}">
+                                                <div class="service-form-footer">
+                                                    <button type="submit">Name</button>
+                                                </div>
+                                            </form>
+                                            {% endif %}
+                                            {% if device.registered_account %}
+                                            <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="group">
+                                                    <label for="password_{{ loop.index }}">Reset App Password</label>
+                                                    <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
+                                                </div>
+                                                <div class="service-form-footer">
+                                                    <button type="submit">Reset Password</button>
+                                                </div>
+                                            </form>
+                                            {% else %}
+                                            <form method="post" action="/admin/customers" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="group">
+                                                    <label for="password_{{ loop.index }}">Set App Password</label>
+                                                    <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
+                                                </div>
+                                                <div class="service-form-footer">
+                                                    <button type="submit">Reset Password</button>
+                                                </div>
+                                            </form>
+                                            {% endif %}
+                                            <form method="post" action="/admin/customers/{{ device.device_id }}/delete" class="service-form" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                                <div class="service-form-footer">
+                                                    <button type="submit" class="danger">Delete</button>
+                                                </div>
+                                            </form>
                                         </div>
-                                        <div class="group" style="margin:0">
-                                            <label for="email_{{ loop.index }}">Customer Email</label>
-                                            <input id="email_{{ loop.index }}" name="email" type="email" value="{{ device.email or '' }}" placeholder="customer@example.com">
-                                        </div>
-                                        <input type="hidden" name="service_updates_enabled" value="{{ 1 if device.service_updates_enabled else 0 }}">
-                                        <input type="hidden" name="marketing_emails_enabled" value="{{ 1 if device.marketing_emails_enabled else 0 }}">
-                                        <button type="submit">Save Profile</button>
-                                    </form>
-                                </div>
-                                {% endif %}
-                                <div id="password_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                {% if device.registered_account %}
-                                <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                    <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Reset App Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
                                     </div>
-                                    <button type="submit">Reset Password</button>
-                                </form>
-                                <p class="inline-note">Applies to cloud sign-in immediately.</p>
-                                {% else %}
-                                <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                    <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Set App Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
-                                    </div>
-                                    <button type="submit">Save Password</button>
-                                </form>
-                                {% endif %}
-                                <p class="inline-note">Use this when a customer forgets the app password. Cloud access changes immediately.</p>
                                 </div>
                             </td>
                         </tr>
