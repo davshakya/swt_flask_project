@@ -1523,7 +1523,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             login_description=(
                 "Admin signs in here to register customers, manage credentials, and control devices."
                 if is_admin_mode else
-                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
+                "Customers sign in here with their tank device ID or registered email and password to view only their own tank dashboard."
             ),
             login_action=login_action,
             switch_href=switch_href,
@@ -1544,7 +1544,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             login_description=(
                 "Admin signs in here to register customers, manage credentials, and control devices."
                 if is_admin_mode else
-                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
+                "Customers sign in here with their tank device ID or registered email and password to view only their own tank dashboard."
             ),
             login_action=login_action,
             switch_href=switch_href,
@@ -3764,6 +3764,16 @@ def fetch_customer_account_by_email(email):
     return dict(row) if row else None
 
 
+def resolve_customer_login_account(identifier):
+    normalized_identifier = str(identifier or "").strip()
+    if not normalized_identifier:
+        return None
+    account = fetch_customer_account(normalized_identifier)
+    if account:
+        return account
+    return fetch_customer_account_by_email(normalized_identifier)
+
+
 def send_customer_email(to_email, subject, body, category="transactional", account=None):
     normalized_email = normalize_customer_email(to_email)
     if not normalized_email:
@@ -4277,22 +4287,23 @@ def authenticate_dashboard_user(username, password):
             "display_name": "Administrator",
             "auth_marker": current_dashboard_auth_marker(),
         }
-    customer = fetch_customer_account(normalized_username)
+    customer = resolve_customer_login_account(normalized_username)
     if not customer or int(customer.get("active", 0)) != 1:
         return None
     if not check_password_hash(customer.get("password_hash", ""), password or ""):
         return None
-    service_config = fetch_device_service_config(normalized_username, account=customer)
+    customer_device_id = customer.get("device_id")
+    service_config = fetch_device_service_config(customer_device_id, account=customer)
     return {
         "role": "customer",
-        "username": normalized_username,
-        "device_id": normalized_username,
-        "display_name": customer.get("display_name") or normalized_username,
+        "username": customer_device_id,
+        "device_id": customer_device_id,
+        "display_name": customer.get("display_name") or customer_device_id,
         "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
-        "auth_marker": current_auth_marker_for_identity("customer", device_id=normalized_username, account=customer),
+        "auth_marker": current_auth_marker_for_identity("customer", device_id=customer_device_id, account=customer),
     }
 
 
@@ -4739,9 +4750,9 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     auto_timer = str(data.get("auto_timer") or "").strip()
     if data["telemetry_status"] == "stale":
         synced_at = data["last_sync_at"] or "an earlier sync"
-        auto_status = f"Telemetry is stale. Showing last synced state from {synced_at}."
+        auto_status = f"Tank update delayed. Last device update was received at {synced_at}."
         auto_status_tone = "warn"
-        auto_timer = "Waiting for fresh telemetry."
+        auto_timer = "Check tank power, Wi-Fi, and sensor wiring."
     elif not auto_status:
         if data["mode"] == "MANUAL":
             auto_status = "Manual override is active on the device."
