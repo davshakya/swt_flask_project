@@ -494,6 +494,7 @@ ANDROID_RELEASE_DIR = normalize_db_path(
     os.environ.get("ANDROID_RELEASE_DIR", str(DATA_DIR / "android_releases"))
 )
 ANDROID_RELEASE_MAX_BYTES = max(1024 * 1024, env_int("ANDROID_RELEASE_MAX_MB", 128) * 1024 * 1024)
+app.config["MAX_CONTENT_LENGTH"] = max(ANDROID_RELEASE_MAX_BYTES, FIRMWARE_ARTIFACT_MAX_BYTES) + (2 * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -8039,6 +8040,9 @@ def admin_global_firmware_upload():
         )
     except ValueError as exc:
         error = str(exc)
+    except Exception:
+        logger.exception("Global firmware upload failed")
+        error = "Unable to publish firmware right now. Check server storage/database permissions and try again."
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -8095,6 +8099,9 @@ def admin_android_release_upload():
         )
     except ValueError as exc:
         error = str(exc)
+    except Exception:
+        logger.exception("Android app release upload failed")
+        error = "Unable to publish Android app right now. Check server storage/database permissions and try again."
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
