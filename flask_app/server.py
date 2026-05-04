@@ -7326,7 +7326,7 @@ def mobile_local_sync():
         {
             "result": "synced",
             "device_id": scoped_device_id,
-            "snapshot": strip_ip_address_fields(snapshot),
+            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
             "synced_at": now_utc().strftime(TIMESTAMP_FORMAT),
         }
