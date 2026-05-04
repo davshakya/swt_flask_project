@@ -4007,7 +4007,6 @@ def send_customer_password_reset(account, token):
         "We received a request to reset your Smart Water Tank app password.\n\n"
         f"Reset link: {reset_url}\n\n"
         f"This link expires in {CUSTOMER_PASSWORD_RESET_TTL_MINUTES} minutes. "
-        "After sign-in, the Android app will sync the local firmware password when your phone can reach the tank on Wi-Fi. "
         "If you did not request this, you can ignore this email.\n\n"
         "Smart Water Tank Support"
     )
@@ -7271,7 +7270,7 @@ def mobile_account_password():
         )
         payload = build_mobile_auth_response_payload(
             updated_user,
-            message="App password updated for cloud access. Local firmware sync runs from the Android app when the tank is reachable on Wi-Fi.",
+            message="App password updated for cloud access.",
         )
         return jsonify(payload)
 
@@ -7631,7 +7630,7 @@ def customer_forgot_password():
         CUSTOMER_PASSWORD_RESET_TEMPLATE,
         mode="request",
         title="Forgot Password",
-        description="Enter your registered device ID or email. We will send a reset link to the customer email on file. After sign-in, the Android app will sync local firmware when the tank is reachable on Wi-Fi.",
+        description="Enter your registered device ID or email. We will send a reset link to the customer email on file.",
         error=error,
         success=success,
     )
@@ -7675,7 +7674,7 @@ def customer_reset_password(token):
                 CUSTOMER_PASSWORD_RESET_TEMPLATE,
                 mode="done",
                 title="Password Updated",
-                description="Your app password has been updated. Sign in on Android with this password; local firmware syncs when the tank is reachable on Wi-Fi.",
+                description="Your app password has been updated. Sign in on Android with this password.",
                 error=None,
                 success=success,
             )
@@ -7684,7 +7683,7 @@ def customer_reset_password(token):
         mode="reset",
         token=token,
         title="Reset App Password",
-        description="Choose one password for customer cloud sign-in. Android will use it for local firmware after the tank is reachable on Wi-Fi.",
+        description="Choose a new password for customer cloud sign-in.",
         error=error,
         success=success,
     )
@@ -7820,10 +7819,7 @@ def admin_customers():
                     "password_scope": "shared_app_password",
                 },
             )
-            success = (
-                f"Customer app password saved for {account['device_id']}. "
-                "The Android app will sync the local firmware password when that phone can reach the tank on Wi-Fi."
-            )
+            success = f"Customer app password saved for {account['device_id']}."
         except ValueError as exc:
             error = str(exc)
 
@@ -7873,10 +7869,7 @@ def admin_customer_password_reset(device_id):
                     "password_scope": "shared_app_password",
                 },
             )
-            success = (
-                f"Customer app password reset for {updated_account['device_id']}. "
-                "Ask the customer to sign in with the new password; the Android app will sync local firmware when it can reach the tank on Wi-Fi."
-            )
+            success = f"Customer app password reset for {updated_account['device_id']}. Ask the customer to sign in with the new password."
         except ValueError as exc:
             error = str(exc)
 

@@ -462,7 +462,7 @@
                 </div>
                 <div class="form-helper-card">
                     <strong>Shared Password</strong>
-                    <span>The password signs in to cloud immediately. Android syncs the same password to local firmware when the tank is reachable on Wi-Fi.</span>
+                    <span>The password signs in to cloud immediately.</span>
                 </div>
             </div>
         </div>
@@ -640,7 +640,7 @@
                                     </div>
                                     <button type="submit">Reset Password</button>
                                 </form>
-                                <p class="inline-note">Applies to cloud sign-in now. The Android app syncs local firmware when the phone can reach the tank on Wi-Fi.</p>
+                                <p class="inline-note">Applies to cloud sign-in immediately.</p>
                                 {% else %}
                                 <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                     <div class="group" style="margin:0">
@@ -650,7 +650,7 @@
                                     <button type="submit">Save Password</button>
                                 </form>
                                 {% endif %}
-                                <p class="inline-note">Use this when a customer forgets the app password. Cloud access changes immediately; local firmware sync happens from Android on the same Wi-Fi as the tank.</p>
+                                <p class="inline-note">Use this when a customer forgets the app password. Cloud access changes immediately.</p>
                                 </div>
                             </td>
                         </tr>
