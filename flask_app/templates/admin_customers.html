@@ -420,7 +420,7 @@
             </div>
             <div class="section-badges">
                 <span class="pill pill-info">Device ID doubles as the username</span>
-                <span class="pill pill-clear">Passwords can also be reset inline from the fleet table</span>
+                <span class="pill pill-clear">Admin can reset app passwords inline</span>
             </div>
         </div>
         {% if error %}
@@ -444,8 +444,8 @@
                     <input id="email" name="email" type="email" placeholder="customer@example.com" autocomplete="email">
                 </div>
                 <div class="group">
-                    <label for="password">Customer Password</label>
-                    <input id="password" name="password" type="password" minlength="6" required>
+                    <label for="password">App Password</label>
+                    <input id="password" name="password" type="password" minlength="6" placeholder="Cloud now, local sync on Wi-Fi" required>
                 </div>
                 <div class="row">
                     <button type="submit">Save Customer</button>
@@ -461,8 +461,8 @@
                     <span>Add a family or property name so the fleet table is easier to scan during triage.</span>
                 </div>
                 <div class="form-helper-card">
-                    <strong>Inline Recovery</strong>
-                    <span>If the device already exists below, you can set or reset the password without retyping everything here.</span>
+                    <strong>Shared Password</strong>
+                    <span>The password signs in to cloud immediately. Android syncs the same password to local firmware when the tank is reachable on Wi-Fi.</span>
                 </div>
             </div>
         </div>
@@ -570,7 +570,7 @@
                                     {% if device.registered_account %}
                                     <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Name</a>
                                     {% endif %}
-                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Password</a>
+                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Reset Password</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Delete</button>
                                     </form>
@@ -635,21 +635,22 @@
                                 {% if device.registered_account %}
                                 <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                     <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Reset Cloud Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Reset cloud password" required>
+                                        <label for="password_{{ loop.index }}">Reset App Password</label>
+                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
                                     </div>
-                                    <button type="submit">Save Cloud Password</button>
+                                    <button type="submit">Reset Password</button>
                                 </form>
+                                <p class="inline-note">Applies to cloud sign-in now. The Android app syncs local firmware when the phone can reach the tank on Wi-Fi.</p>
                                 {% else %}
                                 <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                     <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Set Cloud Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create cloud password" required>
+                                        <label for="password_{{ loop.index }}">Set App Password</label>
+                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="New shared password" required>
                                     </div>
-                                    <button type="submit">Save Cloud Password</button>
+                                    <button type="submit">Save Password</button>
                                 </form>
                                 {% endif %}
-                                <p class="inline-note">This form only changes the Flask customer login. Local firmware password changes stay inside the Android app over LAN.</p>
+                                <p class="inline-note">Use this when a customer forgets the app password. Cloud access changes immediately; local firmware sync happens from Android on the same Wi-Fi as the tank.</p>
                                 </div>
                             </td>
                         </tr>
