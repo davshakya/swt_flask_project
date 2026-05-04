@@ -8201,6 +8201,7 @@ def admin_customer_services(device_id):
     success = None
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
+    wants_json = "application/json" in (request.headers.get("Accept") or "")
 
     if not normalized_device_id:
         error = "Choose a valid device before updating services."
@@ -8247,6 +8248,23 @@ def admin_customer_services(device_id):
             f"Service settings saved for {normalized_device_id}. "
             "Device-side changes will apply on the next command poll."
         )
+        if wants_json:
+            response_payload = {
+                "status": "saved",
+                "message": success,
+                "device_id": normalized_device_id,
+                "config": updated_config,
+                "queued_command": queued_command,
+            }
+            if isinstance(queue_result, tuple):
+                error_payload, status_code = queue_result
+                response_payload["queue_error"] = error_payload.get("error")
+                return jsonify(response_payload), status_code
+            response_payload.update(queue_result)
+            return jsonify(response_payload)
+
+    if wants_json:
+        return jsonify({"status": "error", "error": error or "Unable to update services."}), 400
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
