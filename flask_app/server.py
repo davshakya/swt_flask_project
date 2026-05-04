@@ -4432,6 +4432,23 @@ def mobile_customer_cloud_feed_block_response():
     ), 403
 
 
+def save_authenticated_local_snapshot(snapshot_payload, scoped_device_id, actor="local_sync"):
+    normalized_device_id = normalize_device_id(scoped_device_id)
+    if not normalized_device_id:
+        return None, jsonify({"error": "device_id is required"}), 400
+
+    data = dict(snapshot_payload or {})
+    payload_device_id = normalize_device_id(data.get("device_id"))
+    if payload_device_id and payload_device_id != normalized_device_id:
+        return None, jsonify({"error": "local snapshot device_id does not match this account"}), 403
+
+    data["device_id"] = normalized_device_id
+    data["device_source"] = DEVICE_SOURCE_REAL
+    process_telemetry_payload(data, source_ip=actor, transport=actor)
+    snapshot = load_dashboard_snapshot(normalized_device_id)
+    return snapshot, None, None
+
+
 def mobile_customer_ai_analysis_block_response():
     user = resolve_mobile_user()
     if not user or user.get("role") != "customer" or user.get("ai_analysis_enabled", True):
@@ -7290,6 +7307,32 @@ def mobile_last():
     return jsonify(strip_ip_address_fields(snapshot))
 
 
+@app.route("/api/mobile/local-sync", methods=["POST"])
+@mobile_auth_required
+def mobile_local_sync():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    data = request.get_json(silent=True) or {}
+    snapshot, error_response, status_code = save_authenticated_local_snapshot(
+        data,
+        scoped_device_id,
+        actor="mobile_local_sync",
+    )
+    if error_response is not None:
+        return error_response, status_code
+    return jsonify(
+        {
+            "result": "synced",
+            "device_id": scoped_device_id,
+            "snapshot": strip_ip_address_fields(snapshot),
+            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+            "synced_at": now_utc().strftime(TIMESTAMP_FORMAT),
+        }
+    )
+
+
 @app.route("/api/mobile/motor/on", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_on():
@@ -8541,6 +8584,33 @@ def last():
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
     return jsonify(strip_ip_address_fields(snapshot, keep_device_local_url=True))
+
+
+@app.route("/local-sync", methods=["POST"])
+@login_required
+@csrf_protect
+def browser_local_sync():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
+    scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
+    data = request.get_json(silent=True) or {}
+    snapshot, error_response, status_code = save_authenticated_local_snapshot(
+        data,
+        scoped_device_id,
+        actor="browser_local_sync",
+    )
+    if error_response is not None:
+        return error_response, status_code
+    return jsonify(
+        {
+            "result": "synced",
+            "device_id": scoped_device_id,
+            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
+            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+            "synced_at": now_utc().strftime(TIMESTAMP_FORMAT),
+        }
+    )
 
 
 @app.route("/history")
