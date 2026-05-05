@@ -4874,17 +4874,20 @@ def resolve_date_window():
     return start_dt, end_exclusive, label
 
 
-def build_analytics_query(start_dt, end_exclusive, device_id=None):
-    source_clause, source_params = device_source_where_clause()
+def build_analytics_query(start_dt, end_exclusive, device_id=None, include_source_filter=True):
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
         WHERE created_at >= ? AND created_at < ?
-          AND """
-    query += source_clause
-    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params]
+    """
+    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)]
+    if include_source_filter:
+        source_clause, source_params = device_source_where_clause()
+        query += " AND "
+        query += source_clause
+        params.extend(source_params)
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
         query += " AND device_id = ?"
@@ -5146,7 +5149,12 @@ def load_dashboard_snapshot(device_id=None):
 
 
 def snapshot_has_live_device_data(snapshot):
-    return bool(snapshot and snapshot.get("device_id"))
+    return bool(
+        snapshot
+        and snapshot.get("device_id")
+        and snapshot.get("telemetry_status") != "no-data"
+        and snapshot.get("last_sync_at")
+    )
 
 
 def build_system_status_payload(snapshot, device_id=None):
@@ -5375,6 +5383,31 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
+    analytics_rows = []
+    with get_db() as db:
+        analytics_rows = db.execute(query, params).fetchall()
+        if normalized_device_id and len(analytics_rows) < 2:
+            fallback_query, fallback_params = build_analytics_query(
+                start_dt,
+                end_exclusive,
+                normalized_device_id,
+                include_source_filter=False,
+            )
+            fallback_rows = db.execute(fallback_query, fallback_params).fetchall()
+            if len(fallback_rows) > len(analytics_rows):
+                analytics_rows = fallback_rows
+        if normalized_device_id and len(analytics_rows) < 2:
+            latest_row = fetch_latest_row(db)
+            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
+                fallback_query, fallback_params = build_analytics_query(
+                    start_dt,
+                    end_exclusive,
+                    device_id=None,
+                    include_source_filter=False,
+                )
+                fallback_rows = db.execute(fallback_query, fallback_params).fetchall()
+                if len(fallback_rows) > len(analytics_rows):
+                    analytics_rows = fallback_rows
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
     daily_usage = {}
     hourly_usage = [0.0] * 24
@@ -5395,62 +5428,61 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     prev_motor = "OFF"
     latest_row = None
 
-    with get_db() as db:
-        for row in db.execute(query, params):
-            created_at = parse_timestamp(row["created_at"])
-            if created_at is None:
-                continue
+    for row in analytics_rows:
+        created_at = parse_timestamp(row["created_at"])
+        if created_at is None:
+            continue
 
-            row_count += 1
-            timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
-            level = safe_float(row["level"], 0.0)
-            motor = str(row["motor"] or "").upper()
-            pipe_leak = str(row["pipe_leak"] or "").upper()
+        row_count += 1
+        timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
+        level = safe_float(row["level"], 0.0)
+        motor = str(row["motor"] or "").upper()
+        pipe_leak = str(row["pipe_leak"] or "").upper()
 
-            level_total += level
-            level_min = level if level_min is None else min(level_min, level)
-            level_max = level if level_max is None else max(level_max, level)
+        level_total += level
+        level_min = level if level_min is None else min(level_min, level)
+        level_max = level if level_max is None else max(level_max, level)
 
-            delta_hours = 0.0
-            gap_break = False
-            if prev_created_at is not None:
-                delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
-                gap_break = delta_hours > gap_threshold_hours
+        delta_hours = 0.0
+        gap_break = False
+        if prev_created_at is not None:
+            delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
+            gap_break = delta_hours > gap_threshold_hours
 
-            drop = 0.0 if prev_level is None else level - prev_level
-            valid_drop = (
-                (not gap_break)
-                and (drop < -0.05)
-                and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-            )
-            usage = abs(drop) if valid_drop else 0.0
-            total_usage += usage
-            if not gap_break:
-                valid_hours += delta_hours
+        drop = 0.0 if prev_level is None else level - prev_level
+        valid_drop = (
+            (not gap_break)
+            and (drop < -0.05)
+            and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
+        )
+        usage = abs(drop) if valid_drop else 0.0
+        total_usage += usage
+        if not gap_break:
+            valid_hours += delta_hours
 
-            date_key = created_at.date().isoformat()
-            daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
-            hourly_usage[created_at.hour] += usage
+        date_key = created_at.date().isoformat()
+        daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
+        hourly_usage[created_at.hour] += usage
 
-            level_times.append(timestamp_label)
-            level_values.append(None if gap_break else level)
-            motor_times.append(timestamp_label)
-            motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
+        level_times.append(timestamp_label)
+        level_values.append(None if gap_break else level)
+        motor_times.append(timestamp_label)
+        motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
 
-            if motor == "ON" and prev_motor != "ON":
-                motor_cycles += 1
-            if pipe_leak == "YES":
-                leak_events += 1
+        if motor == "ON" and prev_motor != "ON":
+            motor_cycles += 1
+        if pipe_leak == "YES":
+            leak_events += 1
 
-            latest_row = dict(row)
-            latest_row["created_at"] = created_at
-            latest_row["level"] = level
-            latest_row["motor"] = motor
-            latest_row["pipe_leak"] = pipe_leak
+        latest_row = dict(row)
+        latest_row["created_at"] = created_at
+        latest_row["level"] = level
+        latest_row["motor"] = motor
+        latest_row["pipe_leak"] = pipe_leak
 
-            prev_created_at = created_at
-            prev_level = level
-            prev_motor = motor
+        prev_created_at = created_at
+        prev_level = level
+        prev_motor = motor
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -6186,6 +6218,28 @@ def fetch_device_inventory(limit=20, device_ids=None):
     return inventory
 
 
+def should_use_latest_snapshot_fallback(db, requested_device_id, row):
+    normalized_requested = normalize_device_id(requested_device_id)
+    if not normalized_requested or not row:
+        return False
+
+    row_device_id = normalize_device_id(row["device_id"] if "device_id" in row.keys() else None)
+    if not row_device_id or row_device_id == normalized_requested:
+        return True
+
+    device_rows = db.execute(
+        """
+        SELECT DISTINCT device_id
+        FROM tank_data
+        WHERE device_id IS NOT NULL AND device_id != ''
+        LIMIT 3
+        """
+    ).fetchall()
+    known_device_ids = {normalize_device_id(device_row["device_id"]) for device_row in device_rows}
+    known_device_ids.discard(None)
+    return len(known_device_ids) <= 1
+
+
 def fetch_device_snapshot(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -6215,7 +6269,19 @@ def fetch_device_snapshot(device_id):
                 (normalized_device_id,),
             ).fetchone()
         if not row:
+            latest_row = fetch_latest_row(db)
+            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
+                row = latest_row
+        if not row:
             return None
+        snapshot_data = dict(row)
+        actual_device_id = normalize_device_id(snapshot_data.get("device_id"))
+        if not actual_device_id:
+            snapshot_data["device_id"] = normalized_device_id
+            actual_device_id = normalized_device_id
+        row_source_clause, row_source_params = device_source_where_clause(
+            mode=normalize_device_source(snapshot_data.get("device_source"), default=get_device_source_mode())
+        )
         motor_cycles = db.execute(
             f"""
             SELECT COUNT(*) FROM (
@@ -6225,7 +6291,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, motor
                     FROM tank_data
                     WHERE device_id = ?
-                      AND {source_clause}
+                      AND {row_source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 ) recent_motor_rows
@@ -6233,7 +6299,7 @@ def fetch_device_snapshot(device_id):
             ) motor_transitions
             WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
             """,
-            (normalized_device_id, *source_params),
+            (actual_device_id, *row_source_params),
         ).fetchone()[0]
         leak_events = db.execute(
             f"""
@@ -6244,7 +6310,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, pipe_leak
                     FROM tank_data
                     WHERE device_id = ?
-                      AND {source_clause}
+                      AND {row_source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 ) recent_leak_rows
@@ -6252,9 +6318,9 @@ def fetch_device_snapshot(device_id):
             ) leak_transitions
             WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
             """,
-            (normalized_device_id, *source_params),
+            (actual_device_id, *row_source_params),
         ).fetchone()[0]
-    return enrich_snapshot(dict(row), motor_cycles, leak_events)
+    return enrich_snapshot(snapshot_data, motor_cycles, leak_events)
 
 
 def fetch_device_history(device_id, limit=48):
@@ -6277,6 +6343,29 @@ def fetch_device_history(device_id, limit=48):
             """,
             (normalized_device_id, *source_params, limit),
         ).fetchall()
+        if not rows:
+            rows = db.execute(
+                """
+                SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
+                FROM tank_data
+                WHERE device_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+                """,
+                (normalized_device_id, limit),
+            ).fetchall()
+        if not rows:
+            latest_row = fetch_latest_row(db)
+            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
+                rows = db.execute(
+                    """
+                    SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
+                    FROM tank_data
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (limit,),
+                ).fetchall()
     history = []
     for row in reversed(rows):
         history.append(
@@ -6307,6 +6396,16 @@ def latest_device_id():
             """,
             tuple(source_params),
         ).fetchone()
+        if not row:
+            row = db.execute(
+                """
+                SELECT device_id
+                FROM tank_data
+                WHERE device_id IS NOT NULL AND device_id != ''
+                ORDER BY id DESC
+                LIMIT 1
+                """
+            ).fetchone()
     return row["device_id"] if row else None
 
 
