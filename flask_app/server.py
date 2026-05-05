@@ -2051,6 +2051,7 @@ def refresh_operational_alerts(snapshot=None):
     if snapshot is None:
         with get_db() as db:
             snapshot = latest_snapshot_with_metrics(db)
+    resolve_transient_relay_503_alerts()
     evaluate_snapshot_alerts(snapshot)
     return snapshot
 
@@ -5913,6 +5914,25 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
     note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
     if webhook_payload:
         send_alert_webhook(webhook_payload)
+
+
+def resolve_transient_relay_503_alerts():
+    try:
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE ops_alerts
+                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE active = 1
+                  AND kind = 'relay_failure'
+                  AND message LIKE 'Cloud relay returned HTTP 503%'
+                """
+            )
+    except Exception as exc:
+        if database_is_locked_error(exc):
+            logger.warning("Skipping stale relay 503 alert cleanup because the database is busy.")
+            return
+        raise
 
 
 def evaluate_snapshot_alerts(snapshot):
