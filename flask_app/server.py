@@ -5979,6 +5979,7 @@ def evaluate_snapshot_alerts(snapshot):
 
     device_id = snapshot.get("device_id")
     stale = snapshot.get("telemetry_status") in {"stale", "offline"}
+    simulator_active = snapshot_uses_ultrasonic_simulator(snapshot)
     set_alert(
         "telemetry_stale",
         "danger",
@@ -5992,7 +5993,7 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Pump failure reported by firmware.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("pump_failure")),
+        active=bool_flag(snapshot.get("pump_failure")) and not simulator_active,
         best_effort=True,
     )
     set_alert(
@@ -6000,10 +6001,10 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Dry-run protection triggered.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("dry_run")),
+        active=bool_flag(snapshot.get("dry_run")) and not simulator_active,
         best_effort=True,
     )
-    leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak"))
+    leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak")) and not simulator_active
     set_alert(
         "leak",
         "warning",
@@ -6012,7 +6013,7 @@ def evaluate_snapshot_alerts(snapshot):
         active=leak_active,
         best_effort=True,
     )
-    sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""}
+    sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""} and not simulator_active
     set_alert(
         "sensor_fault",
         "warning",
