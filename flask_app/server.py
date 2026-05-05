@@ -494,7 +494,6 @@ ANDROID_RELEASE_DIR = normalize_db_path(
     os.environ.get("ANDROID_RELEASE_DIR", str(DATA_DIR / "android_releases"))
 )
 ANDROID_RELEASE_MAX_BYTES = max(1024 * 1024, env_int("ANDROID_RELEASE_MAX_MB", 128) * 1024 * 1024)
-app.config["MAX_CONTENT_LENGTH"] = max(ANDROID_RELEASE_MAX_BYTES, FIRMWARE_ARTIFACT_MAX_BYTES) + (2 * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
@@ -1524,7 +1523,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             login_description=(
                 "Admin signs in here to register customers, manage credentials, and control devices."
                 if is_admin_mode else
-                "Customers sign in here with their tank device ID or registered email and password to view only their own tank dashboard."
+                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
             ),
             login_action=login_action,
             switch_href=switch_href,
@@ -1545,7 +1544,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             login_description=(
                 "Admin signs in here to register customers, manage credentials, and control devices."
                 if is_admin_mode else
-                "Customers sign in here with their tank device ID or registered email and password to view only their own tank dashboard."
+                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
             ),
             login_action=login_action,
             switch_href=switch_href,
@@ -2051,8 +2050,6 @@ def refresh_operational_alerts(snapshot=None):
     if snapshot is None:
         with get_db() as db:
             snapshot = latest_snapshot_with_metrics(db)
-    resolve_transient_relay_503_alerts()
-    resolve_source_tank_alerts_when_disabled(snapshot)
     evaluate_snapshot_alerts(snapshot)
     return snapshot
 
@@ -3767,16 +3764,6 @@ def fetch_customer_account_by_email(email):
     return dict(row) if row else None
 
 
-def resolve_customer_login_account(identifier):
-    normalized_identifier = str(identifier or "").strip()
-    if not normalized_identifier:
-        return None
-    account = fetch_customer_account(normalized_identifier)
-    if account:
-        return account
-    return fetch_customer_account_by_email(normalized_identifier)
-
-
 def send_customer_email(to_email, subject, body, category="transactional", account=None):
     normalized_email = normalize_customer_email(to_email)
     if not normalized_email:
@@ -4004,10 +3991,10 @@ def mark_customer_password_reset_used(reset_id):
 
 def send_customer_password_reset(account, token):
     reset_url = url_for("customer_reset_password", token=token, _external=True)
-    subject = "Reset your Smart Water Tank app password"
+    subject = "Reset your Smart Water Tank password"
     body = (
         f"Hello {account.get('display_name') or account['device_id']},\n\n"
-        "We received a request to reset your Smart Water Tank app password.\n\n"
+        "We received a request to reset your Smart Water Tank customer password.\n\n"
         f"Reset link: {reset_url}\n\n"
         f"This link expires in {CUSTOMER_PASSWORD_RESET_TTL_MINUTES} minutes. "
         "If you did not request this, you can ignore this email.\n\n"
@@ -4289,23 +4276,22 @@ def authenticate_dashboard_user(username, password):
             "display_name": "Administrator",
             "auth_marker": current_dashboard_auth_marker(),
         }
-    customer = resolve_customer_login_account(normalized_username)
+    customer = fetch_customer_account(normalized_username)
     if not customer or int(customer.get("active", 0)) != 1:
         return None
     if not check_password_hash(customer.get("password_hash", ""), password or ""):
         return None
-    customer_device_id = customer.get("device_id")
-    service_config = fetch_device_service_config(customer_device_id, account=customer)
+    service_config = fetch_device_service_config(normalized_username, account=customer)
     return {
         "role": "customer",
-        "username": customer_device_id,
-        "device_id": customer_device_id,
-        "display_name": customer.get("display_name") or customer_device_id,
+        "username": normalized_username,
+        "device_id": normalized_username,
+        "display_name": customer.get("display_name") or normalized_username,
         "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
-        "auth_marker": current_auth_marker_for_identity("customer", device_id=customer_device_id, account=customer),
+        "auth_marker": current_auth_marker_for_identity("customer", device_id=normalized_username, account=customer),
     }
 
 
@@ -4435,23 +4421,6 @@ def mobile_customer_cloud_feed_block_response():
     ), 403
 
 
-def save_authenticated_local_snapshot(snapshot_payload, scoped_device_id, actor="local_sync"):
-    normalized_device_id = normalize_device_id(scoped_device_id)
-    if not normalized_device_id:
-        return None, jsonify({"error": "device_id is required"}), 400
-
-    data = dict(snapshot_payload or {})
-    payload_device_id = normalize_device_id(data.get("device_id"))
-    if payload_device_id and payload_device_id != normalized_device_id:
-        return None, jsonify({"error": "local snapshot device_id does not match this account"}), 403
-
-    data["device_id"] = normalized_device_id
-    data["device_source"] = DEVICE_SOURCE_REAL
-    process_telemetry_payload(data, source_ip=actor, transport=actor)
-    snapshot = load_dashboard_snapshot(normalized_device_id)
-    return snapshot, None, None
-
-
 def mobile_customer_ai_analysis_block_response():
     user = resolve_mobile_user()
     if not user or user.get("role") != "customer" or user.get("ai_analysis_enabled", True):
@@ -4496,31 +4465,6 @@ def safe_float(value, default=0.0):
 
 def bool_flag(value):
     return str(value).upper() == "YES"
-
-
-def text_contains_simulator(value):
-    return "SIMULATED" in str(value or "").upper() or "SIMULATOR" in str(value or "").upper()
-
-
-def snapshot_uses_ultrasonic_simulator(snapshot):
-    if not snapshot:
-        return False
-    if str(snapshot.get("simulator") or "").strip().upper() == "ON":
-        return True
-    if str(snapshot.get("source_tank_simulator") or "").strip().upper() == "ON":
-        return True
-    return text_contains_simulator(snapshot.get("sensor_info")) or text_contains_simulator(snapshot.get("lower_sensor_info"))
-
-
-def clear_simulator_safety_latches(snapshot):
-    if not snapshot_uses_ultrasonic_simulator(snapshot):
-        return snapshot
-    snapshot["simulator"] = "ON"
-    if text_contains_simulator(snapshot.get("lower_sensor_info")):
-        snapshot["source_tank_simulator"] = "ON"
-    for key in ("leak", "drip", "slow_leak", "pipe_leak", "pump_failure", "dry_run", "abnormal"):
-        snapshot[key] = "NO"
-    return snapshot
 
 
 def append_reason(reasons, message):
@@ -4658,7 +4602,7 @@ def calculate_health(snapshot=None, leak_events=0, motor_cycles=0, consumption_r
 
 def fetch_latest_row(db):
     clause, params = device_source_where_clause()
-    row = db.execute(
+    return db.execute(
         f"""
         SELECT *
         FROM tank_data
@@ -4667,16 +4611,6 @@ def fetch_latest_row(db):
         LIMIT 1
         """,
         tuple(params),
-    ).fetchone()
-    if row:
-        return row
-    return db.execute(
-        """
-        SELECT *
-        FROM tank_data
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-        """
     ).fetchone()
 
 
@@ -4744,9 +4678,6 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
     if data["source_tank_simulator"] not in {"ON", "OFF"}:
         data["source_tank_simulator"] = "OFF"
-    clear_simulator_safety_latches(data)
-    if snapshot_uses_ultrasonic_simulator(data):
-        leak_events = 0
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
     data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
@@ -4807,9 +4738,9 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     auto_timer = str(data.get("auto_timer") or "").strip()
     if data["telemetry_status"] == "stale":
         synced_at = data["last_sync_at"] or "an earlier sync"
-        auto_status = f"Tank update delayed. Last device update was received at {synced_at}."
+        auto_status = f"Telemetry is stale. Showing last synced state from {synced_at}."
         auto_status_tone = "warn"
-        auto_timer = "Check tank power, Wi-Fi, and sensor wiring."
+        auto_timer = "Waiting for fresh telemetry."
     elif not auto_status:
         if data["mode"] == "MANUAL":
             auto_status = "Manual override is active on the device."
@@ -4874,20 +4805,17 @@ def resolve_date_window():
     return start_dt, end_exclusive, label
 
 
-def build_analytics_query(start_dt, end_exclusive, device_id=None, include_source_filter=True):
+def build_analytics_query(start_dt, end_exclusive, device_id=None):
+    source_clause, source_params = device_source_where_clause()
     query = """
         SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
         WHERE created_at >= ? AND created_at < ?
-    """
-    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)]
-    if include_source_filter:
-        source_clause, source_params = device_source_where_clause()
-        query += " AND "
-        query += source_clause
-        params.extend(source_params)
+          AND """
+    query += source_clause
+    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params]
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
         query += " AND device_id = ?"
@@ -5149,21 +5077,12 @@ def load_dashboard_snapshot(device_id=None):
 
 
 def snapshot_has_live_device_data(snapshot):
-    return bool(
-        snapshot
-        and snapshot.get("device_id")
-        and snapshot.get("telemetry_status") != "no-data"
-        and snapshot.get("last_sync_at")
-    )
+    return bool(snapshot and snapshot.get("device_id"))
 
 
 def build_system_status_payload(snapshot, device_id=None):
     device_state = device_status_from_snapshot(snapshot if snapshot_has_live_device_data(snapshot) else None)
-    active_alerts = filter_alerts_for_service_config(
-        fetch_active_alerts(limit=6, device_id=device_id),
-        snapshot=snapshot,
-        device_id=device_id,
-    )
+    active_alerts = fetch_active_alerts(limit=6, device_id=device_id)
 
     return {
         "server": "online",
@@ -5202,11 +5121,7 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
     with get_db() as db:
         pending = db.execute("SELECT COUNT(*) FROM relay_queue").fetchone()[0]
 
-    active_alerts = filter_alerts_for_service_config(
-        fetch_active_alerts(limit=20, device_id=normalized_device_id),
-        snapshot=snapshot,
-        device_id=normalized_device_id,
-    )
+    active_alerts = fetch_active_alerts(limit=20, device_id=normalized_device_id)
     registered_device_ids = (
         [normalized_device_id]
         if normalized_device_id
@@ -5258,7 +5173,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
     normalized_device_id = normalize_device_id(device_id)
     return {
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=normalized_device_id),
-        "alerts": fetch_filtered_alerts(limit=max(1, min(alert_limit, 50)), device_id=normalized_device_id, snapshot=snapshot),
+        "alerts": fetch_filtered_alerts(limit=max(1, min(alert_limit, 50)), device_id=normalized_device_id),
         "audit": fetch_audit_events(limit=max(1, min(audit_limit, 30)), device_id=normalized_device_id),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
     }
@@ -5383,31 +5298,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
-    analytics_rows = []
-    with get_db() as db:
-        analytics_rows = db.execute(query, params).fetchall()
-        if normalized_device_id and len(analytics_rows) < 2:
-            fallback_query, fallback_params = build_analytics_query(
-                start_dt,
-                end_exclusive,
-                normalized_device_id,
-                include_source_filter=False,
-            )
-            fallback_rows = db.execute(fallback_query, fallback_params).fetchall()
-            if len(fallback_rows) > len(analytics_rows):
-                analytics_rows = fallback_rows
-        if normalized_device_id and len(analytics_rows) < 2:
-            latest_row = fetch_latest_row(db)
-            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
-                fallback_query, fallback_params = build_analytics_query(
-                    start_dt,
-                    end_exclusive,
-                    device_id=None,
-                    include_source_filter=False,
-                )
-                fallback_rows = db.execute(fallback_query, fallback_params).fetchall()
-                if len(fallback_rows) > len(analytics_rows):
-                    analytics_rows = fallback_rows
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
     daily_usage = {}
     hourly_usage = [0.0] * 24
@@ -5428,61 +5318,62 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     prev_motor = "OFF"
     latest_row = None
 
-    for row in analytics_rows:
-        created_at = parse_timestamp(row["created_at"])
-        if created_at is None:
-            continue
+    with get_db() as db:
+        for row in db.execute(query, params):
+            created_at = parse_timestamp(row["created_at"])
+            if created_at is None:
+                continue
 
-        row_count += 1
-        timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
-        level = safe_float(row["level"], 0.0)
-        motor = str(row["motor"] or "").upper()
-        pipe_leak = str(row["pipe_leak"] or "").upper()
+            row_count += 1
+            timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
+            level = safe_float(row["level"], 0.0)
+            motor = str(row["motor"] or "").upper()
+            pipe_leak = str(row["pipe_leak"] or "").upper()
 
-        level_total += level
-        level_min = level if level_min is None else min(level_min, level)
-        level_max = level if level_max is None else max(level_max, level)
+            level_total += level
+            level_min = level if level_min is None else min(level_min, level)
+            level_max = level if level_max is None else max(level_max, level)
 
-        delta_hours = 0.0
-        gap_break = False
-        if prev_created_at is not None:
-            delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
-            gap_break = delta_hours > gap_threshold_hours
+            delta_hours = 0.0
+            gap_break = False
+            if prev_created_at is not None:
+                delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
+                gap_break = delta_hours > gap_threshold_hours
 
-        drop = 0.0 if prev_level is None else level - prev_level
-        valid_drop = (
-            (not gap_break)
-            and (drop < -0.05)
-            and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-        )
-        usage = abs(drop) if valid_drop else 0.0
-        total_usage += usage
-        if not gap_break:
-            valid_hours += delta_hours
+            drop = 0.0 if prev_level is None else level - prev_level
+            valid_drop = (
+                (not gap_break)
+                and (drop < -0.05)
+                and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
+            )
+            usage = abs(drop) if valid_drop else 0.0
+            total_usage += usage
+            if not gap_break:
+                valid_hours += delta_hours
 
-        date_key = created_at.date().isoformat()
-        daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
-        hourly_usage[created_at.hour] += usage
+            date_key = created_at.date().isoformat()
+            daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
+            hourly_usage[created_at.hour] += usage
 
-        level_times.append(timestamp_label)
-        level_values.append(None if gap_break else level)
-        motor_times.append(timestamp_label)
-        motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
+            level_times.append(timestamp_label)
+            level_values.append(None if gap_break else level)
+            motor_times.append(timestamp_label)
+            motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
 
-        if motor == "ON" and prev_motor != "ON":
-            motor_cycles += 1
-        if pipe_leak == "YES":
-            leak_events += 1
+            if motor == "ON" and prev_motor != "ON":
+                motor_cycles += 1
+            if pipe_leak == "YES":
+                leak_events += 1
 
-        latest_row = dict(row)
-        latest_row["created_at"] = created_at
-        latest_row["level"] = level
-        latest_row["motor"] = motor
-        latest_row["pipe_leak"] = pipe_leak
+            latest_row = dict(row)
+            latest_row["created_at"] = created_at
+            latest_row["level"] = level
+            latest_row["motor"] = motor
+            latest_row["pipe_leak"] = pipe_leak
 
-        prev_created_at = created_at
-        prev_level = level
-        prev_motor = motor
+            prev_created_at = created_at
+            prev_level = level
+            prev_motor = motor
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -5995,25 +5886,6 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
         send_alert_webhook(webhook_payload)
 
 
-def resolve_transient_relay_503_alerts():
-    try:
-        with get_db() as db:
-            db.execute(
-                """
-                UPDATE ops_alerts
-                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE active = 1
-                  AND kind = 'relay_failure'
-                  AND message LIKE 'Cloud relay returned HTTP 503%'
-                """
-            )
-    except Exception as exc:
-        if database_is_locked_error(exc):
-            logger.warning("Skipping stale relay 503 alert cleanup because the database is busy.")
-            return
-        raise
-
-
 def evaluate_snapshot_alerts(snapshot):
     if not snapshot:
         set_alert("telemetry_stale", "danger", "No telemetry has been received yet.", active=True, best_effort=True)
@@ -6021,7 +5893,6 @@ def evaluate_snapshot_alerts(snapshot):
 
     device_id = snapshot.get("device_id")
     stale = snapshot.get("telemetry_status") in {"stale", "offline"}
-    simulator_active = snapshot_uses_ultrasonic_simulator(snapshot)
     set_alert(
         "telemetry_stale",
         "danger",
@@ -6035,7 +5906,7 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Pump failure reported by firmware.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("pump_failure")) and not simulator_active,
+        active=bool_flag(snapshot.get("pump_failure")),
         best_effort=True,
     )
     set_alert(
@@ -6043,10 +5914,10 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Dry-run protection triggered.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("dry_run")) and not simulator_active,
+        active=bool_flag(snapshot.get("dry_run")),
         best_effort=True,
     )
-    leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak")) and not simulator_active
+    leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak"))
     set_alert(
         "leak",
         "warning",
@@ -6055,7 +5926,7 @@ def evaluate_snapshot_alerts(snapshot):
         active=leak_active,
         best_effort=True,
     )
-    sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""} and not simulator_active
+    sensor_bad = str(snapshot.get("sensor", "")).upper() not in {"OK", ""}
     set_alert(
         "sensor_fault",
         "warning",
@@ -6084,63 +5955,7 @@ def fetch_active_alerts(limit=20, device_id=None):
     return [dict(row) for row in rows]
 
 
-def is_source_tank_alert(alert):
-    text = " ".join(
-        str(alert.get(key) or "")
-        for key in ("kind", "message")
-    ).strip().lower()
-    return any(marker in text for marker in ("source tank", "source_sensor", "source sensor", "lower tank", "lower_sensor", "lower sensor"))
-
-
-def source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=None):
-    normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
-    service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else None
-    if service_config and service_config.get("source_tank_monitoring_enabled") is False:
-        return False
-    service_state = str((snapshot or {}).get("lower_tank_service") or "").strip().upper()
-    if service_state == "OFF":
-        return False
-    return True
-
-
-def filter_alerts_for_service_config(alerts, snapshot=None, device_id=None):
-    if source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=device_id):
-        return alerts
-    return [alert for alert in alerts if not is_source_tank_alert(alert)]
-
-
-def resolve_source_tank_alerts_when_disabled(snapshot=None, device_id=None):
-    resolved_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
-    if source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=resolved_device_id):
-        return
-    try:
-        with get_db() as db:
-            params = []
-            query = """
-                UPDATE ops_alerts
-                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE active = 1
-                  AND (
-                    LOWER(kind) LIKE '%source%'
-                    OR LOWER(kind) LIKE '%lower%'
-                    OR LOWER(message) LIKE '%source tank%'
-                    OR LOWER(message) LIKE '%source sensor%'
-                    OR LOWER(message) LIKE '%lower tank%'
-                    OR LOWER(message) LIKE '%lower sensor%'
-                  )
-            """
-            if resolved_device_id:
-                query += " AND COALESCE(device_id, '') = COALESCE(?, '')"
-                params.append(resolved_device_id)
-            db.execute(query, tuple(params))
-    except Exception as exc:
-        if database_is_locked_error(exc):
-            logger.warning("Skipping source-tank alert cleanup because the database is busy.")
-            return
-        raise
-
-
-def fetch_filtered_alerts(limit=20, severity=None, device_id=None, snapshot=None):
+def fetch_filtered_alerts(limit=20, severity=None, device_id=None):
     query = """
         SELECT id, device_id, kind, severity, message, created_at, updated_at
         FROM ops_alerts
@@ -6157,8 +5972,7 @@ def fetch_filtered_alerts(limit=20, severity=None, device_id=None, snapshot=None
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
-    alerts = [dict(row) for row in rows]
-    return filter_alerts_for_service_config(alerts, snapshot=snapshot, device_id=device_id) if device_id else alerts
+    return [dict(row) for row in rows]
 
 
 def resolve_alert_by_id(alert_id):
@@ -6218,28 +6032,6 @@ def fetch_device_inventory(limit=20, device_ids=None):
     return inventory
 
 
-def should_use_latest_snapshot_fallback(db, requested_device_id, row):
-    normalized_requested = normalize_device_id(requested_device_id)
-    if not normalized_requested or not row:
-        return False
-
-    row_device_id = normalize_device_id(row["device_id"] if "device_id" in row.keys() else None)
-    if not row_device_id or row_device_id == normalized_requested:
-        return True
-
-    device_rows = db.execute(
-        """
-        SELECT DISTINCT device_id
-        FROM tank_data
-        WHERE device_id IS NOT NULL AND device_id != ''
-        LIMIT 3
-        """
-    ).fetchall()
-    known_device_ids = {normalize_device_id(device_row["device_id"]) for device_row in device_rows}
-    known_device_ids.discard(None)
-    return len(known_device_ids) <= 1
-
-
 def fetch_device_snapshot(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -6258,30 +6050,7 @@ def fetch_device_snapshot(device_id):
             (normalized_device_id, *source_params),
         ).fetchone()
         if not row:
-            row = db.execute(
-                """
-                SELECT *
-                FROM tank_data
-                WHERE device_id = ?
-                ORDER BY created_at DESC, id DESC
-                LIMIT 1
-                """,
-                (normalized_device_id,),
-            ).fetchone()
-        if not row:
-            latest_row = fetch_latest_row(db)
-            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
-                row = latest_row
-        if not row:
             return None
-        snapshot_data = dict(row)
-        actual_device_id = normalize_device_id(snapshot_data.get("device_id"))
-        if not actual_device_id:
-            snapshot_data["device_id"] = normalized_device_id
-            actual_device_id = normalized_device_id
-        row_source_clause, row_source_params = device_source_where_clause(
-            mode=normalize_device_source(snapshot_data.get("device_source"), default=get_device_source_mode())
-        )
         motor_cycles = db.execute(
             f"""
             SELECT COUNT(*) FROM (
@@ -6291,7 +6060,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, motor
                     FROM tank_data
                     WHERE device_id = ?
-                      AND {row_source_clause}
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 ) recent_motor_rows
@@ -6299,7 +6068,7 @@ def fetch_device_snapshot(device_id):
             ) motor_transitions
             WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
             """,
-            (actual_device_id, *row_source_params),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
         leak_events = db.execute(
             f"""
@@ -6310,7 +6079,7 @@ def fetch_device_snapshot(device_id):
                     SELECT id, pipe_leak
                     FROM tank_data
                     WHERE device_id = ?
-                      AND {row_source_clause}
+                      AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
                 ) recent_leak_rows
@@ -6318,9 +6087,9 @@ def fetch_device_snapshot(device_id):
             ) leak_transitions
             WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
             """,
-            (actual_device_id, *row_source_params),
+            (normalized_device_id, *source_params),
         ).fetchone()[0]
-    return enrich_snapshot(snapshot_data, motor_cycles, leak_events)
+    return enrich_snapshot(dict(row), motor_cycles, leak_events)
 
 
 def fetch_device_history(device_id, limit=48):
@@ -6343,29 +6112,6 @@ def fetch_device_history(device_id, limit=48):
             """,
             (normalized_device_id, *source_params, limit),
         ).fetchall()
-        if not rows:
-            rows = db.execute(
-                """
-                SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
-                FROM tank_data
-                WHERE device_id = ?
-                ORDER BY created_at DESC, id DESC
-                LIMIT ?
-                """,
-                (normalized_device_id, limit),
-            ).fetchall()
-        if not rows:
-            latest_row = fetch_latest_row(db)
-            if should_use_latest_snapshot_fallback(db, normalized_device_id, latest_row):
-                rows = db.execute(
-                    """
-                    SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
-                    FROM tank_data
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT ?
-                    """,
-                    (limit,),
-                ).fetchall()
     history = []
     for row in reversed(rows):
         history.append(
@@ -6396,16 +6142,6 @@ def latest_device_id():
             """,
             tuple(source_params),
         ).fetchone()
-        if not row:
-            row = db.execute(
-                """
-                SELECT device_id
-                FROM tank_data
-                WHERE device_id IS NOT NULL AND device_id != ''
-                ORDER BY id DESC
-                LIMIT 1
-                """
-            ).fetchone()
     return row["device_id"] if row else None
 
 
@@ -6961,14 +6697,6 @@ def relay_status_to_cloud(payload):
                         active=True,
                     )
                     return "drop"
-                if response.status_code == 503:
-                    logger.info(
-                        "Relay telemetry target is temporarily unavailable for %s (%s). Payload will retry without raising an admin alert.",
-                        device_id,
-                        url,
-                    )
-                    set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
-                    return "retry"
                 set_alert("relay_failure", "warning", f"Cloud relay returned HTTP {response.status_code}.", active=True)
             except requests.RequestException as exc:
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
@@ -7526,12 +7254,12 @@ def mobile_account_password():
             details={
                 "display_name": updated_account.get("display_name"),
                 "source": "mobile_api_self_service",
-                "password_scope": "shared_app_password",
+                "password_scope": "cloud_only",
             },
         )
         payload = build_mobile_auth_response_payload(
             updated_user,
-            message="App password updated for cloud access.",
+            message="Cloud password updated successfully.",
         )
         return jsonify(payload)
 
@@ -7549,32 +7277,6 @@ def mobile_last():
     if not snapshot:
         return jsonify({"error": "no data"}), 404
     return jsonify(strip_ip_address_fields(snapshot))
-
-
-@app.route("/api/mobile/local-sync", methods=["POST"])
-@mobile_auth_required
-def mobile_local_sync():
-    response = mobile_customer_cloud_feed_block_response()
-    if response:
-        return response
-    scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    data = request.get_json(silent=True) or {}
-    snapshot, error_response, status_code = save_authenticated_local_snapshot(
-        data,
-        scoped_device_id,
-        actor="mobile_local_sync",
-    )
-    if error_response is not None:
-        return error_response, status_code
-    return jsonify(
-        {
-            "result": "synced",
-            "device_id": scoped_device_id,
-            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
-            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
-            "synced_at": now_utc().strftime(TIMESTAMP_FORMAT),
-        }
-    )
 
 
 @app.route("/api/mobile/motor/on", methods=["POST"])
@@ -7961,7 +7663,7 @@ def customer_reset_password(token):
                 CUSTOMER_PASSWORD_RESET_TEMPLATE,
                 mode="done",
                 title="Password Updated",
-                description="Your app password has been updated. Sign in on Android with this password.",
+                description="Your customer password has been updated.",
                 error=None,
                 success=success,
             )
@@ -7969,8 +7671,8 @@ def customer_reset_password(token):
         CUSTOMER_PASSWORD_RESET_TEMPLATE,
         mode="reset",
         token=token,
-        title="Reset App Password",
-        description="Choose a new password for customer cloud sign-in.",
+        title="Reset Password",
+        description="Choose a new customer dashboard password.",
         error=error,
         success=success,
     )
@@ -8103,10 +7805,13 @@ def admin_customers():
                     "email": account.get("email"),
                     "service_updates_enabled": bool(account.get("service_updates_enabled")),
                     "marketing_emails_enabled": bool(account.get("marketing_emails_enabled")),
-                    "password_scope": "shared_app_password",
+                    "password_scope": "cloud_only",
                 },
             )
-            success = f"Customer app password saved for {account['device_id']}."
+            success = (
+                f"Customer account saved for {account['device_id']}. "
+                "Local firmware password changes are handled from the Android app on the LAN."
+            )
         except ValueError as exc:
             error = str(exc)
 
@@ -8153,10 +7858,13 @@ def admin_customer_password_reset(device_id):
                 device_id=updated_account["device_id"],
                 details={
                     "display_name": updated_account.get("display_name"),
-                    "password_scope": "shared_app_password",
+                    "password_scope": "cloud_only",
                 },
             )
-            success = f"Customer app password reset for {updated_account['device_id']}. Ask the customer to sign in with the new password."
+            success = (
+                f"Customer cloud password reset for {updated_account['device_id']}. "
+                "Local firmware password changes are handled from the Android app on the LAN."
+            )
         except ValueError as exc:
             error = str(exc)
 
@@ -8275,9 +7983,6 @@ def admin_global_firmware_upload():
         )
     except ValueError as exc:
         error = str(exc)
-    except Exception:
-        logger.exception("Global firmware upload failed")
-        error = "Unable to publish firmware right now. Check server storage/database permissions and try again."
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -8334,9 +8039,6 @@ def admin_android_release_upload():
         )
     except ValueError as exc:
         error = str(exc)
-    except Exception:
-        logger.exception("Android app release upload failed")
-        error = "Unable to publish Android app right now. Check server storage/database permissions and try again."
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -8494,7 +8196,6 @@ def admin_customer_services(device_id):
     success = None
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
-    wants_json = "application/json" in (request.headers.get("Accept") or "")
 
     if not normalized_device_id:
         error = "Choose a valid device before updating services."
@@ -8541,23 +8242,6 @@ def admin_customer_services(device_id):
             f"Service settings saved for {normalized_device_id}. "
             "Device-side changes will apply on the next command poll."
         )
-        if wants_json:
-            response_payload = {
-                "status": "saved",
-                "message": success,
-                "device_id": normalized_device_id,
-                "config": updated_config,
-                "queued_command": queued_command,
-            }
-            if isinstance(queue_result, tuple):
-                error_payload, status_code = queue_result
-                response_payload["queue_error"] = error_payload.get("error")
-                return jsonify(response_payload), status_code
-            response_payload.update(queue_result)
-            return jsonify(response_payload)
-
-    if wants_json:
-        return jsonify({"status": "error", "error": error or "Unable to update services."}), 400
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -8766,7 +8450,7 @@ def device_detail_status(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         return jsonify({"error": "device not found"}), 404
-    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id, snapshot=snapshot)
+    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
     audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
     history = fetch_device_history(scoped_device_id, limit=10)
     events = build_events(limit=10, device_id=scoped_device_id)
@@ -8834,33 +8518,6 @@ def last():
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
     return jsonify(strip_ip_address_fields(snapshot, keep_device_local_url=True))
-
-
-@app.route("/local-sync", methods=["POST"])
-@login_required
-@csrf_protect
-def browser_local_sync():
-    response = customer_cloud_feed_block_response()
-    if response:
-        return response
-    scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    data = request.get_json(silent=True) or {}
-    snapshot, error_response, status_code = save_authenticated_local_snapshot(
-        data,
-        scoped_device_id,
-        actor="browser_local_sync",
-    )
-    if error_response is not None:
-        return error_response, status_code
-    return jsonify(
-        {
-            "result": "synced",
-            "device_id": scoped_device_id,
-            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
-            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
-            "synced_at": now_utc().strftime(TIMESTAMP_FORMAT),
-        }
-    )
 
 
 @app.route("/history")
@@ -8998,8 +8655,7 @@ def monitoring_alerts():
     refresh_operational_alerts(load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None)
     limit = max(1, min(request.args.get("limit", default=20, type=int), 100))
     severity = request.args.get("severity", type=str)
-    snapshot = load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None
-    return jsonify(fetch_filtered_alerts(limit=limit, severity=severity, device_id=scoped_device_id, snapshot=snapshot))
+    return jsonify(fetch_filtered_alerts(limit=limit, severity=severity, device_id=scoped_device_id))
 
 
 @app.route("/monitoring/alerts/<int:alert_id>/resolve", methods=["POST"])
