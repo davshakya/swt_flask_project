@@ -2052,6 +2052,7 @@ def refresh_operational_alerts(snapshot=None):
         with get_db() as db:
             snapshot = latest_snapshot_with_metrics(db)
     resolve_transient_relay_503_alerts()
+    resolve_source_tank_alerts_when_disabled(snapshot)
     evaluate_snapshot_alerts(snapshot)
     return snapshot
 
@@ -4497,6 +4498,31 @@ def bool_flag(value):
     return str(value).upper() == "YES"
 
 
+def text_contains_simulator(value):
+    return "SIMULATED" in str(value or "").upper() or "SIMULATOR" in str(value or "").upper()
+
+
+def snapshot_uses_ultrasonic_simulator(snapshot):
+    if not snapshot:
+        return False
+    if str(snapshot.get("simulator") or "").strip().upper() == "ON":
+        return True
+    if str(snapshot.get("source_tank_simulator") or "").strip().upper() == "ON":
+        return True
+    return text_contains_simulator(snapshot.get("sensor_info")) or text_contains_simulator(snapshot.get("lower_sensor_info"))
+
+
+def clear_simulator_safety_latches(snapshot):
+    if not snapshot_uses_ultrasonic_simulator(snapshot):
+        return snapshot
+    snapshot["simulator"] = "ON"
+    if text_contains_simulator(snapshot.get("lower_sensor_info")):
+        snapshot["source_tank_simulator"] = "ON"
+    for key in ("leak", "drip", "slow_leak", "pipe_leak", "pump_failure", "dry_run", "abnormal"):
+        snapshot[key] = "NO"
+    return snapshot
+
+
 def append_reason(reasons, message):
     if message not in reasons:
         reasons.append(message)
@@ -4708,6 +4734,9 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
     if data["source_tank_simulator"] not in {"ON", "OFF"}:
         data["source_tank_simulator"] = "OFF"
+    clear_simulator_safety_latches(data)
+    if snapshot_uses_ultrasonic_simulator(data):
+        leak_events = 0
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
     data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
@@ -5112,7 +5141,11 @@ def snapshot_has_live_device_data(snapshot):
 
 def build_system_status_payload(snapshot, device_id=None):
     device_state = device_status_from_snapshot(snapshot if snapshot_has_live_device_data(snapshot) else None)
-    active_alerts = fetch_active_alerts(limit=6, device_id=device_id)
+    active_alerts = filter_alerts_for_service_config(
+        fetch_active_alerts(limit=6, device_id=device_id),
+        snapshot=snapshot,
+        device_id=device_id,
+    )
 
     return {
         "server": "online",
@@ -5151,7 +5184,11 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
     with get_db() as db:
         pending = db.execute("SELECT COUNT(*) FROM relay_queue").fetchone()[0]
 
-    active_alerts = fetch_active_alerts(limit=20, device_id=normalized_device_id)
+    active_alerts = filter_alerts_for_service_config(
+        fetch_active_alerts(limit=20, device_id=normalized_device_id),
+        snapshot=snapshot,
+        device_id=normalized_device_id,
+    )
     registered_device_ids = (
         [normalized_device_id]
         if normalized_device_id
@@ -5203,7 +5240,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
     normalized_device_id = normalize_device_id(device_id)
     return {
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=normalized_device_id),
-        "alerts": fetch_filtered_alerts(limit=max(1, min(alert_limit, 50)), device_id=normalized_device_id),
+        "alerts": fetch_filtered_alerts(limit=max(1, min(alert_limit, 50)), device_id=normalized_device_id, snapshot=snapshot),
         "audit": fetch_audit_events(limit=max(1, min(audit_limit, 30)), device_id=normalized_device_id),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
     }
@@ -6004,7 +6041,63 @@ def fetch_active_alerts(limit=20, device_id=None):
     return [dict(row) for row in rows]
 
 
-def fetch_filtered_alerts(limit=20, severity=None, device_id=None):
+def is_source_tank_alert(alert):
+    text = " ".join(
+        str(alert.get(key) or "")
+        for key in ("kind", "message")
+    ).strip().lower()
+    return any(marker in text for marker in ("source tank", "source_sensor", "source sensor", "lower tank", "lower_sensor", "lower sensor"))
+
+
+def source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=None):
+    normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
+    service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else None
+    if service_config and service_config.get("source_tank_monitoring_enabled") is False:
+        return False
+    service_state = str((snapshot or {}).get("lower_tank_service") or "").strip().upper()
+    if service_state == "OFF":
+        return False
+    return True
+
+
+def filter_alerts_for_service_config(alerts, snapshot=None, device_id=None):
+    if source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=device_id):
+        return alerts
+    return [alert for alert in alerts if not is_source_tank_alert(alert)]
+
+
+def resolve_source_tank_alerts_when_disabled(snapshot=None, device_id=None):
+    resolved_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
+    if source_tank_monitoring_enabled_for_snapshot(snapshot, device_id=resolved_device_id):
+        return
+    try:
+        with get_db() as db:
+            params = []
+            query = """
+                UPDATE ops_alerts
+                SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                WHERE active = 1
+                  AND (
+                    LOWER(kind) LIKE '%source%'
+                    OR LOWER(kind) LIKE '%lower%'
+                    OR LOWER(message) LIKE '%source tank%'
+                    OR LOWER(message) LIKE '%source sensor%'
+                    OR LOWER(message) LIKE '%lower tank%'
+                    OR LOWER(message) LIKE '%lower sensor%'
+                  )
+            """
+            if resolved_device_id:
+                query += " AND COALESCE(device_id, '') = COALESCE(?, '')"
+                params.append(resolved_device_id)
+            db.execute(query, tuple(params))
+    except Exception as exc:
+        if database_is_locked_error(exc):
+            logger.warning("Skipping source-tank alert cleanup because the database is busy.")
+            return
+        raise
+
+
+def fetch_filtered_alerts(limit=20, severity=None, device_id=None, snapshot=None):
     query = """
         SELECT id, device_id, kind, severity, message, created_at, updated_at
         FROM ops_alerts
@@ -6021,7 +6114,8 @@ def fetch_filtered_alerts(limit=20, severity=None, device_id=None):
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
-    return [dict(row) for row in rows]
+    alerts = [dict(row) for row in rows]
+    return filter_alerts_for_service_config(alerts, snapshot=snapshot, device_id=device_id) if device_id else alerts
 
 
 def resolve_alert_by_id(alert_id):
@@ -8551,7 +8645,7 @@ def device_detail_status(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         return jsonify({"error": "device not found"}), 404
-    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
+    alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id, snapshot=snapshot)
     audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
     history = fetch_device_history(scoped_device_id, limit=10)
     events = build_events(limit=10, device_id=scoped_device_id)
@@ -8783,7 +8877,8 @@ def monitoring_alerts():
     refresh_operational_alerts(load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None)
     limit = max(1, min(request.args.get("limit", default=20, type=int), 100))
     severity = request.args.get("severity", type=str)
-    return jsonify(fetch_filtered_alerts(limit=limit, severity=severity, device_id=scoped_device_id))
+    snapshot = load_dashboard_snapshot(scoped_device_id) if scoped_device_id else None
+    return jsonify(fetch_filtered_alerts(limit=limit, severity=severity, device_id=scoped_device_id, snapshot=snapshot))
 
 
 @app.route("/monitoring/alerts/<int:alert_id>/resolve", methods=["POST"])
