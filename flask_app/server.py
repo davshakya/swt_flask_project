@@ -4658,7 +4658,7 @@ def calculate_health(snapshot=None, leak_events=0, motor_cycles=0, consumption_r
 
 def fetch_latest_row(db):
     clause, params = device_source_where_clause()
-    return db.execute(
+    row = db.execute(
         f"""
         SELECT *
         FROM tank_data
@@ -4667,6 +4667,16 @@ def fetch_latest_row(db):
         LIMIT 1
         """,
         tuple(params),
+    ).fetchone()
+    if row:
+        return row
+    return db.execute(
+        """
+        SELECT *
+        FROM tank_data
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """
     ).fetchone()
 
 
@@ -6193,6 +6203,17 @@ def fetch_device_snapshot(device_id):
             """,
             (normalized_device_id, *source_params),
         ).fetchone()
+        if not row:
+            row = db.execute(
+                """
+                SELECT *
+                FROM tank_data
+                WHERE device_id = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (normalized_device_id,),
+            ).fetchone()
         if not row:
             return None
         motor_cycles = db.execute(
