@@ -7180,6 +7180,38 @@ def mobile_analytics():
     return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
 
 
+@app.route("/api/mobile/local-sync", methods=["POST"])
+@mobile_auth_required
+def mobile_local_sync():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "invalid json"}), 400
+
+    scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str) or data.get("device_id"))
+    payload_device_id = normalize_device_id(data.get("device_id"))
+    if not scoped_device_id:
+        return jsonify({"error": "device_id is required"}), 400
+    if payload_device_id and payload_device_id != scoped_device_id:
+        return jsonify({"error": "device_id does not match authenticated device"}), 403
+
+    data["device_id"] = scoped_device_id
+    data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned = process_telemetry_payload(data, source_ip="android_local_wifi", transport="android_local_wifi")
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    return jsonify(
+        {
+            "result": "saved",
+            "device_id": scoped_device_id,
+            "snapshot": strip_ip_address_fields(snapshot or cleaned),
+        }
+    )
+
+
 @app.route("/api/mobile/account/password", methods=["POST"])
 @mobile_auth_required
 def mobile_account_password():
