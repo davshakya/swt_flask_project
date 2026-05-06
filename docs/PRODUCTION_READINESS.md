@@ -1,6 +1,6 @@
 # Production Readiness Guide
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-05-06`
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
@@ -73,6 +73,7 @@ Validate these routes before rollout:
 - `/health`
 - `/system/status`
 - `/relay/health`
+- `/dashboard/local-sync` on LAN deployments
 - `/monitoring/summary`
 - `/monitoring/alerts`
 - `/monitoring/audit`
@@ -87,6 +88,7 @@ Production alert categories to verify end-to-end:
 - abnormal or leak-related flags
 - relay queue buildup
 - cloud relay failures
+- local-to-cloud sync failures when ESP8266 HTTPS is skipped due to low heap
 
 If you use external notification channels, test your current webhook configuration before site handover.
 
@@ -132,6 +134,7 @@ Minimum validation set:
 - validate safe behavior during sensor faults
 - validate customer and admin login paths
 - validate Android local and cloud flows if the app is part of delivery
+- validate local Flask auto-relay from LAN HTTP telemetry to cloud when direct ESP8266 HTTPS is not reliable
 - validate service-control settings and firmware artifact workflow if those features are part of support
 
 Keep soak-test and pilot evidence with the project records. Use

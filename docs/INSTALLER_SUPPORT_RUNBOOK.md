@@ -1,6 +1,6 @@
 # Installer And Support Runbook
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-05-06`
 
 Use this runbook to keep installations, handovers, and first-line support consistent across the current Smart Water Tank stack.
 
@@ -84,6 +84,7 @@ Ask for these first:
 - confirm power is present
 - confirm Wi-Fi is connected
 - confirm Flask host is reachable
+- if local firmware is fresh but cloud is stale, confirm local Flask is running and relaying to cloud
 - check `/monitoring/summary`
 - check `/relay/health`
 

@@ -1,6 +1,6 @@
 # Smart Water Tank Flask Backend
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-05-06`
 
 This repository contains the Flask backend for the Smart Water Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
@@ -29,6 +29,7 @@ Within the wider workspace:
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifest at `/static/version.json`
 - MySQL/MariaDB schema initialization for local and hosted deployment
+- Local Wi-Fi bridge endpoints that sync fresh firmware readings into cloud when direct ESP8266 HTTPS is unreliable
 
 ## Repository Layout
 
@@ -56,9 +57,11 @@ Within the wider workspace:
 1. A device sends telemetry to `POST /status`.
 2. Flask authenticates the device using the `X-Device-Id` and `X-Device-Key` headers. The legacy `device_id` and `device_key` JSON fields remain accepted for compatibility, but new clients should use headers.
 3. Telemetry is stored in MySQL, device registration is refreshed, and operational alerts can be updated.
-4. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
-5. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
-6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
+4. If the dashboard or Android app has a fresh LAN firmware reading, it can sync that reading into Flask through `/dashboard/local-sync` or `/api/mobile/local-sync`.
+5. A local Flask instance running on a private LAN address can automatically relay local HTTP telemetry to `SWT_CLOUD_BASE_URL` when explicit relay URLs are blank.
+6. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
+7. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
+8. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
 
 ## Local Setup
 
@@ -83,10 +86,14 @@ At minimum, update these values:
 - `SWT_DEVICE_API_KEY`
 - `SESSION_COOKIE_SECURE=false` for local plain HTTP development
 
-For local-only testing, also consider clearing these so telemetry is not relayed to a shared cloud target:
+For the production cloud backend, keep explicit relay URLs blank:
 
-- `RELAY_STATUS_URLS=`
-- `RELAY_COMMAND_URLS=`
+```dotenv
+RELAY_STATUS_URLS=
+RELAY_COMMAND_URLS=
+```
+
+Blank relay values are treated as explicit clears. When the same Flask app runs on a private LAN host, it can still auto-relay local firmware HTTP telemetry to `SWT_CLOUD_BASE_URL` unless `AUTO_RELAY_LOCAL_TO_SHARED_CLOUD=false`.
 
 ### 3. Create a virtual environment and install dependencies
 
@@ -179,10 +186,11 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `ANDROID_RELEASE_DIR`: Optional directory for admin-uploaded Android APK releases. Defaults under local `data/`.
 - `ANDROID_RELEASE_MAX_MB`: Maximum size accepted for an admin Android APK upload. Defaults to `128`.
 
-### Relay, notifications, and MQTT
+### Relay, local bridge, notifications, and MQTT
 
 - `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets. Bare origins are treated as `/status`, and same-host request loops are skipped.
 - `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets. Bare origins are treated as `/device/command`, and same-host request loops are skipped.
+- `AUTO_RELAY_LOCAL_TO_SHARED_CLOUD`: Defaults to `true`. When explicit relay URLs are blank and Flask is serving from a private LAN/localhost host, local `/status` traffic is relayed to `SWT_CLOUD_BASE_URL`.
 - `RELAY_VERIFY_TLS`: TLS verification for relay HTTP calls.
 - `ALERT_WEBHOOK_URL`, `SLACK_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `WHATSAPP_WEBHOOK_URL`: Optional alert integrations.
 - `MQTT_ENABLED`: Enables MQTT bridge behavior.
@@ -234,6 +242,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](ren
 | `/health` | Lightweight health response | Public |
 | `/last` | Latest dashboard snapshot | Session |
 | `/history` | Time-window telemetry history | Session |
+| `/dashboard/local-sync` | Pull a reachable LAN firmware `/status` reading into Flask | Session |
 | `/analytics` | Aggregated usage analytics | Session |
 | `/system/status` | Structured device/system state | Session |
 | `/monitoring/summary` | Monitoring summary | Session |
@@ -254,6 +263,7 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/auth/login` | `POST` | Exchange admin/customer credentials for a token |
 | `/api/mobile/bootstrap` | `GET` | Initial dashboard/mobile payload |
 | `/api/mobile/analytics` | `GET` | Analytics payload |
+| `/api/mobile/local-sync` | `POST` | Android syncs a fresh local firmware reading into cloud |
 | `/api/mobile/last` | `GET` | Latest snapshot |
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
@@ -267,7 +277,7 @@ The mobile API uses signed tokens, not browser sessions.
 
 ## Database and Persistence
 
-The backend auto-creates and maintains its MySQL/MariaDB database schema on startup. Use `DB_BACKEND=mysql` with `DATABASE_URL` or `MYSQL_*` values. SQLite is no longer supported by the Flask app.
+The backend auto-creates and maintains its MySQL/MariaDB database schema on startup. Use `DB_BACKEND=mysql` with `DATABASE_URL` or `MYSQL_*` values.
 
 Important tables include:
 
@@ -296,7 +306,7 @@ The `/ml/predict` endpoint depends on:
 - the normal `requirements.txt` install
 - a trained artifact, default path: `artifacts/level_forecast_model.pkl`
 
-Train a model from exported or migrated telemetry only after preparing a compatible training dataset. The legacy SQLite training helper is no longer part of the normal MySQL runtime path.
+Train a model only after preparing a compatible telemetry dataset from the current backend data.
 
 If the artifact is missing, ML dependencies are unavailable, or the selected device has too little telemetry,
 `/ml/predict` returns a normal JSON payload with `available=false`, a `reason_code`, and remediation text.
@@ -335,10 +345,6 @@ $env:SWT_FLASK_TEST_REPO = "..\\swt_test_cases_project"
 
 ## Utility Scripts
 
-### Legacy SQLite Migration Helpers
-
-Some scripts remain for one-time migration from older SQLite pilot data, but the Flask app itself now runs MySQL/MariaDB only. Do not use those helpers as the production database path.
-
 ### Virtual Device Emulator
 
 The virtual-device runner and its generated env tooling live in the sibling repository `../swt_test_cases_project`.
@@ -374,7 +380,8 @@ Before deploying:
 - configure `DATABASE_URL` or `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`
 - keep `SESSION_COOKIE_SECURE=true`
 - keep firmware and Android release artifact directories on persistent storage
-- decide whether relay URLs should be enabled in that environment
+- keep relay URLs blank on the main cloud backend
+- leave `AUTO_RELAY_LOCAL_TO_SHARED_CLOUD=true` on LAN Flask if it should bridge local device HTTP traffic to cloud
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
 ## Operational Docs
@@ -392,13 +399,14 @@ For rollout and support work, see:
 - Graphs or analytics look empty: Confirm `TELEMETRY_HISTORY_ENABLED=true` and make sure the database has at least a few telemetry rows.
 - State disappears after restart or redeploy: Check MySQL persistence and set a stable `APP_SECRET_KEY`.
 - `/ml/predict` fails with missing artifact: Make sure `requirements.txt` is installed and train a model with `scripts/train_level_forecast_model.py`.
+- Cloud dashboard is stale while the firmware local page is fresh: verify the device can post to local Flask HTTP, then verify LAN Flask auto-relays to `SWT_CLOUD_BASE_URL`. ESP8266 direct HTTPS can fail when heap is low.
 
 ## Recommended First-Run Checklist
 
 1. Copy `flask_app/.env.example` and `device.env.example`.
 2. Replace every `change-me` value.
 3. Set `SESSION_COOKIE_SECURE=false` for local HTTP.
-4. Decide whether relay URLs should be blank for local testing.
+4. Keep `RELAY_STATUS_URLS=` and `RELAY_COMMAND_URLS=` blank unless this server intentionally forwards to a separate backend.
 5. Start the server and sign in at `/login/admin`.
 6. Confirm `/health` and `/admin/db-summary` look correct.
 7. Send one test telemetry payload from a device and verify it appears in `/last`.
