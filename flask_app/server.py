@@ -6159,6 +6159,57 @@ def normalize_device_base_url(value):
     return f"{parsed.scheme}://{parsed.netloc}"
 
 
+def is_private_device_base_url(value):
+    text = normalize_device_base_url(value)
+    if not text:
+        return False
+    parsed = urlparse(text)
+    host = (parsed.hostname or "").strip().lower()
+    if host in {"localhost"}:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
+def local_device_status_url(base_url):
+    normalized = normalize_device_base_url(base_url)
+    if not normalized:
+        return None
+    return f"{normalized}/status"
+
+
+def fetch_local_device_status(base_url):
+    if not is_private_device_base_url(base_url):
+        raise ValueError("local device URL must be a private LAN address")
+
+    status_url = local_device_status_url(base_url)
+    if not status_url:
+        raise ValueError("local device URL is not configured")
+
+    username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+    password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
+    timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
+    auth = (username, password) if username and password else None
+    response = requests.get(status_url, auth=auth, timeout=timeout)
+    if response.status_code in {401, 403} and username and password:
+        session_client = requests.Session()
+        session_client.post(
+            f"{normalize_device_base_url(base_url)}/login",
+            data={"username": username, "password": password},
+            timeout=timeout,
+        )
+        response = session_client.get(status_url, auth=auth, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("local device returned invalid status")
+    payload["device_local_url"] = normalize_device_base_url(base_url)
+    return payload
+
+
 def is_loopback_device_target(value):
     text = str(value or "").strip()
     if not text:
@@ -8776,6 +8827,49 @@ def dashboard_bootstrap():
                 ),
                 "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
             },
+        }
+    )
+
+
+@app.route("/dashboard/local-sync", methods=["POST"])
+@login_required
+def dashboard_local_sync():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
+
+    data = request.get_json(silent=True) or {}
+    scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str) or data.get("device_id"))
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    local_base_url = normalize_device_base_url(data.get("device_local_url") or (snapshot or {}).get("device_local_url"))
+    if not local_base_url:
+        return jsonify({"error": "local device URL is not available"}), 404
+
+    try:
+        local_status = fetch_local_device_status(local_base_url)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except requests.RequestException as exc:
+        logger.info("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        return jsonify({"error": "local device is not reachable"}), 503
+
+    local_device_id = normalize_device_id(local_status.get("device_id"))
+    if scoped_device_id and local_device_id and local_device_id != scoped_device_id:
+        return jsonify({"error": "local device_id does not match dashboard device"}), 403
+    if scoped_device_id:
+        local_status["device_id"] = scoped_device_id
+    elif local_device_id:
+        local_status["device_id"] = local_device_id
+
+    local_status["device_source"] = normalize_device_source(local_status.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned = process_telemetry_payload(local_status, source_ip="dashboard_local_wifi", transport="dashboard_local_wifi")
+    refreshed_snapshot = load_dashboard_snapshot(local_status.get("device_id") or scoped_device_id)
+    refresh_operational_alerts(refreshed_snapshot if snapshot_has_live_device_data(refreshed_snapshot) else None)
+    return jsonify(
+        {
+            "result": "saved",
+            "device_id": local_status.get("device_id") or scoped_device_id,
+            "snapshot": strip_ip_address_fields(refreshed_snapshot or cleaned, keep_device_local_url=True),
         }
     )
 

@@ -35,3 +35,15 @@ def test_mobile_local_sync_preserves_scope_and_transport_markers():
     assert '"device_id does not match authenticated device"' in server_source
     assert 'source_ip="android_local_wifi"' in server_source
     assert 'transport="android_local_wifi"' in server_source
+
+
+def test_dashboard_local_sync_route_polls_private_lan_device():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    dashboard_source = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert '@app.route("/dashboard/local-sync", methods=["POST"])' in server_source
+    assert "def fetch_local_device_status" in server_source
+    assert "is_private_device_base_url" in server_source
+    assert 'source_ip="dashboard_local_wifi"' in server_source
+    assert "syncLocalDashboardSnapshot" in dashboard_source
+    assert '`${API}/dashboard/local-sync`' in dashboard_source
