@@ -79,6 +79,10 @@ PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
     "replace-with-a-real",
     "build-default",
 )
+CLEARABLE_DEVICE_ENV_KEYS = {
+    "RELAY_STATUS_URLS",
+    "RELAY_COMMAND_URLS",
+}
 
 
 def device_config_value_is_placeholder(value):
@@ -104,7 +108,7 @@ def load_workspace_device_env_files(project_root, environ):
             continue
         prefer_real_override = dotenv_path == project_device_env
         for key, value in parsed_values.items():
-            if not str(value or "").strip():
+            if not str(value or "").strip() and key not in CLEARABLE_DEVICE_ENV_KEYS:
                 continue
             current_value = merged_values.get(key)
             if current_value is None or device_config_value_is_placeholder(current_value):
@@ -114,7 +118,11 @@ def load_workspace_device_env_files(project_root, environ):
                 merged_values[key] = value
     for key, value in merged_values.items():
         existing_value = environ.get(key)
-        if existing_value is None or device_config_value_is_placeholder(existing_value):
+        if (
+            key in CLEARABLE_DEVICE_ENV_KEYS
+            or existing_value is None
+            or device_config_value_is_placeholder(existing_value)
+        ):
             environ[key] = value
 
 
@@ -482,6 +490,7 @@ DEFAULT_RELAY_STATUS_URLS = ""
 DEFAULT_RELAY_COMMAND_URLS = ""
 RELAY_STATUS_URLS = os.environ.get("RELAY_STATUS_URLS", DEFAULT_RELAY_STATUS_URLS)
 RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_URLS)
+AUTO_RELAY_LOCAL_TO_SHARED_CLOUD = env_flag("AUTO_RELAY_LOCAL_TO_SHARED_CLOUD", default=True)
 RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
 RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
@@ -577,6 +586,19 @@ def url_hostname(value):
     return (parsed.hostname or "").lower()
 
 
+def host_is_private_or_local(host):
+    normalized = str(host or "").strip().lower()
+    if normalized in {"localhost"}:
+        return True
+    if not normalized:
+        return False
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
 def normalize_relay_target_url(value, default_path):
     raw_value = str(value or "").strip()
     if not raw_value:
@@ -611,11 +633,26 @@ def current_request_origin():
     return url_origin(request.url_root)
 
 
-def relay_urls_for_current_request(urls):
+def derived_shared_cloud_relay_urls(default_path):
+    return parse_relay_url_list(DEFAULT_SHARED_CLOUD_BASE_URL, default_path)
+
+
+def should_auto_relay_local_request_to_shared_cloud():
+    if not AUTO_RELAY_LOCAL_TO_SHARED_CLOUD or not has_request_context():
+        return False
+    request_host = url_hostname(current_request_origin())
+    cloud_host = url_hostname(DEFAULT_SHARED_CLOUD_BASE_URL)
+    return bool(request_host and cloud_host and request_host != cloud_host and host_is_private_or_local(request_host))
+
+
+def relay_urls_for_current_request(urls, default_path=None):
+    effective_urls = list(urls)
+    if not effective_urls and default_path and should_auto_relay_local_request_to_shared_cloud():
+        effective_urls = derived_shared_cloud_relay_urls(default_path)
     request_host = url_hostname(current_request_origin())
     if not request_host:
-        return list(urls)
-    return [url for url in urls if url_hostname(url) != request_host]
+        return effective_urls
+    return [url for url in effective_urls if url_hostname(url) != request_host]
 
 
 def mqtt_feature_enabled():
@@ -6696,7 +6733,7 @@ def queue_command(command, target_device=None):
 
 
 def relay_status_to_cloud(payload):
-    relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST)
+    relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")
     if not relay_urls:
         set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
         return "ok"
@@ -6759,7 +6796,7 @@ def relay_status_to_cloud(payload):
 
 
 def enqueue_relay_payload(payload):
-    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST):
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status"):
         return
     cleaned = sanitize_payload(payload)
     with get_db() as db:
@@ -6839,7 +6876,7 @@ def cloud_relay_enabled_for_device_source(device_source):
 def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return None
-    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST)
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST, "/device/command")
     if not relay_urls:
         return None
     for url in relay_urls:
@@ -6870,7 +6907,7 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
 def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return False
-    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST)
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST, "/device/command")
     if not relay_urls:
         return False
 
@@ -6911,7 +6948,7 @@ def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE
 
 
 def relay_status_async(payload):
-    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST):
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status"):
         set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
         return
     enqueue_relay_payload(payload)

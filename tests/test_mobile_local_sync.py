@@ -47,3 +47,21 @@ def test_dashboard_local_sync_route_polls_private_lan_device():
     assert 'source_ip="dashboard_local_wifi"' in server_source
     assert "syncLocalDashboardSnapshot" in dashboard_source
     assert '`${API}/dashboard/local-sync`' in dashboard_source
+
+
+def test_blank_relay_env_values_explicitly_clear_runtime_relay_config():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert "CLEARABLE_DEVICE_ENV_KEYS" in server_source
+    assert '"RELAY_STATUS_URLS"' in server_source
+    assert '"RELAY_COMMAND_URLS"' in server_source
+    assert "key in CLEARABLE_DEVICE_ENV_KEYS" in server_source
+
+
+def test_local_flask_can_auto_relay_to_shared_cloud_without_explicit_relay_urls():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert "AUTO_RELAY_LOCAL_TO_SHARED_CLOUD" in server_source
+    assert "should_auto_relay_local_request_to_shared_cloud" in server_source
+    assert "host_is_private_or_local" in server_source
+    assert 'relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")' in server_source
