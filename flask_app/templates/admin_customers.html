@@ -112,7 +112,8 @@
 .empty-state{padding:18px;border-radius:18px;background:rgba(255,255,255,.56);border:1px dashed var(--admin-border)}
 .focus-note{font-size:12px;color:var(--admin-text-soft);line-height:1.55}
 .admin-control-room.modal-open{overflow:hidden}
-.service-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:70;margin:0;border:none}
+.service-modal-layer{position:relative;z-index:90}
+.service-modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:100;margin:0;border:none}
 .service-modal.is-open{display:flex}
 .service-modal-backdrop{position:absolute;inset:0;background:rgba(7,27,36,.5);backdrop-filter:blur(4px)}
 .service-modal-dialog{position:relative;z-index:1;width:min(430px,calc(100vw - 24px));max-height:min(78vh,560px);overflow:auto;padding:18px;border-radius:24px;border:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 30px 70px rgba(7,36,47,.28)}
@@ -575,45 +576,6 @@
                                         <button type="submit" class="danger">Delete</button>
                                     </form>
                                 </div>
-                                <div id="services_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="services_title_{{ loop.index }}" hidden>
-                                    <div class="service-modal-backdrop" data-panel-dismiss></div>
-                                    <div class="service-modal-dialog">
-                                        <div class="service-modal-head">
-                                            <div class="service-modal-copy">
-                                                <h3 id="services_title_{{ loop.index }}" class="service-modal-title">Manage Services</h3>
-                                                <p class="service-modal-note">{{ device.device_id }}</p>
-                                            </div>
-                                            <button type="button" class="service-modal-close" data-panel-dismiss>Close</button>
-                                        </div>
-                                        <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                            <div class="service-checklist">
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
-                                                    <span>Source Tank Monitoring</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
-                                                    <span>AI Analysis</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="cloud_feed_disabled" value="1" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
-                                                    <span>Cloud Feed Disabled</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
-                                                    <span>Buzzer</span>
-                                                </label>
-                                                <label class="service-option">
-                                                    <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
-                                                    <span>LED Display</span>
-                                                </label>
-                                            </div>
-                                            <div class="service-form-footer">
-                                                <button type="submit">Save Services</button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
                                 {% if device.registered_account %}
                                 <div id="edit_shell_{{ loop.index }}" class="inline-panel" hidden>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/edit" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
@@ -659,6 +621,57 @@
             </div>
             <div id="search_empty_devices" class="empty-state{% if available_devices %} hidden-result{% endif %}">{% if search_query %}No known devices match this search.{% else %}No known devices have checked in yet.{% endif %}</div>
         </div>
+</div>
+<div class="service-modal-layer">
+    {% for device in available_devices %}
+    <div id="services_shell_{{ loop.index }}" class="inline-panel service-modal" data-panel-mode="modal" role="dialog" aria-modal="true" aria-labelledby="services_title_{{ loop.index }}" hidden>
+        <div class="service-modal-backdrop" data-panel-dismiss></div>
+        <div class="service-modal-dialog">
+            <div class="service-modal-head">
+                <div class="service-modal-copy">
+                    <h3 id="services_title_{{ loop.index }}" class="service-modal-title">Manage Services</h3>
+                    <p class="service-modal-note">{{ device.device_id }}</p>
+                </div>
+                <button type="button" class="service-modal-close" data-panel-dismiss>Close</button>
+            </div>
+            <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                <div class="service-checklist">
+                    <label class="service-option">
+                        <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
+                        <span>Source Tank Monitoring</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>
+                        <span>AI Analysis</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="cloud_feed_disabled" value="1" {% if device.cloud_feed_mode == "off" %}checked{% endif %}>
+                        <span>Cloud Feed Disabled</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="ota_enabled" value="1" {% if device.ota_enabled %}checked{% endif %}>
+                        <span>OTA Service</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if device.local_firmware_upload_enabled %}checked{% endif %}>
+                        <span>Local Firmware Upload</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="buzzer_enabled" value="1" {% if device.buzzer_enabled %}checked{% endif %}>
+                        <span>Buzzer</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="led_display_enabled" value="1" {% if device.led_display_enabled %}checked{% endif %}>
+                        <span>LED Display</span>
+                    </label>
+                </div>
+                <div class="service-form-footer">
+                    <button type="submit">Save Services</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% include '_pwa_install.html' %}
 <script>

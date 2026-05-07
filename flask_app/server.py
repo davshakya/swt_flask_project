@@ -1842,6 +1842,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "lower_tank_service": payload.get("lower_tank_service"),
         "buzzer_service": payload.get("buzzer_service"),
         "led_display_service": payload.get("led_display_service"),
+        "local_firmware_upload_service": payload.get("local_firmware_upload_service"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -2569,6 +2570,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("lower_tank_service"),
         cleaned.get("buzzer_service"),
         cleaned.get("led_display_service"),
+        cleaned.get("local_firmware_upload_service"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2592,7 +2594,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
-                buzzer_service, led_display_service
+                buzzer_service, led_display_service, local_firmware_upload_service
             )
             VALUES ({placeholders})
             """,
@@ -2985,6 +2987,7 @@ def ensure_tank_data_columns(cursor):
         "lower_tank_service": "TEXT",
         "buzzer_service": "TEXT",
         "led_display_service": "TEXT",
+        "local_firmware_upload_service": "TEXT",
     }
 
     for column, definition in required.items():
@@ -3060,6 +3063,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_tank_service TEXT,
             buzzer_service TEXT,
             led_display_service TEXT,
+            local_firmware_upload_service TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3250,6 +3254,8 @@ def ensure_device_service_configs_table(cursor):
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
+            ota_enabled INTEGER NOT NULL DEFAULT 0,
+            local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 0,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -3265,6 +3271,8 @@ def ensure_device_service_configs_columns(cursor):
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
+        "ota_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 0",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
         "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
@@ -3467,6 +3475,7 @@ def init_db():
                 lower_tank_service TEXT,
                 buzzer_service TEXT,
                 led_display_service TEXT,
+                local_firmware_upload_service TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -4086,6 +4095,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
+    ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
+    local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=False)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
     effective_cloud_feed_enabled = cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF and account_cloud_feed_enabled
@@ -4094,7 +4105,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         and cloud_feed_mode == DEVICE_SERVICE_CLOUD_FEED_FULL
         and effective_cloud_feed_enabled
     )
-    hardware_enabled_count = int(buzzer_enabled) + int(led_display_enabled)
+    hardware_enabled_count = int(ota_enabled) + int(local_firmware_upload_enabled) + int(buzzer_enabled) + int(led_display_enabled)
     cloud_note = "Customer cloud access starts after an account is created."
     if account is not None:
         cloud_note = (
@@ -4112,10 +4123,12 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "cloud_feed_mode_label": DEVICE_SERVICE_CLOUD_MODE_LABELS.get(cloud_feed_mode, "Unknown"),
         "cloud_feed_enabled": effective_cloud_feed_enabled,
         "cloud_note": cloud_note,
+        "ota_enabled": ota_enabled,
+        "local_firmware_upload_enabled": local_firmware_upload_enabled,
         "buzzer_enabled": buzzer_enabled,
         "led_display_enabled": led_display_enabled,
         "hardware_enabled_count": hardware_enabled_count,
-        "hardware_enabled_label": f"{hardware_enabled_count}/2 hardware controls active",
+        "hardware_enabled_label": f"{hardware_enabled_count}/4 device services active",
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
             f" • AI {ai_label}"
@@ -4137,6 +4150,8 @@ def default_device_service_config(device_id=None, account=None):
             "cloud_feed_mode": (
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
             ),
+            "ota_enabled": False,
+            "local_firmware_upload_enabled": False,
             "buzzer_enabled": True,
             "led_display_enabled": True,
         },
@@ -4169,7 +4184,8 @@ def fetch_device_service_config(device_id, account=None):
         row = db.execute(
             """
             SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
-                   cloud_feed_mode, buzzer_enabled, led_display_enabled,
+                   cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
+                   buzzer_enabled, led_display_enabled,
                    created_at, updated_at
             FROM device_service_configs
             WHERE device_id = ?
@@ -4189,7 +4205,8 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
     query = (
         """
         SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
-               cloud_feed_mode, buzzer_enabled, led_display_enabled,
+               cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
+               buzzer_enabled, led_display_enabled,
                created_at, updated_at
         FROM device_service_configs
         """
@@ -4226,6 +4243,8 @@ def upsert_device_service_config(
     source_tank_monitoring_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
+    ota_enabled=None,
+    local_firmware_upload_enabled=None,
     buzzer_enabled=None,
     led_display_enabled=None,
 ):
@@ -4242,6 +4261,14 @@ def upsert_device_service_config(
     resolved_ai_analysis_enabled = boolish_enabled(
         ai_analysis_enabled,
         default=existing.get("ai_analysis_enabled", True),
+    )
+    resolved_ota_enabled = boolish_enabled(
+        ota_enabled,
+        default=existing.get("ota_enabled", False),
+    )
+    resolved_local_firmware_upload_enabled = boolish_enabled(
+        local_firmware_upload_enabled,
+        default=existing.get("local_firmware_upload_enabled", False),
     )
     resolved_buzzer_enabled = boolish_enabled(
         buzzer_enabled,
@@ -4261,14 +4288,17 @@ def upsert_device_service_config(
             """
             INSERT INTO device_service_configs(
                 device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
-                cloud_feed_mode, buzzer_enabled, led_display_enabled,
+                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
+                buzzer_enabled, led_display_enabled,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
+                ota_enabled=excluded.ota_enabled,
+                local_firmware_upload_enabled=excluded.local_firmware_upload_enabled,
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
                 updated_at=CURRENT_TIMESTAMP
@@ -4278,6 +4308,8 @@ def upsert_device_service_config(
                 1 if resolved_source_tank_monitoring_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
+                1 if resolved_ota_enabled else 0,
+                1 if resolved_local_firmware_upload_enabled else 0,
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
             ),
@@ -4296,10 +4328,12 @@ def upsert_device_service_config(
 
 def build_device_service_command(service_config):
     config = service_config or {}
-    return "SERVICECFG:{source}:{buzzer}:{led}".format(
+    return "SERVICECFG2:{source}:{buzzer}:{led}:{ota}:{upload}".format(
         source=1 if bool(config.get("source_tank_monitoring_enabled")) else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
         led=1 if bool(config.get("led_display_enabled")) else 0,
+        ota=1 if bool(config.get("ota_enabled")) else 0,
+        upload=1 if bool(config.get("local_firmware_upload_enabled")) else 0,
     )
 
 
@@ -4761,6 +4795,7 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
     data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
     data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
+    data["local_firmware_upload_service"] = normalize_service_state(data.get("local_firmware_upload_service"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -5079,6 +5114,7 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_tank_service": "UNKNOWN",
         "buzzer_service": "UNKNOWN",
         "led_display_service": "UNKNOWN",
+        "local_firmware_upload_service": "UNKNOWN",
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
@@ -5146,6 +5182,7 @@ def build_system_status_payload(snapshot, device_id=None):
         "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
+        "local_firmware_upload_service": snapshot.get("local_firmware_upload_service") if snapshot else "UNKNOWN",
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -5186,6 +5223,7 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
             "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
             "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
+            "local_firmware_upload_service": snapshot.get("local_firmware_upload_service") if snapshot else "UNKNOWN",
             "wifi": snapshot.get("wifi") if snapshot else None,
             "wifi_rssi": snapshot.get("wifi_rssi") if snapshot else None,
             "sensor": snapshot.get("sensor") if snapshot else None,
@@ -7513,6 +7551,12 @@ def mobile_device_services():
                     "source_tank_monitoring_enabled": bool(
                         snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
                     ),
+                    "ota_enabled": bool(
+                        snapshot and str(snapshot.get("ota_service") or "").upper() == "ON"
+                    ),
+                    "local_firmware_upload_enabled": bool(
+                        snapshot and str(snapshot.get("local_firmware_upload_service") or "").upper() == "ON"
+                    ),
                     "buzzer_enabled": bool(
                         snapshot and str(snapshot.get("buzzer_service") or "").upper() == "ON"
                     ),
@@ -7528,6 +7572,8 @@ def mobile_device_services():
         source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
         ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
         cloud_feed_mode=source_payload.get("cloud_feed_mode"),
+        ota_enabled=source_payload.get("ota_enabled"),
+        local_firmware_upload_enabled=source_payload.get("local_firmware_upload_enabled"),
         buzzer_enabled=source_payload.get("buzzer_enabled"),
         led_display_enabled=source_payload.get("led_display_enabled"),
     )
@@ -8341,6 +8387,8 @@ def admin_customer_services(device_id):
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
+            ota_enabled=("ota_enabled" in request.form),
+            local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
         )
