@@ -543,6 +543,51 @@ grid-template-columns:repeat(3,minmax(0,1fr));
 gap:16px;
 margin-top:18px;
 }
+.module-grid{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:16px;
+margin-top:18px;
+}
+.module-card{
+padding:18px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+display:grid;
+gap:10px;
+align-content:start;
+}
+.module-card.is-recommended{
+background:linear-gradient(180deg,rgba(13,147,168,.1),rgba(255,255,255,.96));
+border-color:rgba(13,147,168,.22);
+}
+.module-card strong{
+font-size:1.24rem;
+line-height:1.14;
+letter-spacing:-.03em;
+}
+.module-card p{
+margin:0;
+line-height:1.58;
+color:var(--muted);
+}
+.module-range{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+justify-self:start;
+min-height:36px;
+padding:8px 11px;
+border-radius:999px;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-size:12px;
+font-weight:900;
+letter-spacing:.12em;
+text-transform:uppercase;
+}
 .addon-card{
 padding:18px;
 border-radius:24px;
@@ -664,6 +709,7 @@ grid-template-columns:1fr;
 .plans-grid{
 grid-template-columns:repeat(2,minmax(0,1fr));
 }
+.module-grid,
 .addons-grid{
 grid-template-columns:repeat(2,minmax(0,1fr));
 }
@@ -678,6 +724,7 @@ justify-content:flex-start;
 }
 .tier-grid,
 .plans-grid,
+.module-grid,
 .addons-grid{
 grid-template-columns:1fr;
 }
@@ -732,6 +779,7 @@ max-width:none;
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
             <a href="#plans">Plans</a>
+            <a href="#modules">Modules</a>
             <a href="#comparison">Comparison</a>
             <a href="#addons">Add-Ons</a>
             <a href="#contact">Talk to Sales</a>
@@ -746,8 +794,8 @@ max-width:none;
         <div class="hero-copy">
             <div class="eyebrow">Pricing Plans</div>
             <h1>Simple pricing for every type of property</h1>
-            <p>Choose local monitoring, internet pump control, or full AI-based analytics based on your needs.</p>
-            <div class="trust-line">Small monthly subscription. Big savings in water loss, tanker dependency, and motor repair costs.</div>
+            <p>Choose local monitoring, internet pump control, or full AI-based analytics based on your needs and the real vertical distance between tank and motor.</p>
+            <div class="trust-line">Short buildings can use one controller. Tall buildings should use the dual-node ESP8266 setup for stable readings and safer pump control.</div>
             <div class="cta-row">
                 <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
@@ -782,6 +830,51 @@ max-width:none;
                 </article>
             </div>
         </aside>
+    </section>
+
+    <section class="section surface" id="modules">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Modular Hardware</div>
+                <h2>Sell the right kit for the building height.</h2>
+            </div>
+            <p>Use the measured tank-to-motor cable route during site survey. This keeps the product flexible for budget homes while still giving tall buildings a professional dual-node setup.</p>
+        </div>
+
+        <div class="module-grid">
+            <article class="module-card">
+                <span class="module-range">Under 10 m</span>
+                <strong>Single Controller Kit</strong>
+                <p>JSN-SR04T and controller stay within a short practical wire run. Best for small homes and simple installations.</p>
+                <ul class="feature-list">
+                    <li>Lowest hardware cost</li>
+                    <li>Fast installation</li>
+                    <li>Good for short vertical distance</li>
+                </ul>
+            </article>
+            <article class="module-card">
+                <span class="module-range">10-20 m</span>
+                <strong>Shielded Wire or Dual Node</strong>
+                <p>Use shielded sensor extension only after site testing. Recommend dual ESP8266 when reliability matters.</p>
+                <ul class="feature-list">
+                    <li>Site-tested wiring option</li>
+                    <li>Avoids random readings</li>
+                    <li>Upgrade path to wireless nodes</li>
+                </ul>
+            </article>
+            <article class="module-card is-recommended">
+                <span class="module-range">20 m+ / multi-floor</span>
+                <strong>Dual ESP8266 Wireless Kit</strong>
+                <p>Tank node reads the JSN-SR04T near the tank. Control node stays near the pump, relay and contactor.</p>
+                <ul class="feature-list">
+                    <li>No long ultrasonic wires</li>
+                    <li>Fail-safe motor OFF on stale data</li>
+                    <li>Best for customer-ready products</li>
+                </ul>
+            </article>
+        </div>
+
+        <div class="install-note">Final module selection should be based on measured cable route, Wi-Fi signal, pump-panel location and electrician approval for contactor wiring.</div>
     </section>
 
     <section class="section surface" id="plans">
@@ -1095,6 +1188,11 @@ max-width:none;
                 <strong>Source tank monitoring</strong>
                 <div class="addon-price">+ &#8377;2,000</div>
                 <p>Useful where source and destination visibility matters for transfer logic, refill planning and locked pump starts.</p>
+            </article>
+            <article class="addon-card">
+                <strong>Dual ESP8266 wireless kit</strong>
+                <div class="addon-price">Quote by site</div>
+                <p>Recommended when tank and motor are separated by floors or the measured cable route is above 10-12 m.</p>
             </article>
             <article class="addon-card">
                 <strong>Extra tank connection</strong>

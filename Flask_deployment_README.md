@@ -1,6 +1,6 @@
-﻿# Smart Water Tank Flask Deployment Guide
+# Smart Water Tank Flask Deployment Guide
 
-Last refreshed: `2026-05-06`
+Last refreshed: `2026-04-30`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
 
@@ -18,15 +18,15 @@ Important files in this project:
 
 ```text
 swt_flask_project/
-|-- server.py
-|-- passenger_wsgi.py
-|-- requirements.txt
-|-- device.env
-`-- flask_app/
-    |-- server.py
-    |-- .env
-    |-- templates/
-    `-- static/
+├── server.py
+├── passenger_wsgi.py
+├── requirements.txt
+├── device.env
+├── flask_app/
+│   ├── server.py
+│   ├── .env
+│   ├── templates/
+│   └── static/
 ```
 
 How it works:
@@ -183,15 +183,13 @@ SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=Lax
 RELAY_STATUS_URLS=
 RELAY_COMMAND_URLS=
-AUTO_RELAY_LOCAL_TO_SHARED_CLOUD=false
 ```
 
 Notes:
 
 - create the MySQL database and assign the MySQL user in cPanel before restarting the app
 - leave `RELAY_STATUS_URLS` and `RELAY_COMMAND_URLS` blank when `salewell.co.in` is the main backend
-- blank relay settings are explicit clears, so a stale hosting-level relay environment value will not survive if `device.env` also has blank relay keys
-- keep `AUTO_RELAY_LOCAL_TO_SHARED_CLOUD=false` on the public cloud host; use `true` only on a LAN Flask instance that should bridge low-heap device HTTP telemetry to cloud
+- blank relay settings avoid accidental forwarding to another server or back into the same app
 
 ### Recommended `device.env` values
 

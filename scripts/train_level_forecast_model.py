@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Train a tank level forecasting model from MySQL/MariaDB telemetry."""
+"""Train a first-pass tank level forecasting model from MySQL telemetry."""
 
 from __future__ import annotations
 
@@ -7,17 +7,20 @@ import argparse
 import os
 import pickle
 import sys
+from urllib.parse import urlparse
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pymysql
+from pymysql.cursors import DictCursor
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from flask_app.ml_forecasting import build_feature_matrix, query_device_forecast_rows, prepare_feature_frame, validate_forecast_args
+from flask_app.ml_forecasting import build_feature_matrix, prepare_feature_frame, query_training_rows, validate_forecast_args
 
 # Keep training deterministic and avoid flaky multiprocessing/thread-pool issues
 # on small Windows environments.
@@ -59,7 +62,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--device-id",
         default="",
-        help="Device ID to train from. Required because training now reads from MySQL through the Flask backend config.",
+        help="Optional device_id filter. Leave empty to train across all devices.",
     )
     parser.add_argument(
         "--resample-minutes",
@@ -193,18 +196,14 @@ def save_artifact(result: TrainingResult, output_path: Path) -> None:
 
 
 def main() -> None:
+    load_local_env_defaults()
     args = parse_args()
     validate_args(args)
 
-    if not str(args.device_id or "").strip():
-        raise SystemExit("--device-id is required for MySQL-backed training.")
-
     output_path = Path(args.output)
     try:
-        from flask_app.server import get_db, get_device_source_mode
-
-        with get_db() as db:
-            raw = query_device_forecast_rows(db, args.device_id, device_source=get_device_source_mode())
+        with connect_mysql() as connection:
+            raw = query_training_rows(connection, args.device_id)
         training_frame, horizon_steps = prepare_feature_frame(
             raw,
             resample_minutes=args.resample_minutes,
@@ -251,6 +250,7 @@ def main() -> None:
         test_rows=len(test_x),
         metrics=metrics,
         metadata={
+            "database_backend": "mysql",
             "device_id_filter": args.device_id or None,
             "resample_minutes": args.resample_minutes,
             "horizon_hours": args.horizon_hours,
@@ -274,3 +274,57 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+def parse_simple_env(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip("'\"")
+    return values
+
+
+def load_local_env_defaults() -> None:
+    for path in (PROJECT_ROOT / "flask_app" / ".env", PROJECT_ROOT / "device.env"):
+        for key, value in parse_simple_env(path).items():
+            os.environ.setdefault(key, value)
+
+
+def mysql_connection_config() -> dict[str, object]:
+    database_url = os.environ.get("DATABASE_URL", "").strip()
+    if database_url:
+        parsed = urlparse(database_url)
+        if parsed.scheme not in {"mysql", "mysql+pymysql", "mariadb"}:
+            raise SystemExit("DATABASE_URL must use mysql://, mysql+pymysql://, or mariadb://.")
+        return {
+            "host": parsed.hostname or "localhost",
+            "port": parsed.port or 3306,
+            "user": parsed.username or "",
+            "password": parsed.password or "",
+            "database": (parsed.path or "").lstrip("/"),
+        }
+    return {
+        "host": os.environ.get("MYSQL_HOST", "localhost").strip() or "localhost",
+        "port": int(os.environ.get("MYSQL_PORT", "3306") or 3306),
+        "user": os.environ.get("MYSQL_USER", "").strip(),
+        "password": os.environ.get("MYSQL_PASSWORD", ""),
+        "database": os.environ.get("MYSQL_DATABASE", "").strip(),
+    }
+
+
+def connect_mysql():
+    config = mysql_connection_config()
+    if not config["user"] or not config["database"]:
+        raise SystemExit("Set DATABASE_URL or MYSQL_HOST/MYSQL_USER/MYSQL_PASSWORD/MYSQL_DATABASE before training.")
+    return pymysql.connect(
+        host=str(config["host"]),
+        port=int(config["port"]),
+        user=str(config["user"]),
+        password=str(config["password"]),
+        database=str(config["database"]),
+        charset="utf8mb4",
+        cursorclass=DictCursor,
+    )

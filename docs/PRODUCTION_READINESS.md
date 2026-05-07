@@ -1,6 +1,6 @@
 # Production Readiness Guide
 
-Last refreshed: `2026-05-06`
+Last refreshed: `2026-04-30`
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
@@ -10,7 +10,7 @@ As the repo stands today:
 
 - firmware, Flask, and Android flows are implemented
 - automated tests exist for Flask, API, UI, ML helpers, and virtual-device tooling in `../swt_test_cases_project`
-- Render deployment wiring exists for a MySQL/MariaDB-backed web service
+- Render deployment wiring exists for MySQL-backed hosting
 - cPanel/Passenger deployment guidance exists in `../Flask_deployment_README.md`
 - pilot and support workflows still need disciplined execution before scale
 
@@ -59,12 +59,12 @@ The backend is stateful today because it stores:
 
 For hosted deployment:
 
-- use a managed MySQL/MariaDB database with backups
-- back up the DB regularly
-- avoid ephemeral filesystems for production state
-- monitor database storage, backup status, and retention windows
+- use MySQL/MariaDB only
+- back up the database regularly
+- avoid ephemeral filesystems for uploaded firmware or Android artifacts
+- monitor database size and retention windows
 
-The repo's Render config expects MySQL/MariaDB connection settings through `DATABASE_URL` or `MYSQL_*` environment variables.
+The repo's [`../render.yaml`](../render.yaml) expects a MySQL/MariaDB connection through `DATABASE_URL` or `MYSQL_*` values.
 
 ## 4. Monitoring And Alerting
 
@@ -73,7 +73,6 @@ Validate these routes before rollout:
 - `/health`
 - `/system/status`
 - `/relay/health`
-- `/dashboard/local-sync` on LAN deployments
 - `/monitoring/summary`
 - `/monitoring/alerts`
 - `/monitoring/audit`
@@ -88,7 +87,6 @@ Production alert categories to verify end-to-end:
 - abnormal or leak-related flags
 - relay queue buildup
 - cloud relay failures
-- local-to-cloud sync failures when ESP8266 HTTPS is skipped due to low heap
 
 If you use external notification channels, test your current webhook configuration before site handover.
 
@@ -134,7 +132,6 @@ Minimum validation set:
 - validate safe behavior during sensor faults
 - validate customer and admin login paths
 - validate Android local and cloud flows if the app is part of delivery
-- validate local Flask auto-relay from LAN HTTP telemetry to cloud when direct ESP8266 HTTPS is not reliable
 - validate service-control settings and firmware artifact workflow if those features are part of support
 
 Keep soak-test and pilot evidence with the project records. Use
