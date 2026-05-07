@@ -1779,6 +1779,7 @@ def build_admin_device_summary(available_devices):
 
 
 def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
+    resolve_transient_relay_alerts(best_effort=True)
     return render_template(
         "admin_customers.html",
         accounts=accounts,
@@ -6068,6 +6069,30 @@ def resolve_alert_by_id(alert_id):
     return dict(row)
 
 
+def resolve_transient_relay_alerts(best_effort=False):
+    try:
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE ops_alerts
+                SET active = 0,
+                    resolved_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE active = 1
+                  AND kind = 'relay_failure'
+                  AND (
+                    message LIKE 'Cloud relay returned HTTP 5%'
+                    OR message LIKE 'Cloud relay request failed:%'
+                  )
+                """
+            )
+    except Exception as exc:
+        if best_effort and database_transient_error(exc):
+            logger.warning("Skipping transient relay alert cleanup because MySQL is temporarily busy.")
+            return
+        raise
+
+
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
     source_clause, source_params = device_source_where_clause()
@@ -6750,6 +6775,7 @@ def relay_status_to_cloud(payload):
                     relay_state["last_error_at"] = None
                     relay_state["last_error"] = None
                     set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
+                    set_alert("relay_failure", "warning", "Cloud relay is failing.", device_id=device_id, active=False)
                     return "ok"
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = f"HTTP {response.status_code}"
@@ -6764,13 +6790,22 @@ def relay_status_to_cloud(payload):
                         active=True,
                     )
                     return "drop"
-                set_alert("relay_failure", "warning", f"Cloud relay returned HTTP {response.status_code}.", active=True)
+                if response.status_code >= 500:
+                    resolve_transient_relay_alerts(best_effort=True)
+                else:
+                    set_alert(
+                        "relay_failure",
+                        "warning",
+                        f"Cloud relay returned HTTP {response.status_code} for device {device_id}.",
+                        device_id=device_id,
+                        active=True,
+                    )
             except requests.RequestException as exc:
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = str(exc)
                 relay_state["last_status_code"] = None
                 logger.warning("Relay telemetry failed (%s): %s", url, exc)
-                set_alert("relay_failure", "warning", f"Cloud relay request failed: {exc}", active=True)
+                resolve_transient_relay_alerts(best_effort=True)
     return "retry"
 
 

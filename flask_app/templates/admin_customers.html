@@ -247,6 +247,12 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+                {% if error %}
+                <div class="message error">{{ error }}</div>
+                {% endif %}
+                {% if success %}
+                <div class="message success">{{ success }}</div>
+                {% endif %}
                 <div class="row hero-actions">
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
@@ -372,12 +378,6 @@
                 {% endif %}
             </div>
         </div>
-        {% if error %}
-        <div class="message error" style="margin-top:14px">{{ error }}</div>
-        {% endif %}
-        {% if success %}
-        <div class="message success" style="margin-top:14px">{{ success }}</div>
-        {% endif %}
         <div class="release-channel-layout">
             <form method="post" action="/admin/releases/android" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                 <div class="group">
@@ -423,12 +423,6 @@
                 <span class="pill pill-clear">Passwords can also be reset inline from the fleet table</span>
             </div>
         </div>
-        {% if error %}
-        <div class="message error" style="margin-top:14px">{{ error }}</div>
-        {% endif %}
-        {% if success %}
-        <div class="message success" style="margin-top:14px">{{ success }}</div>
-        {% endif %}
         <div class="customer-access-layout">
             <form method="post" action="/admin/customers" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1">
                 <div class="group">
