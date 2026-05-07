@@ -54,7 +54,7 @@ Within the wider workspace:
 ## Runtime Flow
 
 1. A device sends telemetry to `POST /status`.
-2. Flask authenticates the device using `X-Device-Id` and `X-Device-Key` headers, or `device_id` and `device_key` fields in the JSON body.
+2. Flask authenticates the device using the `X-Device-Id` and `X-Device-Key` headers. The legacy `device_id` and `device_key` JSON fields remain accepted for compatibility, but new clients should use headers.
 3. Telemetry is stored in MySQL, device registration is refreshed, and operational alerts can be updated.
 4. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
 5. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
@@ -141,14 +141,19 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 
 ### Device authentication
 
-- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup.
-- `SWT_SLAVE_MCU_ENABLED`: Optional dual ESP8266 flag. Defaults to `0` for the single-controller setup; set `1` only for dual `master_mcu`/`slave_mcu` installs.
+- `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup. Use a unique random API key with at least 32 characters.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with the sibling repo's virtual-device runner.
 - `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
 - `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `SWT_FLASK_TEST_REPO/tests/virtual_device*.env` when that sibling repo is available, then falls back to local `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.
 - `PURGE_VIRTUAL_DEVICE_ENVS_ON_BOOT`: When `true`, Flask removes repo-configured virtual-device records from the database during startup. Defaults to `true` on Render and `false` locally.
+
+To keep the key synchronized with firmware and Android local builds, run this from the workspace root:
+
+```powershell
+python scripts\sync_device_identity.py --generate-if-placeholder
+```
 
 ### Storage and retention
 
@@ -161,6 +166,14 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `DEVICE_COMMAND_RETENTION_DAYS`: Retention for delivered commands.
 - `OPS_ALERT_RETENTION_DAYS`: Retention for operational alerts.
 - `OPS_AUDIT_RETENTION_DAYS`: Retention for audit records.
+- `DB_MAINTENANCE_ENABLED`: Enables cleanup/maintenance passes.
+- `DB_TARGET_SIZE_MB`: Soft database size target used by maintenance logic.
+- `DB_MAINTENANCE_MIN_INTERVAL_SECONDS`: Minimum spacing between maintenance runs.
+- `DB_WAL_AUTOCHECKPOINT_PAGES`: Legacy setting ignored by MySQL-only deployments.
+- `TEMP_DB_SIZE_GUARD_ENABLED`: Temporary safety flag that skips post-retention maintenance when nothing was pruned and the database is still under the configured size target.
+- `TEMP_HARD_DB_CAP_ENABLED`: Temporary hard-cap flag that trims the oldest telemetry rows when the database stays above the configured size target.
+- `TEMP_HARD_DB_CAP_BATCH_ROWS`: Number of oldest telemetry rows to remove per hard-cap batch while preserving the newest row for each device.
+- `TEMP_HARD_DB_CAP_MAX_BATCHES`: Maximum hard-cap cleanup batches to run in one pass before giving up and logging that the DB is still over target.
 - `FIRMWARE_ARTIFACT_DIR`: Optional directory for admin-uploaded OTA firmware binaries. Defaults under local `data/`.
 - `FIRMWARE_ARTIFACT_MAX_MB`: Maximum size accepted for an admin OTA firmware upload. Defaults to `4`.
 - `ANDROID_RELEASE_DIR`: Optional directory for admin-uploaded Android APK releases. Defaults under local `data/`.
@@ -168,8 +181,8 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 
 ### Relay, notifications, and MQTT
 
-- `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets.
-- `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets.
+- `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets. Bare origins are treated as `/status`, and same-host request loops are skipped.
+- `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets. Bare origins are treated as `/device/command`, and same-host request loops are skipped.
 - `RELAY_VERIFY_TLS`: TLS verification for relay HTTP calls.
 - `ALERT_WEBHOOK_URL`, `SLACK_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `WHATSAPP_WEBHOOK_URL`: Optional alert integrations.
 - `MQTT_ENABLED`: Enables MQTT bridge behavior.
@@ -273,8 +286,8 @@ Important tables include:
 Important production notes:
 
 - Set `DB_BACKEND=mysql` and provide `DATABASE_URL` or `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`.
-- Set `APP_SECRET_KEY` explicitly in every environment.
-- If sessions or stored passwords appear to reset after redeploy, check both `APP_SECRET_KEY` and MySQL persistence first.
+- Set `APP_SECRET_KEY` explicitly in production even though the app can persist a generated value.
+- If sessions or stored passwords appear to reset after redeploy, check both `APP_SECRET_KEY` and DB persistence first.
 
 ## Optional ML Forecasting
 
@@ -283,7 +296,7 @@ The `/ml/predict` endpoint depends on:
 - the normal `requirements.txt` install
 - a trained artifact, default path: `artifacts/level_forecast_model.pkl`
 
-Train a model directly from the configured MySQL database after collecting enough real telemetry.
+Train a model from exported or migrated telemetry only after preparing a compatible training dataset. The legacy SQLite training helper is no longer part of the normal MySQL runtime path.
 
 If the artifact is missing, ML dependencies are unavailable, or the selected device has too little telemetry,
 `/ml/predict` returns a normal JSON payload with `available=false`, a `reason_code`, and remediation text.
@@ -322,6 +335,10 @@ $env:SWT_FLASK_TEST_REPO = "..\\swt_test_cases_project"
 
 ## Utility Scripts
 
+### Legacy SQLite Migration Helpers
+
+Some scripts remain for one-time migration from older SQLite pilot data, but the Flask app itself now runs MySQL/MariaDB only. Do not use those helpers as the production database path.
+
 ### Virtual Device Emulator
 
 The virtual-device runner and its generated env tooling live in the sibling repository `../swt_test_cases_project`.
@@ -348,6 +365,7 @@ Current Render wiring:
 - build command: `pip install -r requirements.txt`
 - start command: `gunicorn server:app --config flask_app/gunicorn.conf.py`
 - health check: `/health`
+- persistent disk mount path: `/var/data`
 
 Before deploying:
 
@@ -355,7 +373,7 @@ Before deploying:
 - set `DB_BACKEND=mysql`
 - configure `DATABASE_URL` or `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE`
 - keep `SESSION_COOKIE_SECURE=true`
-- keep firmware and Android release artifact directories on persistent storage if the host filesystem is ephemeral
+- keep firmware and Android release artifact directories on persistent storage
 - decide whether relay URLs should be enabled in that environment
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 

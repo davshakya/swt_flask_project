@@ -75,11 +75,10 @@ def test_server_import_falls_back_when_startup_numeric_env_values_are_invalid():
     env = os.environ.copy()
     env.update(
         {
-            "DB_BACKEND": "mysql",
-            "APP_SECRET_KEY": "test-secret-key",
             "SESSION_LIFETIME_HOURS": "",
             "TANK_CAPACITY_LITERS": "not-a-number",
             "DATA_RETENTION_DAYS": "bad",
+            "DB_TARGET_SIZE_MB": "",
             "MQTT_BROKER_PORT": "bad-port",
             "MQTT_KEEPALIVE_SEC": "",
             "MQTT_QOS": "bad",
@@ -95,6 +94,7 @@ print(json.dumps({
     "session_hours": server.app.config["PERMANENT_SESSION_LIFETIME"].total_seconds() / 3600,
     "tank_capacity_liters": server.TANK_CAPACITY_LITERS,
     "data_retention_days": server.DATA_RETENTION_DAYS,
+    "db_target_size_mb": server.DB_TARGET_SIZE_MB,
     "mqtt_broker_port": server.MQTT_BROKER_PORT,
     "mqtt_keepalive_sec": server.MQTT_KEEPALIVE_SEC,
     "mqtt_qos": server.MQTT_QOS,
@@ -119,6 +119,7 @@ print(json.dumps({
         "session_hours": 12.0,
         "tank_capacity_liters": 1000.0,
         "data_retention_days": 7,
+        "db_target_size_mb": 0.0,
         "mqtt_broker_port": 1883,
         "mqtt_keepalive_sec": 30,
         "mqtt_qos": 1,

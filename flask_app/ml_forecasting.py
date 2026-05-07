@@ -77,37 +77,6 @@ def validate_forecast_args(resample_minutes: int, horizon_hours: int, min_sample
         raise ValueError("--min-samples must be at least 50")
 
 
-def _query_forecast_rows(connection, device_id: str = "", device_source: str | None = None) -> pd.DataFrame:
-    clauses: list[str] = []
-    params: list[str] = []
-    if device_id.strip():
-        clauses.append("COALESCE(device_id, '') = ?")
-        params.append(device_id.strip())
-    if device_source:
-        clauses.append("COALESCE(device_source, 'real') = ?")
-        params.append(str(device_source).strip().lower())
-
-    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-
-    query = f"""
-        SELECT {", ".join(SELECT_COLUMNS)}
-        FROM tank_data
-        {where}
-        ORDER BY created_at ASC
-    """
-    if hasattr(connection, "execute"):
-        rows = connection.execute(query, tuple(params)).fetchall()
-    else:
-        with connection.cursor() as cursor:
-            cursor.execute(query.replace("?", "%s"), tuple(params))
-            rows = cursor.fetchall()
-    return pd.DataFrame([dict(row) for row in rows], columns=SELECT_COLUMNS)
-
-
-def query_training_rows(connection, device_id: str, device_source: str | None = None) -> pd.DataFrame:
-    return _query_forecast_rows(connection, device_id=device_id, device_source=device_source)
-
-
 def query_device_forecast_rows(
     connection,
     device_id: str,
@@ -117,7 +86,20 @@ def query_device_forecast_rows(
     if not normalized_device_id:
         raise ValueError("device_id is required for forecast inference")
 
-    return _query_forecast_rows(connection, device_id=normalized_device_id, device_source=device_source)
+    clauses = ["COALESCE(device_id, '') = ?"]
+    params: list[str] = [normalized_device_id]
+    if device_source:
+        clauses.append("COALESCE(device_source, 'real') = ?")
+        params.append(str(device_source).strip().lower())
+
+    query = f"""
+        SELECT {", ".join(SELECT_COLUMNS)}
+        FROM tank_data
+        WHERE {" AND ".join(clauses)}
+        ORDER BY created_at ASC
+    """
+    rows = connection.execute(query, tuple(params)).fetchall()
+    return pd.DataFrame([dict(row) for row in rows], columns=SELECT_COLUMNS)
 
 
 def normalize_boolean_flag(series: pd.Series, truthy: Iterable[str]) -> pd.Series:

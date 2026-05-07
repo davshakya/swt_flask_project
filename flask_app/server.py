@@ -34,7 +34,7 @@ try:
     import paho.mqtt.client as mqtt
 except Exception:
     mqtt = None
-from flask import Flask, abort, g, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, g, has_request_context, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
 from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
@@ -68,6 +68,7 @@ from flask_app.runtime_utils import (
     env_int,
     env_flag as runtime_env_flag,
     load_dotenv_values,
+    normalize_db_path as runtime_normalize_db_path,
     normalize_http_base_url as runtime_normalize_http_base_url,
     parse_simple_dotenv,
 )
@@ -78,6 +79,10 @@ PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
     "replace-with-a-real",
     "build-default",
 )
+CLEARABLE_DEVICE_ENV_KEYS = {
+    "RELAY_STATUS_URLS",
+    "RELAY_COMMAND_URLS",
+}
 
 
 def device_config_value_is_placeholder(value):
@@ -103,7 +108,7 @@ def load_workspace_device_env_files(project_root, environ):
             continue
         prefer_real_override = dotenv_path == project_device_env
         for key, value in parsed_values.items():
-            if not str(value or "").strip():
+            if not str(value or "").strip() and key not in CLEARABLE_DEVICE_ENV_KEYS:
                 continue
             current_value = merged_values.get(key)
             if current_value is None or device_config_value_is_placeholder(current_value):
@@ -113,9 +118,11 @@ def load_workspace_device_env_files(project_root, environ):
                 merged_values[key] = value
     for key, value in merged_values.items():
         existing_value = environ.get(key)
-        if key in {"DATABASE_URL", "MYSQL_HOST", "MYSQL_PORT", "MYSQL_USER", "MYSQL_PASSWORD", "MYSQL_DATABASE"} and existing_value is not None:
-            continue
-        if existing_value is None or device_config_value_is_placeholder(existing_value):
+        if (
+            key in CLEARABLE_DEVICE_ENV_KEYS
+            or existing_value is None
+            or device_config_value_is_placeholder(existing_value)
+        ):
             environ[key] = value
 
 
@@ -153,6 +160,9 @@ APP_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = APP_ROOT.parent
 DEFAULT_PROJECT_ROOT = PROJECT_ROOT
 STATIC_DIR = APP_ROOT / "static"
+DATA_DIR = PROJECT_ROOT / "data"
+
+
 def resolve_test_repo_root():
     configured_path = str(os.environ.get("SWT_FLASK_TEST_REPO") or "").strip()
     if configured_path:
@@ -164,6 +174,11 @@ def resolve_test_repo_root():
 
 
 TEST_REPO_ROOT = resolve_test_repo_root()
+
+
+def normalize_db_path(raw_path):
+    return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
+
 
 def normalize_http_base_url(value):
     return runtime_normalize_http_base_url(value)
@@ -182,11 +197,16 @@ def strip_ip_address_fields(payload, keep_device_local_url=False):
         cleaned["device_local_url"] = None
     return cleaned
 
+
+def validate_runtime_db_configuration():
+    return
+
+
 def resolve_app_secret_key():
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
-    raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL-only Flask backend.")
+    raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL backend.")
 
 
 def resolve_device_key_registry():
@@ -212,7 +232,7 @@ def resolve_database_backend():
     if configured_backend:
         if configured_backend in {"mysql", "mariadb"}:
             return "mysql"
-        raise RuntimeError("SQLite is no longer supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
+        raise RuntimeError("Only MySQL/MariaDB is supported. Set DB_BACKEND=mysql and configure DATABASE_URL or MYSQL_* values.")
     if database_url.lower().startswith(("mysql://", "mysql+pymysql://", "mariadb://")):
         return "mysql"
     if database_url:
@@ -221,7 +241,7 @@ def resolve_database_backend():
 
 
 DB_BACKEND = resolve_database_backend()
-USING_MYSQL = True
+USING_MYSQL = DB_BACKEND == "mysql"
 APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key()
 
 app = Flask(__name__)
@@ -424,7 +444,16 @@ MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
+DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
+DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
+DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
+DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
+DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
+TEMP_DB_SIZE_GUARD_ENABLED = env_flag("TEMP_DB_SIZE_GUARD_ENABLED", default=False)
+TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
+TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
+TEMP_HARD_DB_CAP_MAX_BATCHES = max(1, env_int("TEMP_HARD_DB_CAP_MAX_BATCHES", 24))
 # Keep local sibling test-repo virtual devices discoverable without extra shell setup.
 SEED_VIRTUAL_DEVICE_ENVS = (
     not IS_RENDER
@@ -457,17 +486,22 @@ ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
 DEFAULT_LEVEL_FORECAST_MODEL_PATH = PROJECT_ROOT / "artifacts" / "level_forecast_model.pkl"
 DEFAULT_SHARED_CLOUD_BASE_URL = normalize_http_base_url(os.environ.get("SWT_CLOUD_BASE_URL")) or "https://salewell.co.in"
-DEFAULT_RELAY_STATUS_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_URL}/status"
-DEFAULT_RELAY_COMMAND_URLS = "" if IS_RENDER else f"{DEFAULT_SHARED_CLOUD_BASE_URL}/device/command"
+DEFAULT_RELAY_STATUS_URLS = ""
+DEFAULT_RELAY_COMMAND_URLS = ""
 RELAY_STATUS_URLS = os.environ.get("RELAY_STATUS_URLS", DEFAULT_RELAY_STATUS_URLS)
 RELAY_COMMAND_URLS = os.environ.get("RELAY_COMMAND_URLS", DEFAULT_RELAY_COMMAND_URLS)
+AUTO_RELAY_LOCAL_TO_SHARED_CLOUD = env_flag("AUTO_RELAY_LOCAL_TO_SHARED_CLOUD", default=True)
 RELAY_TIMEOUT_SEC = env_float("RELAY_TIMEOUT_SEC", 25.0)
 RELAY_CONNECT_TIMEOUT_SEC = env_float("RELAY_CONNECT_TIMEOUT_SEC", 5.0)
 RELAY_VERIFY_TLS = os.environ.get("RELAY_VERIFY_TLS", "true").lower() not in {"0", "false", "no"}
-FIRMWARE_ARTIFACT_DIR = Path(os.environ.get("FIRMWARE_ARTIFACT_DIR", str(PROJECT_ROOT / "data" / "firmware_artifacts"))).expanduser()
+FIRMWARE_ARTIFACT_DIR = normalize_db_path(
+    os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DATA_DIR / "firmware_artifacts"))
+)
 FIRMWARE_ARTIFACT_MAX_BYTES = max(256 * 1024, env_int("FIRMWARE_ARTIFACT_MAX_MB", 4) * 1024 * 1024)
 GLOBAL_FIRMWARE_TARGET = "__all_customers__"
-ANDROID_RELEASE_DIR = Path(os.environ.get("ANDROID_RELEASE_DIR", str(PROJECT_ROOT / "data" / "android_releases"))).expanduser()
+ANDROID_RELEASE_DIR = normalize_db_path(
+    os.environ.get("ANDROID_RELEASE_DIR", str(DATA_DIR / "android_releases"))
+)
 ANDROID_RELEASE_MAX_BYTES = max(1024 * 1024, env_int("ANDROID_RELEASE_MAX_MB", 128) * 1024 * 1024)
 ALERT_WEBHOOK_URL = os.environ.get("ALERT_WEBHOOK_URL", "").strip()
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
@@ -540,6 +574,87 @@ def parse_url_list(value):
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def url_origin(value):
+    parsed = urlparse(str(value or "").strip())
+    if not parsed.scheme or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+def url_hostname(value):
+    parsed = urlparse(str(value or "").strip())
+    return (parsed.hostname or "").lower()
+
+
+def host_is_private_or_local(host):
+    normalized = str(host or "").strip().lower()
+    if normalized in {"localhost"}:
+        return True
+    if not normalized:
+        return False
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
+def normalize_relay_target_url(value, default_path):
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    parsed = urlparse(raw_value)
+    if not parsed.scheme or not parsed.netloc:
+        logger.warning("Ignoring relay URL without scheme and host: %s", raw_value)
+        return ""
+    if parsed.path in {"", "/"} and default_path:
+        return f"{parsed.scheme}://{parsed.netloc}{default_path}"
+    return raw_value.rstrip("/")
+
+
+def parse_relay_url_list(value, default_path):
+    urls = []
+    seen = set()
+    for item in parse_url_list(value):
+        url = normalize_relay_target_url(item, default_path)
+        if not url:
+            continue
+        key = url.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        urls.append(url)
+    return urls
+
+
+def current_request_origin():
+    if not has_request_context():
+        return ""
+    return url_origin(request.url_root)
+
+
+def derived_shared_cloud_relay_urls(default_path):
+    return parse_relay_url_list(DEFAULT_SHARED_CLOUD_BASE_URL, default_path)
+
+
+def should_auto_relay_local_request_to_shared_cloud():
+    if not AUTO_RELAY_LOCAL_TO_SHARED_CLOUD or not has_request_context():
+        return False
+    request_host = url_hostname(current_request_origin())
+    cloud_host = url_hostname(DEFAULT_SHARED_CLOUD_BASE_URL)
+    return bool(request_host and cloud_host and request_host != cloud_host and host_is_private_or_local(request_host))
+
+
+def relay_urls_for_current_request(urls, default_path=None):
+    effective_urls = list(urls)
+    if not effective_urls and default_path and should_auto_relay_local_request_to_shared_cloud():
+        effective_urls = derived_shared_cloud_relay_urls(default_path)
+    request_host = url_hostname(current_request_origin())
+    if not request_host:
+        return effective_urls
+    return [url for url in effective_urls if url_hostname(url) != request_host]
+
+
 def mqtt_feature_enabled():
     return mqtt_state["enabled"] and mqtt is not None
 
@@ -576,8 +691,8 @@ def mqtt_extract_device_id(topic, leaf_name):
     return normalize_device_id(middle)
 
 
-RELAY_STATUS_URL_LIST = parse_url_list(RELAY_STATUS_URLS)
-RELAY_COMMAND_URL_LIST = parse_url_list(RELAY_COMMAND_URLS)
+RELAY_STATUS_URL_LIST = parse_relay_url_list(RELAY_STATUS_URLS, "/status")
+RELAY_COMMAND_URL_LIST = parse_relay_url_list(RELAY_COMMAND_URLS, "/device/command")
 
 
 def parse_device_key_registry(value):
@@ -770,12 +885,14 @@ def forget_registered_device_touch(device_id):
         registered_device_touch_cache.pop(normalized_device_id, None)
 
 
-def database_transient_error(exc):
+def database_is_locked_error(exc):
     message = str(exc or "").strip().lower()
     return (
-        "lock wait timeout" in message
+        "database is locked" in message
+        or "database table is locked" in message
+        or "database is busy" in message
+        or "lock wait timeout" in message
         or "deadlock found" in message
-        or "lost connection" in message
     )
 
 
@@ -854,14 +971,7 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
                 """,
                 (normalized_device_id, registration_source, key_rule),
             )
-    except Exception as exc:
-        if best_effort and database_transient_error(exc):
-            note_registered_device_touch(normalized_device_id, registration_source, key_rule)
-            logger.warning(
-                "Skipping registered device bookkeeping for %s because MySQL is temporarily busy.",
-                normalized_device_id,
-            )
-            return
+    except Exception:
         raise
     note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
@@ -1406,6 +1516,10 @@ def auth_persistence_warnings():
             "Browsers will refuse to keep the login cookie, so users can appear to be logged out immediately. "
             "Use HTTPS or set SESSION_COOKIE_SECURE=false for local/LAN HTTP deployments."
         )
+    if APP_SECRET_KEY_SOURCE == "default":
+        warnings.append(
+            "APP_SECRET_KEY is using the default fallback value. Browser and mobile sessions can be invalidated after restarts."
+        )
     return warnings
 
 
@@ -1728,17 +1842,6 @@ def build_admin_device_entry(device_id, snapshot=None):
         "lower_tank_service": payload.get("lower_tank_service"),
         "buzzer_service": payload.get("buzzer_service"),
         "led_display_service": payload.get("led_display_service"),
-        "slave_mcu_enabled": payload.get("slave_mcu_enabled"),
-        "hardware_module": payload.get("hardware_module"),
-        "architecture_mode": payload.get("architecture_mode"),
-        "hardware_module_label": payload.get("hardware_module_label"),
-        "architecture_label": payload.get("architecture_label"),
-        "vertical_distance_m": payload.get("vertical_distance_m"),
-        "slave_mcu_id": payload.get("slave_mcu_id"),
-        "master_mcu_id": payload.get("master_mcu_id"),
-        "peer_mcu_id": payload.get("peer_mcu_id"),
-        "module_fit_status": payload.get("module_fit_status"),
-        "module_fit_message": payload.get("module_fit_message"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -1779,7 +1882,6 @@ def build_admin_device_summary(available_devices):
 
 
 def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
-    resolve_transient_relay_alerts(best_effort=True)
     return render_template(
         "admin_customers.html",
         accounts=accounts,
@@ -1951,7 +2053,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
         return False, None, "invalid device credentials", 403
 
-    if require_key and device_key != matched_rule["key"]:
+    if require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
         logger.warning("Rejected device auth for %s", normalized_device_id)
         return False, None, "invalid device credentials", 403
 
@@ -2153,12 +2255,90 @@ def apply_source_tank_aliases(payload, include_aliases=False):
     return payload
 
 
+def collect_database_file_sizes(db_path=None):
+    return {"main_bytes": 0, "wal_bytes": 0, "shm_bytes": 0, "total_bytes": 0}
+
+
+def database_size_pressure(file_sizes=None):
+    sizes = file_sizes or collect_database_file_sizes()
+    return DB_TARGET_SIZE_BYTES > 0 and int(sizes.get("total_bytes") or 0) >= DB_TARGET_SIZE_BYTES
+
+
 def retention_maintenance_skip_reason(pruned_rows=0, force=False):
+    if force or not TEMP_DB_SIZE_GUARD_ENABLED or pruned_rows > 0:
+        return None
+    if DB_TARGET_SIZE_BYTES <= 0:
+        return "retention-noop-no-target-size"
+    if not database_size_pressure():
+        return "retention-noop-under-target-size"
     return None
 
 
+def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
+    cursor.execute(
+        """
+        DELETE FROM tank_data
+        WHERE id IN (
+            SELECT id FROM (
+                SELECT id
+                FROM tank_data
+                WHERE id NOT IN (
+                    SELECT MAX(id)
+                    FROM tank_data
+                    GROUP BY COALESCE(device_id, '')
+                )
+                ORDER BY created_at ASC, id ASC
+                LIMIT ?
+            )
+        )
+        """,
+        (max(1, int(batch_rows or TEMP_HARD_DB_CAP_BATCH_ROWS)),),
+    )
+    return max(0, int(cursor.rowcount or 0))
+
+
 def maybe_prune_telemetry_size_cap(force=False):
-    return {"rows": 0, "batches": 0, "remaining_pressure": False}
+    if not TEMP_HARD_DB_CAP_ENABLED and not force:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+    if DB_TARGET_SIZE_BYTES <= 0:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+
+    current_sizes = collect_database_file_sizes()
+    remaining_pressure = database_size_pressure(current_sizes)
+    if not remaining_pressure and not force:
+        return {"rows": 0, "batches": 0, "remaining_pressure": False}
+
+    total_rows = 0
+    batches = 0
+    while remaining_pressure and batches < TEMP_HARD_DB_CAP_MAX_BATCHES:
+        with get_db() as db:
+            deleted_rows = prune_telemetry_batch_for_size_cap(
+                db.cursor(),
+                batch_rows=TEMP_HARD_DB_CAP_BATCH_ROWS,
+            )
+        if deleted_rows <= 0:
+            break
+
+        total_rows += deleted_rows
+        batches += 1
+        maybe_maintain_database(reason="telemetry-size-cap", pruned_rows=deleted_rows, force=True)
+        current_sizes = collect_database_file_sizes()
+        remaining_pressure = database_size_pressure(current_sizes)
+
+    if remaining_pressure:
+        logger.warning(
+            "Telemetry size cap did not fully reach target: pruned_rows=%s batches=%s total_bytes=%s target_bytes=%s",
+            total_rows,
+            batches,
+            current_sizes["total_bytes"],
+            DB_TARGET_SIZE_BYTES,
+        )
+
+    return {
+        "rows": total_rows,
+        "batches": batches,
+        "remaining_pressure": remaining_pressure,
+    }
 
 
 def prune_tank_data_retention(cursor):
@@ -2389,17 +2569,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("lower_tank_service"),
         cleaned.get("buzzer_service"),
         cleaned.get("led_display_service"),
-        1 if cleaned.get("slave_mcu_enabled") else 0,
-        cleaned.get("hardware_module"),
-        cleaned.get("architecture_mode"),
-        cleaned.get("node_role"),
-        cleaned.get("sensor_link_type"),
-        cleaned.get("comms_link_type"),
-        cleaned.get("vertical_distance_m"),
-        cleaned.get("tank_node_id"),
-        cleaned.get("control_node_id"),
-        cleaned.get("peer_node_id"),
-        cleaned.get("data_stale_timeout_s"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2423,10 +2592,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
-                buzzer_service, led_display_service,
-                slave_mcu_enabled,
-                hardware_module, architecture_mode, node_role, sensor_link_type, comms_link_type,
-                vertical_distance_m, tank_node_id, control_node_id, peer_node_id, data_stale_timeout_s
+                buzzer_service, led_display_service
             )
             VALUES ({placeholders})
             """,
@@ -2819,22 +2985,16 @@ def ensure_tank_data_columns(cursor):
         "lower_tank_service": "TEXT",
         "buzzer_service": "TEXT",
         "led_display_service": "TEXT",
-        "slave_mcu_enabled": "INTEGER",
-        "hardware_module": "TEXT",
-        "architecture_mode": "TEXT",
-        "node_role": "TEXT",
-        "sensor_link_type": "TEXT",
-        "comms_link_type": "TEXT",
-        "vertical_distance_m": "REAL",
-        "tank_node_id": "TEXT",
-        "control_node_id": "TEXT",
-        "peer_node_id": "TEXT",
-        "data_stale_timeout_s": "INTEGER",
     }
 
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE tank_data ADD COLUMN {column} {definition}")
+
+
+def ensure_tank_data_mysql_column_types(cursor):
+    for column in ("runtime", "current_runtime", "last_runtime", "fill_time"):
+        cursor.execute(f"ALTER TABLE tank_data MODIFY COLUMN {column} TEXT")
 
 
 def rebuild_tank_data_without_simulator_columns(cursor):
@@ -2857,10 +3017,10 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             level REAL,
             motor TEXT,
             mode TEXT,
-            runtime REAL,
-            current_runtime REAL,
-            last_runtime REAL,
-            fill_time REAL,
+                    runtime TEXT,
+                    current_runtime TEXT,
+                    last_runtime TEXT,
+                    fill_time TEXT,
             leak TEXT,
             pump_failure TEXT,
             abnormal TEXT,
@@ -2900,17 +3060,6 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_tank_service TEXT,
             buzzer_service TEXT,
             led_display_service TEXT,
-            slave_mcu_enabled INTEGER,
-            hardware_module TEXT,
-            architecture_mode TEXT,
-            node_role TEXT,
-            sensor_link_type TEXT,
-            comms_link_type TEXT,
-            vertical_distance_m REAL,
-            tank_node_id TEXT,
-            control_node_id TEXT,
-            peer_node_id TEXT,
-            data_stale_timeout_s INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3263,120 +3412,110 @@ def seed_default_customer_accounts(cursor):
 
 
 def init_db():
-    if USING_MYSQL:
-        logger.info("Initializing MySQL database schema")
-        with get_db() as db:
-            cursor = db.cursor()
-            cursor.execute(
-                """
-                CREATE TABLE IF NOT EXISTS tank_data(
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    level REAL,
-                    motor TEXT,
-                    mode TEXT,
-                    runtime REAL,
-                    current_runtime REAL,
-                    last_runtime REAL,
-                    fill_time REAL,
-                    leak TEXT,
-                    pump_failure TEXT,
-                    abnormal TEXT,
-                    drip TEXT,
-                    slow_leak TEXT,
-                    pipe_leak TEXT,
-                    ai_usage_rate REAL,
-                    tomorrow_prediction REAL,
-                    dry_run TEXT,
-                    simulator TEXT,
-                    source_tank_simulator TEXT,
-                    wifi TEXT,
-                    wifi_rssi INTEGER,
-                    sensor TEXT,
-                    device_source TEXT,
-                    sensor_info TEXT,
-                    sensor_distance_cm REAL,
-                    tank_height_cm REAL,
-                    tank_capacity_liters REAL,
-                    auto_status TEXT,
-                    auto_status_tone TEXT,
-                    auto_timer TEXT,
-                    tank_health REAL,
-                    free_heap INTEGER,
-                    uptime_s INTEGER,
-                    lower_tank_level REAL,
-                    lower_sensor TEXT,
-                    lower_sensor_info TEXT,
-                    lower_sensor_distance_cm REAL,
-                    device_id TEXT,
-                    firmware_version TEXT,
-                    reset_reason TEXT,
-                    source_ip TEXT,
-                    device_local_url TEXT,
-                    channel_mode TEXT,
-                    telemetry_service TEXT,
-                    command_service TEXT,
-                    ota_service TEXT,
-                    lower_tank_service TEXT,
-                    buzzer_service TEXT,
-                    led_display_service TEXT,
-                    slave_mcu_enabled INTEGER,
-                    hardware_module TEXT,
-                    architecture_mode TEXT,
-                    node_role TEXT,
-                    sensor_link_type TEXT,
-                    comms_link_type TEXT,
-                    vertical_distance_m REAL,
-                    tank_node_id TEXT,
-                    control_node_id TEXT,
-                    peer_node_id TEXT,
-                    data_stale_timeout_s INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-                """
+    logger.info("Initializing MySQL database schema")
+    with get_db() as db:
+        cursor = db.cursor()
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS tank_data(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                level REAL,
+                motor TEXT,
+                mode TEXT,
+                runtime REAL,
+                current_runtime REAL,
+                last_runtime REAL,
+                fill_time REAL,
+                leak TEXT,
+                pump_failure TEXT,
+                abnormal TEXT,
+                drip TEXT,
+                slow_leak TEXT,
+                pipe_leak TEXT,
+                ai_usage_rate REAL,
+                tomorrow_prediction REAL,
+                dry_run TEXT,
+                simulator TEXT,
+                source_tank_simulator TEXT,
+                wifi TEXT,
+                wifi_rssi INTEGER,
+                sensor TEXT,
+                device_source TEXT,
+                sensor_info TEXT,
+                sensor_distance_cm REAL,
+                tank_height_cm REAL,
+                tank_capacity_liters REAL,
+                auto_status TEXT,
+                auto_status_tone TEXT,
+                auto_timer TEXT,
+                tank_health REAL,
+                free_heap INTEGER,
+                uptime_s INTEGER,
+                lower_tank_level REAL,
+                lower_sensor TEXT,
+                lower_sensor_info TEXT,
+                lower_sensor_distance_cm REAL,
+                device_id TEXT,
+                firmware_version TEXT,
+                reset_reason TEXT,
+                source_ip TEXT,
+                device_local_url TEXT,
+                channel_mode TEXT,
+                telemetry_service TEXT,
+                command_service TEXT,
+                ota_service TEXT,
+                lower_tank_service TEXT,
+                buzzer_service TEXT,
+                led_display_service TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-            ensure_tank_data_columns(cursor)
-            ensure_relay_queue_table(cursor)
-            ensure_device_command_queue_table(cursor)
-            ensure_firmware_artifacts_table(cursor)
-            ensure_android_app_releases_table(cursor)
-            ensure_alerts_table(cursor)
-            ensure_audit_table(cursor)
-            ensure_app_settings_table(cursor)
-            seed_bootstrap_dashboard_password(cursor)
-            ensure_customer_accounts_table(cursor)
-            ensure_customer_accounts_columns(cursor)
-            ensure_customer_password_reset_tokens_table(cursor)
-            ensure_device_service_configs_table(cursor)
-            ensure_device_service_configs_columns(cursor)
-            ensure_registered_devices_table(cursor)
-            ensure_ignored_devices_table(cursor)
-            seed_bootstrap_customer_accounts(cursor)
-            seed_default_customer_accounts(cursor)
-            for statement in (
-                "CREATE INDEX idx_created_at ON tank_data(created_at)",
-                "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
-                "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
-                "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
-                "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
-                "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
-                "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
-                "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
-                "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
-                "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
-            ):
-                try:
-                    cursor.execute(statement)
-                except Exception as exc:
-                    if "duplicate" not in str(exc).lower():
-                        raise
-        maybe_reset_device_source_mode_on_boot()
-        deleted_counts = purge_configured_virtual_device_records()
-        if deleted_counts.get("device_ids"):
-            logger.info(
-                "Purged %s configured virtual devices from startup database state.",
-                deleted_counts["device_ids"],
-            )
-        logger.info("MySQL database initialization complete")
+            """
+        )
+        ensure_tank_data_columns(cursor)
+        ensure_tank_data_mysql_column_types(cursor)
+        ensure_relay_queue_table(cursor)
+        ensure_device_command_queue_table(cursor)
+        ensure_firmware_artifacts_table(cursor)
+        ensure_android_app_releases_table(cursor)
+        ensure_alerts_table(cursor)
+        ensure_audit_table(cursor)
+        ensure_app_settings_table(cursor)
+        seed_bootstrap_dashboard_password(cursor)
+        ensure_customer_accounts_table(cursor)
+        ensure_customer_accounts_columns(cursor)
+        ensure_customer_password_reset_tokens_table(cursor)
+        ensure_device_service_configs_table(cursor)
+        ensure_device_service_configs_columns(cursor)
+        ensure_registered_devices_table(cursor)
+        ensure_ignored_devices_table(cursor)
+        seed_bootstrap_customer_accounts(cursor)
+        seed_default_customer_accounts(cursor)
+        for statement in (
+            "CREATE INDEX idx_created_at ON tank_data(created_at)",
+            "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
+            "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
+            "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
+            "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
+            "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
+            "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
+            "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
+            "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
+            "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
+        ):
+            try:
+                cursor.execute(statement)
+            except Exception as exc:
+                if "duplicate" not in str(exc).lower():
+                    raise
+
+    maybe_reset_device_source_mode_on_boot()
+    deleted_counts = purge_configured_virtual_device_records()
+    if deleted_counts.get("device_ids"):
+        logger.info(
+            "Purged %s configured virtual devices from startup database state.",
+            deleted_counts["device_ids"],
+        )
+    logger.info("MySQL database initialization complete")
 
 
 def get_app_setting(key, default=None):
@@ -4412,93 +4551,6 @@ def normalize_service_state(value):
     return "UNKNOWN"
 
 
-def normalize_module_token(value, default="unknown"):
-    text = str(value or "").strip().lower()
-    text = re.sub(r"[^a-z0-9]+", "_", text).strip("_")
-    return text or default
-
-
-def normalize_hardware_module(value, architecture_mode=None, vertical_distance_m=None):
-    raw = normalize_module_token(value)
-    if raw in {"single_controller", "single_esp8266", "shielded_extension", "dual_esp8266", "dual_node", "commercial_multi_node"}:
-        return "dual_esp8266" if raw == "dual_node" else raw
-    architecture = normalize_module_token(architecture_mode)
-    if "dual" in architecture:
-        return "dual_esp8266"
-    distance = safe_float(vertical_distance_m, -1)
-    if distance >= 20:
-        return "dual_esp8266"
-    if distance >= 10:
-        return "shielded_extension"
-    return "single_controller"
-
-
-def normalize_architecture_mode(value, hardware_module=None):
-    raw = normalize_module_token(value)
-    if raw in {"single_esp8266", "dual_esp8266", "multi_node", "shielded_single_controller"}:
-        return raw
-    module = normalize_hardware_module(hardware_module)
-    if module == "dual_esp8266":
-        return "dual_esp8266"
-    if module == "shielded_extension":
-        return "shielded_single_controller"
-    return "single_esp8266"
-
-
-def module_label(hardware_module):
-    return {
-        "single_controller": "Single Controller Kit",
-        "single_esp8266": "Single ESP8266 Kit",
-        "shielded_extension": "Shielded Sensor Extension Kit",
-        "dual_esp8266": "Dual ESP8266 Wireless Kit",
-        "commercial_multi_node": "Commercial Multi-Node Kit",
-    }.get(normalize_module_token(hardware_module), "Module not set")
-
-
-def architecture_label(architecture_mode):
-    return {
-        "single_esp8266": "Single ESP8266 controller",
-        "shielded_single_controller": "Single controller with shielded sensor run",
-        "dual_esp8266": "Dual ESP8266 master/slave MCUs",
-        "multi_node": "Multi-node commercial architecture",
-    }.get(normalize_module_token(architecture_mode), "Architecture not set")
-
-
-def infer_recommended_hardware_module(vertical_distance_m):
-    distance = safe_float(vertical_distance_m, -1)
-    if distance >= 20:
-        return "dual_esp8266"
-    if distance >= 10:
-        return "shielded_extension"
-    if distance >= 0:
-        return "single_controller"
-    return "unknown"
-
-
-def module_fit_status(hardware_module, vertical_distance_m):
-    current = normalize_hardware_module(hardware_module, vertical_distance_m=vertical_distance_m)
-    recommended = infer_recommended_hardware_module(vertical_distance_m)
-    if recommended == "unknown":
-        return "unknown"
-    if current == recommended or (recommended == "shielded_extension" and current == "dual_esp8266"):
-        return "fit"
-    if recommended == "dual_esp8266" and current != "dual_esp8266":
-        return "upgrade_recommended"
-    return "review"
-
-
-def module_fit_message(hardware_module, vertical_distance_m):
-    status = module_fit_status(hardware_module, vertical_distance_m)
-    recommended = module_label(infer_recommended_hardware_module(vertical_distance_m))
-    if status == "fit":
-        return "Installed module matches the measured site distance."
-    if status == "upgrade_recommended":
-        return f"Measured distance recommends {recommended}; avoid long ultrasonic wiring."
-    if status == "review":
-        return f"Review module selection. Recommended package: {recommended}."
-    return "Record measured vertical distance to confirm the right hardware module."
-
-
 def format_compact_uptime(seconds):
     value = safe_float(seconds, -1)
     if value < 0:
@@ -4709,42 +4761,6 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["lower_tank_service"] = normalize_service_state(data.get("lower_tank_service"))
     data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
     data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
-    data["slave_mcu_enabled"] = boolish_enabled(data.get("slave_mcu_enabled"), False)
-    vertical_distance = safe_float(data.get("vertical_distance_m"), -1)
-    data["vertical_distance_m"] = round(vertical_distance, 1) if vertical_distance >= 0 else None
-    data["hardware_module"] = normalize_hardware_module(
-        data.get("hardware_module"),
-        architecture_mode=data.get("architecture_mode"),
-        vertical_distance_m=data["vertical_distance_m"],
-    )
-    data["architecture_mode"] = normalize_architecture_mode(
-        data.get("architecture_mode"),
-        hardware_module=data["hardware_module"],
-    )
-    data["hardware_module_label"] = module_label(data["hardware_module"])
-    data["architecture_label"] = architecture_label(data["architecture_mode"])
-    raw_node_role = normalize_module_token(data.get("node_role"), default="combined")
-    data["node_role"] = {
-        "tank": "slave_mcu",
-        "control": "master_mcu",
-    }.get(raw_node_role, raw_node_role)
-    raw_sensor_link_type = normalize_module_token(data.get("sensor_link_type"), default="wired_jsn_sr04t")
-    data["sensor_link_type"] = {
-        "remote_tank_node": "remote_slave_mcu",
-    }.get(raw_sensor_link_type, raw_sensor_link_type)
-    data["comms_link_type"] = normalize_module_token(data.get("comms_link_type"), default="wifi_http")
-    data["slave_mcu_id"] = normalize_device_id(data.get("slave_mcu_id") or data.get("tank_node_id")) or None
-    data["master_mcu_id"] = normalize_device_id(data.get("master_mcu_id") or data.get("control_node_id")) or None
-    data["peer_mcu_id"] = normalize_device_id(data.get("peer_mcu_id") or data.get("peer_node_id")) or None
-    data["tank_node_id"] = data["slave_mcu_id"]
-    data["control_node_id"] = data["master_mcu_id"]
-    data["peer_node_id"] = data["peer_mcu_id"]
-    stale_timeout = safe_float(data.get("data_stale_timeout_s"), -1)
-    data["data_stale_timeout_s"] = int(stale_timeout) if stale_timeout >= 0 else None
-    data["recommended_hardware_module"] = infer_recommended_hardware_module(data["vertical_distance_m"])
-    data["recommended_hardware_module_label"] = module_label(data["recommended_hardware_module"])
-    data["module_fit_status"] = module_fit_status(data["hardware_module"], data["vertical_distance_m"])
-    data["module_fit_message"] = module_fit_message(data["hardware_module"], data["vertical_distance_m"])
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -5063,26 +5079,6 @@ def build_empty_snapshot_payload(device_id=None):
         "lower_tank_service": "UNKNOWN",
         "buzzer_service": "UNKNOWN",
         "led_display_service": "UNKNOWN",
-        "slave_mcu_enabled": False,
-        "hardware_module": "single_controller",
-        "architecture_mode": "single_esp8266",
-        "hardware_module_label": "Single Controller Kit",
-        "architecture_label": "Single ESP8266 controller",
-        "node_role": "combined",
-        "sensor_link_type": "wired_jsn_sr04t",
-        "comms_link_type": "wifi_http",
-        "vertical_distance_m": None,
-        "slave_mcu_id": None,
-        "master_mcu_id": None,
-        "peer_mcu_id": None,
-        "tank_node_id": None,
-        "control_node_id": None,
-        "peer_node_id": None,
-        "data_stale_timeout_s": None,
-        "recommended_hardware_module": "unknown",
-        "recommended_hardware_module_label": "Module not set",
-        "module_fit_status": "unknown",
-        "module_fit_message": "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
@@ -5150,26 +5146,6 @@ def build_system_status_payload(snapshot, device_id=None):
         "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
-        "slave_mcu_enabled": boolish_enabled(snapshot.get("slave_mcu_enabled"), False) if snapshot else False,
-        "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
-        "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp8266",
-        "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
-        "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP8266 controller",
-        "node_role": snapshot.get("node_role") if snapshot else "combined",
-        "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
-        "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
-        "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
-        "slave_mcu_id": snapshot.get("slave_mcu_id") if snapshot else None,
-        "master_mcu_id": snapshot.get("master_mcu_id") if snapshot else None,
-        "peer_mcu_id": snapshot.get("peer_mcu_id") if snapshot else None,
-        "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
-        "control_node_id": snapshot.get("control_node_id") if snapshot else None,
-        "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
-        "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
-        "recommended_hardware_module": snapshot.get("recommended_hardware_module") if snapshot else "unknown",
-        "recommended_hardware_module_label": snapshot.get("recommended_hardware_module_label") if snapshot else "Module not set",
-        "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
-        "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -5210,24 +5186,6 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "lower_tank_service": snapshot.get("lower_tank_service") if snapshot else "UNKNOWN",
             "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
             "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
-            "slave_mcu_enabled": boolish_enabled(snapshot.get("slave_mcu_enabled"), False) if snapshot else False,
-            "hardware_module": snapshot.get("hardware_module") if snapshot else "single_controller",
-            "architecture_mode": snapshot.get("architecture_mode") if snapshot else "single_esp8266",
-            "hardware_module_label": snapshot.get("hardware_module_label") if snapshot else "Single Controller Kit",
-            "architecture_label": snapshot.get("architecture_label") if snapshot else "Single ESP8266 controller",
-            "node_role": snapshot.get("node_role") if snapshot else "combined",
-            "sensor_link_type": snapshot.get("sensor_link_type") if snapshot else "wired_jsn_sr04t",
-            "comms_link_type": snapshot.get("comms_link_type") if snapshot else "wifi_http",
-            "vertical_distance_m": snapshot.get("vertical_distance_m") if snapshot else None,
-            "slave_mcu_id": snapshot.get("slave_mcu_id") if snapshot else None,
-            "master_mcu_id": snapshot.get("master_mcu_id") if snapshot else None,
-            "peer_mcu_id": snapshot.get("peer_mcu_id") if snapshot else None,
-            "tank_node_id": snapshot.get("tank_node_id") if snapshot else None,
-            "control_node_id": snapshot.get("control_node_id") if snapshot else None,
-            "peer_node_id": snapshot.get("peer_node_id") if snapshot else None,
-            "data_stale_timeout_s": snapshot.get("data_stale_timeout_s") if snapshot else None,
-            "module_fit_status": snapshot.get("module_fit_status") if snapshot else "unknown",
-            "module_fit_message": snapshot.get("module_fit_message") if snapshot else "Record measured vertical distance to confirm the right hardware module.",
             "wifi": snapshot.get("wifi") if snapshot else None,
             "wifi_rssi": snapshot.get("wifi_rssi") if snapshot else None,
             "sensor": snapshot.get("sensor") if snapshot else None,
@@ -5259,6 +5217,7 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 
 
 def build_db_summary_payload():
+    file_sizes = collect_database_file_sizes()
     active_mode = get_device_source_mode()
     mysql_config = mysql_connection_config()
     with get_db() as db:
@@ -5297,10 +5256,10 @@ def build_db_summary_payload():
     database_payload = {
         "backend": DB_BACKEND,
         "is_render": IS_RENDER,
-        "host": mysql_config.get("host") if mysql_config else None,
-        "port": mysql_config.get("port") if mysql_config else None,
-        "database": mysql_config.get("database") if mysql_config else None,
-        "user": mysql_config.get("user") if mysql_config else None,
+        "host": mysql_config.get("host"),
+        "port": mysql_config.get("port"),
+        "database": mysql_config.get("database"),
+        "user": mysql_config.get("user"),
         "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
     }
 
@@ -5331,7 +5290,15 @@ def build_db_summary_payload():
             },
         },
         "maintenance": {
-            "enabled": False,
+            "enabled": DB_MAINTENANCE_ENABLED,
+            "target_size_mb": DB_TARGET_SIZE_MB,
+            "target_size_bytes": DB_TARGET_SIZE_BYTES,
+            "min_interval_seconds": DB_MAINTENANCE_MIN_INTERVAL_SECONDS,
+            "wal_autocheckpoint_pages": DB_WAL_AUTOCHECKPOINT_PAGES,
+            "temporary_size_guard_enabled": TEMP_DB_SIZE_GUARD_ENABLED,
+            "temporary_hard_size_cap_enabled": TEMP_HARD_DB_CAP_ENABLED,
+            "hard_size_cap_batch_rows": TEMP_HARD_DB_CAP_BATCH_ROWS,
+            "hard_size_cap_max_batches": TEMP_HARD_DB_CAP_MAX_BATCHES,
             "device_command_retention_days": DEVICE_COMMAND_RETENTION_DAYS,
             "ops_alert_retention_days": OPS_ALERT_RETENTION_DAYS,
             "ops_audit_retention_days": OPS_AUDIT_RETENTION_DAYS,
@@ -5941,10 +5908,10 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
                     (existing["id"],),
                 )
     except Exception as exc:
-        if best_effort and database_transient_error(exc):
+        if best_effort and database_is_locked_error(exc):
             note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
             logger.warning(
-                "Skipping alert bookkeeping for %s/%s because MySQL is temporarily busy.",
+                "Skipping alert bookkeeping for %s/%s because the database is busy.",
                 str(kind or "").strip() or "alert",
                 normalized_device_id or "global",
             )
@@ -6067,30 +6034,6 @@ def resolve_alert_by_id(alert_id):
                 (alert_id,),
             )
     return dict(row)
-
-
-def resolve_transient_relay_alerts(best_effort=False):
-    try:
-        with get_db() as db:
-            db.execute(
-                """
-                UPDATE ops_alerts
-                SET active = 0,
-                    resolved_at = CURRENT_TIMESTAMP,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE active = 1
-                  AND kind = 'relay_failure'
-                  AND (
-                    message LIKE 'Cloud relay returned HTTP 5%'
-                    OR message LIKE 'Cloud relay request failed:%'
-                  )
-                """
-            )
-    except Exception as exc:
-        if best_effort and database_transient_error(exc):
-            logger.warning("Skipping transient relay alert cleanup because MySQL is temporarily busy.")
-            return
-        raise
 
 
 def fetch_device_inventory(limit=20, device_ids=None):
@@ -6251,6 +6194,57 @@ def normalize_device_base_url(value):
         return None
 
     return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def is_private_device_base_url(value):
+    text = normalize_device_base_url(value)
+    if not text:
+        return False
+    parsed = urlparse(text)
+    host = (parsed.hostname or "").strip().lower()
+    if host in {"localhost"}:
+        return True
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return address.is_private or address.is_loopback or address.is_link_local
+
+
+def local_device_status_url(base_url):
+    normalized = normalize_device_base_url(base_url)
+    if not normalized:
+        return None
+    return f"{normalized}/status"
+
+
+def fetch_local_device_status(base_url):
+    if not is_private_device_base_url(base_url):
+        raise ValueError("local device URL must be a private LAN address")
+
+    status_url = local_device_status_url(base_url)
+    if not status_url:
+        raise ValueError("local device URL is not configured")
+
+    username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+    password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
+    timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
+    auth = (username, password) if username and password else None
+    response = requests.get(status_url, auth=auth, timeout=timeout)
+    if response.status_code in {401, 403} and username and password:
+        session_client = requests.Session()
+        session_client.post(
+            f"{normalize_device_base_url(base_url)}/login",
+            data={"username": username, "password": password},
+            timeout=timeout,
+        )
+        response = session_client.get(status_url, auth=auth, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("local device returned invalid status")
+    payload["device_local_url"] = normalize_device_base_url(base_url)
+    return payload
 
 
 def is_loopback_device_target(value):
@@ -6739,7 +6733,9 @@ def queue_command(command, target_device=None):
 
 
 def relay_status_to_cloud(payload):
-    if not RELAY_STATUS_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")
+    if not relay_urls:
+        set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
         return "ok"
     cleaned = sanitize_payload(payload)
     device_id = normalize_device_id(cleaned.get("device_id"))
@@ -6758,7 +6754,7 @@ def relay_status_to_cloud(payload):
             active=True,
         )
         return "drop"
-    for url in RELAY_STATUS_URL_LIST:
+    for url in relay_urls:
         for attempt in range(2):
             try:
                 response = requests.post(
@@ -6775,7 +6771,6 @@ def relay_status_to_cloud(payload):
                     relay_state["last_error_at"] = None
                     relay_state["last_error"] = None
                     set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
-                    set_alert("relay_failure", "warning", "Cloud relay is failing.", device_id=device_id, active=False)
                     return "ok"
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = f"HTTP {response.status_code}"
@@ -6790,27 +6785,18 @@ def relay_status_to_cloud(payload):
                         active=True,
                     )
                     return "drop"
-                if response.status_code >= 500:
-                    resolve_transient_relay_alerts(best_effort=True)
-                else:
-                    set_alert(
-                        "relay_failure",
-                        "warning",
-                        f"Cloud relay returned HTTP {response.status_code} for device {device_id}.",
-                        device_id=device_id,
-                        active=True,
-                    )
+                set_alert("relay_failure", "warning", f"Cloud relay returned HTTP {response.status_code}.", active=True)
             except requests.RequestException as exc:
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = str(exc)
                 relay_state["last_status_code"] = None
                 logger.warning("Relay telemetry failed (%s): %s", url, exc)
-                resolve_transient_relay_alerts(best_effort=True)
+                set_alert("relay_failure", "warning", f"Cloud relay request failed: {exc}", active=True)
     return "retry"
 
 
 def enqueue_relay_payload(payload):
-    if not RELAY_STATUS_URL_LIST:
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status"):
         return
     cleaned = sanitize_payload(payload)
     with get_db() as db:
@@ -6890,9 +6876,10 @@ def cloud_relay_enabled_for_device_source(device_source):
 def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return None
-    if not RELAY_COMMAND_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST, "/device/command")
+    if not relay_urls:
         return None
-    for url in RELAY_COMMAND_URL_LIST:
+    for url in relay_urls:
         for attempt in range(2):
             try:
                 response = requests.get(
@@ -6920,7 +6907,8 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
 def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE_REAL):
     if not cloud_relay_enabled_for_device_source(device_source):
         return False
-    if not RELAY_COMMAND_URL_LIST:
+    relay_urls = relay_urls_for_current_request(RELAY_COMMAND_URL_LIST, "/device/command")
+    if not relay_urls:
         return False
 
     try:
@@ -6935,7 +6923,7 @@ def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE
     if "X-Device-Id" not in headers or "X-Device-Key" not in headers:
         return False
 
-    for url in RELAY_COMMAND_URL_LIST:
+    for url in relay_urls:
         ack_url = f"{url.rstrip('/')}/ack"
         for attempt in range(2):
             try:
@@ -6960,7 +6948,8 @@ def acknowledge_relay_command(device_id, command_id, device_source=DEVICE_SOURCE
 
 
 def relay_status_async(payload):
-    if not RELAY_STATUS_URL_LIST:
+    if not relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status"):
+        set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
         return
     enqueue_relay_payload(payload)
     if not relay_lock.acquire(blocking=False):
@@ -6990,6 +6979,12 @@ def start_relay_drain_worker():
                 relay_lock.release()
 
     threading.Thread(target=loop, daemon=True).start()
+
+
+def resolve_relay_alert_when_disabled():
+    if RELAY_STATUS_URL_LIST:
+        return
+    set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
 
 
 def handle_mqtt_telemetry_message(topic, payload_text):
@@ -7271,6 +7266,38 @@ def mobile_analytics():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+
+
+@app.route("/api/mobile/local-sync", methods=["POST"])
+@mobile_auth_required
+def mobile_local_sync():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "invalid json"}), 400
+
+    scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str) or data.get("device_id"))
+    payload_device_id = normalize_device_id(data.get("device_id"))
+    if not scoped_device_id:
+        return jsonify({"error": "device_id is required"}), 400
+    if payload_device_id and payload_device_id != scoped_device_id:
+        return jsonify({"error": "device_id does not match authenticated device"}), 403
+
+    data["device_id"] = scoped_device_id
+    data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned = process_telemetry_payload(data, source_ip="android_local_wifi", transport="android_local_wifi")
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    return jsonify(
+        {
+            "result": "saved",
+            "device_id": scoped_device_id,
+            "snapshot": strip_ip_address_fields(snapshot or cleaned),
+        }
+    )
 
 
 @app.route("/api/mobile/account/password", methods=["POST"])
@@ -8841,6 +8868,49 @@ def dashboard_bootstrap():
     )
 
 
+@app.route("/dashboard/local-sync", methods=["POST"])
+@login_required
+def dashboard_local_sync():
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
+
+    data = request.get_json(silent=True) or {}
+    scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str) or data.get("device_id"))
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    local_base_url = normalize_device_base_url(data.get("device_local_url") or (snapshot or {}).get("device_local_url"))
+    if not local_base_url:
+        return jsonify({"error": "local device URL is not available"}), 404
+
+    try:
+        local_status = fetch_local_device_status(local_base_url)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except requests.RequestException as exc:
+        logger.info("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        return jsonify({"error": "local device is not reachable"}), 503
+
+    local_device_id = normalize_device_id(local_status.get("device_id"))
+    if scoped_device_id and local_device_id and local_device_id != scoped_device_id:
+        return jsonify({"error": "local device_id does not match dashboard device"}), 403
+    if scoped_device_id:
+        local_status["device_id"] = scoped_device_id
+    elif local_device_id:
+        local_status["device_id"] = local_device_id
+
+    local_status["device_source"] = normalize_device_source(local_status.get("device_source"), default=DEVICE_SOURCE_REAL)
+    cleaned = process_telemetry_payload(local_status, source_ip="dashboard_local_wifi", transport="dashboard_local_wifi")
+    refreshed_snapshot = load_dashboard_snapshot(local_status.get("device_id") or scoped_device_id)
+    refresh_operational_alerts(refreshed_snapshot if snapshot_has_live_device_data(refreshed_snapshot) else None)
+    return jsonify(
+        {
+            "result": "saved",
+            "device_id": local_status.get("device_id") or scoped_device_id,
+            "snapshot": strip_ip_address_fields(refreshed_snapshot or cleaned, keep_device_local_url=True),
+        }
+    )
+
+
 @app.route("/analytics")
 @login_required
 def analytics():
@@ -8906,7 +8976,7 @@ def ml_predict():
                 scoped_device_id,
                 "missing_artifact",
                 "Level forecast model artifact is not installed.",
-                "Train it first with: python scripts/train_level_forecast_model.py --horizon-hours 1",
+                "Train it first with: python scripts/train_level_forecast_model.py --device-id <device-id> --horizon-hours 1",
             )
         ), 200
     except ValueError as exc:
@@ -8944,11 +9014,17 @@ logger.info(
     _mysql_config_for_log.get("database"),
     _mysql_config_for_log.get("user"),
 )
+validate_runtime_db_configuration()
 init_db()
+resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()
 maybe_reset_admin_password_on_boot()
 if APP_SECRET_KEY_SOURCE == "env":
     logger.info("APP_SECRET_KEY loaded from environment.")
+elif APP_SECRET_KEY_SOURCE == "default":
+    logger.warning("APP_SECRET_KEY fallback is active because no persistent secret could be loaded. Set APP_SECRET_KEY before production.")
+else:
+    logger.info("APP_SECRET_KEY loaded from persistent storage at %s.", APP_SECRET_KEY_SOURCE)
 if not TELEMETRY_HISTORY_ENABLED:
     logger.warning("Telemetry history persistence is disabled. This deployment keeps only the latest snapshot per device.")
 elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:
