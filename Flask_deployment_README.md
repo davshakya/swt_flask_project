@@ -200,7 +200,7 @@ SWT_LOCAL_WEB_AUTH_USERNAME=swtadmin
 SWT_LOCAL_WEB_AUTH_PASSWORD=replace-with-a-strong-local-password
 SWT_LOCAL_DEVICE_URL=http://192.168.1.50/
 SWT_CLOUD_BASE_URL=https://salewell.co.in/
-SWT_FLASK_CHANNEL_MODE=both
+SWT_FLASK_CHANNEL_MODE=cloud
 SWT_DEVICE_SOURCE_MODE=real
 ```
 

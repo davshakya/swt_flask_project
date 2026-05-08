@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pickle
+import sqlite3
 from pathlib import Path
 from typing import Iterable
 
@@ -99,6 +100,30 @@ def query_device_forecast_rows(
         ORDER BY created_at ASC
     """
     rows = connection.execute(query, tuple(params)).fetchall()
+    return pd.DataFrame([dict(row) for row in rows], columns=SELECT_COLUMNS)
+
+
+def query_training_rows(db_path: Path | str, device_id: str | None = None) -> pd.DataFrame:
+    database_path = Path(db_path)
+    if not database_path.exists():
+        raise FileNotFoundError(f"Database file not found: {database_path}")
+
+    clauses = []
+    params: list[str] = []
+    normalized_device_id = str(device_id or "").strip()
+    if normalized_device_id:
+        clauses.append("COALESCE(device_id, '') = ?")
+        params.append(normalized_device_id)
+
+    query = f"""
+        SELECT {", ".join(SELECT_COLUMNS)}
+        FROM tank_data
+        {("WHERE " + " AND ".join(clauses)) if clauses else ""}
+        ORDER BY created_at ASC
+    """
+    with sqlite3.connect(database_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(query, tuple(params)).fetchall()
     return pd.DataFrame([dict(row) for row in rows], columns=SELECT_COLUMNS)
 
 

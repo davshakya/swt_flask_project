@@ -102,14 +102,18 @@ def load_workspace_device_env_files(project_root, environ):
         workspace_root / "swt_android_app_project" / "device.env",
     )
     merged_values = {}
+    blank_overrides = set()
     for dotenv_path in candidate_paths:
         parsed_values = parse_simple_dotenv(dotenv_path)
         if not parsed_values:
             continue
         prefer_real_override = dotenv_path == project_device_env
         for key, value in parsed_values.items():
-            if not str(value or "").strip() and key not in CLEARABLE_DEVICE_ENV_KEYS:
-                continue
+            if not str(value or "").strip():
+                if key in CLEARABLE_DEVICE_ENV_KEYS:
+                    blank_overrides.add(key)
+                else:
+                    continue
             current_value = merged_values.get(key)
             if current_value is None or device_config_value_is_placeholder(current_value):
                 merged_values[key] = value
@@ -118,11 +122,9 @@ def load_workspace_device_env_files(project_root, environ):
                 merged_values[key] = value
     for key, value in merged_values.items():
         existing_value = environ.get(key)
-        if (
-            key in CLEARABLE_DEVICE_ENV_KEYS
-            or existing_value is None
-            or device_config_value_is_placeholder(existing_value)
-        ):
+        if key in blank_overrides:
+            environ[key] = ""
+        elif existing_value is None or device_config_value_is_placeholder(existing_value):
             environ[key] = value
 
 
@@ -1953,8 +1955,8 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
 
             entry["server_registered"] = True
 
+    refresh_operational_alerts_for_devices(merged.keys())
     service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
-
     alert_summaries = fetch_active_alert_summaries(merged.keys())
     for device_id, entry in merged.items():
         online = admin_device_is_online(entry)
@@ -2090,6 +2092,22 @@ def refresh_operational_alerts(snapshot=None):
             snapshot = latest_snapshot_with_metrics(db)
     evaluate_snapshot_alerts(snapshot)
     return snapshot
+
+
+def refresh_operational_alerts_for_devices(device_ids):
+    refreshed = []
+    seen_device_ids = set()
+    for device_id in device_ids or []:
+        normalized_device_id = normalize_device_id(device_id)
+        if not normalized_device_id or normalized_device_id in seen_device_ids:
+            continue
+        seen_device_ids.add(normalized_device_id)
+        snapshot = fetch_device_snapshot(normalized_device_id)
+        if not snapshot_has_live_device_data(snapshot):
+            continue
+        evaluate_snapshot_alerts(snapshot)
+        refreshed.append(snapshot)
+    return refreshed
 
 
 def get_pandas():
@@ -5154,6 +5172,8 @@ def snapshot_has_live_device_data(snapshot):
 
 
 def build_system_status_payload(snapshot, device_id=None):
+    if snapshot_has_live_device_data(snapshot):
+        evaluate_snapshot_alerts(snapshot)
     device_state = device_status_from_snapshot(snapshot if snapshot_has_live_device_data(snapshot) else None)
     active_alerts = fetch_active_alerts(limit=6, device_id=device_id)
 
@@ -5192,6 +5212,8 @@ def build_system_status_payload(snapshot, device_id=None):
 
 def build_monitoring_summary_payload(snapshot, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
+    if snapshot_has_live_device_data(snapshot):
+        evaluate_snapshot_alerts(snapshot)
     with get_db() as db:
         pending = db.execute("SELECT COUNT(*) FROM relay_queue").fetchone()[0]
 
@@ -6808,6 +6830,7 @@ def relay_status_to_cloud(payload):
                     relay_state["last_status_code"] = response.status_code
                     relay_state["last_error_at"] = None
                     relay_state["last_error"] = None
+                    resolve_transient_relay_alerts(device_id)
                     set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False)
                     return "ok"
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
@@ -6823,7 +6846,9 @@ def relay_status_to_cloud(payload):
                         active=True,
                     )
                     return "drop"
-                set_alert("relay_failure", "warning", f"Cloud relay returned HTTP {response.status_code}.", active=True)
+                if response.status_code < 500:
+                    relay_http_message = f"Cloud relay returned HTTP {response.status_code}."
+                    set_alert("relay_failure", "warning", relay_http_message, active=True)
             except requests.RequestException as exc:
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = str(exc)
@@ -6831,6 +6856,33 @@ def relay_status_to_cloud(payload):
                 logger.warning("Relay telemetry failed (%s): %s", url, exc)
                 set_alert("relay_failure", "warning", f"Cloud relay request failed: {exc}", active=True)
     return "retry"
+
+
+def resolve_transient_relay_alerts(device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    with get_db() as db:
+        if normalized_device_id:
+            db.execute(
+                """
+                UPDATE ops_alerts
+                SET active = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE kind = 'relay_failure'
+                  AND active = 1
+                  AND COALESCE(device_id, '') = ?
+                  AND message LIKE 'Cloud relay returned HTTP 5%'
+                """,
+                (normalized_device_id,),
+            )
+        else:
+            db.execute(
+                """
+                UPDATE ops_alerts
+                SET active = 0, updated_at = CURRENT_TIMESTAMP
+                WHERE kind = 'relay_failure'
+                  AND active = 1
+                  AND message LIKE 'Cloud relay returned HTTP 5%'
+                """
+            )
 
 
 def enqueue_relay_payload(payload):

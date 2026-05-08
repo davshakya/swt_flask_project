@@ -373,12 +373,6 @@
                 {% endif %}
             </div>
         </div>
-        {% if error %}
-        <div class="message error" style="margin-top:14px">{{ error }}</div>
-        {% endif %}
-        {% if success %}
-        <div class="message success" style="margin-top:14px">{{ success }}</div>
-        {% endif %}
         <div class="release-channel-layout">
             <form method="post" action="/admin/releases/android" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                 <div class="group">
