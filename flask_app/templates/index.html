@@ -1423,12 +1423,11 @@ function renderSnapshot(snapshot){
             :"Auto protection is active. Use Start Pump or Stop Pump for a supervised action without leaving auto control.");
     }
     const warnings=[];
-    if(Number(snapshot.level||0)<=state.preferences.lowThreshold)warnings.push(`Main tank is ${fmtPct(snapshot.level)} full, below the ${state.preferences.lowThreshold}% low-water warning point.`);
-    if(Number(snapshot.level||0)>=state.preferences.overflowThreshold)warnings.push(`Main tank is ${fmtPct(snapshot.level)} full, above the ${state.preferences.overflowThreshold}% overflow warning point.`);
-    if(state.preferences.leakAlerts){["pipe_leak","slow_leak","drip"].forEach((key)=>{if(String(snapshot[key]||"").toUpperCase()==="YES")warnings.push(`${key.replaceAll("_"," ")} alert is active on the device.`);});}
-    if(state.preferences.systemAlerts&&sensorRaw&&sensorRaw!=="OK")warnings.push(`Main tank sensor is ${sensorRaw}. Check the main tank sensor cable or calibration.`);
-    if(state.preferences.systemAlerts&&sourceState.monitoringActive&&sourceState.lowerSensorRaw&&sourceState.lowerSensorRaw!=="OK")warnings.push(`Source tank sensor is ${sourceState.lowerSensorRaw}. ${sourceState.infoText}`);
-    if(state.preferences.systemAlerts&&snapshot.telemetry_status==="stale")warnings.push(`Telemetry is stale. Last synced ${localizedLastSync}; check device power or internet.`);
+    if(Number(snapshot.level||0)<=state.preferences.lowThreshold)warnings.push(`Tank level is below ${state.preferences.lowThreshold}%.`);
+    if(Number(snapshot.level||0)>=state.preferences.overflowThreshold)warnings.push(`Tank is above ${state.preferences.overflowThreshold}% and nearing full capacity.`);
+    if(state.preferences.leakAlerts){["pipe_leak","slow_leak","drip"].forEach((key)=>{if(String(snapshot[key]||"").toUpperCase()==="YES")warnings.push(`${key.replace("_"," ")} alert is active.`);});}
+    if(state.preferences.systemAlerts&&sensorRaw&&sensorRaw!=="OK")warnings.push("HC-SR04 sensor is not responding.");
+    if(state.preferences.systemAlerts&&snapshot.telemetry_status==="stale")warnings.push("Telemetry is stale. Check device power or connectivity.");
     banner("warningBanner",warnings.join(" "),warnings.length?"warn":"");
     if(warnings.length)desktopNotify(warnings[0]);
 }

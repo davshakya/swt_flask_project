@@ -905,8 +905,6 @@ def alert_touch_key(kind, device_id=None):
 
 
 def should_skip_alert_touch(kind, severity, message, device_id=None, active=True):
-    if not active:
-        return False
     if ALERT_TOUCH_INTERVAL_SECONDS <= 0:
         return False
     cache_key = alert_touch_key(kind, device_id)
@@ -2254,36 +2252,6 @@ SOURCE_TANK_ALIAS_FIELDS = {
 }
 
 
-MAIN_TANK_ALIAS_FIELDS = {
-    "level": ("main_level", "main_tank_level"),
-    "sensor": ("main_sensor", "main_tank_sensor"),
-    "sensor_info": ("main_sensor_info", "main_tank_sensor_info"),
-    "sensor_distance_cm": ("main_sensor_distance_cm", "main_tank_sensor_distance_cm"),
-}
-
-
-def apply_main_tank_aliases(payload, include_aliases=False):
-    if payload is None:
-        return payload
-
-    for canonical_key, alias_keys in MAIN_TANK_ALIAS_FIELDS.items():
-        canonical_value = payload.get(canonical_key)
-        if canonical_value in (None, "", "null"):
-            for alias_key in alias_keys:
-                alias_value = payload.get(alias_key)
-                if alias_value not in (None, "", "null"):
-                    payload[canonical_key] = alias_value
-                    canonical_value = alias_value
-                    break
-
-        if include_aliases:
-            if canonical_key in payload or any(alias_key in payload for alias_key in alias_keys):
-                for alias_key in alias_keys:
-                    payload[alias_key] = canonical_value
-
-    return payload
-
-
 def apply_source_tank_aliases(payload, include_aliases=False):
     if payload is None:
         return payload
@@ -2549,7 +2517,6 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
-    apply_main_tank_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     cleaned["simulator"] = (
@@ -4671,10 +4638,9 @@ def calculate_health(snapshot=None, leak_events=0, motor_cycles=0, consumption_r
         if bool_flag(snapshot.get("dry_run")):
             score -= 18
             append_reason(reasons, "Dry-run protection was triggered.")
-        sensor_status = str(snapshot.get("sensor", "")).upper()
-        if sensor_status and sensor_status != "OK":
+        if str(snapshot.get("sensor", "")).upper() != "OK":
             score -= 20
-            append_reason(reasons, "Main tank sensor needs attention.")
+            append_reason(reasons, "Sensor needs attention.")
         wifi_status = str(snapshot.get("wifi", "")).upper()
         if wifi_status and wifi_status not in {"ONLINE", "OK", "CONNECTED"}:
             score -= 10
@@ -4882,7 +4848,6 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["auto_status_tone"] = auto_status_tone
     data["auto_timer"] = auto_timer
 
-    apply_main_tank_aliases(data, include_aliases=True)
     health = calculate_health(
         snapshot=data,
         leak_events=leak_events,
@@ -5962,24 +5927,21 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
             if active:
                 if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
                     db.execute(
-                        """
-                        UPDATE ops_alerts
-                        SET updated_at = CURRENT_TIMESTAMP
-                        WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '') AND active = 1
-                        """,
-                        (kind, normalized_device_id),
+                        "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        (existing["id"],),
                     )
                     note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
                     return
 
-                db.execute(
-                    """
-                    UPDATE ops_alerts
-                    SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '') AND active = 1
-                    """,
-                    (kind, normalized_device_id),
-                )
+                if existing and int(existing["active"]) == 1:
+                    db.execute(
+                        """
+                        UPDATE ops_alerts
+                        SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (existing["id"],),
+                    )
 
                 cursor = db.execute(
                     """
@@ -5996,14 +5958,14 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
                     "message": message,
                     "active": True,
                 }
-            elif existing:
+            elif existing and int(existing["active"]) == 1:
                 db.execute(
                     """
                     UPDATE ops_alerts
                     SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '') AND active = 1
+                    WHERE id = ?
                     """,
-                    (kind, normalized_device_id),
+                    (existing["id"],),
                 )
     except Exception as exc:
         if best_effort and database_is_locked_error(exc):
@@ -6065,7 +6027,7 @@ def evaluate_snapshot_alerts(snapshot):
     set_alert(
         "sensor_fault",
         "warning",
-        "Main tank sensor is disconnected or reporting a fault.",
+        "Main tank sensor needs attention.",
         device_id=device_id,
         active=sensor_bad,
         best_effort=True,
