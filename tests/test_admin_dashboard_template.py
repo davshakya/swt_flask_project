@@ -19,6 +19,14 @@ def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
     assert "set_alert(\"relay_failure\", \"warning\", f\"Cloud relay returned HTTP {response.status_code}.\", active=True)" not in server_source
 
 
+def test_admin_device_list_reconciles_alerts_from_current_feed():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "def refresh_admin_entry_alerts" in server_source
+    assert "refresh_admin_entry_alerts(entry)" in server_source
+    assert server_source.index("refresh_admin_entry_alerts(entry)") < server_source.index("fetch_active_alert_summaries(merged.keys())")
+
+
 def test_project_device_env_can_disable_local_relay_defaults():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 

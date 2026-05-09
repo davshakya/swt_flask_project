@@ -1956,6 +1956,8 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
             entry["server_registered"] = True
 
     refresh_operational_alerts_for_devices(merged.keys())
+    for entry in merged.values():
+        refresh_admin_entry_alerts(entry)
     service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
     alert_summaries = fetch_active_alert_summaries(merged.keys())
     for device_id, entry in merged.items():
@@ -2017,6 +2019,14 @@ def load_admin_known_devices(accounts, inventory_limit=100):
         include_registered_devices=True,
         seed_configuration=True,
     )
+
+
+def refresh_admin_entry_alerts(entry):
+    if not snapshot_has_live_device_data(entry):
+        return
+    if not entry.get("last_sync_at"):
+        return
+    evaluate_snapshot_alerts(entry)
 
 
 def authenticate_device_request(payload=None):
