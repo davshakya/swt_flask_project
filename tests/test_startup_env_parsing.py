@@ -118,7 +118,7 @@ print(json.dumps({
     assert payload == {
         "session_hours": 12.0,
         "tank_capacity_liters": 1000.0,
-        "data_retention_days": 7,
+        "data_retention_days": 45,
         "db_target_size_mb": 0.0,
         "mqtt_broker_port": 1883,
         "mqtt_keepalive_sec": 30,
