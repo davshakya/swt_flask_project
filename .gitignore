@@ -29,7 +29,6 @@ Thumbs.db
 
 # # Local environment and secrets
 # .env
-# device.env
 # flask_app/.env
 # tests/virtual_device.env
 # tests/virtual_devices/*.env
