@@ -1739,6 +1739,20 @@ def admin_alert_cutoff_timestamp(hours=24):
     return (now_utc() - timedelta(hours=hours)).strftime(TIMESTAMP_FORMAT)
 
 
+def resolve_admin_expired_alerts(updated_before=None):
+    cutoff = updated_before or admin_alert_cutoff_timestamp()
+    with get_db() as db:
+        db.execute(
+            """
+            UPDATE ops_alerts
+            SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+            WHERE active = 1
+              AND updated_at < ?
+            """,
+            (cutoff,),
+        )
+
+
 def fetch_active_alert_device_ids(updated_since=None):
     with get_db() as db:
         params = []
@@ -1873,6 +1887,7 @@ def build_admin_device_entry(device_id, snapshot=None):
 
 
 def build_admin_device_summary(available_devices):
+    resolve_admin_expired_alerts()
     alert_device_ids = fetch_active_alert_device_ids(updated_since=admin_alert_cutoff_timestamp())
     seen_device_ids = set()
     online_devices = 0
@@ -1898,6 +1913,7 @@ def build_admin_device_summary(available_devices):
 
 
 def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
+    resolve_admin_expired_alerts()
     alert_cutoff = admin_alert_cutoff_timestamp()
     return render_template(
         "admin_customers.html",
@@ -2653,6 +2669,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         force=True,
     )
     clear_runtime_caches(cleaned.get("device_id"))
+    try:
+        sync_device_events(device_id=cleaned.get("device_id"))
+    except Exception as exc:
+        logger.warning("Device event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
@@ -2796,6 +2816,14 @@ def translate_mysql_schema_sql(sql):
         "target_id TEXT": "target_id VARCHAR(191)",
         "key_rule TEXT": "key_rule VARCHAR(191)",
         "command TEXT NOT NULL": "command VARCHAR(64) NOT NULL",
+        "event_key TEXT NOT NULL UNIQUE": "event_key VARCHAR(191) NOT NULL UNIQUE",
+        "event_kind TEXT NOT NULL": "event_kind VARCHAR(96) NOT NULL",
+        "source_table TEXT": "source_table VARCHAR(96)",
+        "source_row_id TEXT": "source_row_id VARCHAR(191)",
+        "event_at TEXT NOT NULL": "event_at DATETIME NOT NULL",
+        "started_at TEXT": "started_at DATETIME",
+        "ended_at TEXT": "ended_at DATETIME",
+        "details_json TEXT": "details_json JSON",
         "kind TEXT NOT NULL": "kind VARCHAR(96) NOT NULL",
         "severity TEXT NOT NULL": "severity VARCHAR(32) NOT NULL",
         "actor TEXT NOT NULL": "actor VARCHAR(191) NOT NULL",
@@ -3228,6 +3256,30 @@ def ensure_audit_table(cursor):
     )
 
 
+def ensure_device_events_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_key TEXT NOT NULL UNIQUE,
+            device_id TEXT,
+            event_kind TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            message TEXT NOT NULL,
+            details_json TEXT,
+            source_table TEXT,
+            source_row_id TEXT,
+            started_at TEXT,
+            ended_at TEXT,
+            duration_seconds INTEGER,
+            event_at TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_app_settings_table(cursor):
     cursor.execute(
         """
@@ -3533,6 +3585,7 @@ def init_db():
         ensure_android_app_releases_table(cursor)
         ensure_alerts_table(cursor)
         ensure_audit_table(cursor)
+        ensure_device_events_table(cursor)
         ensure_app_settings_table(cursor)
         seed_bootstrap_dashboard_password(cursor)
         ensure_customer_accounts_table(cursor)
@@ -3548,6 +3601,8 @@ def init_db():
             "CREATE INDEX idx_created_at ON tank_data(created_at)",
             "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
             "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
+            "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
+            "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
             "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
             "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
             "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
@@ -5768,15 +5823,20 @@ def device_status_from_snapshot(snapshot):
     }
 
 
-def build_events(limit=12, device_id=None):
+def build_generated_device_events(limit=12, device_id=None):
     if not TELEMETRY_HISTORY_ENABLED:
         return []
 
     normalized_device_id = normalize_device_id(device_id)
     source_clause, source_params = device_source_where_clause()
     query = """
-        SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
-               pump_failure, dry_run, sensor, wifi, created_at
+        SELECT id, device_id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
+               pump_failure, dry_run, sensor, wifi, wifi_rssi, firmware_version,
+               reset_reason, free_heap, uptime_s, lower_tank_level, lower_sensor,
+               channel_mode, telemetry_service, command_service, ota_service,
+               lower_tank_service, buzzer_service, led_display_service,
+               local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
+               created_at
         FROM tank_data
         WHERE 
     """
@@ -5789,30 +5849,167 @@ def build_events(limit=12, device_id=None):
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
 
-    if not rows:
-        return []
-
     timeline = []
     previous = None
+    pump_started_at = None
+    pump_started_level = None
+    active_flag_started_at = {}
+    sensor_fault_started_at = None
+    source_low_started_at = None
+    weak_signal_threshold = -75
+    recovered_signal_threshold = -70
+    significant_rssi_delta = 10
+    low_heap_threshold = 15000
+    source_low_threshold = 20
+    source_recovered_threshold = 35
+    frequent_reboot_window_seconds = 24 * 60 * 60
+    reboot_times = []
+    wifi_issue_times = []
+    config_fields = (
+        ("channel_mode", "Channel mode"),
+        ("telemetry_service", "Telemetry service"),
+        ("command_service", "Command service"),
+        ("ota_service", "OTA service"),
+        ("lower_tank_service", "Source tank service"),
+        ("buzzer_service", "Buzzer service"),
+        ("led_display_service", "LED display service"),
+        ("local_firmware_upload_service", "Local firmware upload service"),
+        ("tank_height_cm", "Tank height"),
+        ("tank_capacity_liters", "Tank capacity"),
+    )
+
+    def add_event(current, severity, message, kind, details=None):
+        timeline.append(
+            {
+                "time": format_timestamp(current.get("created_at")),
+                "severity": severity,
+                "message": message,
+                "kind": kind,
+                "details": {
+                    "source_table": "tank_data",
+                    "source_row_id": current.get("id"),
+                    "device_id": normalize_device_id(current.get("device_id")),
+                    **(details or {}),
+                },
+            }
+        )
+
+    def duration_details(started_at, ended_at):
+        if not started_at or not ended_at:
+            return {}
+        duration_seconds = max(0, int((ended_at - started_at).total_seconds()))
+        return {
+            "duration_seconds": duration_seconds,
+            "duration_label": format_compact_uptime(duration_seconds),
+        }
+
     for row in reversed(rows):
         current = dict(row)
-        timestamp = format_timestamp(current.get("created_at"))
+        current_time = parse_timestamp(current.get("created_at"))
+        previous_time = parse_timestamp(previous.get("created_at")) if previous else None
         level = safe_float(current.get("level"), 0)
+        previous_level = safe_float(previous.get("level"), level) if previous else level
+        source_level = safe_float(current.get("lower_tank_level"), None)
+        previous_source_level = safe_float(previous.get("lower_tank_level"), None) if previous else None
+
+        if previous is None:
+            add_event(
+                current,
+                "success",
+                "Device telemetry feed is active.",
+                "telemetry_feed_active",
+                {"level": round(level, 2)},
+            )
+        elif current_time and previous_time:
+            gap_seconds = int((current_time - previous_time).total_seconds())
+            if gap_seconds > STALE_AFTER_SECONDS:
+                add_event(
+                    current,
+                    "success",
+                    f"Device checked in after a {format_compact_uptime(gap_seconds)} telemetry gap.",
+                    "telemetry_recovered",
+                    {"gap_seconds": gap_seconds},
+                )
 
         if previous is None or current.get("motor") != previous.get("motor"):
             if current.get("motor") == "ON":
-                timeline.append({"time": timestamp, "severity": "info", "message": "Motor started."})
+                pump_started_at = current_time
+                pump_started_level = level
+                add_event(
+                    current,
+                    "info",
+                    f"Pump started at {level:.1f}% tank level.",
+                    "pump_started",
+                    {"level": round(level, 2), "mode": current.get("mode")},
+                )
             elif previous and previous.get("motor") == "ON":
-                timeline.append({"time": timestamp, "severity": "info", "message": "Motor stopped."})
+                run_seconds = int((current_time - pump_started_at).total_seconds()) if current_time and pump_started_at else None
+                level_delta = level - (pump_started_level if pump_started_level is not None else previous_level)
+                add_event(
+                    current,
+                    "info",
+                    f"Pump stopped at {level:.1f}% tank level after {format_compact_uptime(run_seconds) if run_seconds is not None else 'a run'}.",
+                    "pump_stopped",
+                    {
+                        "level": round(level, 2),
+                        "level_delta": round(level_delta, 2),
+                        "run_seconds": run_seconds,
+                        "level_rise_rate_pct_per_min": (
+                            round((level_delta / max(run_seconds, 1)) * 60.0, 3)
+                            if run_seconds is not None else None
+                        ),
+                        "mode": current.get("mode"),
+                    },
+                )
+                if run_seconds is not None and run_seconds >= 30 and level_delta < 0.5:
+                    add_event(
+                        current,
+                        "warning",
+                        "Pump ran but tank level did not rise enough.",
+                        "pump_no_level_rise",
+                        {"run_seconds": run_seconds, "level_delta": round(level_delta, 2)},
+                    )
+                pump_started_at = None
+                pump_started_level = None
 
         if previous is None or current.get("mode") != previous.get("mode"):
-            timeline.append({"time": timestamp, "severity": "info", "message": f"Mode changed to {current.get('mode', '--')}."})
+            add_event(
+                current,
+                "info",
+                f"Mode changed to {current.get('mode', '--')}.",
+                "mode_changed",
+                {"mode": current.get("mode")},
+            )
 
         if level <= 20 and (previous is None or safe_float(previous.get("level"), 100) > 20):
-            timeline.append({"time": timestamp, "severity": "warning", "message": "Tank dropped below 20%."})
+            add_event(current, "warning", "Tank dropped below 20%.", "tank_low", {"level": round(level, 2)})
+        elif previous is not None and level > 20 and previous_level <= 20:
+            add_event(current, "success", "Tank recovered above 20%.", "tank_low_recovered", {"level": round(level, 2)})
 
         if level >= 95 and (previous is None or safe_float(previous.get("level"), 0) < 95):
-            timeline.append({"time": timestamp, "severity": "success", "message": "Tank reached near-full level."})
+            add_event(current, "success", "Tank reached near-full level.", "tank_near_full", {"level": round(level, 2)})
+
+        if source_level is not None:
+            if source_level <= source_low_threshold and (
+                previous_source_level is None or previous_source_level > source_low_threshold
+            ):
+                source_low_started_at = current_time
+                add_event(
+                    current,
+                    "warning",
+                    f"Source tank dropped below {source_low_threshold}%.",
+                    "source_tank_low",
+                    {"source_tank_level": round(source_level, 2)},
+                )
+            elif previous_source_level is not None and source_level >= source_recovered_threshold and previous_source_level <= source_low_threshold:
+                add_event(
+                    current,
+                    "success",
+                    f"Source tank recovered enough for safer pumping after {format_compact_uptime((current_time - source_low_started_at).total_seconds()) if current_time and source_low_started_at else 'a low-level period'}.",
+                    "source_tank_recovered",
+                    {"source_tank_level": round(source_level, 2), **duration_details(source_low_started_at, current_time)},
+                )
+                source_low_started_at = None
 
         for key, message in (
             ("pipe_leak", "Pipe leak warning detected."),
@@ -5823,19 +6020,497 @@ def build_events(limit=12, device_id=None):
             ("dry_run", "Dry-run protection activated."),
         ):
             if bool_flag(current.get(key)) and (previous is None or not bool_flag(previous.get(key))):
-                timeline.append({"time": timestamp, "severity": "warning", "message": message})
+                active_flag_started_at[key] = current_time
+                add_event(current, "warning", message, key, {"state": "active"})
+            elif previous is not None and not bool_flag(current.get(key)) and bool_flag(previous.get(key)):
+                duration = duration_details(active_flag_started_at.get(key), current_time)
+                add_event(
+                    current,
+                    "success",
+                    f"{message.removesuffix(' detected.').removesuffix(' activated.')} cleared"
+                    f"{' after ' + duration['duration_label'] if duration.get('duration_label') else ''}.",
+                    f"{key}_cleared",
+                    {"state": "cleared", **duration},
+                )
+                active_flag_started_at.pop(key, None)
 
         if str(current.get("sensor", "")).upper() != "OK" and (previous is None or str(previous.get("sensor", "")).upper() == "OK"):
-            timeline.append({"time": timestamp, "severity": "warning", "message": "Sensor requires attention."})
+            sensor_fault_started_at = current_time
+            add_event(
+                current,
+                "warning",
+                "Main tank sensor requires attention.",
+                "sensor_fault",
+                {"sensor": current.get("sensor")},
+            )
+        elif previous is not None and str(current.get("sensor", "")).upper() == "OK" and str(previous.get("sensor", "")).upper() != "OK":
+            duration = duration_details(sensor_fault_started_at, current_time)
+            add_event(
+                current,
+                "success",
+                f"Main tank sensor is reporting normally again"
+                f"{' after ' + duration['duration_label'] if duration.get('duration_label') else ''}.",
+                "sensor_recovered",
+                duration,
+            )
+            sensor_fault_started_at = None
 
         if str(current.get("wifi", "")).upper() not in {"", "ONLINE", "OK", "CONNECTED"} and (
             previous is None or str(previous.get("wifi", "")).upper() in {"", "ONLINE", "OK", "CONNECTED"}
         ):
-            timeline.append({"time": timestamp, "severity": "warning", "message": "Device connectivity issue detected."})
+            if current_time:
+                wifi_issue_times.append(current_time)
+                wifi_issue_times = [
+                    item
+                    for item in wifi_issue_times
+                    if (current_time - item).total_seconds() <= frequent_reboot_window_seconds
+                ]
+            add_event(
+                current,
+                "warning",
+                "Device connectivity issue detected.",
+                "wifi_issue",
+                {"wifi": current.get("wifi"), "wifi_rssi": current.get("wifi_rssi")},
+            )
+            if len(wifi_issue_times) >= 3:
+                add_event(
+                    current,
+                    "warning",
+                    f"Device disconnected {len(wifi_issue_times)} times in the last 24 hours.",
+                    "wifi_disconnect_frequency_high",
+                    {"disconnect_count_24h": len(wifi_issue_times)},
+                )
+        elif previous is not None and str(current.get("wifi", "")).upper() in {"ONLINE", "OK", "CONNECTED"} and str(previous.get("wifi", "")).upper() not in {"", "ONLINE", "OK", "CONNECTED"}:
+            add_event(current, "success", "Device connectivity recovered.", "wifi_recovered")
+
+        rssi = safe_float(current.get("wifi_rssi"), None)
+        previous_rssi = safe_float(previous.get("wifi_rssi"), None) if previous else None
+        if rssi is not None:
+            if rssi < weak_signal_threshold and (previous_rssi is None or previous_rssi >= weak_signal_threshold):
+                add_event(
+                    current,
+                    "warning",
+                    f"Wi-Fi signal became weak ({int(rssi)} dBm).",
+                    "wifi_signal_weak",
+                    {"wifi_rssi": int(rssi)},
+                )
+            elif previous_rssi is not None and rssi >= recovered_signal_threshold and previous_rssi < weak_signal_threshold:
+                add_event(
+                    current,
+                    "success",
+                    f"Wi-Fi signal recovered ({int(rssi)} dBm).",
+                    "wifi_signal_recovered",
+                    {"wifi_rssi": int(rssi)},
+                )
+            elif previous_rssi is not None and (previous_rssi - rssi) >= significant_rssi_delta:
+                add_event(
+                    current,
+                    "warning",
+                    f"Wi-Fi signal dropped from {int(previous_rssi)} to {int(rssi)} dBm.",
+                    "wifi_signal_drop",
+                    {"wifi_rssi": int(rssi), "previous_wifi_rssi": int(previous_rssi)},
+                )
+            elif previous_rssi is not None and (rssi - previous_rssi) >= significant_rssi_delta:
+                add_event(
+                    current,
+                    "success",
+                    f"Wi-Fi signal improved from {int(previous_rssi)} to {int(rssi)} dBm.",
+                    "wifi_signal_improved",
+                    {"wifi_rssi": int(rssi), "previous_wifi_rssi": int(previous_rssi)},
+                )
+
+        free_heap = safe_float(current.get("free_heap"), None)
+        previous_free_heap = safe_float(previous.get("free_heap"), None) if previous else None
+        if free_heap is not None:
+            if free_heap < low_heap_threshold and (previous_free_heap is None or previous_free_heap >= low_heap_threshold):
+                add_event(
+                    current,
+                    "warning",
+                    f"Controller memory is low ({int(free_heap)} B free).",
+                    "heap_low",
+                    {"free_heap": int(free_heap)},
+                )
+            elif previous_free_heap is not None and free_heap >= low_heap_threshold and previous_free_heap < low_heap_threshold:
+                add_event(
+                    current,
+                    "success",
+                    f"Controller memory recovered ({int(free_heap)} B free).",
+                    "heap_recovered",
+                    {"free_heap": int(free_heap)},
+                )
+
+        if previous is not None and current.get("firmware_version") and current.get("firmware_version") != previous.get("firmware_version"):
+            add_event(
+                current,
+                "info",
+                f"Firmware updated to {current.get('firmware_version')}.",
+                "firmware_changed",
+                {"firmware_version": current.get("firmware_version"), "previous_firmware_version": previous.get("firmware_version")},
+            )
+
+        reset_reason = str(current.get("reset_reason") or "").strip()
+        previous_reset_reason = str(previous.get("reset_reason") or "").strip() if previous else ""
+        if reset_reason and reset_reason != previous_reset_reason:
+            if current_time:
+                reboot_times.append(current_time)
+                reboot_times = [
+                    item
+                    for item in reboot_times
+                    if (current_time - item).total_seconds() <= frequent_reboot_window_seconds
+                ]
+            add_event(
+                current,
+                "info",
+                f"Controller rebooted ({reset_reason}).",
+                "device_rebooted",
+                {"reset_reason": reset_reason},
+            )
+            if len(reboot_times) >= 3:
+                add_event(
+                    current,
+                    "warning",
+                    f"Controller rebooted {len(reboot_times)} times in the last 24 hours.",
+                    "reboot_frequency_high",
+                    {"reboot_count_24h": len(reboot_times)},
+                )
+
+        if previous is not None:
+            for field, label in config_fields:
+                current_value = current.get(field)
+                previous_value = previous.get(field)
+                if current_value in (None, "") or current_value == previous_value:
+                    continue
+                add_event(
+                    current,
+                    "info",
+                    f"{label} changed to {current_value}.",
+                    "config_changed",
+                    {"field": field, "value": current_value, "previous_value": previous_value},
+                )
 
         previous = current
 
-    return timeline[-limit:][::-1]
+    timeline.extend(build_command_events(limit=40, device_id=normalized_device_id))
+    timeline.extend(build_ota_events(limit=20, device_id=normalized_device_id))
+    timeline.sort(key=lambda item: parse_timestamp(item.get("time")) or datetime.min, reverse=True)
+    return timeline[:limit]
+
+
+def build_command_events(limit=20, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    query = """
+        SELECT id, target_device, command, created_at, delivered_at
+        FROM device_command_queue
+        WHERE 1 = 1
+    """
+    params = []
+    if normalized_device_id:
+        query += " AND target_device = ?"
+        params.append(normalized_device_id)
+    query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+    params.append(max(1, int(limit or 20)))
+
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    events = []
+    now = now_utc()
+    failure_after_seconds = max(300, STALE_AFTER_SECONDS * 2)
+    for row in rows:
+        command = str(row["command"] or "").strip().upper() or "COMMAND"
+        target_device = normalize_device_id(row["target_device"])
+        created_at = format_timestamp(row["created_at"])
+        delivered_at = format_timestamp(row["delivered_at"])
+        events.append(
+            {
+                "time": created_at,
+                "severity": "info",
+                "message": f"Command queued: {command}.",
+                "kind": "command_queued",
+                "details": {
+                    "source_table": "device_command_queue",
+                    "source_row_id": row["id"],
+                    "command": command,
+                    "device_id": target_device,
+                    "command_id": row["id"],
+                },
+            }
+        )
+        if row["delivered_at"]:
+            events.append(
+                {
+                    "time": delivered_at,
+                    "severity": "success",
+                    "message": f"Command acknowledged by device: {command}.",
+                    "kind": "command_acknowledged",
+                    "details": {
+                        "source_table": "device_command_queue",
+                        "source_row_id": row["id"],
+                        "command": command,
+                        "device_id": target_device,
+                        "command_id": row["id"],
+                    },
+                }
+            )
+        else:
+            created_dt = parse_timestamp(row["created_at"])
+            age_seconds = int((now - created_dt).total_seconds()) if created_dt else None
+            severity = "warning" if age_seconds is not None and age_seconds >= failure_after_seconds else "info"
+            kind = "command_delivery_failed" if severity == "warning" else "command_delivery_pending"
+            message = (
+                f"Command has not been acknowledged yet: {command}."
+                if severity == "warning"
+                else f"Command waiting for device acknowledgement: {command}."
+            )
+            events.append(
+                {
+                    "time": created_at,
+                    "severity": severity,
+                    "message": message,
+                    "kind": kind,
+                    "details": {
+                        "source_table": "device_command_queue",
+                        "source_row_id": row["id"],
+                        "command": command,
+                        "device_id": target_device,
+                        "command_id": row["id"],
+                        "age_seconds": age_seconds,
+                    },
+                }
+            )
+    return events
+
+
+def build_ota_events(limit=20, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    query = """
+        SELECT id, target_device, version_label, original_filename, created_at
+        FROM firmware_artifacts
+        WHERE target_device = ?
+    """
+    params = [GLOBAL_FIRMWARE_TARGET]
+    if normalized_device_id:
+        query += " OR target_device = ?"
+        params.append(normalized_device_id)
+    query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+    params.append(max(1, int(limit or 20)))
+
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    latest_snapshot = fetch_device_snapshot(normalized_device_id) if normalized_device_id else None
+    current_firmware = str((latest_snapshot or {}).get("firmware_version") or "").strip()
+    events = []
+    now = now_utc()
+    ota_failure_after_seconds = 24 * 60 * 60
+    for row in rows:
+        version_label = str(row["version_label"] or row["original_filename"] or "firmware").strip()
+        target_device = normalize_device_id(row["target_device"]) or GLOBAL_FIRMWARE_TARGET
+        scoped = target_device != GLOBAL_FIRMWARE_TARGET
+        target_label = target_device if scoped else "fleet"
+        created_at = parse_timestamp(row["created_at"])
+        age_seconds = int((now - created_at).total_seconds()) if created_at else None
+        events.append(
+            {
+                "time": format_timestamp(row["created_at"]),
+                "severity": "info",
+                "message": f"Firmware update published for {target_label}: {version_label}.",
+                "kind": "ota_published",
+                "details": {
+                    "source_table": "firmware_artifacts",
+                    "source_row_id": row["id"],
+                    "artifact_id": row["id"],
+                    "target_device": target_device,
+                    "version_label": version_label,
+                },
+            }
+        )
+        if normalized_device_id and version_label and current_firmware:
+            if version_label == current_firmware or current_firmware in version_label or version_label in current_firmware:
+                events.append(
+                    {
+                        "time": format_timestamp(row["created_at"]),
+                        "severity": "success",
+                        "message": f"Firmware version is active on device: {current_firmware}.",
+                        "kind": "ota_succeeded",
+                        "details": {
+                            "source_table": "firmware_artifacts",
+                            "source_row_id": row["id"],
+                            "artifact_id": row["id"],
+                            "target_device": normalized_device_id,
+                            "version_label": version_label,
+                            "firmware_version": current_firmware,
+                        },
+                    }
+                )
+            else:
+                failed = age_seconds is not None and age_seconds >= ota_failure_after_seconds
+                events.append(
+                    {
+                        "time": format_timestamp(row["created_at"]),
+                        "severity": "warning" if failed else "info",
+                        "message": (
+                            f"Firmware update has not become active after {format_compact_uptime(age_seconds)}: {version_label}."
+                            if failed
+                            else f"Firmware update pending on device: {version_label}."
+                        ),
+                        "kind": "ota_failed" if failed else "ota_pending",
+                        "details": {
+                            "source_table": "firmware_artifacts",
+                            "source_row_id": row["id"],
+                            "artifact_id": row["id"],
+                            "target_device": normalized_device_id,
+                            "version_label": version_label,
+                            "firmware_version": current_firmware,
+                            "age_seconds": age_seconds,
+                        },
+                    }
+                )
+    return events
+
+
+def normalize_device_event_time(value):
+    parsed = parse_timestamp(value)
+    return format_timestamp(parsed) if parsed else now_utc().strftime(TIMESTAMP_FORMAT)
+
+
+def device_event_key(event, default_device_id=None):
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    device_id = normalize_device_id(details.get("device_id") or default_device_id) or ""
+    source_table = str(details.get("source_table") or "").strip()
+    source_row_id = str(details.get("source_row_id") or "").strip()
+    event_kind = str(event.get("kind") or "event").strip().lower()
+    event_at = normalize_device_event_time(event.get("time"))
+    basis = "|".join(
+        (
+            device_id,
+            event_kind,
+            event_at,
+            source_table,
+            source_row_id,
+            str(event.get("message") or "").strip(),
+        )
+    )
+    return hashlib.sha256(basis.encode("utf-8")).hexdigest()[:40]
+
+
+def persist_device_events(events, default_device_id=None):
+    if not events:
+        return 0
+
+    persisted = 0
+    with get_db() as db:
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            details = event.get("details") if isinstance(event.get("details"), dict) else {}
+            event_at = normalize_device_event_time(event.get("time"))
+            event_kind = str(event.get("kind") or "event").strip().lower() or "event"
+            severity = str(event.get("severity") or "info").strip().lower() or "info"
+            message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
+            device_id = normalize_device_id(details.get("device_id") or default_device_id)
+            duration_seconds = details.get("duration_seconds")
+            try:
+                duration_seconds = int(duration_seconds) if duration_seconds is not None else None
+            except (TypeError, ValueError):
+                duration_seconds = None
+            event_key = device_event_key(event, default_device_id=device_id)
+            db.execute(
+                """
+                INSERT INTO device_events(
+                    event_key, device_id, event_kind, severity, message, details_json,
+                    source_table, source_row_id, started_at, ended_at, duration_seconds,
+                    event_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(event_key) DO UPDATE SET
+                    device_id=excluded.device_id,
+                    event_kind=excluded.event_kind,
+                    severity=excluded.severity,
+                    message=excluded.message,
+                    details_json=excluded.details_json,
+                    source_table=excluded.source_table,
+                    source_row_id=excluded.source_row_id,
+                    started_at=excluded.started_at,
+                    ended_at=excluded.ended_at,
+                    duration_seconds=excluded.duration_seconds,
+                    event_at=excluded.event_at,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (
+                    event_key,
+                    device_id,
+                    event_kind,
+                    severity,
+                    message,
+                    json.dumps(details, separators=(",", ":"), sort_keys=True),
+                    str(details.get("source_table") or "").strip() or None,
+                    str(details.get("source_row_id") or "").strip() or None,
+                    normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
+                    normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
+                    duration_seconds,
+                    event_at,
+                ),
+            )
+            persisted += 1
+    return persisted
+
+
+def fetch_device_events(limit=12, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    query = """
+        SELECT id, device_id, event_kind, severity, message, details_json, source_table,
+               source_row_id, started_at, ended_at, duration_seconds, event_at, created_at, updated_at
+        FROM device_events
+        WHERE 1 = 1
+    """
+    params = []
+    if normalized_device_id:
+        query += " AND device_id = ?"
+        params.append(normalized_device_id)
+    query += " ORDER BY event_at DESC, id DESC LIMIT ?"
+    params.append(max(1, int(limit or 12)))
+
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    events = []
+    for row in rows:
+        details = {}
+        if row["details_json"]:
+            try:
+                details = json.loads(row["details_json"])
+            except (TypeError, ValueError):
+                details = {}
+        events.append(
+            {
+                "id": row["id"],
+                "device_id": row["device_id"],
+                "time": format_timestamp(row["event_at"]),
+                "severity": row["severity"],
+                "message": row["message"],
+                "kind": row["event_kind"],
+                "details": details,
+                "source_table": row["source_table"],
+                "source_row_id": row["source_row_id"],
+                "started_at": format_timestamp(row["started_at"]),
+                "ended_at": format_timestamp(row["ended_at"]),
+                "duration_seconds": row["duration_seconds"],
+            }
+        )
+    return events
+
+
+def sync_device_events(device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id)
+    persist_device_events(generated_events, default_device_id=normalized_device_id)
+    return generated_events
+
+
+def build_events(limit=12, device_id=None):
+    sync_device_events(device_id=device_id)
+    return fetch_device_events(limit=limit, device_id=device_id)
 
 
 def send_alert_webhook(payload):

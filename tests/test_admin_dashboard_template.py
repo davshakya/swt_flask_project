@@ -33,9 +33,50 @@ def test_admin_dashboard_hides_alerts_older_than_24_hours():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
     assert "def admin_alert_cutoff_timestamp(hours=24)" in server_source
+    assert "def resolve_admin_expired_alerts" in server_source
+    assert "WHERE active = 1" in server_source
+    assert "AND updated_at < ?" in server_source
     assert "fetch_filtered_alerts(limit=10, updated_since=alert_cutoff)" in server_source
     assert "fetch_active_alert_device_ids(updated_since=admin_alert_cutoff_timestamp())" in server_source
     assert "updated_since=admin_alert_cutoff_timestamp()" in server_source
+
+
+def test_device_event_feed_uses_actionable_health_events():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "CREATE TABLE IF NOT EXISTS device_events" in server_source
+    assert "event_key TEXT NOT NULL UNIQUE" in server_source
+    assert "def persist_device_events" in server_source
+    assert "def fetch_device_events" in server_source
+    assert "def sync_device_events" in server_source
+    assert "sync_device_events(device_id=cleaned.get(\"device_id\"))" in server_source
+    assert "return fetch_device_events(limit=limit, device_id=device_id)" in server_source
+
+    for event_kind in (
+        "telemetry_recovered",
+        "pump_no_level_rise",
+        "source_tank_low",
+        "source_tank_recovered",
+        "wifi_signal_weak",
+        "wifi_signal_recovered",
+        "wifi_signal_drop",
+        "wifi_signal_improved",
+        "wifi_disconnect_frequency_high",
+        "sensor_recovered",
+        "heap_low",
+        "heap_recovered",
+        "firmware_changed",
+        "config_changed",
+        "device_rebooted",
+        "reboot_frequency_high",
+        "command_queued",
+        "command_acknowledged",
+        "command_delivery_failed",
+        "ota_published",
+        "ota_succeeded",
+        "ota_failed",
+    ):
+        assert event_kind in server_source
 
 
 def test_project_device_env_can_disable_local_relay_defaults():
