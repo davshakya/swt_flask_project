@@ -19,8 +19,9 @@ DEFAULT_PASSWORD_ENV_VAR = "SWT_FTP_PASSWORD"
 DEFAULT_LOCAL_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INSECURE_FTPS = True
 PROTECTED_RUNTIME_HINT = (
-    "Runtime config and data are protected by default: .env files, device.env, "
+    "Runtime config and data are protected by default: .env files, "
     "database files, data directories, MySQL data, logs, and local artifacts are skipped."
+    " device.env is uploaded so firmware and Flask stay in sync."
 )
 
 EXCLUDED_DIRECTORY_NAMES = {
@@ -44,7 +45,6 @@ EXCLUDED_DIRECTORY_NAMES = {
 EXCLUDED_FILE_NAMES = {
     ".DS_Store",
     ".env",
-    "device.env",
     "Thumbs.db",
     "run_local.py"
 }
@@ -52,7 +52,6 @@ EXCLUDED_FILE_NAMES = {
 EXCLUDED_RELATIVE_PATHS = {
     ".env",
     "conftest.py",
-    "device.env",
     "flask_app/.env",
     "pytest.ini",
 }
@@ -97,6 +96,9 @@ def join_remote_path(base_path: str, child_path: str) -> str:
 def should_include(relative_path: str) -> bool:
     normalized = relative_path.replace("\\", "/").strip("/")
 
+    if normalized == "device.env":
+        return True
+
     if normalized in EXCLUDED_RELATIVE_PATHS:
         return False
 
@@ -123,7 +125,6 @@ def should_include(relative_path: str) -> bool:
 def iter_protected_runtime_candidates(local_root: Path) -> Iterable[str]:
     candidates = (
         ".env",
-        "device.env",
         "flask_app/.env",
         "data",
         "mysql-data",
