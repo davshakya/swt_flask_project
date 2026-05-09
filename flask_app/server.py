@@ -2632,6 +2632,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("buzzer_service"),
         cleaned.get("led_display_service"),
         cleaned.get("local_firmware_upload_service"),
+        cleaned.get("arch_id"),
+        cleaned.get("node_role"),
+        cleaned.get("device_type"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2655,7 +2658,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
-                buzzer_service, led_display_service, local_firmware_upload_service
+                buzzer_service, led_display_service, local_firmware_upload_service,
+                arch_id, node_role, device_type
             )
             VALUES ({placeholders})
             """,
@@ -3061,6 +3065,9 @@ def ensure_tank_data_columns(cursor):
         "buzzer_service": "TEXT",
         "led_display_service": "TEXT",
         "local_firmware_upload_service": "TEXT",
+        "arch_id": "TEXT",
+        "node_role": "TEXT",
+        "device_type": "TEXT",
     }
 
     for column, definition in required.items():
@@ -3137,6 +3144,9 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             buzzer_service TEXT,
             led_display_service TEXT,
             local_firmware_upload_service TEXT,
+            arch_id TEXT,
+            node_role TEXT,
+            device_type TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3573,6 +3583,9 @@ def init_db():
                 buzzer_service TEXT,
                 led_display_service TEXT,
                 local_firmware_upload_service TEXT,
+                arch_id TEXT,
+                node_role TEXT,
+                device_type TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -4685,6 +4698,21 @@ def normalize_service_state(value):
     return "UNKNOWN"
 
 
+def resolve_device_type_label(snapshot):
+    data = snapshot or {}
+    explicit_type = str(data.get("device_type") or "").strip()
+    if explicit_type:
+        return explicit_type
+
+    arch_id = str(data.get("arch_id") or "").strip()
+    node_role = str(data.get("node_role") or "").strip().lower()
+    if arch_id and node_role:
+        return f"architecture_{arch_id}_{node_role}"
+    if arch_id:
+        return f"architecture_{arch_id}"
+    return "legacy_controller"
+
+
 def format_compact_uptime(seconds):
     value = safe_float(seconds, -1)
     if value < 0:
@@ -4852,6 +4880,9 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
     data["device_source_mode"] = get_device_source_mode()
     data["control_policy"] = CONTROL_POLICY
+    data["arch_id"] = str(data.get("arch_id") or "").strip()
+    data["node_role"] = str(data.get("node_role") or "").strip()
+    data["device_type"] = resolve_device_type_label(data)
     data["capacity_liters"] = round(capacity_liters, 1)
     data["tank_capacity_liters"] = round(capacity_liters, 1)
     data["tank_height_cm"] = round(safe_float(data.get("tank_height_cm"), 0), 1)
@@ -8373,6 +8404,35 @@ register_mobile_firmware_routes(
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
     logger=logger,
 )
+
+
+@app.route("/api/mobile/app/update")
+@mobile_auth_required
+def mobile_android_version_manifest():
+    release = fetch_latest_android_app_release()
+    apk_url = url_for("mobile_android_app_download", _external=True) if release else ""
+    manifest = build_android_release_manifest(release, apk_url)
+    manifest["requiresAuth"] = True
+    manifest["viewer"] = resolve_mobile_user()
+    response = jsonify(manifest)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@app.route("/api/mobile/app/latest.apk")
+@mobile_auth_required
+def mobile_android_app_download():
+    release = fetch_latest_android_app_release()
+    if not release:
+        return Response("Android app release has not been uploaded yet.", status=404, mimetype="text/plain")
+
+    storage_path = android_release_storage_path(release.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Android app release %s is registered but missing on disk: %s", release.get("id"), storage_path)
+        return Response("Android app release file is missing.", status=404, mimetype="text/plain")
+
+    return build_android_apk_file_response(release, storage_path)
+
 
 @app.route("/device/command")
 def get_command():
