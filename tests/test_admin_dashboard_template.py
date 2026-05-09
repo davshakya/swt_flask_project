@@ -24,7 +24,18 @@ def test_admin_device_list_reconciles_alerts_from_current_feed():
 
     assert "def refresh_admin_entry_alerts" in server_source
     assert "refresh_admin_entry_alerts(entry)" in server_source
-    assert server_source.index("refresh_admin_entry_alerts(entry)") < server_source.index("fetch_active_alert_summaries(merged.keys())")
+    refresh_call = server_source.index("refresh_admin_entry_alerts(entry)")
+    summaries_call = server_source.index("fetch_active_alert_summaries(", refresh_call)
+    assert refresh_call < summaries_call
+
+
+def test_admin_dashboard_hides_alerts_older_than_24_hours():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "def admin_alert_cutoff_timestamp(hours=24)" in server_source
+    assert "fetch_filtered_alerts(limit=10, updated_since=alert_cutoff)" in server_source
+    assert "fetch_active_alert_device_ids(updated_since=admin_alert_cutoff_timestamp())" in server_source
+    assert "updated_since=admin_alert_cutoff_timestamp()" in server_source
 
 
 def test_project_device_env_can_disable_local_relay_defaults():

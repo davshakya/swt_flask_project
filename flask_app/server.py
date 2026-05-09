@@ -1735,15 +1735,25 @@ a{border:1px solid rgba(148,163,184,.24);color:var(--text)}
     )
 
 
-def fetch_active_alert_device_ids():
+def admin_alert_cutoff_timestamp(hours=24):
+    return (now_utc() - timedelta(hours=hours)).strftime(TIMESTAMP_FORMAT)
+
+
+def fetch_active_alert_device_ids(updated_since=None):
     with get_db() as db:
-        rows = db.execute(
-            """
+        params = []
+        query = """
             SELECT DISTINCT device_id
             FROM ops_alerts
             WHERE active = 1
               AND COALESCE(device_id, '') != ''
-            """
+        """
+        if updated_since:
+            query += " AND updated_at >= ?"
+            params.append(updated_since)
+        rows = db.execute(
+            query,
+            tuple(params),
         ).fetchall()
     return {
         normalize_device_id(row["device_id"])
@@ -1780,7 +1790,7 @@ def alert_severity_rank(value):
     return 0
 
 
-def fetch_active_alert_summaries(device_ids=None):
+def fetch_active_alert_summaries(device_ids=None, updated_since=None):
     normalized_device_ids = [
         item
         for item in (normalize_device_id(value) for value in (device_ids or []))
@@ -1793,6 +1803,9 @@ def fetch_active_alert_summaries(device_ids=None):
           AND COALESCE(device_id, '') != ''
     """
     params = []
+    if updated_since:
+        query += " AND updated_at >= ?"
+        params.append(updated_since)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
         query += f" AND device_id IN ({placeholders})"
@@ -1860,7 +1873,7 @@ def build_admin_device_entry(device_id, snapshot=None):
 
 
 def build_admin_device_summary(available_devices):
-    alert_device_ids = fetch_active_alert_device_ids()
+    alert_device_ids = fetch_active_alert_device_ids(updated_since=admin_alert_cutoff_timestamp())
     seen_device_ids = set()
     online_devices = 0
 
@@ -1885,6 +1898,7 @@ def build_admin_device_summary(available_devices):
 
 
 def render_customer_admin_page(accounts, available_devices, error=None, success=None, search_query="", device_summary=None):
+    alert_cutoff = admin_alert_cutoff_timestamp()
     return render_template(
         "admin_customers.html",
         accounts=accounts,
@@ -1893,7 +1907,7 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         success=success,
         search_query=search_query,
         device_summary=device_summary or build_admin_device_summary(available_devices),
-        global_alerts=fetch_filtered_alerts(limit=10),
+        global_alerts=fetch_filtered_alerts(limit=10, updated_since=alert_cutoff),
         persistence_warnings=auth_persistence_warnings(),
         latest_android_release=fetch_latest_android_app_release(),
         latest_global_firmware=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET),
@@ -1959,7 +1973,10 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
     for entry in merged.values():
         refresh_admin_entry_alerts(entry)
     service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
-    alert_summaries = fetch_active_alert_summaries(merged.keys())
+    alert_summaries = fetch_active_alert_summaries(
+        merged.keys(),
+        updated_since=admin_alert_cutoff_timestamp(),
+    )
     for device_id, entry in merged.items():
         online = admin_device_is_online(entry)
         telemetry_status = str(entry.get("telemetry_status") or "").strip().lower()
@@ -6062,7 +6079,7 @@ def fetch_active_alerts(limit=20, device_id=None):
     return [dict(row) for row in rows]
 
 
-def fetch_filtered_alerts(limit=20, severity=None, device_id=None):
+def fetch_filtered_alerts(limit=20, severity=None, device_id=None, updated_since=None):
     query = """
         SELECT id, device_id, kind, severity, message, created_at, updated_at
         FROM ops_alerts
@@ -6075,6 +6092,9 @@ def fetch_filtered_alerts(limit=20, severity=None, device_id=None):
     if device_id:
         query += " AND COALESCE(device_id, '') = COALESCE(?, '')"
         params.append(device_id)
+    if updated_since:
+        query += " AND updated_at >= ?"
+        params.append(updated_since)
     query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
     params.append(limit)
     with get_db() as db:
