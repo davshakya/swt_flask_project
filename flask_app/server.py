@@ -8061,7 +8061,7 @@ def mobile_bootstrap():
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     snapshot = load_dashboard_snapshot(scoped_device_id)
-    public_snapshot = strip_ip_address_fields(snapshot)
+    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
     payload = {
@@ -8121,7 +8121,7 @@ def mobile_local_sync():
         {
             "result": "saved",
             "device_id": scoped_device_id,
-            "snapshot": strip_ip_address_fields(snapshot or cleaned),
+            "snapshot": strip_ip_address_fields(snapshot or cleaned, keep_device_local_url=True),
         }
     )
 
@@ -8304,7 +8304,7 @@ def mobile_device_status():
     snapshot = load_dashboard_snapshot(scoped_device_id)
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     return jsonify({
-        "snapshot": strip_ip_address_fields(snapshot),
+        "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "service_config": service_config,
