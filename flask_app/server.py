@@ -5170,7 +5170,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
         "device_id": normalized_device_id or None,
     }
 
-    return {
+    payload = {
         "range": {
             "label": label,
             "start_date": start_dt.strftime(DATE_ONLY_FORMAT),
@@ -5212,6 +5212,177 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
         },
         "prediction": {"tomorrow_usage": 0},
         "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
+    }
+    payload["guidance"] = build_shared_guidance_payload(snapshot, payload)
+    return payload
+
+
+def meaningful_forecast_hours(snapshot, analytics_payload):
+    insights = (analytics_payload or {}).get("insights") or {}
+    forecast = insights.get("empty_prediction")
+    if forecast in (None, "", "null"):
+        return None
+    try:
+        forecast_hours = float(forecast)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(forecast_hours) or forecast_hours <= 0:
+        return None
+
+    level = safe_float((snapshot or {}).get("level"), 0)
+    consumption_rate = safe_float(insights.get("consumption_rate"), 0)
+    # A short extrapolated empty-time from noisy history should not override a
+    # clearly full live tank. Keep the forecast actionable only near the working
+    # range or when current consumption is extremely high.
+    if level >= 90 and forecast_hours < 12 and consumption_rate < 20:
+        return None
+    if level >= 75 and forecast_hours < 6 and consumption_rate < 12:
+        return None
+    return round(forecast_hours, 2)
+
+
+def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
+    snapshot = snapshot or {}
+    analytics_payload = analytics_payload or {}
+    insights = analytics_payload.get("insights") or {}
+    comparison = analytics_payload.get("comparison") or {}
+
+    level = safe_float(snapshot.get("level"), 0)
+    motor = str(snapshot.get("motor") or "").upper()
+    telemetry = str(snapshot.get("telemetry_status") or "no-data").lower()
+    sensor = str(snapshot.get("sensor") or "").upper()
+    source_service = str(snapshot.get("lower_tank_service") or "").upper()
+    source_sensor = str(snapshot.get("lower_sensor") or "").upper()
+    source_level_raw = snapshot.get("lower_tank_level")
+    source_level = None if source_level_raw in (None, "", "null") else safe_float(source_level_raw, -1)
+    effective_empty = meaningful_forecast_hours(snapshot, analytics_payload)
+    usage_change = comparison.get("change_pct")
+    try:
+        usage_change = float(usage_change)
+    except (TypeError, ValueError):
+        usage_change = None
+
+    pipe_leak = any(bool_flag(snapshot.get(key)) for key in ("pipe_leak", "slow_leak", "drip"))
+    dry_run = bool_flag(snapshot.get("dry_run"))
+    source_blocked = (
+        source_service == "ON"
+        and (source_level is None or source_level < 20 or (source_sensor and source_sensor != "OK"))
+    )
+    main_sensor_bad = bool(sensor and sensor != "OK")
+    pump_running = motor == "ON"
+
+    severity = "normal"
+    tone = "ok"
+    title = "Water system is stable"
+    summary = "Tank level, pump state, and connection look steady right now."
+    action_title = "No urgent action"
+    action_note = "Auto protection is active and the tank trend looks manageable."
+    observations = []
+    actions = []
+
+    if telemetry == "stale":
+        severity = "warning"
+        tone = "warn"
+        title = "Live sync is delayed"
+        summary = "Showing the last known device state until fresh telemetry arrives."
+        action_title = "Check device power or Wi-Fi"
+        action_note = "Restore live telemetry before relying on remote guidance."
+        observations.append("The device has not reported fresh telemetry recently.")
+        actions.append("Restore device power, signal, or Wi-Fi so live protection can update again.")
+    elif dry_run:
+        severity = "critical"
+        tone = "bad"
+        title = "Pump locked by source tank safety"
+        summary = "Dry-run protection stopped the pump to protect the motor."
+        action_title = "Check source water before starting"
+        action_note = "Start the pump only after source water is available."
+        observations.append("Dry-run protection is active.")
+        actions.append("Check source water before starting the pump again.")
+    elif pipe_leak:
+        severity = "warning"
+        tone = "warn"
+        title = "Possible leak detected"
+        summary = "Leak-related signals are active and need inspection."
+        action_title = "Inspect pipes and fittings now"
+        action_note = "Keep watching the trend after inspection to confirm it settles."
+        observations.append("Leak-related alerts are active on the device.")
+        actions.append("Check pipes, valves, and overflow points for unexpected water loss.")
+    elif source_blocked:
+        severity = "warning"
+        tone = "warn"
+        title = "Pump start is paused"
+        summary = "Source tank protection is preventing an unsafe pump start."
+        action_title = "Wait for source tank recovery"
+        action_note = "The pump can start after the source sensor and level are safe."
+        observations.append("Source tank monitoring is blocking pump start for safety.")
+        actions.append("Wait until the source tank reading recovers before starting the pump.")
+    elif level <= 20 or (effective_empty is not None and effective_empty <= 6):
+        severity = "critical" if level <= 15 or (effective_empty is not None and effective_empty <= 3) else "warning"
+        tone = "bad" if severity == "critical" else "warn"
+        title = "Tank may empty soon" if effective_empty is not None else "Low water level"
+        summary = (
+            f"Estimated time left is {effective_empty:g} hrs at the current pace."
+            if effective_empty is not None
+            else "Main tank level is below the low-water threshold."
+        )
+        action_title = "Run the pump soon to avoid low water"
+        action_note = "Auto protection still applies while the tank is topped up."
+        observations.append(f"Main tank level is {level:.1f}%.")
+        actions.append(action_title)
+    elif pump_running:
+        title = "Pump is filling the tank"
+        summary = snapshot.get("fill_time") or "Water is being refilled now."
+        action_title = "Let the cycle finish"
+        action_note = "Auto protection still controls the stop point while the tank fills."
+        observations.append("The pump is currently running and the tank is refilling.")
+    elif usage_change is not None and usage_change >= 35:
+        severity = "warning"
+        tone = "warn"
+        title = "Water use is higher than normal"
+        summary = f"Usage is {usage_change:+.0f}% versus the previous day."
+        action_title = "Check for extra use or leakage"
+        action_note = "Look for taps, flush lines, or unusual draw before the tank drops further."
+        observations.append(summary)
+        actions.append("Monitor usage for the next few hours to confirm whether demand stays high.")
+    elif main_sensor_bad:
+        severity = "warning"
+        tone = "warn"
+        title = "Main tank sensor needs attention"
+        summary = snapshot.get("sensor_info") or "The main tank sensor reading is not healthy."
+        action_title = "Inspect the main tank sensor"
+        action_note = "Clean wiring and sensor placement, then wait for the next telemetry sync."
+        observations.append("The main tank sensor needs attention.")
+        actions.append(action_title)
+    else:
+        observations.append("Tank level, pump state, and connection look steady right now.")
+        actions.append("Keep auto protection enabled and review the chart trend later today.")
+
+    motor_cycles = safe_float(insights.get("motor_cycles"), safe_float(snapshot.get("motor_cycles"), 0))
+    if motor_cycles > 12:
+        observations.append("Pump cycling is higher than normal.")
+        actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
+
+    confidence = 92
+    if telemetry == "stale":
+        confidence -= 20
+    if not analytics_payload or not (analytics_payload.get("levels") or {}).get("values"):
+        confidence -= 10
+    if main_sensor_bad:
+        confidence -= 8
+    confidence = max(45, min(96, confidence))
+
+    return {
+        "severity": severity,
+        "tone": tone,
+        "title": title,
+        "summary": summary,
+        "action_title": action_title,
+        "action_note": action_note,
+        "time_to_empty_hours": effective_empty,
+        "confidence_percent": int(confidence),
+        "observations": observations[:5],
+        "actions": list(dict.fromkeys(actions))[:5],
+        "source": "shared_server_guidance",
     }
 
 
@@ -5701,6 +5872,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         },
         "alerts": alerts,
     }
+    if normalized_device_id:
+        guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
+    else:
+        guidance_snapshot = latest_row
+    payload["guidance"] = build_shared_guidance_payload(guidance_snapshot, payload)
 
     return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
@@ -8068,6 +8244,7 @@ def mobile_bootstrap():
         "snapshot": public_snapshot,
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
         "events": build_events(event_limit, device_id=scoped_device_id),
+        "guidance": build_shared_guidance_payload(snapshot, None),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
         "service_config": service_config,
@@ -9716,6 +9893,7 @@ def dashboard_bootstrap():
             "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
             "events": build_events(event_limit, device_id=scoped_device_id),
             "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
+            "guidance": build_shared_guidance_payload(snapshot, None),
             "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
             "viewer": {
                 "role": current_user_role(),

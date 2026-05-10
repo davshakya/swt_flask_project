@@ -776,6 +776,53 @@ function renderDecisionList(id,items,emptyText){
         root.appendChild(li);
     });
 }
+function buildSharedGuidanceDecisionModel(snapshot,analytics){
+    const guidance=analytics?.guidance;
+    if(!guidance||!snapshot)return null;
+    const tone=String(guidance.tone||"ok").toLowerCase();
+    const confidence=Number(guidance.confidence_percent);
+    const confidenceScore=Number.isFinite(confidence)?confidence:customerConfidenceScore(snapshot,state.data.systemStatus,analytics,buildSourceTankState(snapshot));
+    const observations=Array.isArray(guidance.observations)?guidance.observations.filter(Boolean):[];
+    const actions=Array.isArray(guidance.actions)?guidance.actions.filter(Boolean):[];
+    const timeValue=Number(guidance.time_to_empty_hours);
+    const timeLabel=Number.isFinite(timeValue)&&timeValue>0?fmtHours(timeValue):"--";
+    const title=guidance.title||"Water system is stable";
+    const summary=guidance.summary||"Tank level, pump state, and connection look steady right now.";
+    const actionTitle=guidance.action_title||actions[0]||"No urgent action";
+    const actionNote=guidance.action_note||"Auto protection is active and the tank trend looks manageable.";
+    let savingsNow="--";
+    let savingsNote="Savings insight appears when a usable comparison is available.";
+    const usageChange=Number(analytics?.comparison?.change_pct);
+    const latestUsage=Number(analytics?.comparison?.latest_day_usage);
+    const previousUsage=Number(analytics?.comparison?.previous_day_usage);
+    if(Number.isFinite(usageChange)&&usageChange<0){
+        const litersSaved=estimateUsageLiters(Math.max(0,previousUsage-latestUsage),snapshot.capacity_liters);
+        savingsNow=litersSaved!==null?`~${litersSaved.toFixed(0)} L`:`${Math.abs(usageChange).toFixed(0)}%`;
+        savingsNote=litersSaved!==null?"Estimated savings versus the previous day.":"Lower than the previous day.";
+    }
+    return{
+        statusTone:tone==="bad"?"bad":tone==="warn"?"warn":"ok",
+        statusBar:timeLabel==="--"?`${title}.`:`${title} | ${timeLabel}`,
+        insightTitle:title,
+        insightLead:summary,
+        actionTitle,
+        actionNote,
+        timeLabel,
+        timeNote:timeLabel==="--"?"Time-to-empty needs a little more live history.":summary,
+        confidenceScore,
+        confidenceText:`${confidenceScore}%`,
+        confidenceNote:confidenceNote(confidenceScore),
+        guidanceStatus:title,
+        guidanceNote:summary,
+        healthLabel:title,
+        healthNote:summary,
+        whatList:observations.length?observations:[summary],
+        actionList:actions.length?actions:[actionTitle],
+        savingsNow,
+        savingsNote,
+        narrative:`${fmtPct(snapshot.level)} full. ${title}. ${actionTitle}.`
+    };
+}
 function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics){
     if(customerFeedBlocked()){
         return{
@@ -823,6 +870,8 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
             savingsNote:"Savings insight appears after at least two useful comparison points are available."
         };
     }
+    const sharedModel=buildSharedGuidanceDecisionModel(snapshot,analytics);
+    if(sharedModel)return sharedModel;
 
     const systemState=system||{};
     const sourceState=buildSourceTankState(snapshot);
@@ -1452,6 +1501,7 @@ function renderSystemStatus(system){
 
 function renderAnalytics(data){
     const analyticsReady=hasMeaningfulAnalyticsData(data);
+    const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
     document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsage(data.insights?.avg_daily_usage):"--";
     document.getElementById("avg_daily_usage_text").textContent=analyticsReady&&String(data.comparison?.latest_day||"").trim()&&String(data.comparison?.latest_day||"").trim()!=="--"
@@ -1478,12 +1528,12 @@ function renderAnalytics(data){
     document.getElementById("min_max_level").textContent=analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
         :"Waiting for more synced level history.";
-    document.getElementById("time_empty").textContent=analyticsReady?fmtHours(data.insights?.empty_prediction):"--";
+    document.getElementById("time_empty").textContent=analyticsReady?fmtHours(effectiveEmpty):"--";
     document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
         ?fmtRatePerHour(data.insights?.consumption_rate)
         :"--";
     document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
-    document.getElementById("timeToEmpty").textContent=fmtHours(data.insights?.empty_prediction);
+    document.getElementById("timeToEmpty").textContent=fmtHours(effectiveEmpty);
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     drawAnalyticsCharts(data);
 }
