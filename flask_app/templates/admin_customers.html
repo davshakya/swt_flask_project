@@ -252,7 +252,6 @@
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
                     <a class="hero-secondary" href="#register_device_panel">Register Device</a>
-                    <a class="hero-secondary" href="#add_customer_panel">Add Customer</a>
                     <a class="hero-secondary" href="/account/password">Admin Password</a>
                     <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
                 </div>
@@ -411,39 +410,12 @@
         <div class="section-head">
             <div>
                 <div class="eyebrow">Register Device</div>
-                <h2>Add firmware credentials without restart</h2>
-                <p class="section-helper">Store the device ID and API key in the database so the controller can connect immediately without changing environment files.</p>
+                <h2>Register hardware and customer access</h2>
+                <p class="section-helper">Add the firmware credentials, then optionally create the customer login in the same step. The controller can connect immediately without a Flask restart.</p>
             </div>
             <div class="section-badges">
                 <span class="pill pill-info">No Flask restart needed</span>
                 <span class="pill pill-clear">Keys are stored as hashes</span>
-            </div>
-        </div>
-        <form method="post" action="/admin/devices/register" class="form-grid customer-access-form" style="margin-top:14px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-            <div class="group">
-                <label for="register_device_id">Device ID</label>
-                <input id="register_device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-002" required>
-            </div>
-            <div class="group">
-                <label for="register_device_key">Device API Key</label>
-                <input id="register_device_key" name="device_key" type="password" minlength="32" autocomplete="new-password" required>
-            </div>
-            <div class="row">
-                <button type="submit">Register Device</button>
-            </div>
-        </form>
-    </div>
-
-    <div class="panel section-panel" id="add_customer_panel" style="margin-top:18px">
-        <div class="section-head">
-            <div>
-                <div class="eyebrow">Add Customer</div>
-                <h2>Onboard or recover customer access</h2>
-                <p class="section-helper">Create a customer login tied to a device ID, add a clear household name, and keep customer access ready before the next support call.</p>
-            </div>
-            <div class="section-badges">
-                <span class="pill pill-info">Device ID doubles as the username</span>
-                <span class="pill pill-clear">Passwords can also be reset inline from the fleet table</span>
             </div>
         </div>
         {% if error %}
@@ -453,39 +425,43 @@
         <div class="message success" style="margin-top:14px">{{ success }}</div>
         {% endif %}
         <div class="customer-access-layout">
-            <form method="post" action="/admin/customers" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1">
+            <form method="post" action="/admin/devices/register" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                 <div class="group">
-                    <label for="device_id">Device ID / Username</label>
-                    <input id="device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-001" required>
+                    <label for="register_device_id">Device ID / Username</label>
+                    <input id="register_device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-002" required>
                 </div>
                 <div class="group">
-                    <label for="display_name">Customer Name</label>
-                    <input id="display_name" name="display_name" type="text" placeholder="e.g. Sharma Family">
+                    <label for="register_device_key">Device API Key</label>
+                    <input id="register_device_key" name="device_key" type="password" minlength="32" autocomplete="new-password" required>
                 </div>
                 <div class="group">
-                    <label for="email">Customer Email</label>
-                    <input id="email" name="email" type="email" placeholder="customer@example.com" autocomplete="email">
+                    <label for="register_display_name">Customer Name</label>
+                    <input id="register_display_name" name="display_name" type="text" placeholder="e.g. Sharma Family">
                 </div>
                 <div class="group">
-                    <label for="password">Customer Password</label>
-                    <input id="password" name="password" type="password" minlength="6" required>
+                    <label for="register_email">Customer Email</label>
+                    <input id="register_email" name="email" type="email" placeholder="customer@example.com" autocomplete="email">
+                </div>
+                <div class="group">
+                    <label for="register_password">Customer Password</label>
+                    <input id="register_password" name="password" type="password" minlength="6" autocomplete="new-password" placeholder="Required only when adding customer access">
                 </div>
                 <div class="row">
-                    <button type="submit">Save Customer</button>
+                    <button type="submit">Register Device</button>
                 </div>
             </form>
             <div class="form-helper-stack">
                 <div class="form-helper-card">
-                    <strong>Fast Setup</strong>
-                    <span>Use the same device ID the firmware already reports so the login matches the hardware record.</span>
+                    <strong>Hardware First</strong>
+                    <span>The device ID and API key authorize cloud telemetry and command polling immediately.</span>
                 </div>
                 <div class="form-helper-card">
-                    <strong>Clear Naming</strong>
-                    <span>Add a family or property name so the fleet table is easier to scan during triage.</span>
+                    <strong>Customer Login</strong>
+                    <span>Add a name, email, and password here when the customer should access the app or dashboard.</span>
                 </div>
                 <div class="form-helper-card">
                     <strong>Inline Recovery</strong>
-                    <span>If the device already exists below, you can set or reset the password without retyping everything here.</span>
+                    <span>If the device already exists below, you can still reset its customer password from the fleet table.</span>
                 </div>
             </div>
         </div>

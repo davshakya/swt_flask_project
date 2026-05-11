@@ -9161,6 +9161,9 @@ def admin_register_device_credentials():
     search_query = request.values.get("q", "", type=str) or ""
     device_id = request.form.get("device_id", "")
     device_key = request.form.get("device_key", "")
+    display_name = request.form.get("display_name", "")
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
     try:
         normalized_device_id = register_device_credentials(
             device_id,
@@ -9176,7 +9179,40 @@ def admin_register_device_credentials():
             device_id=normalized_device_id,
             details={"registration_source": "admin_manual"},
         )
-        success = f"Device credentials registered for {normalized_device_id}. The device can connect immediately."
+        customer_saved = False
+        customer_profile_requested = any(str(value or "").strip() for value in (display_name, email))
+        if customer_profile_requested and not str(password or "").strip():
+            raise ValueError("Customer password is required when customer name or email is entered.")
+        if str(password or "").strip():
+            account = upsert_customer_account(
+                normalized_device_id,
+                password,
+                display_name=display_name,
+                email=email,
+                service_updates_enabled=form_flag("service_updates_enabled", default=True),
+                marketing_emails_enabled=form_flag("marketing_emails_enabled", default=False),
+            )
+            customer_saved = True
+            log_audit_event(
+                actor=current_actor_username(),
+                action="upsert_customer_account",
+                target_type="customer_account",
+                target_id=account["device_id"],
+                device_id=account["device_id"],
+                details={
+                    "display_name": account.get("display_name"),
+                    "email": account.get("email"),
+                    "service_updates_enabled": bool(account.get("service_updates_enabled")),
+                    "marketing_emails_enabled": bool(account.get("marketing_emails_enabled")),
+                    "password_scope": "cloud_only",
+                    "source": "device_registration_panel",
+                },
+            )
+        success = (
+            f"Device credentials registered for {normalized_device_id}. "
+            + ("Customer login was also saved. " if customer_saved else "")
+            + "The device can connect immediately."
+        )
     except ValueError as exc:
         error = str(exc)
 
