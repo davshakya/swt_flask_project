@@ -390,7 +390,7 @@
                         <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
                     </div>
                 </form>
-                <form method="post" action="/admin/releases/android/prune" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                <form method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                     <button type="submit">Remove Old Android Builds</button>
                 </form>
             </div>
@@ -409,7 +409,7 @@
                     </div>
                     <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
                 </form>
-                <form method="post" action="/admin/releases/firmware/prune" onsubmit="return confirm('Remove old global firmware build records and unused BIN files? The latest firmware build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                <form method="post" action="{{ url_for('admin_global_firmware_prune') }}" onsubmit="return confirm('Remove old global firmware build records and unused BIN files? The latest firmware build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                     <button type="submit">Remove Old Firmware Builds</button>
                 </form>
             </div>
