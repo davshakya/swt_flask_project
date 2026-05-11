@@ -7595,6 +7595,48 @@ def create_global_firmware_artifact(uploaded_file, notes="", uploaded_by="admin"
     return artifact
 
 
+def remove_old_global_firmware_artifacts():
+    latest = fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET)
+    if not latest:
+        return {"removed": 0, "files_removed": 0, "latest": None}
+
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT id, stored_filename
+            FROM firmware_artifacts
+            WHERE target_device = ? AND id <> ?
+            """,
+            (GLOBAL_FIRMWARE_TARGET, latest["id"]),
+        ).fetchall()
+        db.execute(
+            """
+            DELETE FROM firmware_artifacts
+            WHERE target_device = ? AND id <> ?
+            """,
+            (GLOBAL_FIRMWARE_TARGET, latest["id"]),
+        )
+        remaining_rows = db.execute(
+            "SELECT DISTINCT stored_filename FROM firmware_artifacts"
+        ).fetchall()
+
+    remaining_filenames = {str(row["stored_filename"] or "") for row in remaining_rows}
+    files_removed = 0
+    for row in rows:
+        stored_filename = str(row["stored_filename"] or "")
+        if not stored_filename or stored_filename in remaining_filenames:
+            continue
+        try:
+            firmware_artifact_storage_path(stored_filename).unlink()
+            files_removed += 1
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove old firmware artifact file %s: %s", stored_filename, exc)
+
+    return {"removed": len(rows), "files_removed": files_removed, "latest": latest}
+
+
 def ensure_android_release_dir():
     ANDROID_RELEASE_DIR.mkdir(parents=True, exist_ok=True)
     return ANDROID_RELEASE_DIR
@@ -7684,6 +7726,48 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
     if not release:
         raise ValueError("Uploaded Android app release could not be loaded after it was saved.")
     return release
+
+
+def remove_old_android_app_releases():
+    latest = fetch_latest_android_app_release()
+    if not latest:
+        return {"removed": 0, "files_removed": 0, "latest": None}
+
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT id, stored_filename
+            FROM android_app_releases
+            WHERE id <> ?
+            """,
+            (latest["id"],),
+        ).fetchall()
+        db.execute(
+            """
+            DELETE FROM android_app_releases
+            WHERE id <> ?
+            """,
+            (latest["id"],),
+        )
+        remaining_rows = db.execute(
+            "SELECT DISTINCT stored_filename FROM android_app_releases"
+        ).fetchall()
+
+    remaining_filenames = {str(row["stored_filename"] or "") for row in remaining_rows}
+    files_removed = 0
+    for row in rows:
+        stored_filename = str(row["stored_filename"] or "")
+        if not stored_filename or stored_filename in remaining_filenames:
+            continue
+        try:
+            android_release_storage_path(stored_filename).unlink()
+            files_removed += 1
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove old Android release file %s: %s", stored_filename, exc)
+
+    return {"removed": len(rows), "files_removed": files_removed, "latest": latest}
 
 
 def build_android_apk_file_response(release, storage_path):
@@ -9400,6 +9484,55 @@ def admin_global_firmware_upload():
     )
 
 
+@app.route("/admin/releases/firmware/prune", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_global_firmware_prune():
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    try:
+        result = remove_old_global_firmware_artifacts()
+        latest = result.get("latest")
+        log_audit_event(
+            actor=current_actor_username(),
+            action="prune_old_global_firmware_artifacts",
+            target_type="release",
+            target_id=str(latest["id"]) if latest else "global_firmware",
+            details={
+                "removed": result["removed"],
+                "files_removed": result["files_removed"],
+                "kept_artifact_id": latest.get("id") if latest else None,
+                "kept_version_label": latest.get("version_label") if latest else None,
+            },
+        )
+        if latest:
+            success = (
+                f"Removed {result['removed']} old firmware build record"
+                f"{'' if result['removed'] == 1 else 's'} and {result['files_removed']} old file"
+                f"{'' if result['files_removed'] == 1 else 's'}. Latest firmware stays active."
+            )
+        else:
+            success = "No global firmware build is uploaded yet."
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
 @app.route("/admin/releases/android", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -9437,6 +9570,56 @@ def admin_android_release_upload():
             f"Android app {release['version_name']} ({release['version_code']}) uploaded. "
             "It is now available from the website footer and Android update checks."
         )
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/releases/android/prune", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_android_release_prune():
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    try:
+        result = remove_old_android_app_releases()
+        latest = result.get("latest")
+        log_audit_event(
+            actor=current_actor_username(),
+            action="prune_old_android_app_releases",
+            target_type="release",
+            target_id=str(latest["id"]) if latest else "android_app",
+            details={
+                "removed": result["removed"],
+                "files_removed": result["files_removed"],
+                "kept_release_id": latest.get("id") if latest else None,
+                "kept_version_name": latest.get("version_name") if latest else None,
+                "kept_version_code": latest.get("version_code") if latest else None,
+            },
+        )
+        if latest:
+            success = (
+                f"Removed {result['removed']} old Android build record"
+                f"{'' if result['removed'] == 1 else 's'} and {result['files_removed']} old file"
+                f"{'' if result['files_removed'] == 1 else 's'}. Latest Android build stays active."
+            )
+        else:
+            success = "No Android build is uploaded yet."
     except ValueError as exc:
         error = str(exc)
 

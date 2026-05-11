@@ -374,35 +374,45 @@
             </div>
         </div>
         <div class="release-channel-layout">
-            <form method="post" action="/admin/releases/android" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                <div class="group">
-                    <label for="apk_file">Android APK</label>
-                    <input id="apk_file" name="apk_file" type="file" accept=".apk,application/vnd.android.package-archive" required>
-                </div>
-                <div class="group">
-                    <label for="android_release_notes">Release Notes</label>
-                    <input id="android_release_notes" name="notes" type="text" placeholder="What changed for customers?">
-                </div>
-                <div class="row">
-                    <button type="submit">Publish Android App</button>
-                    <a class="clearLink" href="{{ url_for('android_version_manifest') }}">Version Manifest</a>
-                    <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
-                </div>
-            </form>
-            <form method="post" action="/admin/releases/firmware" class="release-form-card" enctype="multipart/form-data"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                <div class="group">
-                    <label for="global_firmware_file">Firmware Binary</label>
-                    <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
-                </div>
-                <div class="group">
-                    <label for="global_firmware_notes">Release Notes</label>
-                    <input id="global_firmware_notes" name="notes" type="text" placeholder="Firmware change summary">
-                </div>
-                <div class="row">
-                    <button type="submit">Publish Global Firmware</button>
-                </div>
-                <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
-            </form>
+            <div class="release-form-card">
+                <form method="post" action="/admin/releases/android" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                    <div class="group">
+                        <label for="apk_file">Android APK</label>
+                        <input id="apk_file" name="apk_file" type="file" accept=".apk,application/vnd.android.package-archive" required>
+                    </div>
+                    <div class="group">
+                        <label for="android_release_notes">Release Notes</label>
+                        <input id="android_release_notes" name="notes" type="text" placeholder="What changed for customers?">
+                    </div>
+                    <div class="row">
+                        <button type="submit">Publish Android App</button>
+                        <a class="clearLink" href="{{ url_for('android_version_manifest') }}">Version Manifest</a>
+                        <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
+                    </div>
+                </form>
+                <form method="post" action="/admin/releases/android/prune" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                    <button type="submit">Remove Old Android Builds</button>
+                </form>
+            </div>
+            <div class="release-form-card">
+                <form method="post" action="/admin/releases/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                    <div class="group">
+                        <label for="global_firmware_file">Firmware Binary</label>
+                        <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                    </div>
+                    <div class="group">
+                        <label for="global_firmware_notes">Release Notes</label>
+                        <input id="global_firmware_notes" name="notes" type="text" placeholder="Firmware change summary">
+                    </div>
+                    <div class="row">
+                        <button type="submit">Publish Global Firmware</button>
+                    </div>
+                    <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
+                </form>
+                <form method="post" action="/admin/releases/firmware/prune" onsubmit="return confirm('Remove old global firmware build records and unused BIN files? The latest firmware build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                    <button type="submit">Remove Old Firmware Builds</button>
+                </form>
+            </div>
         </div>
     </div>
 
