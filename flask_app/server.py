@@ -1975,6 +1975,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "level": payload.get("level"),
         "firmware_version": payload.get("firmware_version"),
         "reset_reason": payload.get("reset_reason"),
+        "device_local_url": payload.get("device_local_url"),
+        "source_ip": payload.get("source_ip"),
         "last_sync_at": payload.get("last_sync_at"),
         "telemetry_status": payload.get("telemetry_status"),
         "channel_mode": payload.get("channel_mode"),

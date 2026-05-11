@@ -527,6 +527,11 @@
                             <td>
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
                                 <div class="cell-sub">Firmware: {{ device.firmware_version or "--" }}</div>
+                                {% if device.device_local_url %}
+                                <div class="cell-sub">Firmware UI: <a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_url }}</a></div>
+                                {% elif device.source_ip %}
+                                <div class="cell-sub">Access IP: {{ device.source_ip }}</div>
+                                {% endif %}
                             </td>
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
