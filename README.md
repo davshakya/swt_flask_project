@@ -144,6 +144,11 @@ To avoid confusion, keep backend-only settings in `flask_app/.env`, shared devic
 - `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY`: Simplest single-device/shared-device setup. Use a unique random API key with at least 32 characters.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
+- `DEVICE_AUTH_REQUIRED`: When `1`, every device request must include valid device credentials from config or the database. Keep this enabled in production.
+- `AUTO_REGISTER_DEVICE_KEYS`: When `1`, a new device with an allowed ID prefix and a strong API key is registered on its first authenticated `/status` call. Keep this `0` in production unless you intentionally want open first-contact activation.
+- `AUTO_REGISTER_DEVICE_ID_PREFIXES`: Comma-separated allowed ID prefixes for auto-registration, for example `swt-`.
+- `AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH`: Minimum API key length for auto-registration. Use `32` or higher.
+- Admins can register device credentials from `/admin/customers` without restarting Flask; the key is stored as a hash in the database.
 - `SWT_DEVICE_SOURCE_MODE`: Active backend source for snapshot/history/analytics/command reads. Use `real` for MCU traffic or `virtual` when testing with the sibling repo's virtual-device runner.
 - `RESET_DEVICE_SOURCE_MODE_ON_BOOT`: When `true`, Flask resets the stored source mode to `SWT_DEVICE_SOURCE_MODE` during startup. Defaults to `true` on Render and `false` locally.
 - `SEED_VIRTUAL_DEVICE_ENVS`: When `true`, Flask registers devices from `SWT_FLASK_TEST_REPO/tests/virtual_device*.env` when that sibling repo is available, then falls back to local `tests/virtual_device*.env`. Defaults to `false` on Render and `true` locally.

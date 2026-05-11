@@ -251,6 +251,7 @@
                 <div class="row hero-actions">
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
+                    <a class="hero-secondary" href="#register_device_panel">Register Device</a>
                     <a class="hero-secondary" href="#add_customer_panel">Add Customer</a>
                     <a class="hero-secondary" href="/account/password">Admin Password</a>
                     <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
@@ -404,6 +405,33 @@
                 <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
             </form>
         </div>
+    </div>
+
+    <div class="panel section-panel" id="register_device_panel" style="margin-top:18px">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Register Device</div>
+                <h2>Add firmware credentials without restart</h2>
+                <p class="section-helper">Store the device ID and API key in the database so the controller can connect immediately without changing environment files.</p>
+            </div>
+            <div class="section-badges">
+                <span class="pill pill-info">No Flask restart needed</span>
+                <span class="pill pill-clear">Keys are stored as hashes</span>
+            </div>
+        </div>
+        <form method="post" action="/admin/devices/register" class="form-grid customer-access-form" style="margin-top:14px"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+            <div class="group">
+                <label for="register_device_id">Device ID</label>
+                <input id="register_device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-002" required>
+            </div>
+            <div class="group">
+                <label for="register_device_key">Device API Key</label>
+                <input id="register_device_key" name="device_key" type="password" minlength="32" autocomplete="new-password" required>
+            </div>
+            <div class="row">
+                <button type="submit">Register Device</button>
+            </div>
+        </form>
     </div>
 
     <div class="panel section-panel" id="add_customer_panel" style="margin-top:18px">

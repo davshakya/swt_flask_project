@@ -202,9 +202,13 @@ SWT_LOCAL_DEVICE_URL=http://192.168.1.50/
 SWT_CLOUD_BASE_URL=https://salewell.co.in/
 SWT_FLASK_CHANNEL_MODE=cloud
 SWT_DEVICE_SOURCE_MODE=real
+DEVICE_AUTH_REQUIRED=1
+AUTO_REGISTER_DEVICE_KEYS=0
+AUTO_REGISTER_DEVICE_ID_PREFIXES=swt-
+AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH=32
 ```
 
-If you will manage multiple devices, use `DEVICE_KEYS` or `SWT_DEVICE_KEYS` in `flask_app/.env` instead of relying on only one shared device ID and key.
+If you will manage multiple devices, use `SWT_DEVICE_KEYS` in `device.env` for already-known devices. For new devices after deployment, register the device ID and API key from the admin customer page; Flask stores the key hash in the database and no server restart is needed.
 
 ## cPanel Setup Steps
 

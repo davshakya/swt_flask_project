@@ -438,7 +438,8 @@ LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip(
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
 DEVICE_KEYS, DEVICE_KEYS_SOURCE = resolve_device_key_registry()
-AUTO_REGISTER_DEVICE_KEYS = env_flag("AUTO_REGISTER_DEVICE_KEYS", default=True)
+DEVICE_AUTH_REQUIRED = env_flag("DEVICE_AUTH_REQUIRED", default=True)
+AUTO_REGISTER_DEVICE_KEYS = env_flag("AUTO_REGISTER_DEVICE_KEYS", default=False)
 AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
     prefix.strip()
     for prefix in os.environ.get("AUTO_REGISTER_DEVICE_ID_PREFIXES", "swt-").split(",")
@@ -744,6 +745,8 @@ def parse_device_key_wildcard_rules(value):
 
 
 def configured_device_auth_enabled():
+    if DEVICE_AUTH_REQUIRED:
+        return True
     if AUTO_REGISTER_DEVICE_KEYS:
         return True
     if DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES or LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
@@ -845,7 +848,7 @@ def fetch_auto_registered_device_auth_rule(device_id):
     }
 
 
-def remember_auto_registered_device_key(device_id, device_key, remote_addr=None):
+def remember_auto_registered_device_key(device_id, device_key, remote_addr=None, registration_source="auto_activation"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
@@ -861,16 +864,39 @@ def remember_auto_registered_device_key(device_id, device_key, remote_addr=None)
                 last_seen_at=CURRENT_TIMESTAMP,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, device_key_hash, "auto_activation"),
+            (normalized_device_id, device_key_hash, registration_source),
         )
-    logger.info("Auto-registered device credentials for %s from %s", normalized_device_id, remote_addr or "unknown")
+    logger.info("Registered device credentials for %s from %s", normalized_device_id, remote_addr or "unknown")
     return {
         "kind": "auto_registered",
         "pattern": normalized_device_id,
         "prefix": normalized_device_id,
         "key_hash": device_key_hash,
-        "registration_source": "auto_activation",
+        "registration_source": registration_source,
     }
+
+
+def register_device_credentials(device_id, device_key, registration_source="admin_manual", remote_addr=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("Device ID is required.")
+    if not device_id_allowed_for_auto_registration(normalized_device_id):
+        raise ValueError("Device ID is not allowed for registration.")
+    if not device_key_allowed_for_auto_registration(device_key):
+        raise ValueError(f"Device API key must be at least {AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH} characters and must not be a placeholder.")
+    rule = remember_auto_registered_device_key(
+        normalized_device_id,
+        device_key,
+        remote_addr=remote_addr,
+        registration_source=registration_source,
+    )
+    remember_registered_device(
+        normalized_device_id,
+        registration_source=registration_source,
+        key_rule=rule.get("pattern") if rule else normalized_device_id,
+        best_effort=True,
+    )
+    return normalized_device_id
 
 
 def list_registered_device_ids(limit=200):
@@ -9116,6 +9142,49 @@ def admin_customers():
     filtered_accounts = filter_admin_search_results(accounts, search_query)
     filtered_available_devices = filter_admin_search_results(available_devices, search_query)
 
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/devices/register", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_register_device_credentials():
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    device_id = request.form.get("device_id", "")
+    device_key = request.form.get("device_key", "")
+    try:
+        normalized_device_id = register_device_credentials(
+            device_id,
+            device_key,
+            registration_source="admin_manual",
+            remote_addr=request.remote_addr,
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="register_device_credentials",
+            target_type="device_auth_key",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details={"registration_source": "admin_manual"},
+        )
+        success = f"Device credentials registered for {normalized_device_id}. The device can connect immediately."
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
     return render_customer_admin_page(
         accounts=filtered_accounts,
         available_devices=filtered_available_devices,
