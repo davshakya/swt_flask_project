@@ -438,6 +438,13 @@ LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip(
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
 DEVICE_KEYS, DEVICE_KEYS_SOURCE = resolve_device_key_registry()
+AUTO_REGISTER_DEVICE_KEYS = env_flag("AUTO_REGISTER_DEVICE_KEYS", default=True)
+AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
+    prefix.strip()
+    for prefix in os.environ.get("AUTO_REGISTER_DEVICE_ID_PREFIXES", "swt-").split(",")
+    if prefix.strip()
+)
+AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
@@ -737,6 +744,8 @@ def parse_device_key_wildcard_rules(value):
 
 
 def configured_device_auth_enabled():
+    if AUTO_REGISTER_DEVICE_KEYS:
+        return True
     if DEVICE_KEY_MAP or DEVICE_KEY_WILDCARD_RULES or LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
         return True
     if SEED_VIRTUAL_DEVICE_ENVS and refresh_configured_virtual_device_auth():
@@ -784,6 +793,84 @@ def find_matching_device_key_rule(device_id):
 def configured_device_key_for_id(device_id):
     matched_rule = find_matching_device_key_rule(device_id)
     return matched_rule.get("key") if matched_rule else None
+
+
+def hash_device_api_key(device_key):
+    return hashlib.sha256(str(device_key or "").encode("utf-8")).hexdigest()
+
+
+def device_id_allowed_for_auto_registration(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return False
+    if AUTO_REGISTER_DEVICE_ID_PREFIXES and not any(
+        normalized_device_id.startswith(prefix)
+        for prefix in AUTO_REGISTER_DEVICE_ID_PREFIXES
+    ):
+        return False
+    return bool(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:-]{2,127}", normalized_device_id))
+
+
+def device_key_allowed_for_auto_registration(device_key):
+    text = str(device_key or "").strip()
+    if len(text) < AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH:
+        return False
+    if any(marker in text.lower() for marker in PLACEHOLDER_DEVICE_CONFIG_MARKERS):
+        return False
+    return len(set(text)) >= 12
+
+
+def fetch_auto_registered_device_auth_rule(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT device_key_hash, registration_source
+            FROM device_auth_keys
+            WHERE device_id = ?
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+    if not row:
+        return None
+    return {
+        "kind": "auto_registered",
+        "pattern": normalized_device_id,
+        "prefix": normalized_device_id,
+        "key_hash": row["device_key_hash"],
+        "registration_source": row["registration_source"],
+    }
+
+
+def remember_auto_registered_device_key(device_id, device_key, remote_addr=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    device_key_hash = hash_device_api_key(device_key)
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO device_auth_keys(device_id, device_key_hash, registration_source, first_seen_at, last_seen_at, updated_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                device_key_hash=excluded.device_key_hash,
+                registration_source=excluded.registration_source,
+                last_seen_at=CURRENT_TIMESTAMP,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, device_key_hash, "auto_activation"),
+        )
+    logger.info("Auto-registered device credentials for %s from %s", normalized_device_id, remote_addr or "unknown")
+    return {
+        "kind": "auto_registered",
+        "pattern": normalized_device_id,
+        "prefix": normalized_device_id,
+        "key_hash": device_key_hash,
+        "registration_source": "auto_activation",
+    }
 
 
 def list_registered_device_ids(limit=200):
@@ -2096,10 +2183,41 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
 
     matched_rule = find_matching_device_key_rule(normalized_device_id)
     if not matched_rule:
+        matched_rule = fetch_auto_registered_device_auth_rule(normalized_device_id)
+        if matched_rule:
+            expected_hash = str(matched_rule.get("key_hash") or "")
+            provided_hash = hash_device_api_key(device_key)
+            if require_key and not hmac.compare_digest(provided_hash, expected_hash):
+                logger.warning("Rejected auto-registered device auth for %s", normalized_device_id)
+                return False, None, "invalid device credentials", 403
+
+    if not matched_rule:
+        if (
+            AUTO_REGISTER_DEVICE_KEYS
+            and require_key
+            and device_id_allowed_for_auto_registration(normalized_device_id)
+            and device_key_allowed_for_auto_registration(device_key)
+        ):
+            matched_rule = remember_auto_registered_device_key(
+                normalized_device_id,
+                device_key,
+                remote_addr=remote_addr,
+            )
+        else:
+            logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
+            return False, None, "invalid device credentials", 403
+
+    if not matched_rule:
         logger.warning("Rejected device auth for %s", normalized_device_id or "<missing>")
         return False, None, "invalid device credentials", 403
 
-    if require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
+    if "key_hash" in matched_rule:
+        expected_hash = str(matched_rule.get("key_hash") or "")
+        provided_hash = hash_device_api_key(device_key)
+        if require_key and not hmac.compare_digest(provided_hash, expected_hash):
+            logger.warning("Rejected auto-registered device auth for %s", normalized_device_id)
+            return False, None, "invalid device credentials", 403
+    elif require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
         logger.warning("Rejected device auth for %s", normalized_device_id)
         return False, None, "invalid device credentials", 403
 
@@ -3405,6 +3523,21 @@ def ensure_registered_devices_table(cursor):
     )
 
 
+def ensure_device_auth_keys_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_auth_keys(
+            device_id TEXT PRIMARY KEY,
+            device_key_hash TEXT NOT NULL,
+            registration_source TEXT NOT NULL,
+            first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_ignored_devices_table(cursor):
     cursor.execute(
         """
@@ -3607,6 +3740,7 @@ def init_db():
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
         ensure_registered_devices_table(cursor)
+        ensure_device_auth_keys_table(cursor)
         ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
@@ -3621,6 +3755,7 @@ def init_db():
             "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
             "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
             "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
+            "CREATE INDEX idx_device_auth_keys_updated ON device_auth_keys(updated_at, device_id)",
             "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
             "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
         ):
