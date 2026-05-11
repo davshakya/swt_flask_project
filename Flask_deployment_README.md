@@ -196,7 +196,7 @@ Notes:
 ```dotenv
 SWT_DEVICE_ID=swt-000-000-000-001
 SWT_DEVICE_API_KEY=replace-with-a-real-device-key
-SWT_LOCAL_WEB_AUTH_USERNAME=swtadmin
+SWT_LOCAL_WEB_AUTH_USERNAME=<same-as-SWT_DEVICE_ID>
 SWT_LOCAL_WEB_AUTH_PASSWORD=replace-with-a-strong-local-password
 SWT_LOCAL_DEVICE_URL=http://192.168.1.50/
 SWT_CLOUD_BASE_URL=https://salewell.co.in/

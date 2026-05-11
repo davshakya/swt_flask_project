@@ -157,7 +157,7 @@ def test_run_stops_cleanly_on_keyboard_interrupt_during_sleep(monkeypatch, capsy
     args = argparse.Namespace(
         password="secret",
         device_url="http://192.168.1.50",
-        username="swtadmin",
+        username="swt-000-000-000-001",
         interval_seconds=1.0,
         timeout_seconds=12.0,
         max_step_seconds=5.0,

@@ -7353,7 +7353,7 @@ def local_device_status_url(base_url):
     return f"{normalized}/status"
 
 
-def fetch_local_device_status(base_url):
+def fetch_local_device_status(base_url, device_id=None):
     if not is_private_device_base_url(base_url):
         raise ValueError("local device URL must be a private LAN address")
 
@@ -7361,7 +7361,7 @@ def fetch_local_device_status(base_url):
     if not status_url:
         raise ValueError("local device URL is not configured")
 
-    username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+    username = normalize_device_id(device_id) or normalize_device_id(os.environ.get("SWT_DEVICE_ID", ""))
     password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
     timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
     auth = (username, password) if username and password else None
@@ -10351,7 +10351,7 @@ def dashboard_local_sync():
         return jsonify({"error": "local device URL is not available"}), 404
 
     try:
-        local_status = fetch_local_device_status(local_base_url)
+        local_status = fetch_local_device_status(local_base_url, device_id=scoped_device_id or (snapshot or {}).get("device_id"))
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except requests.RequestException as exc:
