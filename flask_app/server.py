@@ -148,6 +148,7 @@ DEFAULT_DEVICE_KEY = "change-me-device-key"
 DEFAULT_DEVICE_KEYS = ""
 DATE_ONLY_FORMAT = "%Y-%m-%d"
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+IST_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
@@ -533,7 +534,18 @@ ALERT_TOUCH_INTERVAL_SECONDS = max(0, env_int("ALERT_TOUCH_INTERVAL_SECONDS", 30
 
 APP_LOG_LEVEL_NAME = (os.environ.get("APP_LOG_LEVEL") or os.environ.get("LOG_LEVEL") or ("warning" if IS_RENDER else "info")).strip().upper()
 APP_LOG_LEVEL = getattr(logging, APP_LOG_LEVEL_NAME, logging.INFO)
-logging.basicConfig(level=APP_LOG_LEVEL, format="%(asctime)s | %(levelname)s | %(message)s")
+
+
+def logging_ist_converter(timestamp):
+    return datetime.fromtimestamp(timestamp, IST_TIMEZONE).timetuple()
+
+
+logging.Formatter.converter = logging_ist_converter
+logging.basicConfig(
+    level=APP_LOG_LEVEL,
+    format="%(asctime)s IST | %(levelname)s | %(message)s",
+    datefmt=TIMESTAMP_FORMAT,
+)
 
 logger = logging.getLogger("tank_server")
 relay_lock = threading.Lock()
@@ -7387,6 +7399,13 @@ def local_device_status_url(base_url):
     return f"{normalized}/status"
 
 
+def local_device_ping_url(base_url):
+    normalized = normalize_device_base_url(base_url)
+    if not normalized:
+        return None
+    return f"{normalized}/ping"
+
+
 def fetch_local_device_status(base_url, device_id=None):
     if not is_private_device_base_url(base_url):
         raise ValueError("local device URL must be a private LAN address")
@@ -7412,6 +7431,27 @@ def fetch_local_device_status(base_url, device_id=None):
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("local device returned invalid status")
+    payload["device_local_url"] = normalize_device_base_url(base_url)
+    return payload
+
+
+def post_local_device_ping(base_url, device_id=None):
+    if not is_private_device_base_url(base_url):
+        raise ValueError("local device URL must be a private LAN address")
+
+    ping_url = local_device_ping_url(base_url)
+    if not ping_url:
+        raise ValueError("local device URL is not configured")
+
+    username = normalize_device_id(device_id) or normalize_device_id(os.environ.get("SWT_DEVICE_ID", ""))
+    password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
+    timeout = max(0.8, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
+    auth = (username, password) if username and password else None
+    response = requests.post(ping_url, auth=auth, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("local device returned invalid ping result")
     payload["device_local_url"] = normalize_device_base_url(base_url)
     return payload
 
@@ -10156,6 +10196,51 @@ def admin_device_detail_customer_password(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Customer cloud password reset."))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/ping", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_ping(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    local_base_url = normalize_device_base_url((snapshot or {}).get("device_local_url"))
+    if not local_base_url:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Local device URL is not available for this device."))
+
+    try:
+        ping_result = post_local_device_ping(local_base_url, device_id=scoped_device_id)
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+    except requests.RequestException as exc:
+        logger.info("Admin MCU ping failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Local device is not reachable from the Flask server."))
+
+    master_status = ping_result.get("master") or "--"
+    slave_status = ping_result.get("slave") or "--"
+    response_time = ping_result.get("response_time_ms")
+    response_label = f"{response_time} ms" if isinstance(response_time, (int, float)) and response_time >= 0 else "no peer response"
+    log_audit_event(
+        actor=current_actor_username(),
+        action="ping_device_mcus",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "master": master_status,
+            "slave": slave_status,
+            "peer_udp": ping_result.get("peer_udp"),
+            "peer_address": ping_result.get("peer_address"),
+            "response_time_ms": response_time,
+        },
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"Ping result: master {master_status}; slave {slave_status}; response {response_label}.",
+        )
+    )
 
 
 @app.route("/devices/<device_id>/status")

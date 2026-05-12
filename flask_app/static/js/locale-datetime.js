@@ -4,6 +4,8 @@
     const BACKEND_TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
     const BACKEND_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
     const HOUR_BUCKET_RE = /^(\d{1,2})(?::(\d{2}))?$/;
+    const DISPLAY_TIME_ZONE = "Asia/Kolkata";
+    const DISPLAY_TIME_ZONE_LABEL = "IST";
 
     function uniqueValues(values) {
         return Array.from(new Set(values.filter(Boolean)));
@@ -21,7 +23,7 @@
             navLocales
                 .concat(fallbackLanguage)
                 .concat(htmlLang)
-                .concat(["en"])
+                .concat(["en-IN", "en"])
                 .map((value) => String(value || "").trim())
         );
     }
@@ -40,7 +42,7 @@
         }
     }
 
-    const runtimeLocale = resolvedOptions({ dateStyle: "medium", timeStyle: "short" });
+    const runtimeLocale = resolvedOptions({ dateStyle: "medium", timeStyle: "short", timeZone: DISPLAY_TIME_ZONE });
 
     if (global.document && global.document.documentElement) {
         if (runtimeLocale.locale) {
@@ -48,12 +50,46 @@
             global.document.documentElement.dataset.userLocale = runtimeLocale.locale;
         }
         if (runtimeLocale.timeZone) {
-            global.document.documentElement.dataset.userTimeZone = runtimeLocale.timeZone;
+            global.document.documentElement.dataset.userTimeZone = DISPLAY_TIME_ZONE;
         }
     }
 
     function formatWithLocale(value, options) {
-        return new Intl.DateTimeFormat(localeList, options).format(value);
+        return new Intl.DateTimeFormat(localeList, { ...options, timeZone: DISPLAY_TIME_ZONE }).format(value);
+    }
+
+    function formatConsoleTimestamp() {
+        const parts = new Intl.DateTimeFormat("en-CA", {
+            timeZone: DISPLAY_TIME_ZONE,
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+            hour12: false,
+        }).formatToParts(new Date()).reduce((acc, part) => {
+            acc[part.type] = part.value;
+            return acc;
+        }, {});
+        return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second} ${DISPLAY_TIME_ZONE_LABEL}`;
+    }
+
+    function installConsoleTimestamps() {
+        const consoleObject = global.console;
+        if (!consoleObject || consoleObject.__swtIstTimestamped) {
+            return;
+        }
+        ["debug", "error", "info", "log", "trace", "warn"].forEach((method) => {
+            const original = consoleObject[method];
+            if (typeof original !== "function") {
+                return;
+            }
+            consoleObject[method] = function (...args) {
+                original.call(consoleObject, `[${formatConsoleTimestamp()}]`, ...args);
+            };
+        });
+        Object.defineProperty(consoleObject, "__swtIstTimestamped", { value: true });
     }
 
     function parseBackendTimestamp(value) {
@@ -64,7 +100,7 @@
         }
         const [, year, month, day, hour = "0", minute = "0", second = "0"] = match;
         if (match[4] === undefined) {
-            return new Date(Number(year), Number(month) - 1, Number(day));
+            return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
         }
         return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)));
     }
@@ -138,10 +174,12 @@
             const raw = node.getAttribute("data-utc-datetime");
             node.textContent = formatDateTime(raw, node.textContent || "--");
             if (raw) {
-                node.title = raw + " UTC";
+                node.title = raw + " UTC, shown in IST";
             }
         });
     }
+
+    installConsoleTimestamps();
 
     global.swtLocale = {
         compactLabel,

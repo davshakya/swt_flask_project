@@ -185,6 +185,13 @@
                 <div class="helper-text">No customer account exists for this device yet.</div>
                 {% endif %}
             </form>
+
+            <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_ping', device_id=device_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <h3>Reachability Check</h3>
+                <div class="helper-text">Ping the master and slave MCUs through the firmware local URL reported by this device.</div>
+                <button class="btn" type="submit">Ping MCUs</button>
+            </form>
         </div>
     </section>
     {% endif %}
