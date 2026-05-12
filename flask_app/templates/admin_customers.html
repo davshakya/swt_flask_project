@@ -15,6 +15,7 @@
 @media (prefers-color-scheme: dark){.admin-table thead th{background:rgba(12,28,37,.96)}}
 .admin-table tbody tr:last-child td{border-bottom:none}.cell-main{font-weight:800;line-height:1.3}.cell-sub{margin-top:3px;font-size:10px;color:var(--muted);line-height:1.35}.device-link{border:none;padding:0;color:var(--text);font-weight:800}.device-link:hover{text-decoration:underline}.pill{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);font-size:10px;font-weight:800}.pill-online{background:var(--ok-bg);border-color:var(--ok-line);color:var(--ok-text)}.pill-offline{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-clear{background:rgba(154,202,221,.14);color:var(--muted)}.pill-warning{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}.pill-danger{background:var(--error-bg);border-color:var(--error-line);color:var(--error-text)}.pill-info{background:rgba(52,185,214,.12);color:var(--primary)}.sort-button{display:inline-flex;align-items:center;gap:6px;padding:0;border:none;background:none;color:inherit;font:inherit;cursor:pointer}.sort-button::after{content:"";display:inline-block;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:6px solid currentColor;opacity:.32;transform:translateY(1px)}.sort-button[data-direction="desc"]::after{transform:rotate(180deg) translateY(-1px)}.sort-button.is-active{color:var(--text)}.action-links{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.action-links a,.action-links button{padding:0;border:none;background:none;color:var(--primary);font-size:11px;font-weight:800;border-radius:0}.action-links a:hover,.action-links button:hover{text-decoration:underline}.action-links .danger{color:var(--error-text)}.inline-panel{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}.inline-panel.is-open{display:block}.inline-form{display:grid;gap:8px;grid-template-columns:minmax(0,1fr) auto;align-items:end}.inline-form.inline-form-wide{grid-template-columns:minmax(0,1.4fr) minmax(0,.8fr) auto}.inline-form label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.inline-form button{white-space:nowrap}.inline-note{margin:8px 0 0;font-size:10px;color:var(--muted);line-height:1.5}.service-form{display:grid;gap:12px}.service-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.service-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.service-group{margin:0;padding:14px;border-radius:18px;border:1px solid var(--line);background:rgba(255,255,255,.42)}.service-group legend{padding:0 6px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.service-option{display:flex;gap:10px;align-items:flex-start;padding:10px 0;color:var(--text);font-size:11px;line-height:1.45}.service-option+.service-option{border-top:1px solid var(--line)}.service-option input{margin-top:2px}.service-option strong{display:block;font-size:11px}.service-option small{display:block;margin-top:4px;color:var(--muted);line-height:1.45}.service-preset{border:1px solid var(--line);background:rgba(255,255,255,.78);color:var(--text)}.service-live-note{font-size:11px;color:var(--muted);line-height:1.55}.empty-state{padding:14px;color:var(--muted);font-size:11px}.hidden-result{display:none!important}
 .device-detail-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin-top:8px}.device-detail-item{padding:9px 10px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.44)}.device-detail-item span{display:block;margin-bottom:4px;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.device-detail-item strong{display:block;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
+.device-table-shell .admin-table{min-width:1280px;table-layout:fixed}.device-table-shell .admin-table th:nth-child(1){width:11%}.device-table-shell .admin-table th:nth-child(2){width:13%}.device-table-shell .admin-table th:nth-child(3){width:7%}.device-table-shell .admin-table th:nth-child(4){width:7%}.device-table-shell .admin-table th:nth-child(5){width:5%}.device-table-shell .admin-table th:nth-child(6){width:6%}.device-table-shell .admin-table th:nth-child(7){width:8%}.device-table-shell .admin-table th:nth-child(8){width:11%}.device-table-shell .admin-table th:nth-child(9){width:7%}.device-table-shell .admin-table th:nth-child(10){width:25%}.device-table-shell .admin-table td{overflow-wrap:anywhere}.device-table-shell .admin-table td:nth-child(3),.device-table-shell .admin-table td:nth-child(4),.device-table-shell .admin-table td:nth-child(5),.device-table-shell .admin-table td:nth-child(6),.device-table-shell .admin-table td:nth-child(9){white-space:nowrap}.device-table-shell .action-links{display:grid;grid-template-columns:repeat(5,max-content);gap:8px;align-items:start}.device-table-shell .action-links a,.device-table-shell .action-links button{min-height:36px;white-space:nowrap}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-form,.inline-form.inline-form-wide{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
 .admin-control-room{--admin-shell-max:1680px;--admin-surface:linear-gradient(180deg,rgba(255,255,255,.96),rgba(240,248,248,.9));--admin-panel-highlight:linear-gradient(135deg,rgba(8,58,74,.94),rgba(19,121,143,.92));--admin-card:rgba(255,255,255,.7);--admin-card-strong:rgba(255,255,255,.82);--admin-border:rgba(14,84,99,.12);--admin-shadow:0 34px 70px rgba(10,58,72,.18);--admin-text-soft:#506a73;--admin-accent:#0e8096;--admin-accent-strong:#0b5567;--admin-table-row:rgba(255,255,255,.56);--admin-table-row-hover:rgba(240,250,251,.96);--admin-match:rgba(14,128,150,.08)}
@@ -490,6 +491,9 @@
                             <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
                             <th>Customer</th>
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Status</button></th>
+                            <th>Telemetry</th>
+                            <th>Signal</th>
+                            <th>Sensors</th>
                             <th>Tank / Pump</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts / Warnings</button></th>
                             <th>Last Sync</th>
@@ -501,7 +505,6 @@
                         <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
                             <td>
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
-                                <div class="cell-sub">{{ device.device_type or "Controller" }}</div>
                             </td>
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
@@ -510,6 +513,9 @@
                             <td>
                                 <span class="pill pill-{{ 'online' if device.admin_status == 'online' else 'offline' }}">{{ device.admin_status_label or "Offline" }}</span>
                             </td>
+                            <td>{{ device.telemetry_status_label or "--" }}</td>
+                            <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
+                            <td>{{ device.sensor or "--" }}</td>
                             <td>
                                 <div class="cell-main">
                                     {% if device.last_sync_at %}
@@ -533,75 +539,15 @@
                             <td><span data-utc-datetime="{{ device.last_sync_at or '' }}">{{ device.last_sync_at or "--" }}</span></td>
                             <td>
                                 <div class="action-links">
-                                    <a href="#view_shell_{{ loop.index }}" data-panel-toggle aria-controls="view_shell_{{ loop.index }}" aria-expanded="false">View</a>
-                                    {% if (device.active_alert_count or 0) > 0 %}
-                                    <a href="#global_alerts_panel">Review Alert</a>
-                                    {% endif %}
+                                    <a href="/devices/{{ device.device_id }}">View</a>
                                     <a href="#services_shell_{{ loop.index }}" data-panel-toggle aria-controls="services_shell_{{ loop.index }}" aria-expanded="false">Services</a>
                                     <a href="#firmware_shell_{{ loop.index }}" data-panel-toggle aria-controls="firmware_shell_{{ loop.index }}" aria-expanded="false">Firmware</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Restart</button>
                                     </form>
-                                    {% if device.registered_account %}
-                                    <a href="#edit_shell_{{ loop.index }}" data-panel-toggle aria-controls="edit_shell_{{ loop.index }}" aria-expanded="false">Name</a>
-                                    {% endif %}
-                                    <a href="#password_shell_{{ loop.index }}" data-panel-toggle aria-controls="password_shell_{{ loop.index }}" aria-expanded="false">Password</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/delete" style="margin:0" onsubmit="return confirm('Delete device {{ device.device_id }} and its stored admin records?');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Delete</button>
                                     </form>
-                                </div>
-                                <div id="view_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <div class="device-detail-grid">
-                                        <div class="device-detail-item"><span>Firmware</span><strong>{{ device.firmware_version or "--" }}</strong></div>
-                                        <div class="device-detail-item"><span>Architecture</span><strong>{{ device.device_type or "--" }}{% if device.arch_id %} ({{ device.arch_id }}){% endif %}{% if device.node_role %} / {{ device.node_role }}{% endif %}</strong></div>
-                                        <div class="device-detail-item"><span>Firmware UI</span><strong>{% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_url }}</a>{% elif device.source_ip %}{{ device.source_ip }}{% else %}--{% endif %}</strong></div>
-                                        <div class="device-detail-item"><span>Username</span><strong>{{ device.device_id }}</strong></div>
-                                        <div class="device-detail-item"><span>Telemetry</span><strong>{{ device.telemetry_status_label or "--" }}</strong></div>
-                                        <div class="device-detail-item"><span>Signal</span><strong>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</strong></div>
-                                        <div class="device-detail-item"><span>Sensor</span><strong>{{ device.sensor or "--" }}</strong></div>
-                                        <div class="device-detail-item"><span>Service Profile</span><strong>{{ device.cloud_feed_mode_label or "Disabled" }}</strong></div>
-                                    </div>
-                                    <p class="inline-note">{{ device.service_profile_hint or "No service profile saved yet." }}{% if not device.registered_account %} • Cloud access starts after an account is created.{% endif %}</p>
-                                    <div class="row" style="margin-top:10px">
-                                        <a href="/devices/{{ device.device_id }}">Open Device Dashboard</a>
-                                    </div>
-                                </div>
-                                {% if device.registered_account %}
-                                <div id="edit_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                    <form method="post" action="/admin/customers/{{ device.device_id }}/edit" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                        <div class="group" style="margin:0">
-                                            <label for="display_name_{{ loop.index }}">Customer Name</label>
-                                            <input id="display_name_{{ loop.index }}" name="display_name" type="text" value="{{ device.display_name or '' }}" placeholder="Customer name">
-                                        </div>
-                                        <div class="group" style="margin:0">
-                                            <label for="email_{{ loop.index }}">Customer Email</label>
-                                            <input id="email_{{ loop.index }}" name="email" type="email" value="{{ device.email or '' }}" placeholder="customer@example.com">
-                                        </div>
-                                        <input type="hidden" name="service_updates_enabled" value="{{ 1 if device.service_updates_enabled else 0 }}">
-                                        <input type="hidden" name="marketing_emails_enabled" value="{{ 1 if device.marketing_emails_enabled else 0 }}">
-                                        <button type="submit">Save Profile</button>
-                                    </form>
-                                </div>
-                                {% endif %}
-                                <div id="password_shell_{{ loop.index }}" class="inline-panel" hidden>
-                                {% if device.registered_account %}
-                                <form method="post" action="/admin/customers/{{ device.device_id }}/password" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                    <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Reset Cloud Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Reset cloud password" required>
-                                    </div>
-                                    <button type="submit">Save Cloud Password</button>
-                                </form>
-                                {% else %}
-                                <form method="post" action="/admin/customers" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="device_id" value="{{ device.device_id }}"><input type="hidden" name="display_name" value="{{ device.display_name or '' }}"><input type="hidden" name="email" value="{{ device.email or '' }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                    <div class="group" style="margin:0">
-                                        <label for="password_{{ loop.index }}">Set Cloud Password</label>
-                                        <input id="password_{{ loop.index }}" name="password" type="password" minlength="6" placeholder="Create cloud password" required>
-                                    </div>
-                                    <button type="submit">Save Cloud Password</button>
-                                </form>
-                                {% endif %}
-                                <p class="inline-note">This form only changes the Flask customer login. Local firmware password changes stay inside the Android app over LAN.</p>
                                 </div>
                                 <div id="firmware_shell_{{ loop.index }}" class="inline-panel" hidden>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
