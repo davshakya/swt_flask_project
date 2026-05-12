@@ -10062,7 +10062,100 @@ def customer_dashboard():
 def device_detail_page(device_id):
     customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
-    return render_template("device_detail.html", device_id=scoped_device_id, is_admin=is_admin_user())
+    account = fetch_customer_account(scoped_device_id) if is_admin_user() else None
+    service_config = fetch_device_service_config(scoped_device_id, account=account) if is_admin_user() else {}
+    return render_template(
+        "device_detail.html",
+        device_id=scoped_device_id,
+        is_admin=is_admin_user(),
+        customer_account=account,
+        service_config=service_config,
+        config_message=request.args.get("config_message", "", type=str) or "",
+        config_error=request.args.get("config_error", "", type=str) or "",
+    )
+
+
+@app.route("/devices/<device_id>/configuration", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_configuration(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    configuration_type = str(request.form.get("configuration_type") or "master_only").strip().lower()
+    master_slave_enabled = configuration_type == "master_slave"
+    main_sensor_enabled = "main_sensor_enabled" in request.form
+    lower_sensor_enabled = master_slave_enabled and "source_tank_monitoring_enabled" in request.form
+    try:
+        updated_config = upsert_device_service_config(
+            scoped_device_id,
+            main_sensor_enabled=main_sensor_enabled,
+            slave_device_enabled=master_slave_enabled,
+            source_tank_monitoring_enabled=lower_sensor_enabled,
+        )
+        queued_command = build_device_service_command(updated_config)
+        queue_command(queued_command, target_device=scoped_device_id)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_detail_configuration",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={"service_config": updated_config, "queued_command": queued_command},
+        )
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Configuration saved. Device changes apply on the next command poll."))
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/customer-profile", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_customer_profile(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    account = fetch_customer_account(scoped_device_id)
+    if not account:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Customer account not found for this device."))
+    try:
+        updated_account = update_customer_account_profile(
+            scoped_device_id,
+            display_name=request.form.get("display_name", ""),
+            email=request.form.get("email", ""),
+            service_updates_enabled=bool(account.get("service_updates_enabled", True)),
+            marketing_emails_enabled=bool(account.get("marketing_emails_enabled", False)),
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_customer_profile_from_device_detail",
+            target_type="customer_account",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={"display_name": updated_account.get("display_name"), "email": updated_account.get("email")},
+        )
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Customer profile saved."))
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/customer-password", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_customer_password(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    account = fetch_customer_account(scoped_device_id)
+    if not account:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Customer account not found for this device."))
+    try:
+        update_customer_password(scoped_device_id, request.form.get("password", ""))
+        log_audit_event(
+            actor=current_actor_username(),
+            action="reset_customer_password_from_device_detail",
+            target_type="customer_account",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={"password_scope": "cloud_only"},
+        )
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Customer cloud password reset."))
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
 
 
 @app.route("/devices/<device_id>/status")
