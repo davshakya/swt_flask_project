@@ -76,7 +76,7 @@
 .customer-access-layout{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);gap:18px;align-items:start;margin-top:14px}
 .customer-access-layout .form-grid{margin-top:0}
 .customer-access-form .row{margin-top:2px}
-.release-channel-layout{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:stretch;margin-top:16px}
+.release-channel-layout{display:grid;grid-template-columns:minmax(0,720px);gap:18px;align-items:stretch;margin-top:16px}
 .release-form-card{display:grid;gap:14px;margin:0;padding:16px;border:1px solid var(--admin-border);border-radius:20px;background:rgba(255,255,255,.5)}
 .release-form-card .row{align-self:end}
 .release-form-card .inline-note{margin:0}
@@ -357,19 +357,14 @@
         <div class="section-head">
             <div>
                 <div class="eyebrow">Release Channel</div>
-                <h2>Publish Android and firmware updates</h2>
-                <p class="section-helper">Upload one approved release here and every customer can receive it through the website footer, Android update checks, and local Wi-Fi firmware upgrade flow.</p>
+                <h2>Publish Android updates</h2>
+                <p class="section-helper">Upload one approved Android release here for the website footer and Android update checks. Firmware builds are uploaded from each device row so OTA packages stay matched to the controller.</p>
             </div>
             <div class="section-badges">
                 {% if latest_android_release %}
                 <span class="pill pill-info">Android {{ latest_android_release.version_name }} ({{ latest_android_release.version_code }})</span>
                 {% else %}
                 <span class="pill pill-warning">No Android APK uploaded</span>
-                {% endif %}
-                {% if latest_global_firmware %}
-                <span class="pill pill-info">Firmware {{ latest_global_firmware.version_label or "--" }}</span>
-                {% else %}
-                <span class="pill pill-warning">No global firmware uploaded</span>
                 {% endif %}
             </div>
         </div>
@@ -392,25 +387,6 @@
                 </form>
                 <form method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                     <button type="submit">Remove Old Android Builds</button>
-                </form>
-            </div>
-            <div class="release-form-card">
-                <form method="post" action="/admin/releases/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                    <div class="group">
-                        <label for="global_firmware_file">Firmware Binary</label>
-                        <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
-                    </div>
-                    <div class="group">
-                        <label for="global_firmware_notes">Release Notes</label>
-                        <input id="global_firmware_notes" name="notes" type="text" placeholder="Firmware change summary">
-                    </div>
-                    <div class="row">
-                        <button type="submit">Publish Global Firmware</button>
-                    </div>
-                    <p class="inline-note">Device-specific firmware uploads still override this global release for that one device.</p>
-                </form>
-                <form method="post" action="{{ url_for('admin_global_firmware_prune') }}" onsubmit="return confirm('Remove old global firmware build records and unused BIN files? The latest firmware build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                    <button type="submit">Remove Old Firmware Builds</button>
                 </form>
             </div>
         </div>
@@ -527,6 +503,7 @@
                             <td>
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
                                 <div class="cell-sub">Firmware: {{ device.firmware_version or "--" }}</div>
+                                <div class="cell-sub">Architecture: {{ device.device_type or "--" }}{% if device.arch_id %} ({{ device.arch_id }}){% endif %}{% if device.node_role %} / {{ device.node_role }}{% endif %}</div>
                                 {% if device.device_local_url %}
                                 <div class="cell-sub">Firmware UI: <a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_url }}</a></div>
                                 {% elif device.source_ip %}
@@ -578,6 +555,7 @@
                                     <a href="#global_alerts_panel">Review Alert</a>
                                     {% endif %}
                                     <a href="#services_shell_{{ loop.index }}" data-panel-toggle aria-controls="services_shell_{{ loop.index }}" aria-expanded="false">Services</a>
+                                    <a href="#firmware_shell_{{ loop.index }}" data-panel-toggle aria-controls="firmware_shell_{{ loop.index }}" aria-expanded="false">Firmware</a>
                                     <form method="post" action="/admin/customers/{{ device.device_id }}/reboot" style="margin:0" onsubmit="return confirm('Queue a reboot for device {{ device.device_id }}? The controller will restart on its next cloud command check.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                         <button type="submit" class="danger">Restart</button>
                                     </form>
@@ -626,6 +604,24 @@
                                 {% endif %}
                                 <p class="inline-note">This form only changes the Flask customer login. Local firmware password changes stay inside the Android app over LAN.</p>
                                 </div>
+                                <div id="firmware_shell_{{ loop.index }}" class="inline-panel" hidden>
+                                    <form method="post" action="/admin/customers/{{ device.device_id }}/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                        <div class="group" style="margin:0">
+                                            <label for="firmware_file_{{ loop.index }}">Firmware Binary</label>
+                                            <input id="firmware_file_{{ loop.index }}" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                                        </div>
+                                        <div class="group" style="margin:0">
+                                            <label for="firmware_notes_{{ loop.index }}">Release Notes</label>
+                                            <input id="firmware_notes_{{ loop.index }}" name="notes" type="text" placeholder="Firmware change summary">
+                                        </div>
+                                        <button type="submit">Upload Firmware for Device</button>
+                                        {% if device.latest_firmware_artifact %}
+                                        <p class="inline-note">Latest device build: {{ device.latest_firmware_artifact.version_label or "--" }} from {{ device.latest_firmware_artifact.original_filename or "firmware.bin" }}.</p>
+                                        {% else %}
+                                        <p class="inline-note">No firmware build has been uploaded for this device yet.</p>
+                                        {% endif %}
+                                    </form>
+                                </div>
                             </td>
                         </tr>
                         {% endfor %}
@@ -650,8 +646,16 @@
             <form method="post" action="/admin/customers/{{ device.device_id }}/services" class="service-form" data-service-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                 <div class="service-checklist">
                     <label class="service-option">
+                        <input type="checkbox" name="main_sensor_enabled" value="1" {% if device.main_sensor_enabled %}checked{% endif %}>
+                        <span>Main Tank Sensor</span>
+                    </label>
+                    <label class="service-option">
+                        <input type="checkbox" name="slave_device_enabled" value="1" {% if device.slave_device_enabled %}checked{% endif %}>
+                        <span>Slave Device</span>
+                    </label>
+                    <label class="service-option">
                         <input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if device.source_tank_monitoring_enabled %}checked{% endif %}>
-                        <span>Source Tank Monitoring</span>
+                        <span>Source Tank Sensor</span>
                     </label>
                     <label class="service-option">
                         <input type="checkbox" name="ai_analysis_enabled" value="1" {% if device.ai_analysis_enabled %}checked{% endif %}>

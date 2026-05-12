@@ -1987,6 +1987,9 @@ def build_admin_device_entry(device_id, snapshot=None):
         "buzzer_service": payload.get("buzzer_service"),
         "led_display_service": payload.get("led_display_service"),
         "local_firmware_upload_service": payload.get("local_firmware_upload_service"),
+        "arch_id": payload.get("arch_id"),
+        "node_role": payload.get("node_role"),
+        "device_type": payload.get("device_type"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -2041,7 +2044,6 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         global_alerts=fetch_filtered_alerts(limit=10, updated_since=alert_cutoff),
         persistence_warnings=auth_persistence_warnings(),
         latest_android_release=fetch_latest_android_app_release(),
-        latest_global_firmware=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET),
     )
 
 
@@ -2130,6 +2132,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
             or "info"
         )
         entry.update(service_config)
+        entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
             if service_config.get("cloud_feed_mode") == DEVICE_SERVICE_CLOUD_FEED_FULL
@@ -3504,6 +3507,8 @@ def ensure_device_service_configs_table(cursor):
         f"""
         CREATE TABLE IF NOT EXISTS device_service_configs(
             device_id TEXT PRIMARY KEY,
+            main_sensor_enabled INTEGER NOT NULL DEFAULT 1,
+            slave_device_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
@@ -3521,6 +3526,8 @@ def ensure_device_service_configs_table(cursor):
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
     required = {
+        "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
@@ -4369,6 +4376,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         payload.get("cloud_feed_mode"),
         default=DEVICE_SERVICE_CLOUD_FEED_FULL if account_cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF,
     )
+    main_sensor_enabled = boolish_enabled(payload.get("main_sensor_enabled"), default=True)
+    slave_device_enabled = boolish_enabled(payload.get("slave_device_enabled"), default=True)
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -4392,6 +4401,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     ai_label = "On" if effective_ai_analysis_enabled else ("Saved" if ai_analysis_enabled else "Off")
     return {
         "device_id": normalized_device_id,
+        "main_sensor_enabled": main_sensor_enabled,
+        "slave_device_enabled": slave_device_enabled,
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
@@ -4421,6 +4432,8 @@ def default_device_service_config(device_id=None, account=None):
     return serialize_device_service_config(
         device_id,
         {
+            "main_sensor_enabled": True,
+            "slave_device_enabled": True,
             "source_tank_monitoring_enabled": True,
             "ai_analysis_enabled": True,
             "cloud_feed_mode": (
@@ -4459,7 +4472,8 @@ def fetch_device_service_config(device_id, account=None):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+            SELECT device_id, main_sensor_enabled, slave_device_enabled,
+                   source_tank_monitoring_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled,
                    created_at, updated_at
@@ -4480,7 +4494,8 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
     accounts_by_device = accounts_by_device or {}
     query = (
         """
-        SELECT device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+        SELECT device_id, main_sensor_enabled, slave_device_enabled,
+               source_tank_monitoring_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled,
                created_at, updated_at
@@ -4516,6 +4531,8 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
 
 def upsert_device_service_config(
     device_id,
+    main_sensor_enabled=None,
+    slave_device_enabled=None,
     source_tank_monitoring_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
@@ -4530,6 +4547,14 @@ def upsert_device_service_config(
 
     account = fetch_customer_account(normalized_device_id)
     existing = fetch_device_service_config(normalized_device_id, account=account)
+    resolved_main_sensor_enabled = boolish_enabled(
+        main_sensor_enabled,
+        default=existing.get("main_sensor_enabled", True),
+    )
+    resolved_slave_device_enabled = boolish_enabled(
+        slave_device_enabled,
+        default=existing.get("slave_device_enabled", True),
+    )
     resolved_source_tank_monitoring_enabled = boolish_enabled(
         source_tank_monitoring_enabled,
         default=existing.get("source_tank_monitoring_enabled", True),
@@ -4563,13 +4588,16 @@ def upsert_device_service_config(
         db.execute(
             """
             INSERT INTO device_service_configs(
-                device_id, source_tank_monitoring_enabled, ai_analysis_enabled,
+                device_id, main_sensor_enabled, slave_device_enabled,
+                source_tank_monitoring_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
+                main_sensor_enabled=excluded.main_sensor_enabled,
+                slave_device_enabled=excluded.slave_device_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
@@ -4581,6 +4609,8 @@ def upsert_device_service_config(
             """,
             (
                 normalized_device_id,
+                1 if resolved_main_sensor_enabled else 0,
+                1 if resolved_slave_device_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
@@ -4604,8 +4634,12 @@ def upsert_device_service_config(
 
 def build_device_service_command(service_config):
     config = service_config or {}
+    source_tank_enabled = (
+        bool(config.get("source_tank_monitoring_enabled"))
+        and bool(config.get("slave_device_enabled", True))
+    )
     return "SERVICECFG2:{source}:{buzzer}:{led}:{ota}:{upload}".format(
-        source=1 if bool(config.get("source_tank_monitoring_enabled")) else 0,
+        source=1 if source_tank_enabled else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
         led=1 if bool(config.get("led_display_enabled")) else 0,
         ota=1 if bool(config.get("ota_enabled")) else 0,
@@ -7454,8 +7488,8 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
     """
     params = [normalized_artifact_id]
     if normalized_device_id:
-        query += " AND target_device IN (?, ?)"
-        params.extend([normalized_device_id, GLOBAL_FIRMWARE_TARGET])
+        query += " AND target_device = ?"
+        params.append(normalized_device_id)
 
     with get_db() as db:
         row = db.execute(query, tuple(params)).fetchone()
@@ -7477,11 +7511,11 @@ def fetch_latest_firmware_artifact(device_id):
             """
             SELECT id
             FROM firmware_artifacts
-            WHERE target_device IN (?, ?)
-            ORDER BY CASE WHEN target_device = ? THEN 0 ELSE 1 END, created_at DESC, id DESC
+            WHERE target_device = ?
+            ORDER BY created_at DESC, id DESC
             LIMIT 1
             """,
-            (normalized_device_id, GLOBAL_FIRMWARE_TARGET, normalized_device_id),
+            (normalized_device_id,),
         ).fetchone()
     if not row:
         return None
@@ -8781,6 +8815,8 @@ def mobile_device_services():
 
     updated_config = upsert_device_service_config(
         target_device,
+        main_sensor_enabled=source_payload.get("main_sensor_enabled"),
+        slave_device_enabled=source_payload.get("slave_device_enabled"),
         source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
         ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
         cloud_feed_mode=source_payload.get("cloud_feed_mode"),
@@ -9803,6 +9839,8 @@ def admin_customer_services(device_id):
             )
         updated_config = upsert_device_service_config(
             normalized_device_id,
+            main_sensor_enabled=("main_sensor_enabled" in request.form),
+            slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
