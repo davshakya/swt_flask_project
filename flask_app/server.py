@@ -9514,6 +9514,16 @@ def admin_device_firmware_upload(device_id):
         except ValueError as exc:
             error = str(exc)
 
+    if request.form.get("return_to") == "device_detail":
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=normalized_device_id or device_id,
+                config_error=error or "",
+                config_message=success or "",
+            )
+        )
+
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
@@ -9931,6 +9941,16 @@ def admin_customer_services(device_id):
             "Device-side changes will apply on the next command poll."
         )
 
+    if request.form.get("return_to") == "device_detail":
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=normalized_device_id or device_id,
+                config_error=error or "",
+                config_message=success or "",
+            )
+        )
+
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
     device_summary = build_admin_device_summary(available_devices)
@@ -9980,6 +10000,16 @@ def admin_device_reboot(device_id):
                 f"Reboot command queued for {normalized_device_id}. "
                 "The device will restart on its next command poll."
             )
+
+    if request.form.get("return_to") == "device_detail":
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=normalized_device_id or device_id,
+                config_error=error or "",
+                config_message=success or "",
+            )
+        )
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -10133,6 +10163,7 @@ def device_detail_page(device_id):
         is_admin=is_admin_user(),
         customer_account=account,
         service_config=service_config,
+        latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id) if is_admin_user() else None,
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
     )
