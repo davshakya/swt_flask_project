@@ -1918,6 +1918,54 @@ def admin_telemetry_status_label(value):
     return normalized.replace("-", " ").title() if normalized else "--"
 
 
+def admin_node_status_fields(entry, service_config=None):
+    service_config = service_config or {}
+    node_role = str(entry.get("node_role") or "").strip().lower()
+    online = admin_device_is_online(entry)
+    master_label = "Online" if online else "Offline"
+    master_tone = "online" if online else "offline"
+
+    slave_configured = bool(service_config.get("slave_device_enabled", True))
+    if not slave_configured:
+        return {
+            "master_status_label": master_label,
+            "master_status_tone": master_tone,
+            "slave_status_label": "Disabled",
+            "slave_status_tone": "clear",
+        }
+
+    if node_role == "slave_tank":
+        return {
+            "master_status_label": "--",
+            "master_status_tone": "clear",
+            "slave_status_label": "Online" if online else "Offline",
+            "slave_status_tone": "online" if online else "offline",
+        }
+
+    upper_sensor = str(
+        entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor") or ""
+    ).strip().upper()
+    if not online:
+        slave_label = "Offline"
+        slave_tone = "offline"
+    elif upper_sensor == "OK":
+        slave_label = "Online"
+        slave_tone = "online"
+    elif upper_sensor in {"DISABLED", "OFF"}:
+        slave_label = "Disabled"
+        slave_tone = "clear"
+    else:
+        slave_label = "No data"
+        slave_tone = "warning"
+
+    return {
+        "master_status_label": master_label,
+        "master_status_tone": master_tone,
+        "slave_status_label": slave_label,
+        "slave_status_tone": slave_tone,
+    }
+
+
 def alert_severity_rank(value):
     normalized = str(value or "").strip().lower()
     if normalized == "danger":
@@ -2146,6 +2194,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
             or "info"
         )
         entry.update(service_config)
+        entry.update(admin_node_status_fields(entry, service_config))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
