@@ -2030,12 +2030,20 @@ def fetch_active_alert_summaries(device_ids=None, updated_since=None):
 def build_admin_device_entry(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
     payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
+    device_local_url = payload.get("device_local_url")
+    device_local_host = None
+    if device_local_url:
+        try:
+            device_local_host = urlparse(str(device_local_url)).hostname
+        except Exception:
+            device_local_host = None
     return {
         "device_id": normalized_device_id,
         "level": payload.get("level"),
         "firmware_version": payload.get("firmware_version"),
         "reset_reason": payload.get("reset_reason"),
-        "device_local_url": payload.get("device_local_url"),
+        "device_local_url": device_local_url,
+        "device_local_host": device_local_host,
         "source_ip": payload.get("source_ip"),
         "last_sync_at": payload.get("last_sync_at"),
         "telemetry_status": payload.get("telemetry_status"),
