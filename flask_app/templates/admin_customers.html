@@ -493,7 +493,8 @@
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Status</button></th>
                             <th>Telemetry</th>
                             <th>Signal</th>
-                            <th>Sensors</th>
+                            <th>Upper Sensor</th>
+                            <th>Lower Sensor</th>
                             <th>Tank / Pump</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts / Warnings</button></th>
                             <th>Last Sync</th>
@@ -516,7 +517,8 @@
                             </td>
                             <td>{{ device.telemetry_status_label or "--" }}</td>
                             <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
-                            <td>{{ device.sensor or "--" }}</td>
+                            <td>{{ device.upper_sensor or device.sensor or "--" }}</td>
+                            <td>{{ device.lower_sensor or "--" }}</td>
                             <td>
                                 <div class="cell-main">
                                     {% if device.last_sync_at %}

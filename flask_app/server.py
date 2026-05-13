@@ -2005,6 +2005,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
+        "upper_sensor": payload.get("main_sensor") or payload.get("sensor"),
+        "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
         "registered_account": False,
