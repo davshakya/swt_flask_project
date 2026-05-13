@@ -52,7 +52,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .hero-lead{font-size:1.08rem;line-height:1.7;color:var(--customer-text-soft)}
 .customer-dashboard .brand-logo{background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(222,246,241,.76))}
 .customer-dashboard .brand-status{color:var(--customer-text-soft)}
-.customer-pulse-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.customer-pulse-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
 .customer-pulse-card{padding:16px 16px 18px;border-radius:22px;border:1px solid rgba(15,84,98,.1);background:rgba(255,255,255,.7);box-shadow:inset 0 1px 0 rgba(255,255,255,.75);display:flex;flex-direction:column;gap:8px;min-height:140px}
 .customer-pulse-card.is-featured{background:linear-gradient(135deg,rgba(12,108,126,.98),rgba(22,151,165,.88));border-color:rgba(7,80,92,.14);box-shadow:var(--customer-feature-shadow);color:#ecfdff}
 .customer-pulse-card span{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:var(--muted)}
@@ -318,11 +318,6 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                 <span>Available now</span>
                 <strong id="customerAvailabilityNow">--</strong>
                 <p id="customerAvailabilityNote">Waiting for current tank capacity and level data.</p>
-            </article>
-            <article class="customer-pulse-card">
-                <span>Pump plan</span>
-                <strong id="customerPumpPlanNow">--</strong>
-                <p id="customerPumpPlanNote">Auto guidance will appear after the first sync.</p>
             </article>
             <article class="customer-pulse-card">
                 <span>Use trend</span>
