@@ -1968,8 +1968,6 @@ def admin_node_status_fields(entry, service_config=None):
 
 def admin_relay_sensor_status_fields(entry):
     motor = str(entry.get("motor") or "").strip().upper()
-    upper_sensor = str(entry.get("upper_sensor") or entry.get("sensor") or "").strip().upper()
-    lower_sensor = str(entry.get("lower_sensor") or "").strip().upper()
 
     if motor == "ON":
         relay_label = "Relay ON"
@@ -1984,21 +1982,9 @@ def admin_relay_sensor_status_fields(entry):
         relay_label = "Relay offline"
         relay_tone = "offline"
 
-    sensor_parts = []
-    if upper_sensor:
-        sensor_parts.append(f"U {upper_sensor}")
-    if lower_sensor and lower_sensor != "DISABLED":
-        sensor_parts.append(f"L {lower_sensor}")
-    elif lower_sensor == "DISABLED":
-        sensor_parts.append("L disabled")
-
-    if not sensor_parts:
-        sensor_parts.append("Sensors --")
-
     return {
         "relay_status_label": relay_label,
         "relay_status_tone": relay_tone,
-        "sensor_status_summary": " / ".join(sensor_parts),
     }
 
 
