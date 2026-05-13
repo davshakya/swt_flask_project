@@ -11,7 +11,7 @@
 @media (prefers-color-scheme: dark){
 :root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(12,29,39,.9);--button-line:rgba(154,202,221,.16)}
 }
-*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:inherit}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:28px 0 44px;display:grid;gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)}.eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:32px;line-height:1.1}.hero-title p{margin:8px 0 0;color:var(--muted);line-height:1.5}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:11px 15px;border-radius:15px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:100%}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}.summary-card{padding:18px;border-radius:22px;border:1px solid var(--line);background:rgba(255,255,255,.22)}.summary-card.config-card{background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 18%,transparent),color-mix(in srgb,var(--good) 14%,transparent));border-color:color-mix(in srgb,var(--primary) 24%,var(--line))}.summary-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:8px;font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:8px;font-size:12px;color:var(--muted);line-height:1.5}.content-grid{display:grid;gap:16px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:12px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:16px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.2)}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:8px;font-size:22px;font-weight:800;line-height:1.2}.detail-note{margin-top:8px;font-size:13px;color:var(--muted);line-height:1.55}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.5}.list{list-style:none;padding:0;margin:0;display:grid;gap:10px}.list li{padding:14px 15px;border-radius:18px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:16px}.admin-form{display:grid;gap:12px;padding:16px;border-radius:20px;border:1px solid var(--line);background:rgba(255,255,255,.2)}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700}.service-option input{width:auto}.hidden-section{display:none!important}
+*{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:inherit}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:24px 0 36px;display:grid;gap:14px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:30px;line-height:1.1}.hero-title p{margin:7px 0 0;color:var(--muted);line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:100%}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}.summary-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.22)}.summary-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:7px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45}.content-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:13px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.2)}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:7px;font-size:19px;font-weight:800;line-height:1.2}.detail-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}.info-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:14px}.info-item{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.2);min-width:0}.info-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.info-value{display:block;margin-top:5px;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.45}.list{list-style:none;padding:0;margin:0;display:grid;gap:9px}.list li{padding:12px 13px;border-radius:14px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));margin-top:16px}.admin-form{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.2)}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700}.service-option input{width:auto}.hidden-section{display:none!important}
 @media (max-width:960px){.content-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 </style>
@@ -59,13 +59,6 @@
             <div id="connection" class="summary-value">--</div>
             <div id="connectionNote" class="summary-note">Last update will appear here.</div>
         </div>
-        {% if is_admin %}
-        <div class="summary-card config-card">
-            <div class="summary-label">Configuration Type</div>
-            <div class="summary-value">{{ "Master + Slave" if config_type == "master_slave" else "Master Only" }}</div>
-            <div class="summary-note">{{ "Upper sensor on slave, pump relay on master." if config_type == "master_slave" else "Single controller handles local tank and relay." }}</div>
-        </div>
-        {% endif %}
     </section>
 
     <section class="content-grid">
@@ -97,11 +90,6 @@
                     <div id="healthStatus" class="detail-value">--</div>
                     <div id="healthReason" class="detail-note">--</div>
                 </div>
-                <div class="detail-card">
-                    <div class="detail-label">Last Update</div>
-                    <div id="lastSync" class="detail-value">--</div>
-                    <div id="lastSyncNote" class="detail-note">--</div>
-                </div>
                 <div id="sourceCard" class="detail-card hidden-section">
                     <div class="detail-label">Source Tank</div>
                     <div id="sourceLevel" class="detail-value">--</div>
@@ -120,6 +108,16 @@
             </div>
             <ul id="alerts" class="list" style="margin-top:16px"></ul>
         </div>
+    </section>
+
+    <section class="panel">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Device Information</div>
+                <p>Complete controller, relay, sensor, service, and network information from the latest sync.</p>
+            </div>
+        </div>
+        <div id="deviceInfoGrid" class="info-grid"></div>
     </section>
 
     {% if is_admin %}
@@ -312,10 +310,58 @@ function firstReason(reasons,fallback="--"){
   if(Array.isArray(reasons)&&reasons.length)return String(reasons[0]||fallback);
   return fallback;
 }
+function displayValue(value,fallback="--"){
+  if(value===undefined||value===null||value==="")return fallback;
+  return String(value);
+}
+function yesNo(value){
+  const raw=String(value??"").trim().toUpperCase();
+  if(["ON","OK","YES","TRUE","1"].includes(raw))return raw==="OK"?"OK":"ON";
+  if(["OFF","NO","FALSE","0"].includes(raw))return raw==="OK"?"OK":"OFF";
+  return displayValue(value);
+}
 function setVisible(id,visible){
   const node=document.getElementById(id);
   if(!node)return;
   node.classList.toggle("hidden-section",!visible);
+}
+function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig){
+  const root=document.getElementById("deviceInfoGrid");
+  if(!root)return;
+  const relay=monitoringSummary.relay||{};
+  const items=[
+    ["Device ID",snapshot.device_id||DEVICE_ID],
+    ["Firmware",snapshot.firmware_version||"--"],
+    ["Device Type",titleCase(snapshot.device_type||"")],
+    ["Architecture",snapshot.arch_id?`Arch ${snapshot.arch_id}`:"--"],
+    ["Node Role",titleCase(snapshot.node_role||"")],
+    ["Source Mode",titleCase(snapshot.device_source||systemStatus.device_source_mode||"")],
+    ["Relay",titleCase(snapshot.motor)],
+    ["Command Service",yesNo(snapshot.command_service)],
+    ["Telemetry Service",yesNo(snapshot.telemetry_service)],
+    ["OTA Service",yesNo(snapshot.ota_service)],
+    ["Lower Tank Service",yesNo(snapshot.lower_tank_service)],
+    ["Main Sensor",`${titleCase(snapshot.sensor)}${snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?` (${snapshot.sensor_distance_cm} cm)`:""}`],
+    ["Main Sensor Info",snapshot.sensor_info||"--"],
+    ["Lower Sensor",`${titleCase(snapshot.lower_sensor)}${snapshot.lower_sensor_distance_cm!==undefined&&snapshot.lower_sensor_distance_cm!==null?` (${snapshot.lower_sensor_distance_cm} cm)`:""}`],
+    ["Lower Sensor Info",snapshot.lower_sensor_info||"--"],
+    ["Tank Capacity",formatLiters(snapshot.capacity_liters||snapshot.tank_capacity_liters)],
+    ["Tank Height",snapshot.tank_height_cm!==undefined&&snapshot.tank_height_cm!==null?`${Number(snapshot.tank_height_cm).toFixed(1)} cm`:"--"],
+    ["Wi-Fi",`${snapshot.wifi||"--"}${snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?` / RSSI ${snapshot.wifi_rssi}`:""}`],
+    ["Channel",titleCase(snapshot.channel_mode||"")],
+    ["Local Device",snapshot.device_local_url||"--"],
+    ["Buzzer",yesNo(snapshot.buzzer_service)],
+    ["LED Display",yesNo(snapshot.led_display_service)],
+    ["Local Firmware Upload",yesNo(snapshot.local_firmware_upload_service)],
+    ["Free Heap",snapshot.free_heap_label||"--"],
+    ["Uptime",snapshot.uptime_label||"--"],
+    ["Reset Reason",snapshot.reset_reason||"--"],
+    ["Cloud Relay",relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled"],
+    ["Relay Last Success",formatLocaleDateTime(relay.last_success_at)],
+    ["Relay Last Error",relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"--"],
+    ["Configuration",serviceConfig.slave_device_enabled?"Master + Slave":"Master Only"],
+  ];
+  root.innerHTML=items.map(([label,value])=>`<div class="info-item"><span class="info-label">${label}</span><strong class="info-value">${displayValue(value)}</strong></div>`).join("");
 }
 function renderList(id,items,emptyText,formatter){
   const root=document.getElementById(id);
@@ -342,6 +388,8 @@ async function loadDevice(){
   }
   const snapshot=data.snapshot||{};
   const systemStatus=data.system_status||{};
+  const monitoringSummary=data.monitoring_summary||{};
+  const serviceConfig=data.service_config||{};
   const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
   const lastSync=snapshot.last_sync_at;
   const level=formatPercent(snapshot.level);
@@ -367,16 +415,15 @@ async function loadDevice(){
   setText("sensorStatus",titleCase(snapshot.sensor));
   setText("sensorInfo",snapshot.sensor_info||"--");
   setText("signalQuality",signal);
-  setText("signalInfo",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`Wi-Fi ${snapshot.wifi||"--"} • RSSI ${snapshot.wifi_rssi}`:`Wi-Fi ${snapshot.wifi||"--"}`);
+  setText("signalInfo",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi}`:`Wi-Fi ${snapshot.wifi||"--"}`);
   setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
   setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
-  setText("lastSync",formatLocaleDateTime(lastSync));
-  setText("lastSyncNote",`${telemetryLabel(telemetry)} • ${titleCase(snapshot.mode)} mode • ${titleCase(snapshot.motor)} pump`);
   setVisible("sourceCard",sourceMonitoringActive);
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
+  renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
 
   renderList("alerts",data.alerts||[],"No active warnings or alarms for this device.",(alert)=>`<div class="list-item-head"><div class="list-title">${alert.message||alert.kind||"Alert"}</div><span class="status-pill ${severityTone(alert.severity)}">${titleCase(alert.severity||"info")}</span></div><div class="list-meta">${formatLocaleDateTime(alert.updated_at||alert.created_at)}</div>`);
   renderList("events",data.events||[],"No recent events for this device.",(entry)=>`<div class="list-item-head"><div class="list-title">${entry.message||"Event"}</div><span class="status-pill ${severityTone(entry.severity)}">${titleCase(entry.severity||"info")}</span></div><div class="list-meta">${formatLocaleDateTime(entry.time)}</div>`);
