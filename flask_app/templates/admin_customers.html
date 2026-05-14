@@ -437,10 +437,10 @@
                                 <div class="cell-sub">{{ device.email or "Email not added" }}</div>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}">{{ device.master_status_label or "Master Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}">{{ device.master_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}">{{ device.slave_status_label or "Slave Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}">{{ device.slave_status_label or "Unreachable" }}</span>
                             </td>
                             <td>{{ device.telemetry_status_label or "--" }}</td>
                             <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
