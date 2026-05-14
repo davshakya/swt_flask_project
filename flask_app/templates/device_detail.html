@@ -62,60 +62,23 @@
         </div>
     </section>
 
-    <section class="content-grid">
-        <div class="panel">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">Overview</div>
-                    <p>Only the most useful customer-facing status is shown here.</p>
-                </div>
-            </div>
-            <div class="detail-grid" style="margin-top:16px">
-                <div class="detail-card wide">
-                    <div class="detail-label">System Status</div>
-                    <div id="autoStatus" class="detail-value">--</div>
-                    <div id="autoTimer" class="detail-note">--</div>
-                </div>
-                <div class="detail-card">
-                    <div class="detail-label">Sensor</div>
-                    <div id="sensorStatus" class="detail-value">--</div>
-                    <div id="sensorInfo" class="detail-note">--</div>
-                </div>
-                <div class="detail-card">
-                    <div class="detail-label">Signal</div>
-                    <div id="signalQuality" class="detail-value">--</div>
-                    <div id="signalInfo" class="detail-note">--</div>
-                </div>
-                <div class="detail-card">
-                    <div class="detail-label">Tank Health</div>
-                    <div id="healthStatus" class="detail-value">--</div>
-                    <div id="healthReason" class="detail-note">--</div>
-                </div>
-                <div id="sourceCard" class="detail-card hidden-section">
-                    <div class="detail-label">Source Tank</div>
-                    <div id="sourceLevel" class="detail-value">--</div>
-                    <div id="sourceInfo" class="detail-note">--</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="panel">
-            <div class="section-head">
-                <div>
-                    <div class="eyebrow">Current Warnings</div>
-                    <p>Showing up to the last 10 active alerts for this device.</p>
-                </div>
-                <div id="alertCount" class="status-pill tone-info">0 alerts</div>
-            </div>
-            <ul id="alerts" class="list" style="margin-top:16px"></ul>
-        </div>
-    </section>
-
     <section class="panel">
         <div class="section-head">
             <div>
                 <div class="eyebrow">Device Information</div>
                 <p>Complete controller, relay, sensor, service, and network information from the latest sync.</p>
+            </div>
+        </div>
+        <div class="detail-grid" style="margin-top:16px">
+            <div class="detail-card">
+                <div class="detail-label">Tank Health</div>
+                <div id="healthStatus" class="detail-value">--</div>
+                <div id="healthReason" class="detail-note">--</div>
+            </div>
+            <div id="sourceCard" class="detail-card hidden-section">
+                <div class="detail-label">Source Tank</div>
+                <div id="sourceLevel" class="detail-value">--</div>
+                <div id="sourceInfo" class="detail-note">--</div>
             </div>
         </div>
         <div id="deviceInfoGrid" class="info-grid"></div>
@@ -404,12 +367,6 @@ async function loadDevice(){
   setText("connection",telemetryLabel(telemetry));
   setText("connectionNote",`Last updated ${formatLocaleDateTime(lastSync)}.`);
 
-  setText("autoStatus",snapshot.auto_status||"--");
-  setText("autoTimer",snapshot.auto_timer||"");
-  setText("sensorStatus",titleCase(snapshot.sensor));
-  setText("sensorInfo",snapshot.sensor_info||"--");
-  setText("signalQuality",signal);
-  setText("signalInfo",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi}`:`Wi-Fi ${snapshot.wifi||"--"}`);
   setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
   setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
   setVisible("sourceCard",sourceMonitoringActive);
@@ -419,13 +376,9 @@ async function loadDevice(){
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
 
-  const alerts=uniqueFeedItems(data.alerts||[]);
   const events=uniqueFeedItems(data.events||[]);
-  renderList("alerts",alerts,"No active warnings or alarms for this device.",(alert)=>`<div class="list-item-head"><div class="list-title">${escapeHtml(alert.message||alert.kind||"Alert")}</div><span class="status-pill ${severityTone(alert.severity)}">${escapeHtml(titleCase(alert.severity||"info"))}</span></div><div class="list-meta">${escapeHtml(formatLocaleDateTime(alert.updated_at||alert.created_at))}</div>`);
   renderList("events",events,"No recent events for this device.",(entry)=>`<div class="list-item-head"><div class="list-title">${escapeHtml(entry.message||"Event")}</div><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></div><div class="list-meta">${escapeHtml(formatLocaleDateTime(entry.time))}</div>`);
 
-  setText("alertCount",`${alerts.length} alert${alerts.length===1?"":"s"}`);
-  setClassName("alertCount",`status-pill ${severityTone(alerts[0]?.severity||(alerts.length?"warning":"info"))}`);
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
   setClassName("connection",connectionClass);
 }
