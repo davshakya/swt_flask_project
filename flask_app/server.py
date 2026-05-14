@@ -1922,7 +1922,7 @@ def admin_node_status_fields(entry, service_config=None):
     service_config = service_config or {}
     node_role = str(entry.get("node_role") or "").strip().lower()
     online = admin_device_is_online(entry)
-    master_label = "Online" if online else "Offline"
+    master_label = "Master Reachable" if online else "Master Unreachable"
     master_tone = "online" if online else "offline"
 
     slave_configured = bool(service_config.get("slave_device_enabled", True))
@@ -1930,7 +1930,7 @@ def admin_node_status_fields(entry, service_config=None):
         return {
             "master_status_label": master_label,
             "master_status_tone": master_tone,
-            "slave_status_label": "Disabled",
+            "slave_status_label": "Slave Disabled",
             "slave_status_tone": "clear",
         }
 
@@ -1938,25 +1938,32 @@ def admin_node_status_fields(entry, service_config=None):
         return {
             "master_status_label": "--",
             "master_status_tone": "clear",
-            "slave_status_label": "Online" if online else "Offline",
+            "slave_status_label": "Slave Reachable" if online else "Slave Unreachable",
             "slave_status_tone": "online" if online else "offline",
         }
 
-    upper_sensor = str(
-        entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor") or ""
+    lower_tank_service = str(entry.get("lower_tank_service") or "").strip().upper()
+    lower_sensor = str(
+        entry.get("lower_sensor") or entry.get("source_sensor") or ""
     ).strip().upper()
     if not online:
-        slave_label = "Offline"
+        slave_label = "Slave Unreachable"
         slave_tone = "offline"
-    elif upper_sensor == "OK":
-        slave_label = "Online"
+    elif lower_tank_service in {"ON", "OK"}:
+        slave_label = "Slave Reachable"
         slave_tone = "online"
-    elif upper_sensor in {"DISABLED", "OFF"}:
-        slave_label = "Disabled"
-        slave_tone = "clear"
+    elif lower_tank_service in {"DISABLED", "OFF"} or lower_sensor in {"DISABLED", "OFF"}:
+        slave_label = "Slave Unreachable"
+        slave_tone = "offline"
+    elif lower_sensor and lower_sensor not in {"DISABLED", "OFF", "--"}:
+        slave_label = "Slave Reachable"
+        slave_tone = "online"
+    elif lower_tank_service in {"UNKNOWN", ""}:
+        slave_label = "Slave Unreachable"
+        slave_tone = "offline"
     else:
-        slave_label = "No data"
-        slave_tone = "warning"
+        slave_label = "Slave Disabled"
+        slave_tone = "clear"
 
     return {
         "master_status_label": master_label,
