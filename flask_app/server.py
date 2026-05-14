@@ -10182,19 +10182,18 @@ def customer_dashboard():
 
 
 @app.route("/devices/<device_id>")
-@login_required
+@admin_required
 def device_detail_page(device_id):
-    customer_cloud_feed_abort_if_disabled()
     scoped_device_id = current_scope_device_id(device_id)
-    account = fetch_customer_account(scoped_device_id) if is_admin_user() else None
-    service_config = fetch_device_service_config(scoped_device_id, account=account) if is_admin_user() else {}
+    account = fetch_customer_account(scoped_device_id)
+    service_config = fetch_device_service_config(scoped_device_id, account=account)
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
-        is_admin=is_admin_user(),
+        is_admin=True,
         customer_account=account,
         service_config=service_config,
-        latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id) if is_admin_user() else None,
+        latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
     )
@@ -10284,11 +10283,8 @@ def admin_device_detail_customer_password(device_id):
 
 
 @app.route("/devices/<device_id>/status")
-@login_required
+@admin_required
 def device_detail_status(device_id):
-    response = customer_cloud_feed_block_response()
-    if response:
-        return response
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
