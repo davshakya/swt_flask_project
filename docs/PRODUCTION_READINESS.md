@@ -10,8 +10,8 @@ As the repo stands today:
 
 - firmware, Flask, and Android flows are implemented
 - automated tests exist for Flask, API, UI, ML helpers, and virtual-device tooling in `../swt_test_cases_project`
-- Render deployment wiring exists for a MySQL/MariaDB-backed web service
 - cPanel/Passenger deployment guidance exists in `../Flask_deployment_README.md`
+- gunicorn and Passenger entrypoints exist for MySQL/MariaDB-backed hosting
 - pilot and support workflows still need disciplined execution before scale
 
 The right framing today is:
@@ -64,7 +64,7 @@ For hosted deployment:
 - avoid ephemeral filesystems for production state
 - monitor database storage, backup status, and retention windows
 
-The repo's Render config expects MySQL/MariaDB connection settings through `DATABASE_URL` or `MYSQL_*` environment variables.
+The deployed backend expects MySQL/MariaDB connection settings through `DATABASE_URL` or `MYSQL_*` environment variables.
 
 ## 4. Monitoring And Alerting
 

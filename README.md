@@ -43,7 +43,6 @@ Within the wider workspace:
 | `device.env.example` | Example shared device identity/settings file |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
 | `gunicorn.conf.py` | Root wrapper that loads `flask_app/gunicorn.conf.py` |
-| `render.yaml` | Render deployment definition |
 | `Procfile` | Procfile for gunicorn-based platforms |
 | `Flask_deployment_README.md` | cPanel / Passenger deployment guide |
 | `scripts/` | Operational and data utility scripts |
@@ -201,7 +200,7 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `LEVEL_FORECAST_MODEL_PATH`: Optional custom path to the forecast artifact.
 - `MOBILE_TOKEN_MAX_AGE_HOURS`: Lifetime for mobile API tokens.
 
-Check [`flask_app/.env.example`](flask_app/.env.example) and [`render.yaml`](render.yaml) for the currently wired defaults.
+Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired backend defaults.
 
 ## Main Routes and APIs
 
@@ -359,18 +358,14 @@ Use that repo for:
 
 This repository already includes:
 
-- [`render.yaml`](render.yaml)
 - [`Procfile`](Procfile)
 - gunicorn config in [`flask_app/gunicorn.conf.py`](flask_app/gunicorn.conf.py)
 
-Current Render wiring:
+Typical gunicorn wiring:
 
-- runtime: Python
-- Python version: `3.11.11`
-- build command: `pip install -r requirements.txt`
+- install command: `pip install -r requirements.txt`
 - start command: `gunicorn server:app --config flask_app/gunicorn.conf.py`
 - health check: `/health`
-- persistent disk mount path: `/var/data`
 
 Before deploying:
 

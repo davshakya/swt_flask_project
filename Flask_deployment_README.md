@@ -7,7 +7,6 @@ This guide is specifically for deploying the `swt_flask_project` backend from th
 Use this file together with:
 
 - [`README.md`](README.md) for local setup, API surface, scripts, and testing
-- [`render.yaml`](render.yaml) if you are comparing cPanel deployment with the Render deployment shape
 - [`scripts/upload_repo_ftps.py`](scripts/upload_repo_ftps.py) if you are pushing code to the host over FTPS
 
 The deployment target referenced in this repo today is `https://salewell.co.in/`.
