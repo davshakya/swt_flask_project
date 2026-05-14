@@ -162,8 +162,8 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                 </div>
             </div>
             <div class="pair">
-                <div class="mini"><span class="label">Time To Empty</span><strong id="timeToEmpty">--</strong></div>
                 <div class="mini"><span class="label">Tank Health</span><strong id="healthScore">--</strong></div>
+                <div class="mini"><span class="label">Connection</span><strong id="tankConnectionSummary">--</strong></div>
             </div>
         </div>
         <div class="panel hero-copy">
@@ -280,9 +280,9 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                     <p id="customerHeroInsightLead">Live tank level and usage insight will appear here as soon as fresh data arrives.</p>
                     <div class="customer-hero-meta">
                         <div class="customer-hero-stat">
-                            <span>Time to empty</span>
-                            <strong id="customerHeroTimeToEmpty">--</strong>
-                            <div id="customerHeroTimeToEmptyNote">This estimate updates as usage changes.</div>
+                            <span>Tank level</span>
+                            <strong id="customerHeroTankLevel">--</strong>
+                            <div id="customerHeroTankLevelNote">Current usable water appears after sync.</div>
                         </div>
                         <div class="customer-hero-stat">
                             <span>AI confidence</span>
@@ -346,9 +346,6 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
         <div class="grid metrics">
             <div class="card"><span class="label">Pump State</span><div id="motor" class="value">--</div><div id="mode" class="subvalue">--</div></div>
             <div class="card"><span class="label">Pump Guidance</span><div id="auto_status" class="statuscopy">--</div><div id="auto_timer" class="subvalue">--</div><div id="auto_status_note" class="subvalue">Waiting for device telemetry</div></div>
-            <div class="card"><span class="label">Current Pump Run</span><div id="current_runtime" class="value">--</div><div id="runtime" class="subvalue">Last run --</div></div>
-            <div class="card"><span class="label">Fill ETA</span><div id="fill_time" class="value">--</div><div class="subvalue">Latest cycle estimate</div></div>
-            <div class="card"><span class="label">{% if is_admin %}Live Usage Rate{% else %}Current Use Trend{% endif %}</span><div id="ai_usage_rate" class="value">--</div><div class="subvalue">{% if is_admin %}Device-side estimate{% else %}Live draw estimate from the device{% endif %}</div></div>
             {% if is_admin %}
             <div class="card"><span class="label">Device Forecast</span><div id="tomorrow_prediction" class="value">--</div><div class="subvalue">Direct device forecast</div></div>
             {% else %}
@@ -368,12 +365,10 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
     <section class="customer-only customer-section-grid" style="margin-top:18px">
         <div class="panel customer-group-panel">
             <div class="eyebrow">Pump Section</div>
-            <h3>Status, mode, and runtime</h3>
+            <h3>Status and mode</h3>
             <div class="customer-stat-grid">
                 <div class="card"><span class="label">Pump state</span><div id="motor" class="value">--</div><div id="mode" class="subvalue">--</div></div>
                 <div class="card"><span class="label">Pump guidance</span><div id="auto_status" class="statuscopy">--</div><div id="auto_timer" class="subvalue">--</div><div id="auto_status_note" class="subvalue">Waiting for device telemetry</div></div>
-                <div class="card"><span class="label">Current run</span><div id="current_runtime" class="value">--</div><div id="runtime" class="subvalue">Last run --</div></div>
-                <div class="card"><span class="label">Fill ETA</span><div id="fill_time" class="value">--</div><div class="subvalue">Latest cycle estimate</div></div>
             </div>
             <div class="glance-grid customer-health-card">
                 <div class="glance-item">
@@ -402,9 +397,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
             <div class="customer-stat-grid">
-                <div class="card"><span class="label">Live usage</span><div id="ai_usage_rate" class="value">--</div><div class="subvalue">Current device-side draw estimate</div></div>
                 <div class="card"><span class="label">Usage trend</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">Trend updates after analytics loads.</div></div>
-                <div class="card"><span class="label">Time until empty</span><div id="time_empty" class="value">--</div><div class="subvalue">Based on the current pattern</div></div>
                 <div class="card"><span class="label">Forecast tomorrow</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Expected demand for the next day</div></div>
                 <div class="card"><span class="label">Consumption rate</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Average draw per hour</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">--</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
@@ -452,7 +445,6 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             <div class="card"><span class="label">Lowest Usage Day</span><div id="lowest_usage_day" class="value">--</div><div id="lowest_usage_value" class="subvalue">--</div></div>
             <div class="card"><span class="label">Usage Change</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">--</div></div>
             <div class="card"><span class="label">Average Level</span><div id="avg_level" class="value">--</div><div id="min_max_level" class="subvalue">--</div></div>
-            <div class="card"><span class="label">Time Until Empty</span><div id="time_empty" class="value">--</div><div class="subvalue">Based on selected range</div></div>
             {% else %}
             <div class="card"><span class="label">Average Daily Usage</span><div id="avg_daily_usage" class="value">--</div><div id="avg_daily_usage_text" class="subvalue">--</div></div>
             <div class="card"><span class="label">Peak Usage Day</span><div id="peak_usage_day" class="value">--</div><div id="peak_usage_value" class="subvalue">--</div></div>
@@ -802,6 +794,8 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
         insightLead:summary,
         actionTitle,
         actionNote,
+        waterLevelText:fmtPct(snapshot.level),
+        waterLevelNote:snapshot.water_available_label||"Waiting for usable water information.",
         timeLabel,
         timeNote:timeLabel==="--"?"Time-to-empty needs a little more live history.":summary,
         confidenceScore,
@@ -827,6 +821,8 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
             insightLead:"Live tank level, sync status, and remote pump control are temporarily unavailable.",
             actionTitle:"Ask the admin to re-enable cloud access",
             actionNote:"Remote control and analytics will return automatically after cloud feed is restored.",
+            waterLevelText:"--",
+            waterLevelNote:"Current usable water appears after cloud feed is restored.",
             timeLabel:"--",
             timeNote:"Time-to-empty needs live data.",
             confidenceScore:56,
@@ -850,6 +846,8 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
             insightLead:"Live tank level and usage insight will appear here after the device reports in.",
             actionTitle:"No action yet",
             actionNote:"Hold off until the first live reading arrives.",
+            waterLevelText:"--",
+            waterLevelNote:"Current usable water appears after sync.",
             timeLabel:"--",
             timeNote:"Time-to-empty appears after live and historical readings are available.",
             confidenceScore:62,
@@ -1037,6 +1035,8 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
         insightLead,
         actionTitle,
         actionNote,
+        waterLevelText:fmtPct(level),
+        waterLevelNote:snapshot.water_available_label||"Waiting for usable water information.",
         timeLabel,
         timeNote:timeSummary,
         confidenceScore:confidenceScoreValue,
@@ -1064,8 +1064,8 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     }
     setText("customerHeroInsightTitle",model.insightTitle);
     setText("customerHeroInsightLead",model.insightLead);
-    setText("customerHeroTimeToEmpty",model.timeLabel);
-    setText("customerHeroTimeToEmptyNote",model.timeNote);
+    setText("customerHeroTankLevel",model.waterLevelText);
+    setText("customerHeroTankLevelNote",model.waterLevelNote);
     setText("customerSuggestedAction",model.actionTitle);
     setText("customerSuggestedActionNote",model.actionNote);
     setText("customerConfidenceScore",model.confidenceText);
@@ -1383,8 +1383,7 @@ function renderTank(snapshot){
     water.style.background=level<=state.preferences.lowThreshold?"var(--water-low)":level>=state.preferences.overflowThreshold?"var(--water-high)":"var(--water-mid)";
     document.getElementById("tankLevel").textContent=fmtPct(level);
     document.getElementById("tankLiters").textContent=snapshot.water_available_label||"--";
-    document.getElementById("timeToEmpty").textContent=fmtHours(snapshot.empty_prediction);
-    document.getElementById("healthScore").textContent=`${snapshot.tank_health??"--"} / 100`;
+    setText("healthScore",`${snapshot.tank_health??"--"} / 100`);
     const sourceState=buildSourceTankState(snapshot);
     const tankStack=document.getElementById("tankStack");
     const sourceBlock=document.getElementById("sourceTankBlock");
@@ -1414,10 +1413,6 @@ function renderSnapshot(snapshot){
     setText("auto_status_note",snapshot.telemetry_status==="stale"
         ?`Snapshot last synced ${localizedLastSync}.`
         :"Reported by device firmware.");
-    setText("runtime",`Last run ${snapshot.last_runtime||"--"}`);
-    setText("current_runtime",snapshot.current_runtime||"--");
-    setText("fill_time",snapshot.fill_time||"--");
-    setText("ai_usage_rate",fmtRatePerHour(snapshot.ai_usage_rate));
     setText("tomorrow_prediction",snapshot.tomorrow_prediction??"--");
     const sensorRaw=String(snapshot.sensor||"").toUpperCase();
     const sensorConnected=sensorRaw==="OK";
@@ -1482,6 +1477,7 @@ function renderSystemStatus(system){
     setText("telemetryStatus",system.telemetry_status||"--");
     setText("lastSync",system.last_sync_at?`${localizedTimeText(system.last_sync_at)} (${ago(system.seconds_since_sync)})`:"No telemetry");
     setText("signalQuality",system.signal_quality||"--");
+    setText("tankConnectionSummary",system.telemetry_status||"--");
     setText("apiVersion",system.swt_version||system.api_version||"--");
     applyStatusTone("serverStatus",String(system.server||"").toLowerCase()==="online"?"ok":"");
     applyStatusTone("deviceStatus",String(system.device||"").toLowerCase()==="online"?"ok":"bad");
@@ -1523,12 +1519,10 @@ function renderAnalytics(data){
     document.getElementById("min_max_level").textContent=analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
         :"Waiting for more synced level history.";
-    document.getElementById("time_empty").textContent=analyticsReady?fmtHours(effectiveEmpty):"--";
     document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
         ?fmtRatePerHour(data.insights?.consumption_rate)
         :"--";
     document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
-    document.getElementById("timeToEmpty").textContent=fmtHours(effectiveEmpty);
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     drawAnalyticsCharts(data);
 }
