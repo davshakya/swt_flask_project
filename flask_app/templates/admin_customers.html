@@ -413,7 +413,8 @@
                         <tr>
                             <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
                             <th>Customer</th>
-                            <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Node Status</button></th>
+                            <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Master Status</button></th>
+                            <th>Slave Status</th>
                             <th>Telemetry</th>
                             <th>Signal</th>
                             <th>Relay</th>
@@ -436,10 +437,10 @@
                                 <div class="cell-sub">{{ device.email or "Email not added" }}</div>
                             </td>
                             <td>
-                                <div class="node-status-stack">
-                                    <span class="pill pill-{{ device.master_status_tone or 'offline' }}">{{ device.master_status_label or "Master Unreachable" }}</span>
-                                    <span class="pill pill-{{ device.slave_status_tone or 'offline' }}">{{ device.slave_status_label or "Slave Unreachable" }}</span>
-                                </div>
+                                <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}">{{ device.master_status_label or "Master Unreachable" }}</span>
+                            </td>
+                            <td>
+                                <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}">{{ device.slave_status_label or "Slave Unreachable" }}</span>
                             </td>
                             <td>{{ device.telemetry_status_label or "--" }}</td>
                             <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
