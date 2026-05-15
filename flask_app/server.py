@@ -7411,18 +7411,24 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
-    source_clause, source_params = device_source_where_clause()
+    source_clause, source_params = device_source_where_clause(column="candidate.device_source")
     query = """
         SELECT *
         FROM tank_data
         WHERE id IN (
-            SELECT MAX(id)
-            FROM tank_data
-            WHERE 
+            SELECT latest.id
+            FROM tank_data latest
+            WHERE latest.id = (
+                SELECT candidate.id
+                FROM tank_data candidate
+                WHERE COALESCE(candidate.device_id, '') = COALESCE(latest.device_id, '')
+                  AND 
     """
     query += source_clause
     query += """
-            GROUP BY COALESCE(device_id, '')
+                ORDER BY candidate.created_at DESC, candidate.id DESC
+                LIMIT 1
+            )
         )
     """
     params = list(source_params)
