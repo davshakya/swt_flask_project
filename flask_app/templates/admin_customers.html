@@ -43,6 +43,8 @@
 .device-table-shell .device-id-cell .cell-sub .device-link{display:inline;max-width:none}
 .device-table-shell .last-sync-cell{white-space:normal;vertical-align:top}
 .device-table-shell .sync-date,.device-table-shell .sync-time{display:block;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.25}
+.device-table-shell .last-sync-cell.is-stale{color:var(--muted)}
+.device-table-shell .last-sync-cell.is-live{color:var(--text);font-weight:800}
 .device-table-shell .pill{vertical-align:middle}
 .node-status-pill{justify-content:center;width:max-content}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
@@ -496,7 +498,7 @@
                             <td>
                                 <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}">{{ device.warning_alert_label or "Clear" }}</span>
                             </td>
-                            <td class="last-sync-cell">
+                            <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}">
                                 {% if device.last_sync_at %}
                                 <span class="sync-date" data-utc-date="{{ device.last_sync_at }}">{{ device.last_sync_at[:10] }}</span>
                                 <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }}</span>

@@ -434,6 +434,7 @@ SMTP_PORT = env_int("SMTP_PORT", 587)
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
 SMTP_USE_TLS = env_flag("SMTP_USE_TLS", default=True)
+SMTP_USE_SSL = env_flag("SMTP_USE_SSL", default=False)
 SMTP_TIMEOUT_SECONDS = max(3, env_int("SMTP_TIMEOUT_SECONDS", 10))
 LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
@@ -1773,10 +1774,13 @@ def validate_sales_enquiry_payload(form):
 
     return cleaned, errors
 def handle_role_login(mode):
-    if is_logged_in():
-        return redirect(dashboard_home_url())
+    expected_role = "admin" if mode == "admin" else "customer"
+    if request.method == "GET" and is_logged_in():
+        if current_user_role() == expected_role:
+            return redirect(dashboard_home_url())
+        session.clear()
 
-    default_url = dashboard_home_url("admin" if mode == "admin" else "customer")
+    default_url = dashboard_home_url(expected_role)
     next_url = resolve_next_url(default_url)
     error = None
 
@@ -1784,8 +1788,8 @@ def handle_role_login(mode):
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         authenticated_user = authenticate_dashboard_user(username, password)
-        expected_role = "admin" if mode == "admin" else "customer"
         if authenticated_user and authenticated_user["role"] == expected_role:
+            session.clear()
             session["logged_in"] = True
             session["username"] = authenticated_user["username"]
             session["role"] = authenticated_user["role"]
@@ -4306,8 +4310,9 @@ def send_customer_email(to_email, subject, body, category="transactional", accou
     message["To"] = normalized_email
     message["Subject"] = subject
     message.set_content(body)
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
-        if SMTP_USE_TLS:
+    smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
+    with smtp_client(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
+        if SMTP_USE_TLS and not SMTP_USE_SSL:
             smtp.starttls()
         if SMTP_USERNAME:
             smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
@@ -9254,25 +9259,28 @@ def customer_forgot_password():
     if request.method == "POST":
         identifier = str(request.form.get("identifier", "")).strip()
         account = None
-        if "@" in identifier:
-            try:
-                account = fetch_customer_account_by_email(identifier)
-            except ValueError:
-                account = None
+        if not SMTP_HOST:
+            error = "Password reset email is not configured on this server. Ask the admin to set SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD."
         else:
-            account = fetch_customer_account(identifier)
-        if account and account.get("email") and int(account.get("active", 1) or 0) == 1:
-            token, _expires_at = create_customer_password_reset(account)
-            send_customer_password_reset(account, token)
-            log_audit_event(
-                actor="customer-self-service",
-                action="request_customer_password_reset",
-                target_type="customer_account",
-                target_id=account["device_id"],
-                device_id=account["device_id"],
-                details={"email": account.get("email")},
-            )
-        success = "If that customer account has an email on file, a reset link has been sent."
+            if "@" in identifier:
+                try:
+                    account = fetch_customer_account_by_email(identifier)
+                except ValueError:
+                    account = None
+            else:
+                account = fetch_customer_account(identifier)
+            if account and account.get("email") and int(account.get("active", 1) or 0) == 1:
+                token, _expires_at = create_customer_password_reset(account)
+                send_customer_password_reset(account, token)
+                log_audit_event(
+                    actor="customer-self-service",
+                    action="request_customer_password_reset",
+                    target_type="customer_account",
+                    target_id=account["device_id"],
+                    device_id=account["device_id"],
+                    details={"email": account.get("email")},
+                )
+            success = "If that customer account has an email on file, a reset link has been sent."
     return render_template_string(
         CUSTOMER_PASSWORD_RESET_TEMPLATE,
         mode="request",
