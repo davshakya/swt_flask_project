@@ -21,6 +21,22 @@
 .device-table-shell .admin-table tbody tr td{background:rgba(255,255,255,.62)!important}
 .device-table-shell .admin-table tbody tr:hover td{background:rgba(239,250,251,.96)!important}
 .device-table-shell .admin-table tbody tr.has-alerts td:first-child{box-shadow:inset 4px 0 0 rgba(218,79,99,.42)}
+.device-table-shell .admin-table{min-width:1380px}
+.device-table-shell .admin-table th:nth-child(1){width:19%}.device-table-shell .admin-table th:nth-child(2){width:13%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:7%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:8%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:8%}.device-table-shell .admin-table th:nth-child(10){width:8%}.device-table-shell .admin-table th:nth-child(11){width:8%}
+.device-table-shell .admin-table th,.device-table-shell .admin-table td{white-space:nowrap;vertical-align:middle;overflow:hidden;text-overflow:ellipsis}
+.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding-left:5px;padding-right:5px}
+.device-table-shell .admin-table thead .sort-button{white-space:nowrap}
+.device-table-shell .cell-main,.device-table-shell .cell-sub{display:inline-block;max-width:48%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal;vertical-align:baseline}
+.device-table-shell .cell-sub{margin-top:0}
+.device-table-shell .cell-sub::before{content:"  | ";color:var(--muted)}
+.device-table-shell .device-link{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:baseline}
+.device-table-shell .device-id-cell .device-link{max-width:56%}
+.device-table-shell .device-id-cell .cell-sub{max-width:42%}
+.device-table-shell .admin-table td:nth-child(2),.device-table-shell .admin-table td:nth-child(9){white-space:normal;vertical-align:top}
+.device-table-shell .admin-table td:nth-child(2) .cell-main,.device-table-shell .admin-table td:nth-child(2) .cell-sub,.device-table-shell .admin-table td:nth-child(9) .cell-main,.device-table-shell .admin-table td:nth-child(9) .cell-sub{display:block;max-width:100%;white-space:nowrap}
+.device-table-shell .admin-table td:nth-child(2) .cell-sub,.device-table-shell .admin-table td:nth-child(9) .cell-sub{margin-top:2px}
+.device-table-shell .admin-table td:nth-child(2) .cell-sub::before,.device-table-shell .admin-table td:nth-child(9) .cell-sub::before{content:""}
+.device-table-shell .pill{vertical-align:middle}
 .node-status-pill{justify-content:center;width:max-content}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-form,.inline-form.inline-form-wide{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
@@ -420,7 +436,6 @@
                             <th>Slave Status</th>
                             <th>Telemetry</th>
                             <th>Signal</th>
-                            <th>Relay</th>
                             <th>Upper Sensor</th>
                             <th>Lower Sensor</th>
                             <th>Tank</th>
@@ -431,7 +446,7 @@
                     <tbody id="device_table_body">
                         {% for device in available_devices %}
                         <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
-                            <td>
+                            <td class="device-id-cell">
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
                                 <div class="cell-sub">Local: {% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% elif device.source_ip %}{{ device.source_ip }}{% else %}--{% endif %}</div>
                             </td>
@@ -449,9 +464,6 @@
                             </td>
                             <td>{{ device.telemetry_status_label or "--" }}</td>
                             <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
-                            <td>
-                                <span class="pill node-status-pill pill-{{ device.relay_status_tone or 'offline' }}">{{ device.relay_status_label or "Unreachable" }}</span>
-                            </td>
                             <td>
                                 <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}">{{ device.upper_sensor_status_label or "Unreachable" }}</span>
                             </td>
