@@ -1389,6 +1389,54 @@ def clear_runtime_caches(device_id=None):
     forget_alert_touches_for_device(normalized_device_id)
 
 
+def dashboard_identity_prefix(role):
+    return "admin" if role == "admin" else "customer"
+
+
+def clear_dashboard_identity(role=None):
+    prefix = dashboard_identity_prefix(role or session.get("role") or "customer")
+    for key in ("logged_in", "username", "role", "device_id", "auth_marker"):
+        session.pop(key, None)
+    for key in ("logged_in", "username", "device_id", "auth_marker"):
+        session.pop(f"{prefix}_{key}", None)
+
+
+def set_active_dashboard_identity(role, username, device_id=None, auth_marker=None):
+    session["logged_in"] = True
+    session["username"] = username
+    session["role"] = role
+    session["device_id"] = device_id
+    session["auth_marker"] = auth_marker
+
+
+def store_dashboard_identity(authenticated_user):
+    role = authenticated_user["role"]
+    prefix = dashboard_identity_prefix(role)
+    session[f"{prefix}_logged_in"] = True
+    session[f"{prefix}_username"] = authenticated_user["username"]
+    session[f"{prefix}_device_id"] = authenticated_user.get("device_id")
+    session[f"{prefix}_auth_marker"] = authenticated_user.get("auth_marker")
+    set_active_dashboard_identity(
+        role,
+        authenticated_user["username"],
+        authenticated_user.get("device_id"),
+        authenticated_user.get("auth_marker"),
+    )
+
+
+def activate_dashboard_identity(role):
+    prefix = dashboard_identity_prefix(role)
+    if not session.get(f"{prefix}_logged_in"):
+        return False
+    set_active_dashboard_identity(
+        role,
+        session.get(f"{prefix}_username"),
+        session.get(f"{prefix}_device_id"),
+        session.get(f"{prefix}_auth_marker"),
+    )
+    return is_logged_in()
+
+
 def current_session_auth_marker():
     if not session.get("logged_in"):
         return None
@@ -1593,27 +1641,33 @@ def is_logged_in():
     expected_auth_marker = current_session_auth_marker()
     if stored_auth_marker and expected_auth_marker and secrets.compare_digest(stored_auth_marker, expected_auth_marker):
         return True
-    session.clear()
+    clear_dashboard_identity()
     return False
 
 
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if is_logged_in():
+        if is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer"):
             return view(*args, **kwargs)
         return redirect(url_for("customer_login", next=request.path))
 
     return wrapped
 
 
+def role_mismatch_response():
+    if request.method in {"GET", "HEAD"}:
+        return redirect(dashboard_home_url())
+    abort(403)
+
+
 def admin_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not is_logged_in():
+        if not activate_dashboard_identity("admin"):
             return redirect(url_for("admin_login", next=request.path))
         if not is_admin_user():
-            abort(403)
+            return role_mismatch_response()
         return view(*args, **kwargs)
 
     return wrapped
@@ -1622,10 +1676,10 @@ def admin_required(view):
 def customer_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if not is_logged_in():
+        if not activate_dashboard_identity("customer"):
             return redirect(url_for("customer_login", next=request.path))
         if current_user_role() != "customer":
-            abort(403)
+            return role_mismatch_response()
         return view(*args, **kwargs)
 
     return wrapped
@@ -1775,10 +1829,8 @@ def validate_sales_enquiry_payload(form):
     return cleaned, errors
 def handle_role_login(mode):
     expected_role = "admin" if mode == "admin" else "customer"
-    if request.method == "GET" and is_logged_in():
-        if current_user_role() == expected_role:
-            return redirect(dashboard_home_url())
-        session.clear()
+    if request.method == "GET" and activate_dashboard_identity(expected_role):
+        return redirect(dashboard_home_url(expected_role))
 
     default_url = dashboard_home_url(expected_role)
     next_url = resolve_next_url(default_url)
@@ -1789,12 +1841,7 @@ def handle_role_login(mode):
         password = request.form.get("password", "")
         authenticated_user = authenticate_dashboard_user(username, password)
         if authenticated_user and authenticated_user["role"] == expected_role:
-            session.clear()
-            session["logged_in"] = True
-            session["username"] = authenticated_user["username"]
-            session["role"] = authenticated_user["role"]
-            session["device_id"] = authenticated_user.get("device_id")
-            session["auth_marker"] = authenticated_user.get("auth_marker")
+            store_dashboard_identity(authenticated_user)
             session.permanent = True
             destination = next_url if can_access_next_url(authenticated_user["role"], next_url) else dashboard_home_url(authenticated_user["role"])
             logger.info(
