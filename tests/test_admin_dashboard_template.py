@@ -86,3 +86,14 @@ def test_project_device_env_can_disable_local_relay_defaults():
     assert '"RELAY_COMMAND_URLS"' in server_source
     assert "blank_overrides.add(key)" in server_source
     assert "if key in blank_overrides:" in server_source
+
+
+def test_admin_slave_status_uses_direct_peer_packet_freshness():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "DIRECT_PEER_STALE_AFTER_SECONDS" in server_source
+    assert "def direct_peer_packet_is_fresh" in server_source
+    assert "peer_packet_fresh = direct_peer_packet_is_fresh(entry)" in server_source
+    assert '"direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s")' in server_source
+    assert 'cleaned.get("direct_peer_last_packet_age_s")' in server_source
+    assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source

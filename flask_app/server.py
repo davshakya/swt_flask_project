@@ -449,6 +449,7 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
+DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
@@ -1928,6 +1929,19 @@ def admin_telemetry_status_label(value):
     return normalized.replace("-", " ").title() if normalized else "--"
 
 
+def direct_peer_packet_is_fresh(entry):
+    if str(entry.get("direct_peer") or "").strip().lower() in {"disabled", "off"}:
+        return None
+    raw_age = entry.get("direct_peer_last_packet_age_s")
+    try:
+        age = int(raw_age)
+    except (TypeError, ValueError):
+        return None
+    if age < 0:
+        return False
+    return age <= DIRECT_PEER_STALE_AFTER_SECONDS
+
+
 def admin_node_status_fields(entry, service_config=None):
     service_config = service_config or {}
     node_role = str(entry.get("node_role") or "").strip().lower()
@@ -1950,6 +1964,17 @@ def admin_node_status_fields(entry, service_config=None):
             "master_status_tone": "clear",
             "slave_status_label": "Reachable" if online else "Unreachable",
             "slave_status_tone": "online" if online else "offline",
+        }
+
+    peer_packet_fresh = direct_peer_packet_is_fresh(entry)
+    if peer_packet_fresh is not None:
+        slave_label = "Reachable" if online and peer_packet_fresh else "Unreachable"
+        slave_tone = "online" if online and peer_packet_fresh else "offline"
+        return {
+            "master_status_label": master_label,
+            "master_status_tone": master_tone,
+            "slave_status_label": slave_label,
+            "slave_status_tone": slave_tone,
         }
 
     lower_tank_service = str(entry.get("lower_tank_service") or "").strip().upper()
@@ -2128,6 +2153,10 @@ def build_admin_device_entry(device_id, snapshot=None):
         "arch_id": payload.get("arch_id"),
         "node_role": payload.get("node_role"),
         "device_type": payload.get("device_type"),
+        "direct_peer": payload.get("direct_peer"),
+        "direct_peer_remote_ip": payload.get("direct_peer_remote_ip"),
+        "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
+        "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -2926,6 +2955,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("arch_id"),
         cleaned.get("node_role"),
         cleaned.get("device_type"),
+        cleaned.get("direct_peer"),
+        cleaned.get("direct_peer_remote_ip"),
+        cleaned.get("direct_peer_last_packet_age_s"),
+        cleaned.get("direct_peer_last_packet_bytes"),
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -2950,7 +2983,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
-                arch_id, node_role, device_type
+                arch_id, node_role, device_type,
+                direct_peer, direct_peer_remote_ip, direct_peer_last_packet_age_s,
+                direct_peer_last_packet_bytes
             )
             VALUES ({placeholders})
             """,
@@ -3359,6 +3394,10 @@ def ensure_tank_data_columns(cursor):
         "arch_id": "TEXT",
         "node_role": "TEXT",
         "device_type": "TEXT",
+        "direct_peer": "TEXT",
+        "direct_peer_remote_ip": "TEXT",
+        "direct_peer_last_packet_age_s": "INTEGER",
+        "direct_peer_last_packet_bytes": "INTEGER",
     }
 
     for column, definition in required.items():
@@ -3438,6 +3477,10 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             arch_id TEXT,
             node_role TEXT,
             device_type TEXT,
+            direct_peer TEXT,
+            direct_peer_remote_ip TEXT,
+            direct_peer_last_packet_age_s INTEGER,
+            direct_peer_last_packet_bytes INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -3896,6 +3939,10 @@ def init_db():
                 arch_id TEXT,
                 node_role TEXT,
                 device_type TEXT,
+                direct_peer TEXT,
+                direct_peer_remote_ip TEXT,
+                direct_peer_last_packet_age_s INTEGER,
+                direct_peer_last_packet_bytes INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -5267,6 +5314,13 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["buzzer_service"] = normalize_service_state(data.get("buzzer_service"))
     data["led_display_service"] = normalize_service_state(data.get("led_display_service"))
     data["local_firmware_upload_service"] = normalize_service_state(data.get("local_firmware_upload_service"))
+    data["direct_peer"] = str(data.get("direct_peer") or "").strip().lower()
+    data["direct_peer_remote_ip"] = str(data.get("direct_peer_remote_ip") or "").strip()
+    for key in ("direct_peer_last_packet_age_s", "direct_peer_last_packet_bytes"):
+        try:
+            data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
+        except (TypeError, ValueError):
+            data[key] = None
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -5757,6 +5811,10 @@ def build_empty_snapshot_payload(device_id=None):
         "buzzer_service": "UNKNOWN",
         "led_display_service": "UNKNOWN",
         "local_firmware_upload_service": "UNKNOWN",
+        "direct_peer": "",
+        "direct_peer_remote_ip": "",
+        "direct_peer_last_packet_age_s": None,
+        "direct_peer_last_packet_bytes": None,
         "uptime_label": "--",
         "free_heap_label": "--",
         "lower_tank_level": None,
