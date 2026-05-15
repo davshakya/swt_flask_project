@@ -2031,7 +2031,10 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
 
     relay_service = str(entry.get("command_service") or entry.get("relay_service") or "").strip().upper()
     relay_enabled = relay_service not in {"DISABLED", "OFF"}
-    relay_label, relay_tone = admin_reachable_status_fields(relay_enabled, online and relay_enabled)
+    if bool_flag(entry.get("pump_failure")) or bool_flag(entry.get("dry_run")):
+        relay_label, relay_tone = "No level rise", "warning"
+    else:
+        relay_label, relay_tone = admin_reachable_status_fields(relay_enabled, online and relay_enabled)
 
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
