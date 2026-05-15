@@ -717,6 +717,16 @@ RELAY_STATUS_URL_LIST = parse_relay_url_list(RELAY_STATUS_URLS, "/status")
 RELAY_COMMAND_URL_LIST = parse_relay_url_list(RELAY_COMMAND_URLS, "/device/command")
 
 
+def resolve_device_key_value(value):
+    text = str(value or "").strip()
+    if text == "SWT_DEVICE_API_KEY":
+        return os.environ.get("SWT_DEVICE_API_KEY", "").strip()
+    env_reference = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", text)
+    if env_reference:
+        return os.environ.get(env_reference.group(1), "").strip()
+    return text
+
+
 def parse_device_key_registry(value):
     registry = {}
     for item in parse_url_list(value):
@@ -724,7 +734,7 @@ def parse_device_key_registry(value):
             continue
         device_id, key = item.split(":", 1)
         device_id = device_id.strip()
-        key = key.strip()
+        key = resolve_device_key_value(key)
         if not device_id or not key or "*" in device_id:
             continue
         registry[device_id] = key
@@ -738,7 +748,7 @@ def parse_device_key_wildcard_rules(value):
             continue
         device_id, key = item.split(":", 1)
         device_id = device_id.strip()
-        key = key.strip()
+        key = resolve_device_key_value(key)
         if not device_id or not key or "*" not in device_id:
             continue
         if device_id.count("*") != 1 or not device_id.endswith("*"):
@@ -7528,7 +7538,11 @@ def fetch_local_device_status(base_url, device_id=None):
     if not status_url:
         raise ValueError("local device URL is not configured")
 
-    username = normalize_device_id(device_id) or normalize_device_id(os.environ.get("SWT_DEVICE_ID", ""))
+    username = (
+        normalize_device_id(device_id)
+        or os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+        or normalize_device_id(os.environ.get("SWT_DEVICE_ID", ""))
+    )
     password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
     timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
     auth = (username, password) if username and password else None
