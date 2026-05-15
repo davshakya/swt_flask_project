@@ -450,15 +450,13 @@
                             <td>{{ device.telemetry_status_label or "--" }}</td>
                             <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
                             <td>
-                                <span class="pill pill-{{ device.relay_status_tone or 'clear' }}">{{ device.relay_status_label or "Relay --" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.relay_status_tone or 'offline' }}">{{ device.relay_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
-                                {% set upper_sensor_status = device.upper_sensor or device.sensor or "--" %}
-                                <span class="pill pill-{{ 'online' if upper_sensor_status == 'OK' else 'clear' if upper_sensor_status in ['DISABLED', 'OFF', '--'] else 'warning' }}">{{ upper_sensor_status }}</span>
+                                <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}">{{ device.upper_sensor_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
-                                {% set lower_sensor_status = device.lower_sensor or "--" %}
-                                <span class="pill pill-{{ 'online' if lower_sensor_status == 'OK' else 'clear' if lower_sensor_status in ['DISABLED', 'OFF', '--'] else 'warning' }}">{{ lower_sensor_status }}</span>
+                                <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}">{{ device.lower_sensor_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main">

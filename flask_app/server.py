@@ -1973,25 +1973,56 @@ def admin_node_status_fields(entry, service_config=None):
     }
 
 
-def admin_relay_sensor_status_fields(entry):
-    motor = str(entry.get("motor") or "").strip().upper()
+def admin_reachable_status_fields(enabled, reachable):
+    if not enabled:
+        return "Disabled", "clear"
+    if reachable:
+        return "Reachable", "online"
+    return "Unreachable", "offline"
 
-    if motor == "ON":
-        relay_label = "Relay ON"
-        relay_tone = "online"
-    elif motor == "OFF":
-        relay_label = "Relay OFF"
-        relay_tone = "clear"
-    elif admin_device_is_online(entry):
-        relay_label = "Relay unknown"
-        relay_tone = "warning"
-    else:
-        relay_label = "Relay offline"
-        relay_tone = "offline"
+
+def admin_sensor_reachable(raw_status):
+    normalized = str(raw_status or "").strip().upper()
+    if normalized in {"OK", "ON", "READY", "CONNECTED", "HEALTHY"}:
+        return True
+    if normalized in {"DISABLED", "OFF", "--", "UNKNOWN", "ERROR", "FAULT", "DISCONNECTED", "TIMEOUT", ""}:
+        return False
+    return True
+
+
+def admin_relay_sensor_status_fields(entry, service_config=None):
+    service_config = service_config or {}
+    online = admin_device_is_online(entry)
+
+    relay_service = str(entry.get("command_service") or entry.get("relay_service") or "").strip().upper()
+    relay_enabled = relay_service not in {"DISABLED", "OFF"}
+    relay_label, relay_tone = admin_reachable_status_fields(relay_enabled, online and relay_enabled)
+
+    upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
+    upper_enabled = bool(service_config.get("main_sensor_enabled", True))
+    if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
+        upper_enabled = False
+    upper_label, upper_tone = admin_reachable_status_fields(
+        upper_enabled,
+        online and upper_enabled and admin_sensor_reachable(upper_sensor),
+    )
+
+    lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
+    lower_enabled = bool(service_config.get("source_tank_monitoring_enabled", True))
+    if str(lower_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
+        lower_enabled = False
+    lower_label, lower_tone = admin_reachable_status_fields(
+        lower_enabled,
+        online and lower_enabled and admin_sensor_reachable(lower_sensor),
+    )
 
     return {
         "relay_status_label": relay_label,
         "relay_status_tone": relay_tone,
+        "upper_sensor_status_label": upper_label,
+        "upper_sensor_status_tone": upper_tone,
+        "lower_sensor_status_label": lower_label,
+        "lower_sensor_status_tone": lower_tone,
     }
 
 
@@ -2232,7 +2263,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         )
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
-        entry.update(admin_relay_sensor_status_fields(entry))
+        entry.update(admin_relay_sensor_status_fields(entry, service_config))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
@@ -4735,11 +4766,10 @@ def upsert_device_service_config(
 
 def build_device_service_command(service_config):
     config = service_config or {}
-    source_tank_enabled = (
-        bool(config.get("source_tank_monitoring_enabled"))
-        and bool(config.get("slave_device_enabled", True))
-    )
-    return "SERVICECFG2:{source}:{buzzer}:{led}:{ota}:{upload}".format(
+    slave_device_enabled = bool(config.get("slave_device_enabled", True))
+    source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
+    return "SERVICECFG3:{slave}:{source}:{buzzer}:{led}:{ota}:{upload}".format(
+        slave=1 if slave_device_enabled else 0,
         source=1 if source_tank_enabled else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
         led=1 if bool(config.get("led_display_enabled")) else 0,
@@ -4769,6 +4799,7 @@ def authenticate_dashboard_user(username, password):
         "username": normalized_username,
         "device_id": normalized_username,
         "display_name": customer.get("display_name") or normalized_username,
+        "slave_device_enabled": service_config.get("slave_device_enabled", True),
         "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
@@ -4856,6 +4887,7 @@ def resolve_mobile_user():
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
+            "slave_device_enabled": service_config.get("slave_device_enabled", True),
             "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
             "cloud_feed_mode": service_config.get("cloud_feed_mode"),
@@ -8744,6 +8776,7 @@ def mobile_account_password():
             "username": username or device_id,
             "device_id": device_id,
             "display_name": updated_account.get("display_name") or device_id,
+            "slave_device_enabled": updated_service_config.get("slave_device_enabled", True),
             "source_tank_monitoring_enabled": updated_service_config.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": updated_service_config.get("cloud_feed_enabled", True),
             "cloud_feed_mode": updated_service_config.get("cloud_feed_mode"),
