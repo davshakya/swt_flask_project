@@ -46,3 +46,14 @@ def test_dashboard_wrong_role_refresh_redirects_to_active_dashboard():
     assert 'if request.method in {"GET", "HEAD"}:' in source
     assert "return redirect(dashboard_home_url())" in source
     assert "return role_mismatch_response()" in source
+
+
+def test_public_homepage_does_not_redirect_logged_in_users_to_dashboard():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index('def dashboard():')
+    function_source = source[function_start : source.index('\n\n@app.route("/homepage")', function_start)]
+
+    assert "return render_login_page(" in function_source
+    assert "is_logged_in()" not in function_source
+    assert 'redirect(url_for("admin_customers"))' not in function_source
+    assert "render_dashboard_page" not in function_source

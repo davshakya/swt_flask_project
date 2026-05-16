@@ -538,7 +538,7 @@ APP_LOG_LEVEL_NAME = (os.environ.get("APP_LOG_LEVEL") or os.environ.get("LOG_LEV
 APP_LOG_LEVEL = getattr(logging, APP_LOG_LEVEL_NAME, logging.INFO)
 
 
-def logging_ist_converter(timestamp):
+def logging_ist_converter(timestamp, *_args):
     return datetime.fromtimestamp(timestamp, IST_TIMEZONE).timetuple()
 
 
