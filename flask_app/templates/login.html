@@ -2628,6 +2628,8 @@ padding:12px;
         <div class="nav-actions">
             {% set nav_auth = homepage_auth|default({}) %}
             {% set active_homepage_user = nav_auth.active_user|default(homepage_user) %}
+            {% set nav_admin_logged_in = nav_auth.admin_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'admin') %}
+            {% set nav_customer_logged_in = nav_auth.customer_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'customer') %}
             {% if active_homepage_user %}
             <div class="login-status">
                 <span>Logged in as - {{ active_homepage_user.display_name }}</span>
@@ -2644,7 +2646,7 @@ padding:12px;
                     <span>User Login</span>
                 </summary>
                 <div class="user-login-dropdown" aria-label="User login options">
-                    {% if nav_auth.customer_logged_in|default(false) %}
+                    {% if nav_customer_logged_in %}
                     <a
                         class="nav-button"
                         href="{{ url_for('customer_dashboard') }}"
@@ -2656,7 +2658,7 @@ padding:12px;
                         data-role="customer"
                     >Customer Login</a>
                     {% endif %}
-                    {% if nav_auth.admin_logged_in|default(false) %}
+                    {% if nav_admin_logged_in %}
                     <a
                         class="nav-button"
                         href="{{ url_for('admin_customers') }}"
