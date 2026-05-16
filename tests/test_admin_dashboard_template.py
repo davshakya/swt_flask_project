@@ -88,6 +88,18 @@ def test_project_device_env_can_disable_local_relay_defaults():
     assert "if key in blank_overrides:" in server_source
 
 
+def test_project_device_env_can_override_smtp_settings():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    device_env_example = (PROJECT_ROOT / "device.env.example").read_text(encoding="utf-8")
+
+    assert "DEVICE_ENV_OVERRIDE_KEYS" in server_source
+    assert '"SMTP_PASSWORD"' in server_source
+    assert "forced_overrides.add(key)" in server_source
+    assert "if key in forced_overrides:" in server_source
+    assert "SMTP_HOST=mail.salewell.co.in" in device_env_example
+    assert "SMTP_PASSWORD=replace-with-support-mailbox-password" in device_env_example
+
+
 def test_admin_slave_status_uses_direct_peer_packet_freshness():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 

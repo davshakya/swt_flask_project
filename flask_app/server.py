@@ -83,6 +83,17 @@ CLEARABLE_DEVICE_ENV_KEYS = {
     "RELAY_STATUS_URLS",
     "RELAY_COMMAND_URLS",
 }
+DEVICE_ENV_OVERRIDE_KEYS = {
+    "CUSTOMER_COMMUNICATION_FROM_EMAIL",
+    "CUSTOMER_COMMUNICATION_FROM_NAME",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USERNAME",
+    "SMTP_PASSWORD",
+    "SMTP_USE_TLS",
+    "SMTP_USE_SSL",
+    "SMTP_TIMEOUT_SECONDS",
+}
 
 
 def device_config_value_is_placeholder(value):
@@ -103,6 +114,7 @@ def load_workspace_device_env_files(project_root, environ):
     )
     merged_values = {}
     blank_overrides = set()
+    forced_overrides = set()
     for dotenv_path in candidate_paths:
         parsed_values = parse_simple_dotenv(dotenv_path)
         if not parsed_values:
@@ -114,6 +126,10 @@ def load_workspace_device_env_files(project_root, environ):
                     blank_overrides.add(key)
                 else:
                     continue
+            if prefer_real_override and key in DEVICE_ENV_OVERRIDE_KEYS:
+                merged_values[key] = value
+                forced_overrides.add(key)
+                continue
             current_value = merged_values.get(key)
             if current_value is None or device_config_value_is_placeholder(current_value):
                 merged_values[key] = value
@@ -122,7 +138,9 @@ def load_workspace_device_env_files(project_root, environ):
                 merged_values[key] = value
     for key, value in merged_values.items():
         existing_value = environ.get(key)
-        if key in blank_overrides:
+        if key in forced_overrides:
+            environ[key] = value
+        elif key in blank_overrides:
             environ[key] = ""
         elif existing_value is None or device_config_value_is_placeholder(existing_value):
             environ[key] = value

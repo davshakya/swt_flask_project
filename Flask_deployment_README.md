@@ -214,9 +214,20 @@ DEVICE_AUTH_REQUIRED=1
 AUTO_REGISTER_DEVICE_KEYS=0
 AUTO_REGISTER_DEVICE_ID_PREFIXES=swt-
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH=32
+CUSTOMER_COMMUNICATION_FROM_EMAIL=support@salewell.co.in
+CUSTOMER_COMMUNICATION_FROM_NAME=Smart Water Tank Support
+SMTP_HOST=mail.salewell.co.in
+SMTP_PORT=465
+SMTP_USERNAME=support@salewell.co.in
+SMTP_PASSWORD=replace-with-support-mailbox-password
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
+SMTP_TIMEOUT_SECONDS=10
 ```
 
 If you will manage multiple devices, use `SWT_DEVICE_KEYS` in `device.env` for already-known devices. For new devices after deployment, register the device ID and API key from the admin customer page; Flask stores the key hash in the database and no server restart is needed.
+
+The project-level `device.env` is allowed to override SMTP settings even when cPanel environment variables are missing or stale. Restart the Python app after editing `device.env`.
 
 ## cPanel Setup Steps
 
