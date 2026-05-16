@@ -1770,12 +1770,13 @@ def stored_dashboard_identity_is_valid(role):
 
 def homepage_auth_status():
     active_user = homepage_login_status()
+    active_role = (active_user or {}).get("role")
     customer_device_id = normalize_device_id(session.get("customer_device_id"))
     customer_account = fetch_customer_account(customer_device_id) if customer_device_id else None
     return {
         "active_user": active_user,
-        "admin_logged_in": stored_dashboard_identity_is_valid("admin"),
-        "customer_logged_in": stored_dashboard_identity_is_valid("customer"),
+        "admin_logged_in": active_role == "admin" or stored_dashboard_identity_is_valid("admin"),
+        "customer_logged_in": active_role == "customer" or stored_dashboard_identity_is_valid("customer"),
         "customer_display_name": (
             (customer_account or {}).get("display_name")
             or session.get("customer_username")
