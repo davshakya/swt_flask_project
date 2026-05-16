@@ -2,7 +2,7 @@
   "name": "SaleWell Smart Tank",
   "short_name": "Smart Tank",
   "description": "Monitor your SaleWell Smart Tank from the local firmware page or cloud dashboard.",
-  "start_url": "/login/customer",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",

@@ -140,5 +140,6 @@ def test_homepage_shows_active_identity_and_logout():
 
     assert "def homepage_login_status():" in server_source
     assert "homepage_user=homepage_login_status()" in server_source
-    assert "Logged in as - {{ homepage_user.display_name }}" in login_template
+    assert "active_homepage_user = nav_auth.active_user|default(homepage_user)" in login_template
+    assert "Logged in as - {{ active_homepage_user.display_name }}" in login_template
     assert '<form class="logout-form" method="post" action="/logout">' in login_template

@@ -38,7 +38,6 @@ from flask import Flask, abort, g, has_request_context, jsonify, redirect, rende
 from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from jinja2 import TemplateNotFound
 from urllib.parse import urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -1607,57 +1606,6 @@ def csrf_protect(view):
 def inject_template_globals():
     return {"csrf_token": get_csrf_token()}
 
-LOGIN_TEMPLATE_FALLBACK = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SaleWell Smart Tank Login</title>
-<style>
-:root{--bg:#08111f;--panel:#0f1c2f;--line:rgba(148,163,184,.18);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--danger:#ef4444}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(56,189,248,.16),transparent 24%),linear-gradient(180deg,#091120 0%,#07101d 100%)}
-.card{width:min(420px,calc(100% - 24px));padding:28px;border-radius:20px;background:rgba(15,28,47,.92);border:1px solid var(--line);box-shadow:0 18px 40px rgba(2,8,23,.35)}
-.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--primary);margin:0 0 10px}.title{font-size:34px;font-weight:700;margin:0 0 8px}.muted{margin:0 0 18px;color:var(--muted);line-height:1.5}
-form{display:grid;gap:14px}.group{display:grid;gap:6px}.group label{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
-input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(148,163,184,.22);background:rgba(8,17,31,.78);color:var(--text)}
-button{border:none;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#60a5fa,#2563eb);color:#fff;justify-self:start}
-a{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;padding:10px 16px;min-height:40px;font-weight:700;text-decoration:none;border:1px solid rgba(148,163,184,.24);color:var(--text)}
-.error{padding:12px 14px;border-radius:12px;background:rgba(239,68,68,.14);border:1px solid rgba(239,68,68,.24);color:#fecaca}
-.hint{margin-top:14px;font-size:13px;color:var(--muted)}
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-@media (max-width:560px){button,a{width:100%;justify-content:center}.row{display:grid}.row a{width:100%}}
-</style>
-</head>
-<body>
-<div class="card">
-    <div class="eyebrow">SaleWell Smart Tank</div>
-    <h1 class="title">{{ login_title }}</h1>
-    <p class="muted">{{ login_description }}</p>
-    {% if error %}
-    <div class="error">{{ error }}</div>
-    {% endif %}
-    <form method="post" action="{{ login_action }}">
-        <input type="hidden" name="next" value="{{ next_url }}">
-        <div class="group">
-            <label for="username">Username</label>
-            <input id="username" name="username" type="text" autocomplete="username" required>
-        </div>
-        <div class="group">
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required>
-        </div>
-        <button type="submit">Sign In</button>
-    </form>
-    <div class="row">
-        <a href="{{ switch_href }}">{{ switch_label }}</a>
-        {% if login_mode != "admin" %}<a href="{{ url_for('customer_forgot_password') }}">Forgot Password</a>{% endif %}
-    </div>
-    <div class="hint">{% if login_mode == "admin" %}Use the admin dashboard account here. Customers should sign in from the customer page with their exact device ID.{% else %}Customer usernames must exactly match the registered device_id, for example swt-000-000-000-001.{% endif %}</div>
-</div>
-</body>
-</html>"""
-
-
 def is_logged_in():
     if not bool(session.get("logged_in")):
         return False
@@ -1813,55 +1761,29 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
         else None
     )
     sales_form = sales_form or {}
-    try:
-        return render_template(
-            "login.html",
-            error=error,
-            next_url=next_url,
-            login_mode=mode,
-            login_title="Admin Login" if is_admin_mode else "Customer Login",
-            login_description=(
-                "Admin signs in here to register customers, manage credentials, and control devices."
-                if is_admin_mode else
-                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
-            ),
-            login_action=login_action,
-            switch_href=switch_href,
-            switch_label=switch_label,
-            persistence_warnings=persistence_warnings,
-            sales_error=sales_error,
-            sales_success=sales_success,
-            sales_form=sales_form,
-            homepage_user=homepage_login_status(),
-            homepage_auth=homepage_auth_status(),
-            on_dedicated_login_route=not is_landing_page,
-            show_login_modal=bool(error) or not is_landing_page,
-        )
-    except TemplateNotFound:
-        logger.warning("login.html template not found, using inline fallback")
-        return render_template_string(
-            LOGIN_TEMPLATE_FALLBACK,
-            error=error,
-            next_url=next_url,
-            login_mode=mode,
-            login_title="Admin Login" if is_admin_mode else "Customer Login",
-            login_description=(
-                "Admin signs in here to register customers, manage credentials, and control devices."
-                if is_admin_mode else
-                "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
-            ),
-            login_action=login_action,
-            switch_href=switch_href,
-            switch_label=switch_label,
-            persistence_warnings=persistence_warnings,
-            sales_error=sales_error,
-            sales_success=sales_success,
-            sales_form=sales_form,
-            homepage_user=homepage_login_status(),
-            homepage_auth=homepage_auth_status(),
-            on_dedicated_login_route=not is_landing_page,
-            show_login_modal=bool(error) or not is_landing_page,
-        )
+    return render_template(
+        "login.html",
+        error=error,
+        next_url=next_url,
+        login_mode=mode,
+        login_title="Admin Login" if is_admin_mode else "Customer Login",
+        login_description=(
+            "Admin signs in here to register customers, manage credentials, and control devices."
+            if is_admin_mode else
+            "Customers sign in here with their tank device ID and password to view only their own tank dashboard."
+        ),
+        login_action=login_action,
+        switch_href=switch_href,
+        switch_label=switch_label,
+        persistence_warnings=persistence_warnings,
+        sales_error=sales_error,
+        sales_success=sales_success,
+        sales_form=sales_form,
+        homepage_user=homepage_login_status(),
+        homepage_auth=homepage_auth_status(),
+        on_dedicated_login_route=not is_landing_page,
+        show_login_modal=bool(error) or not is_landing_page,
+    )
 
 
 def validate_sales_enquiry_payload(form):

@@ -1,9 +1,6 @@
-const CACHE_NAME = "swt-pwa-v3";
+const CACHE_NAME = "swt-pwa-v4";
 const APP_SHELL = [
   "/manifest.webmanifest",
-  "/login/customer",
-  "/login/admin",
-  "/pricing",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
   "/static/pwa/icon-maskable-512.png",
@@ -38,14 +35,11 @@ self.addEventListener("fetch", (event) => {
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});
-          return response;
-        })
         .catch(async () => {
-          const cachedPage = await caches.match(request);
-          return cachedPage || caches.match("/login/customer");
+          return new Response("SaleWell Smart Tank is offline. Please reconnect and refresh.", {
+            status: 503,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          });
         })
     );
     return;
