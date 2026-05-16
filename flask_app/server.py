@@ -83,6 +83,10 @@ CLEARABLE_DEVICE_ENV_KEYS = {
     "RELAY_STATUS_URLS",
     "RELAY_COMMAND_URLS",
 }
+DEVICE_ENV_PRESERVE_EXPLICIT_BLANK_KEYS = {
+    "DATABASE_URL",
+    "MYSQL_PASSWORD",
+}
 DEVICE_ENV_OVERRIDE_KEYS = {
     "CUSTOMER_COMMUNICATION_FROM_EMAIL",
     "CUSTOMER_COMMUNICATION_FROM_NAME",
@@ -142,6 +146,8 @@ def load_workspace_device_env_files(project_root, environ):
             environ[key] = value
         elif key in blank_overrides:
             environ[key] = ""
+        elif existing_value == "" and key in DEVICE_ENV_PRESERVE_EXPLICIT_BLANK_KEYS:
+            continue
         elif existing_value is None or device_config_value_is_placeholder(existing_value):
             environ[key] = value
 
@@ -560,7 +566,7 @@ def logging_ist_converter(timestamp, *_args):
     return datetime.fromtimestamp(timestamp, IST_TIMEZONE).timetuple()
 
 
-logging.Formatter.converter = logging_ist_converter
+logging.Formatter.converter = staticmethod(logging_ist_converter)
 logging.basicConfig(
     level=APP_LOG_LEVEL,
     format="%(asctime)s IST | %(levelname)s | %(message)s",
@@ -7675,7 +7681,7 @@ def is_private_device_base_url(value):
         return False
     parsed = urlparse(text)
     host = (parsed.hostname or "").strip().lower()
-    if host in {"localhost"}:
+    if host in {"localhost"} or host.endswith(".local") or host.endswith(".lan"):
         return True
     try:
         address = ipaddress.ip_address(host)
@@ -7720,6 +7726,10 @@ def fetch_local_device_status(base_url, device_id=None):
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("local device returned invalid status")
+    expected_device_id = normalize_device_id(device_id)
+    returned_device_id = normalize_device_id(payload.get("device_id"))
+    if expected_device_id and returned_device_id and returned_device_id != expected_device_id:
+        raise ValueError("local device_id does not match requested device")
     payload["device_local_url"] = normalize_device_base_url(base_url)
     return payload
 
