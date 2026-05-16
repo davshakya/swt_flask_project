@@ -1753,6 +1753,37 @@ def homepage_login_status():
     }
 
 
+def stored_dashboard_identity_is_valid(role):
+    prefix = dashboard_identity_prefix(role)
+    if not session.get(f"{prefix}_logged_in"):
+        return False
+    username = session.get(f"{prefix}_username")
+    device_id = session.get(f"{prefix}_device_id")
+    stored_auth_marker = str(session.get(f"{prefix}_auth_marker") or "").strip()
+    expected_auth_marker = current_auth_marker_for_identity(role, username=username, device_id=device_id)
+    return bool(
+        stored_auth_marker
+        and expected_auth_marker
+        and secrets.compare_digest(stored_auth_marker, expected_auth_marker)
+    )
+
+
+def homepage_auth_status():
+    active_user = homepage_login_status()
+    customer_device_id = normalize_device_id(session.get("customer_device_id"))
+    customer_account = fetch_customer_account(customer_device_id) if customer_device_id else None
+    return {
+        "active_user": active_user,
+        "admin_logged_in": stored_dashboard_identity_is_valid("admin"),
+        "customer_logged_in": stored_dashboard_identity_is_valid("customer"),
+        "customer_display_name": (
+            (customer_account or {}).get("display_name")
+            or session.get("customer_username")
+            or "Customer"
+        ),
+    }
+
+
 def resolve_next_url(default_url):
     next_url = request.values.get("next") or default_url
     if not is_safe_next_url(next_url):
@@ -1801,6 +1832,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_success=sales_success,
             sales_form=sales_form,
             homepage_user=homepage_login_status(),
+            homepage_auth=homepage_auth_status(),
             on_dedicated_login_route=not is_landing_page,
             show_login_modal=bool(error) or not is_landing_page,
         )
@@ -1825,6 +1857,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_success=sales_success,
             sales_form=sales_form,
             homepage_user=homepage_login_status(),
+            homepage_auth=homepage_auth_status(),
             on_dedicated_login_route=not is_landing_page,
             show_login_modal=bool(error) or not is_landing_page,
         )

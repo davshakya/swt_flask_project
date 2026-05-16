@@ -2626,9 +2626,11 @@ padding:12px;
             <a href="#enquiry">Contact Sales</a>
         </nav>
         <div class="nav-actions">
-            {% if homepage_user %}
+            {% set nav_auth = homepage_auth|default({}) %}
+            {% set active_homepage_user = nav_auth.active_user|default(homepage_user) %}
+            {% if active_homepage_user %}
             <div class="login-status">
-                <span>Logged in as - {{ homepage_user.display_name }}</span>
+                <span>Logged in as - {{ active_homepage_user.display_name }}</span>
                 <form class="logout-form" method="post" action="/logout">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="nav-button is-secondary" type="submit">Logout</button>
@@ -2642,16 +2644,30 @@ padding:12px;
                     <span>User Login</span>
                 </summary>
                 <div class="user-login-dropdown" aria-label="User login options">
+                    {% if nav_auth.customer_logged_in|default(false) %}
+                    <a
+                        class="nav-button"
+                        href="{{ url_for('customer_dashboard') }}"
+                    >Customer Dashboard</a>
+                    {% else %}
                     <a
                         class="nav-button js-open-login {% if login_mode != 'admin' %}is-current{% endif %}"
                         href="{{ url_for('customer_login', next=next_url) }}"
                         data-role="customer"
                     >Customer Login</a>
+                    {% endif %}
+                    {% if nav_auth.admin_logged_in|default(false) %}
+                    <a
+                        class="nav-button"
+                        href="{{ url_for('admin_customers') }}"
+                    >Admin Dashboard</a>
+                    {% else %}
                     <a
                         class="nav-button js-open-login {% if login_mode == 'admin' %}is-current{% endif %}"
                         href="{{ url_for('admin_login', next=next_url) }}"
                         data-role="admin"
                     >Admin Login</a>
+                    {% endif %}
                 </div>
             </details>
         </div>
