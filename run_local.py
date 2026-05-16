@@ -4,7 +4,7 @@ import sys
 try:
     from flask_app import server as flask_server
 except RuntimeError as exc:
-    print(f"Smart Water Tank Flask startup failed: {exc}", file=sys.stderr)
+    print(f"SaleWell Smart Tank Flask startup failed: {exc}", file=sys.stderr)
     raise SystemExit(1) from exc
 
 
@@ -20,5 +20,5 @@ def resolve_port(default=8000):
 
 
 if __name__ == "__main__":
-    flask_server.logger.info("Starting Smart Water Tank Server (local runner)")
+    flask_server.logger.info("Starting SaleWell Smart Tank Server (local runner)")
     app.run(host="0.0.0.0", port=resolve_port(), threaded=True)

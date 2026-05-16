@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<title>Smart Water Tank Dashboard</title>
+<title>SaleWell Smart Tank Dashboard</title>
 {% include '_pwa_head.html' %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
@@ -167,7 +167,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
             </div>
         </div>
         <div class="panel hero-copy">
-            <div class="eyebrow">Smart Water Tank</div>
+            <div class="eyebrow">SaleWell Smart Tank</div>
             <div class="hero-head">
                 <div class="brand-lockup">
                     <div class="brand-copy">
@@ -1321,7 +1321,7 @@ function drawAnalyticsCharts(data){
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
 function initTankConfigInputs(){const c=document.getElementById("tankCapacityLiters");if(c&&!c.value)c.value="1000";}
 async function savePreferences(){state.preferences={lowThreshold:Number(document.getElementById("lowThreshold").value||20),overflowThreshold:Number(document.getElementById("overflowThreshold").value||95),leakAlerts:document.getElementById("toggleLeak").checked,systemAlerts:document.getElementById("toggleSystem").checked,desktopAlerts:document.getElementById("toggleDesktop").checked};localStorage.setItem("tankDashboardPreferences",JSON.stringify(state.preferences));if(state.preferences.desktopAlerts&&"Notification"in window&&Notification.permission==="default"){await Notification.requestPermission();}if(state.data.snapshot)renderSnapshot(state.data.snapshot);banner("commandBanner","Notification preferences saved on this browser.","info");}
-function desktopNotify(message){if(!state.preferences.desktopAlerts||!("Notification"in window)||Notification.permission!=="granted"||state.lastAlert===message)return;state.lastAlert=message;new Notification("Smart Water Tank",{body:message});}
+function desktopNotify(message){if(!state.preferences.desktopAlerts||!("Notification"in window)||Notification.permission!=="granted"||state.lastAlert===message)return;state.lastAlert=message;new Notification("SaleWell Smart Tank",{body:message});}
 function syncSection(key,payload,renderer){state.data[key]=payload;const serialized=JSON.stringify(payload??null);if(state.cache[key]===serialized)return false;state.cache[key]=serialized;renderer(payload);return true;}
 async function fetchJSON(url,options={}){const requestOptions={cache:"no-store",...options};const method=String(requestOptions.method||"GET").toUpperCase();const headers=new Headers(requestOptions.headers||{});if(!["GET","HEAD","OPTIONS"].includes(method))headers.set("X-CSRF-Token",CSRF_TOKEN);requestOptions.method=method;requestOptions.headers=headers;const response=await fetch(url,requestOptions);let payload=null;try{payload=await response.json();}catch(error){payload={};}if(!response.ok)throw new Error(payload?.error||`Request failed with status ${response.status}`);return payload;}
 function shouldTryLocalDashboardSync({force=false}={}){const snapshot=state.data.snapshot;if(!snapshot?.device_local_url)return false;if(force)return true;const telemetry=String(snapshot.telemetry_status||"").toLowerCase();const age=Number(snapshot.seconds_since_sync);return telemetry==="stale"||telemetry==="no-data"||(Number.isFinite(age)&&age>60);}

@@ -1,8 +1,8 @@
-# Smart Water Tank Flask Deployment Guide
+# SaleWell Smart Tank Flask Deployment Guide
 
 Last refreshed: `2026-04-30`
 
-This guide is specifically for deploying the `swt_flask_project` backend from the wider Smart Water Tank workspace on cPanel with Passenger WSGI.
+This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
 
 Use this file together with:
 
@@ -179,7 +179,7 @@ MYSQL_DATABASE=<cpanel-user>_swtadmin
 LOGIN_USERNAME=admin
 LOGIN_PASSWORD=replace-with-a-strong-password
 CUSTOMER_COMMUNICATION_FROM_EMAIL=support@salewell.co.in
-CUSTOMER_COMMUNICATION_FROM_NAME=Smart Water Tank Support
+CUSTOMER_COMMUNICATION_FROM_NAME=SaleWell Smart Tank Support
 SMTP_HOST=mail.salewell.co.in
 SMTP_PORT=465
 SMTP_USERNAME=support@salewell.co.in
@@ -215,7 +215,7 @@ AUTO_REGISTER_DEVICE_KEYS=0
 AUTO_REGISTER_DEVICE_ID_PREFIXES=swt-
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH=32
 CUSTOMER_COMMUNICATION_FROM_EMAIL=support@salewell.co.in
-CUSTOMER_COMMUNICATION_FROM_NAME=Smart Water Tank Support
+CUSTOMER_COMMUNICATION_FROM_NAME=SaleWell Smart Tank Support
 SMTP_HOST=mail.salewell.co.in
 SMTP_PORT=465
 SMTP_USERNAME=support@salewell.co.in

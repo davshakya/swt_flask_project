@@ -446,7 +446,7 @@ DEFAULT_CUSTOMER_DEVICE_ID = os.environ.get("SWT_DEVICE_ID", "").strip() or "swt
 DEFAULT_CUSTOMER_ACCOUNTS = ((DEFAULT_CUSTOMER_DEVICE_ID, "Tank Owner"),)
 CUSTOMER_PASSWORD_RESET_TTL_MINUTES = max(10, env_int("CUSTOMER_PASSWORD_RESET_TTL_MINUTES", 60))
 CUSTOMER_COMMUNICATION_FROM_EMAIL = os.environ.get("CUSTOMER_COMMUNICATION_FROM_EMAIL", "support@salewell.co.in").strip()
-CUSTOMER_COMMUNICATION_FROM_NAME = os.environ.get("CUSTOMER_COMMUNICATION_FROM_NAME", "Smart Water Tank Support").strip()
+CUSTOMER_COMMUNICATION_FROM_NAME = os.environ.get("CUSTOMER_COMMUNICATION_FROM_NAME", "SaleWell Smart Tank Support").strip()
 SMTP_HOST = os.environ.get("SMTP_HOST", "mail.salewell.co.in").strip()
 SMTP_PORT = env_int("SMTP_PORT", 465)
 SMTP_USERNAME = os.environ.get("SMTP_USERNAME", CUSTOMER_COMMUNICATION_FROM_EMAIL).strip()
@@ -1606,7 +1606,7 @@ LOGIN_TEMPLATE_FALLBACK = """<!DOCTYPE html>
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Smart Water Tank Login</title>
+<title>SaleWell Smart Tank Login</title>
 <style>
 :root{--bg:#08111f;--panel:#0f1c2f;--line:rgba(148,163,184,.18);--text:#e2e8f0;--muted:#94a3b8;--primary:#38bdf8;--danger:#ef4444}
 *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;font-family:"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at top left,rgba(56,189,248,.16),transparent 24%),linear-gradient(180deg,#091120 0%,#07101d 100%)}
@@ -1624,7 +1624,7 @@ a{display:inline-flex;align-items:center;justify-content:center;border-radius:12
 </head>
 <body>
 <div class="card">
-    <div class="eyebrow">Smart Water Tank</div>
+    <div class="eyebrow">SaleWell Smart Tank</div>
     <h1 class="title">{{ login_title }}</h1>
     <p class="muted">{{ login_description }}</p>
     {% if error %}
@@ -1922,7 +1922,7 @@ a{border:1px solid rgba(148,163,184,.24);color:var(--text)}
 </head>
 <body>
 <div class="card">
-    <div class="eyebrow">Smart Water Tank</div>
+    <div class="eyebrow">SaleWell Smart Tank</div>
     <h1 class="title">Reset Dashboard Password</h1>
     <p class="muted">Update the Flask dashboard login password for user <strong>{{ username }}</strong>.</p>
     {% if error %}
@@ -4606,14 +4606,14 @@ def mark_customer_password_reset_used(reset_id):
 
 def send_customer_password_reset(account, token):
     reset_url = url_for("customer_reset_password", token=token, _external=True)
-    subject = "Reset your Smart Water Tank password"
+    subject = "Reset your SaleWell Smart Tank password"
     body = (
         f"Hello {account.get('display_name') or account['device_id']},\n\n"
-        "We received a request to reset your Smart Water Tank customer password.\n\n"
+        "We received a request to reset your SaleWell Smart Tank customer password.\n\n"
         f"Reset link: {reset_url}\n\n"
         f"This link expires in {CUSTOMER_PASSWORD_RESET_TTL_MINUTES} minutes. "
         "If you did not request this, you can ignore this email.\n\n"
-        "Smart Water Tank Support"
+        "SaleWell Smart Tank Support"
     )
     sent = send_customer_email(account["email"], subject, body, category="transactional", account=account)
     if not sent:
@@ -7234,7 +7234,7 @@ def send_alert_webhook(payload):
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         try:
             telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-            text = f"*Smart Water Tank Alert*\nSeverity: {payload.get('severity', 'info')}\nKind: {payload.get('kind', 'alert')}\nMessage: {payload.get('message', '')}"
+            text = f"*SaleWell Smart Tank Alert*\nSeverity: {payload.get('severity', 'info')}\nKind: {payload.get('kind', 'alert')}\nMessage: {payload.get('message', '')}"
             if payload.get("device_id"):
                 text += f"\nDevice: {payload['device_id']}"
             requests.post(
@@ -7251,7 +7251,7 @@ def send_alert_webhook(payload):
                 WHATSAPP_WEBHOOK_URL,
                 json={
                     "channel": "whatsapp",
-                    "title": "Smart Water Tank Alert",
+                    "title": "SaleWell Smart Tank Alert",
                     "severity": payload.get("severity", "info"),
                     "kind": payload.get("kind", "alert"),
                     "message": payload.get("message", ""),
@@ -10546,7 +10546,7 @@ def device_detail_status(device_id):
 def status():
     if request.method == "GET":
         return jsonify({
-            "server": "Smart Water Tank API",
+            "server": "SaleWell Smart Tank API",
             "status": "running",
             "version": API_VERSION,
             "swt_version": SWT_VERSION,
@@ -10570,7 +10570,7 @@ def status():
 
     return jsonify({
         "result": "saved",
-        "server": "Smart Water Tank API",
+        "server": "SaleWell Smart Tank API",
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
         "server_status": "running",
@@ -11006,7 +11006,7 @@ atexit.register(stop_mqtt_bridge)
 
 
 if __name__ == "__main__":
-    logger.info("Starting Smart Water Tank Server")
+    logger.info("Starting SaleWell Smart Tank Server")
     port = int(os.environ.get("PORT", 8000))
     app.run(host="0.0.0.0", port=port, threaded=True)
 

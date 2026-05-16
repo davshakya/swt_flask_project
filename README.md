@@ -1,10 +1,10 @@
-# Smart Water Tank Flask Backend
+# SaleWell Smart Tank Flask Backend
 
 Last refreshed: `2026-04-30`
 
-This repository contains the Flask backend for the Smart Water Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
+This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
-This backend is only one part of the wider Smart Water Tank stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
+This backend is one part of the wider SaleWell IoT Solutions stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
 
 ## Workspace Context
 
