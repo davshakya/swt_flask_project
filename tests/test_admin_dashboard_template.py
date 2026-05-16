@@ -97,3 +97,12 @@ def test_admin_slave_status_uses_direct_peer_packet_freshness():
     assert '"direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s")' in server_source
     assert 'cleaned.get("direct_peer_last_packet_age_s")' in server_source
     assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source
+
+
+def test_dashboards_render_company_icon_home_links():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="dashboard-brand-link" href="/"' in admin_template
+    assert 'id="brandLogo" class="brand-logo" href="/"' in customer_template
+    assert "url_for('homepage')" not in customer_template

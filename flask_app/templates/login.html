@@ -3567,9 +3567,9 @@ padding:12px;
 </div>
 
 <div
-    class="modal {% if show_login_modal|default(error or request.endpoint not in ['dashboard', 'homepage']) %}is-open{% endif %}"
+    class="modal {% if show_login_modal|default(false) %}is-open{% endif %}"
     id="loginModal"
-    aria-hidden="{% if show_login_modal|default(error or request.endpoint not in ['dashboard', 'homepage']) %}false{% else %}true{% endif %}"
+    aria-hidden="{% if show_login_modal|default(false) %}false{% else %}true{% endif %}"
 >
     <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
@@ -3655,8 +3655,8 @@ const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
 const landingModeInput = document.getElementById("landingModeInput");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
-const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(request.endpoint not in ['dashboard', 'homepage']) else "false" }};
-const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(error or request.endpoint not in ['dashboard', 'homepage']) else "false" }};
+const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
+const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
 const roleContent = {
     customer: {
         title: "Customer Login",

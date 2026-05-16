@@ -58,6 +58,9 @@
 .hero-panel{padding:26px}
 .hero-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:20px;align-items:stretch}
 .hero-copy{display:flex;flex-direction:column;gap:16px}
+.dashboard-brand-link{display:inline-grid;place-items:center;width:58px;height:58px;padding:0;border:1px solid var(--admin-border);border-radius:18px;background:rgba(255,255,255,.78);box-shadow:0 16px 30px rgba(10,58,72,.12);text-decoration:none}
+.dashboard-brand-link:hover{transform:translateY(-1px);filter:brightness(1.03)}
+.dashboard-brand-link img{width:40px;height:40px;display:block}
 .hero-title{margin:0;font-size:clamp(2.3rem,4vw,3.5rem);line-height:.96;letter-spacing:-.04em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
 .hero-lead{margin:0;max-width:70ch;color:var(--admin-text-soft);font-size:1rem;line-height:1.72}
 .system-status-bar{display:grid;gap:8px;padding:16px 18px;border-radius:22px;border:1px solid var(--admin-border);background:rgba(255,255,255,.74)}
@@ -186,7 +189,7 @@
 .device-table-shell .admin-table td:nth-child(3),.device-table-shell .admin-table td:nth-child(4){background-color:rgba(70,209,143,.09)}
 .device-table-shell .admin-table td:nth-child(7),.device-table-shell .admin-table td:nth-child(8){background-color:rgba(120,218,231,.09)}
 .device-table-shell .admin-table td:nth-child(10){background-color:rgba(255,192,86,.09)}
-.admin-control-room .hero-actions .hero-secondary,.admin-control-room .searchControls .clearLink,.admin-control-room .hero-pill,.admin-control-room .form-helper-card,.release-form-card{background:rgba(10,27,37,.74)}
+.admin-control-room .hero-actions .hero-secondary,.admin-control-room .searchControls .clearLink,.admin-control-room .hero-pill,.admin-control-room .form-helper-card,.release-form-card,.dashboard-brand-link{background:rgba(10,27,37,.74)}
 .hero-focus-card p,.section-helper,.summary-caption,.device-helper,.focus-note{color:var(--admin-text-soft)}
 .service-group,.service-preset{background:rgba(10,27,37,.74)}
 .service-modal-dialog,.service-modal-close{background:rgba(10,27,37,.9)}
@@ -254,6 +257,9 @@
     <div class="panel hero-panel">
         <div class="hero-grid">
             <div class="hero-copy">
+                <a class="dashboard-brand-link" href="/" aria-label="Open homepage" title="Open homepage">
+                    <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
+                </a>
                 <div class="eyebrow">Admin</div>
                 <div>
                     <h1 class="hero-title">Admin Dashboard</h1>
