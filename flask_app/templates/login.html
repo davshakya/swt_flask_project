@@ -252,6 +252,62 @@ white-space:nowrap;
 margin:0;
 display:flex;
 }
+.user-login-menu{
+position:relative;
+}
+.user-login-menu summary{
+list-style:none;
+}
+.user-login-menu summary::-webkit-details-marker{
+display:none;
+}
+.user-login-trigger{
+gap:10px;
+min-width:154px;
+}
+.menu-bars{
+display:inline-grid;
+gap:4px;
+width:18px;
+flex:0 0 auto;
+}
+.menu-bars span{
+display:block;
+height:2px;
+border-radius:999px;
+background:currentColor;
+}
+.user-login-dropdown{
+position:absolute;
+right:0;
+top:calc(100% + 10px);
+display:grid;
+gap:8px;
+min-width:220px;
+padding:10px;
+border:1px solid var(--line-strong);
+border-radius:16px;
+background:rgba(255,255,255,.94);
+box-shadow:0 18px 42px rgba(13,75,89,.18);
+z-index:20;
+}
+.user-login-menu:not([open]) .user-login-dropdown{
+display:none;
+}
+.user-login-dropdown .nav-button{
+width:100%;
+justify-content:flex-start;
+}
+.user-login-dropdown .nav-button.is-current{
+justify-content:space-between;
+}
+.user-login-dropdown .nav-button.is-current::after{
+content:"Active";
+font-size:10px;
+letter-spacing:.12em;
+text-transform:uppercase;
+opacity:.82;
+}
 .nav-button,
 .button,
 .button-secondary,
@@ -2376,6 +2432,10 @@ display:none;
 .nav-actions{
 justify-content:flex-start;
 }
+.user-login-dropdown{
+right:auto;
+left:0;
+}
 .footer{
 grid-template-columns:1fr;
 }
@@ -2431,6 +2491,15 @@ max-width:none;
 display:grid;
 grid-template-columns:1fr;
 width:100%;
+}
+.user-login-menu,
+.user-login-trigger{
+width:100%;
+}
+.user-login-dropdown{
+position:static;
+margin-top:8px;
+min-width:0;
 }
 .pricing-signal,
 .form-urgency{
@@ -2519,16 +2588,24 @@ padding:12px;
             </div>
             {% endif %}
             <a class="nav-button is-secondary" href="#enquiry">Book Free Demo</a>
-            <a
-                class="nav-button js-open-login {% if login_mode != 'admin' %}is-primary is-current{% endif %}"
-                href="{{ url_for('customer_login', next=next_url) }}"
-                data-role="customer"
-            >Customer Login</a>
-            <a
-                class="nav-button js-open-login {% if login_mode == 'admin' %}is-primary is-current{% endif %}"
-                href="{{ url_for('admin_login', next=next_url) }}"
-                data-role="admin"
-            >Admin Login</a>
+            <details class="user-login-menu">
+                <summary class="nav-button is-primary user-login-trigger">
+                    <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+                    <span>User Login</span>
+                </summary>
+                <div class="user-login-dropdown" aria-label="User login options">
+                    <a
+                        class="nav-button js-open-login {% if login_mode != 'admin' %}is-current{% endif %}"
+                        href="{{ url_for('customer_login', next=next_url) }}"
+                        data-role="customer"
+                    >Customer Login</a>
+                    <a
+                        class="nav-button js-open-login {% if login_mode == 'admin' %}is-current{% endif %}"
+                        href="{{ url_for('admin_login', next=next_url) }}"
+                        data-role="admin"
+                    >Admin Login</a>
+                </div>
+            </details>
         </div>
     </header>
 
@@ -3681,6 +3758,7 @@ const closeButtons = document.querySelectorAll("[data-close-modal]");
 const toggleButtons = document.querySelectorAll("[data-login-role]");
 const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
+const userLoginMenus = document.querySelectorAll(".user-login-menu");
 const landingModeInput = document.getElementById("landingModeInput");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
 const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
@@ -3743,6 +3821,9 @@ toggleButtons.forEach((button) => {
 openLoginButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
+        userLoginMenus.forEach((menu) => {
+            menu.removeAttribute("open");
+        });
         openLoginModal(button.dataset.role);
     });
 });
