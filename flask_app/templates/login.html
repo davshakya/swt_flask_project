@@ -233,6 +233,25 @@ align-items:center;
 justify-content:flex-end;
 flex-wrap:wrap;
 }
+.login-status{
+display:inline-flex;
+align-items:center;
+gap:10px;
+min-height:48px;
+padding:8px 10px 8px 14px;
+border:1px solid var(--line-strong);
+border-radius:16px;
+background:rgba(255,255,255,.5);
+font-weight:900;
+color:var(--brand-deep);
+}
+.login-status span{
+white-space:nowrap;
+}
+.logout-form{
+margin:0;
+display:flex;
+}
 .nav-button,
 .button,
 .button-secondary,
@@ -2490,6 +2509,15 @@ padding:12px;
             <a href="#enquiry">Contact Sales</a>
         </nav>
         <div class="nav-actions">
+            {% if homepage_user %}
+            <div class="login-status">
+                <span>Logged in as - {{ homepage_user.display_name }}</span>
+                <form class="logout-form" method="post" action="/logout">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="nav-button is-secondary" type="submit">Logout</button>
+                </form>
+            </div>
+            {% endif %}
             <a class="nav-button is-secondary" href="#enquiry">Book Free Demo</a>
             <a
                 class="nav-button js-open-login {% if login_mode != 'admin' %}is-primary is-current{% endif %}"

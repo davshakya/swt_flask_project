@@ -58,6 +58,7 @@
 .hero-panel{padding:26px}
 .hero-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(320px,.8fr);gap:20px;align-items:stretch}
 .hero-copy{display:flex;flex-direction:column;gap:16px}
+.dashboard-title-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
 .dashboard-brand-link{display:inline-grid;place-items:center;width:58px;height:58px;padding:0;border:1px solid var(--admin-border);border-radius:18px;background:rgba(255,255,255,.78);box-shadow:0 16px 30px rgba(10,58,72,.12);text-decoration:none}
 .dashboard-brand-link:hover{transform:translateY(-1px);filter:brightness(1.03)}
 .dashboard-brand-link img{width:40px;height:40px;display:block}
@@ -257,12 +258,14 @@
     <div class="panel hero-panel">
         <div class="hero-grid">
             <div class="hero-copy">
-                <a class="dashboard-brand-link" href="/" aria-label="Open homepage" title="Open homepage">
-                    <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
-                </a>
                 <div class="eyebrow">Admin</div>
                 <div>
-                    <h1 class="hero-title">Admin Dashboard</h1>
+                    <div class="dashboard-title-row">
+                        <a class="dashboard-brand-link" href="/" aria-label="Open homepage" title="Open homepage">
+                            <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
+                        </a>
+                        <h1 class="hero-title">Dashboard</h1>
+                    </div>
                     <p class="hero-lead">Manage devices, alerts, and customer access in one place.</p>
                 </div>
                 <div class="system-status-bar is-{{ status_tone }}">

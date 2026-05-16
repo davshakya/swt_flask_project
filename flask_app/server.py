@@ -1716,6 +1716,19 @@ def auth_persistence_warnings():
     return warnings
 
 
+def homepage_login_status():
+    if not is_logged_in():
+        return None
+    role = current_user_role()
+    if role == "admin":
+        return {"role": "admin", "display_name": "Admin"}
+    account = current_customer_account() or {}
+    return {
+        "role": "customer",
+        "display_name": account.get("display_name") or session.get("username") or "Customer",
+    }
+
+
 def resolve_next_url(default_url):
     next_url = request.values.get("next") or default_url
     if not is_safe_next_url(next_url):
@@ -1763,6 +1776,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_error=sales_error,
             sales_success=sales_success,
             sales_form=sales_form,
+            homepage_user=homepage_login_status(),
             on_dedicated_login_route=not is_landing_page,
             show_login_modal=bool(error) or not is_landing_page,
         )
@@ -1786,6 +1800,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_error=sales_error,
             sales_success=sales_success,
             sales_form=sales_form,
+            homepage_user=homepage_login_status(),
             on_dedicated_login_route=not is_landing_page,
             show_login_modal=bool(error) or not is_landing_page,
         )

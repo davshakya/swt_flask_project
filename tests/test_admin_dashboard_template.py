@@ -106,3 +106,27 @@ def test_dashboards_render_company_icon_home_links():
     assert 'class="dashboard-brand-link" href="/"' in admin_template
     assert 'id="brandLogo" class="brand-logo" href="/"' in customer_template
     assert "url_for('homepage')" not in customer_template
+
+
+def test_dashboard_titles_are_simple_and_icon_precedes_title():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert '<h1 class="hero-title">Dashboard</h1>' in admin_template
+    assert "<h1>Dashboard</h1>" in customer_template
+    assert admin_template.index('class="dashboard-brand-link"') < admin_template.index('<h1 class="hero-title">Dashboard</h1>')
+    assert customer_template.index('id="brandLogo"') < customer_template.index("<h1>Dashboard</h1>")
+    assert "Admin Dashboard</h1>" not in admin_template
+    assert "Home Water Dashboard" not in customer_template
+    assert "Home Water Dashboard" in login_template
+
+
+def test_homepage_shows_active_identity_and_logout():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "def homepage_login_status():" in server_source
+    assert "homepage_user=homepage_login_status()" in server_source
+    assert "Logged in as - {{ homepage_user.display_name }}" in login_template
+    assert '<form class="logout-form" method="post" action="/logout">' in login_template
