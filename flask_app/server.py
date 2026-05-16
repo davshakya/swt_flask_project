@@ -2179,7 +2179,16 @@ def fetch_active_alert_summaries(device_ids=None, updated_since=None):
 def build_admin_device_entry(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
     payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
-    device_local_url = payload.get("device_local_url")
+    source_ip = payload.get("source_ip")
+    reported_local_url = normalize_device_base_url(payload.get("device_local_url"))
+    device_local_url = reported_local_url
+    if source_ip:
+        try:
+            reported_host = urlparse(str(reported_local_url or "")).hostname or ""
+        except Exception:
+            reported_host = ""
+        if not reported_local_url or reported_host.endswith(".local") or reported_host.endswith(".lan"):
+            device_local_url = f"http://{source_ip}/"
     device_local_host = None
     if device_local_url:
         try:
@@ -2193,7 +2202,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "reset_reason": payload.get("reset_reason"),
         "device_local_url": device_local_url,
         "device_local_host": device_local_host,
-        "source_ip": payload.get("source_ip"),
+        "source_ip": source_ip,
         "last_sync_at": payload.get("last_sync_at"),
         "telemetry_status": payload.get("telemetry_status"),
         "channel_mode": payload.get("channel_mode"),
@@ -2381,7 +2390,14 @@ def filter_admin_search_results(items, search_query):
     for item in items:
         haystack = " ".join(
             str(value or "").strip().lower()
-            for value in (item.get("device_id"), item.get("display_name"), item.get("email"))
+            for value in (
+                item.get("device_id"),
+                item.get("source_ip"),
+                item.get("device_local_host"),
+                item.get("device_local_url"),
+                item.get("display_name"),
+                item.get("email"),
+            )
         )
         if normalized_query in haystack:
             filtered.append(item)
@@ -7637,8 +7653,10 @@ def is_private_device_base_url(value):
         return False
     parsed = urlparse(text)
     host = (parsed.hostname or "").strip().lower()
-    if host in {"localhost"} or host.endswith(".local") or host.endswith(".lan"):
+    if host in {"localhost"}:
         return True
+    if host.endswith(".local") or host.endswith(".lan"):
+        return False
     try:
         address = ipaddress.ip_address(host)
     except ValueError:

@@ -298,7 +298,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     ["Lower Sensor Detail",`${infoValue(titleCase(snapshot.lower_sensor||""),"Status not reported")} / ${lowerDistance}`],
     ["Lower Sensor Message",infoValue(snapshot.lower_sensor_info)],
     ["Network Channel",infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")],
-    ["Local Device",infoValue(snapshot.device_local_url,"Local URL not reported")],
+    ["Local Device IP",infoValue(snapshot.device_local_url||snapshot.source_ip,"Local IP not reported")],
     ["Buzzer",yesNo(snapshot.buzzer_service)],
     ["LED Display",yesNo(snapshot.led_display_service)],
     ["Local Firmware Upload",yesNo(snapshot.local_firmware_upload_service)],

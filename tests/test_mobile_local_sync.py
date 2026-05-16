@@ -44,7 +44,7 @@ def test_dashboard_local_sync_route_polls_private_lan_device():
     assert '@app.route("/dashboard/local-sync", methods=["POST"])' in server_source
     assert "def fetch_local_device_status" in server_source
     assert "is_private_device_base_url" in server_source
-    assert 'host.endswith(".local")' in server_source
+    assert 'host.endswith(".local") or host.endswith(".lan")' in server_source
     assert "local device_id does not match requested device" in server_source
     assert 'source_ip="dashboard_local_wifi"' in server_source
     assert "syncLocalDashboardSnapshot" in dashboard_source

@@ -147,7 +147,7 @@ def test_request_wraps_incomplete_read_as_url_error(monkeypatch):
         return FakeResponse()
 
     monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
-    client = FirmwareClient("http://swt-000-000-000-002.local", "user", "pass", 12.0)
+    client = FirmwareClient("http://192.168.1.50", "user", "pass", 12.0)
 
     with pytest.raises(urllib.error.URLError, match="incomplete response"):
         client.fetch_status()
@@ -156,7 +156,7 @@ def test_request_wraps_incomplete_read_as_url_error(monkeypatch):
 def test_run_stops_cleanly_on_keyboard_interrupt_during_sleep(monkeypatch, capsys):
     args = argparse.Namespace(
         password="secret",
-        device_url="http://swt-000-000-000-002.local",
+        device_url="http://192.168.1.50",
         username="swt-000-000-000-001",
         interval_seconds=1.0,
         timeout_seconds=12.0,
