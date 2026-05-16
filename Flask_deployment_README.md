@@ -178,6 +178,14 @@ MYSQL_PASSWORD=replace-with-mysql-password
 MYSQL_DATABASE=<cpanel-user>_swtadmin
 LOGIN_USERNAME=admin
 LOGIN_PASSWORD=replace-with-a-strong-password
+CUSTOMER_COMMUNICATION_FROM_EMAIL=support@salewell.co.in
+CUSTOMER_COMMUNICATION_FROM_NAME=Smart Water Tank Support
+SMTP_HOST=mail.salewell.co.in
+SMTP_PORT=465
+SMTP_USERNAME=support@salewell.co.in
+SMTP_PASSWORD=replace-with-support-mailbox-password
+SMTP_USE_TLS=false
+SMTP_USE_SSL=true
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=Lax
 RELAY_STATUS_URLS=
@@ -187,6 +195,7 @@ RELAY_COMMAND_URLS=
 Notes:
 
 - create the MySQL database and assign the MySQL user in cPanel before restarting the app
+- create or verify the cPanel mailbox `support@salewell.co.in`; `SMTP_PASSWORD` must be that mailbox password for customer forgot-password emails
 - leave `RELAY_STATUS_URLS` and `RELAY_COMMAND_URLS` blank when `salewell.co.in` is the main backend
 - blank relay settings avoid accidental forwarding to another server or back into the same app
 

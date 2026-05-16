@@ -429,12 +429,12 @@ DEFAULT_CUSTOMER_ACCOUNTS = ((DEFAULT_CUSTOMER_DEVICE_ID, "Tank Owner"),)
 CUSTOMER_PASSWORD_RESET_TTL_MINUTES = max(10, env_int("CUSTOMER_PASSWORD_RESET_TTL_MINUTES", 60))
 CUSTOMER_COMMUNICATION_FROM_EMAIL = os.environ.get("CUSTOMER_COMMUNICATION_FROM_EMAIL", "support@salewell.co.in").strip()
 CUSTOMER_COMMUNICATION_FROM_NAME = os.environ.get("CUSTOMER_COMMUNICATION_FROM_NAME", "Smart Water Tank Support").strip()
-SMTP_HOST = os.environ.get("SMTP_HOST", "").strip()
-SMTP_PORT = env_int("SMTP_PORT", 587)
-SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "").strip()
+SMTP_HOST = os.environ.get("SMTP_HOST", "mail.salewell.co.in").strip()
+SMTP_PORT = env_int("SMTP_PORT", 465)
+SMTP_USERNAME = os.environ.get("SMTP_USERNAME", CUSTOMER_COMMUNICATION_FROM_EMAIL).strip()
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
-SMTP_USE_TLS = env_flag("SMTP_USE_TLS", default=True)
-SMTP_USE_SSL = env_flag("SMTP_USE_SSL", default=False)
+SMTP_USE_TLS = env_flag("SMTP_USE_TLS", default=False)
+SMTP_USE_SSL = env_flag("SMTP_USE_SSL", default=True)
 SMTP_TIMEOUT_SECONDS = max(3, env_int("SMTP_TIMEOUT_SECONDS", 10))
 LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
@@ -4356,6 +4356,10 @@ def fetch_customer_account_by_email(email):
     return dict(row) if row else None
 
 
+def smtp_email_configured():
+    return bool(SMTP_HOST and (not SMTP_USERNAME or SMTP_PASSWORD))
+
+
 def send_customer_email(to_email, subject, body, category="transactional", account=None):
     normalized_email = normalize_customer_email(to_email)
     if not normalized_email:
@@ -4367,8 +4371,8 @@ def send_customer_email(to_email, subject, body, category="transactional", accou
         logger.info("Customer marketing email skipped because consent is off for %s", account.get("device_id"))
         return False
 
-    if not SMTP_HOST:
-        logger.info("SMTP is not configured. Customer email queued for %s: %s", normalized_email, subject)
+    if not smtp_email_configured():
+        logger.info("SMTP is not fully configured. Customer email queued for %s: %s", normalized_email, subject)
         return False
 
     message = EmailMessage()
@@ -9326,8 +9330,11 @@ def customer_forgot_password():
     if request.method == "POST":
         identifier = str(request.form.get("identifier", "")).strip()
         account = None
-        if not SMTP_HOST:
-            error = "Password reset email is not configured on this server. Ask the admin to set SMTP_HOST, SMTP_USERNAME, and SMTP_PASSWORD."
+        if not smtp_email_configured():
+            error = (
+                "Password reset email is not fully configured yet. "
+                "Add the support mailbox password in cPanel, then restart the Python app."
+            )
         else:
             if "@" in identifier:
                 try:
@@ -9338,16 +9345,25 @@ def customer_forgot_password():
                 account = fetch_customer_account(identifier)
             if account and account.get("email") and int(account.get("active", 1) or 0) == 1:
                 token, _expires_at = create_customer_password_reset(account)
-                send_customer_password_reset(account, token)
-                log_audit_event(
-                    actor="customer-self-service",
-                    action="request_customer_password_reset",
-                    target_type="customer_account",
-                    target_id=account["device_id"],
-                    device_id=account["device_id"],
-                    details={"email": account.get("email")},
-                )
-            success = "If that customer account has an email on file, a reset link has been sent."
+                try:
+                    sent = send_customer_password_reset(account, token)
+                except Exception as exc:
+                    logger.warning("Customer password reset email failed for %s: %s", account["device_id"], exc)
+                    error = "Unable to send the reset email right now. Please try again later or contact support@salewell.co.in."
+                else:
+                    if sent:
+                        log_audit_event(
+                            actor="customer-self-service",
+                            action="request_customer_password_reset",
+                            target_type="customer_account",
+                            target_id=account["device_id"],
+                            device_id=account["device_id"],
+                            details={"email": account.get("email")},
+                        )
+                    else:
+                        error = "Unable to send the reset email right now. Please contact support@salewell.co.in."
+            if not error:
+                success = "If that customer account has an email on file, a reset link has been sent."
     return render_template_string(
         CUSTOMER_PASSWORD_RESET_TEMPLATE,
         mode="request",
