@@ -3567,9 +3567,9 @@ padding:12px;
 </div>
 
 <div
-    class="modal {% if error or request.path != url_for('dashboard') %}is-open{% endif %}"
+    class="modal {% if show_login_modal %}is-open{% endif %}"
     id="loginModal"
-    aria-hidden="{% if error or request.path != url_for('dashboard') %}false{% else %}true{% endif %}"
+    aria-hidden="{% if show_login_modal %}false{% else %}true{% endif %}"
 >
     <div class="modal-backdrop" data-close-modal></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
@@ -3655,8 +3655,8 @@ const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
 const landingModeInput = document.getElementById("landingModeInput");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
-const onDedicatedLoginRoute = {{ "true" if request.path != url_for('dashboard') else "false" }};
-const shouldAutoOpenLogin = {{ "true" if error or request.path != url_for('dashboard') else "false" }};
+const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route else "false" }};
+const shouldAutoOpenLogin = {{ "true" if show_login_modal else "false" }};
 const roleContent = {
     customer: {
         title: "Customer Login",

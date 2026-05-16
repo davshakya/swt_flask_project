@@ -1733,6 +1733,7 @@ def can_access_next_url(role, next_url):
 
 def render_login_page(mode="customer", error=None, next_url="/", sales_error=None, sales_success=None, sales_form=None):
     is_admin_mode = mode == "admin"
+    is_landing_page = request.endpoint in {"dashboard", "homepage"}
     login_action = url_for("admin_login" if is_admin_mode else "customer_login")
     switch_href = url_for("customer_login" if is_admin_mode else "admin_login")
     switch_label = "Customer Login" if is_admin_mode else "Admin Login"
@@ -1762,6 +1763,8 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_error=sales_error,
             sales_success=sales_success,
             sales_form=sales_form,
+            on_dedicated_login_route=not is_landing_page,
+            show_login_modal=bool(error) or not is_landing_page,
         )
     except TemplateNotFound:
         logger.warning("login.html template not found, using inline fallback")
@@ -1783,6 +1786,8 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
             sales_error=sales_error,
             sales_success=sales_success,
             sales_form=sales_form,
+            on_dedicated_login_route=not is_landing_page,
+            show_login_modal=bool(error) or not is_landing_page,
         )
 
 
@@ -10274,14 +10279,18 @@ def admin_delete_known_device(device_id):
 
 @app.route("/")
 def dashboard():
-    if not is_logged_in():
-        return render_login_page(
-            mode="customer",
-            next_url=resolve_next_url(dashboard_home_url("customer")),
-        )
-    if is_admin_user():
-        return redirect(url_for("admin_customers"))
-    return render_dashboard_page(request.args.get("device_id", type=str))
+    return render_login_page(
+        mode="customer",
+        next_url=resolve_next_url(dashboard_home_url("customer")),
+    )
+
+
+@app.route("/homepage")
+def homepage():
+    return render_login_page(
+        mode="customer",
+        next_url=resolve_next_url(dashboard_home_url("customer")),
+    )
 
 
 @app.route("/admin/dashboard")

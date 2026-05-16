@@ -224,6 +224,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
                     <div class="hero-toolbar">
                     {% if not is_admin %}
                     <button id="cloudFeedStateButton" class="btn-outline compact-action cloud-feed-state" type="button" disabled>{{ "Cloud Feed Enabled" if cloud_feed_enabled else "Cloud Feed Disabled" }}</button>
+                    <a class="btn-outline action-link compact-action" href="{{ url_for('homepage') }}">Homepage</a>
                     {% endif %}
                     {% if is_admin %}
                     <a class="btn-outline action-link compact-action" href="/admin/customers">Customers</a>
