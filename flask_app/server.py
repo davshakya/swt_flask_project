@@ -43,6 +43,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_app.android_releases import (
     android_release_storage_path as android_release_storage_path_for_dir,
+    build_android_apk_blob_response as build_android_apk_blob_response_payload,
     build_android_apk_file_response as build_android_apk_file_response_payload,
     build_android_release_manifest,
     make_stored_android_apk_filename,
@@ -2268,6 +2269,7 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         global_alerts=fetch_filtered_alerts(limit=10, updated_since=alert_cutoff),
         persistence_warnings=auth_persistence_warnings(),
         latest_android_release=fetch_latest_android_app_release(),
+        latest_global_firmware_artifact=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET),
     )
 
 
@@ -3255,6 +3257,7 @@ def translate_mysql_schema_sql(sql):
         "version_label TEXT": "version_label VARCHAR(96)",
         "md5 TEXT NOT NULL": "md5 VARCHAR(64) NOT NULL",
         "content_type TEXT": "content_type VARCHAR(128)",
+        "apk_blob BLOB": "apk_blob LONGBLOB",
     }
     for old, new in replacements.items():
         sql = sql.replace(old, new)
@@ -3637,11 +3640,28 @@ def ensure_android_app_releases_table(cursor):
             md5 TEXT NOT NULL,
             size_bytes INTEGER NOT NULL,
             content_type TEXT,
+            apk_blob BLOB,
             uploaded_by TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
         """
     )
+
+
+def ensure_android_app_releases_columns(cursor):
+    cursor.execute("PRAGMA table_info(android_app_releases)")
+    existing = {row[1] for row in cursor.fetchall()}
+    optional_columns = {
+        "apk_blob": "BLOB",
+    }
+    for column, definition in optional_columns.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE android_app_releases ADD COLUMN {column} {definition}")
+
+
+def ensure_android_app_releases_mysql_column_types(cursor):
+    if USING_MYSQL:
+        cursor.execute("ALTER TABLE android_app_releases MODIFY COLUMN apk_blob LONGBLOB")
 
 
 def ensure_alerts_table(cursor):
@@ -4032,6 +4052,8 @@ def init_db():
         ensure_device_command_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_android_app_releases_table(cursor)
+        ensure_android_app_releases_columns(cursor)
+        ensure_android_app_releases_mysql_column_types(cursor)
         ensure_alerts_table(cursor)
         ensure_audit_table(cursor)
         ensure_device_events_table(cursor)
@@ -7983,12 +8005,24 @@ def android_release_storage_path(stored_filename):
     return android_release_storage_path_for_dir(ensure_android_release_dir(), stored_filename)
 
 
-def fetch_android_app_release(release_id=None):
+def android_release_payload_is_available(release):
+    if not release:
+        return False
+    try:
+        if int(release.get("apk_blob_size") or 0) > 0:
+            return True
+    except (TypeError, ValueError):
+        pass
+    return android_release_storage_path(release.get("stored_filename")).is_file()
+
+
+def fetch_android_app_release(release_id=None, include_payload=False):
+    payload_select = "apk_blob" if include_payload else "CASE WHEN apk_blob IS NULL THEN 0 ELSE length(apk_blob) END AS apk_blob_size"
     query = """
         SELECT id, original_filename, stored_filename, version_name, version_code, notes,
-               md5, size_bytes, content_type, uploaded_by, created_at
+               md5, size_bytes, content_type, uploaded_by, created_at, {payload_select}
         FROM android_app_releases
-    """
+    """.format(payload_select=payload_select)
     params = []
     if release_id is not None:
         try:
@@ -8012,7 +8046,28 @@ def fetch_android_app_release(release_id=None):
 
 
 def fetch_latest_android_app_release():
-    return fetch_android_app_release()
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT id, original_filename, stored_filename, version_name, version_code, notes,
+                   md5, size_bytes, content_type, uploaded_by, created_at,
+                   CASE WHEN apk_blob IS NULL THEN 0 ELSE length(apk_blob) END AS apk_blob_size
+            FROM android_app_releases
+            ORDER BY version_code DESC, created_at DESC, id DESC
+            LIMIT 20
+            """
+        ).fetchall()
+
+    for row in rows:
+        release = dict(row)
+        release["storage_path"] = str(android_release_storage_path(release.get("stored_filename")))
+        if android_release_payload_is_available(release):
+            return release
+
+    if rows:
+        missing_ids = ", ".join(str(row["id"]) for row in rows[:5])
+        logger.warning("Android release rows exist but no downloadable APK payload was found. Checked release IDs: %s", missing_ids)
+    return None
 
 
 def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
@@ -8035,9 +8090,9 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
                 """
                 INSERT INTO android_app_releases(
                     original_filename, stored_filename, version_name, version_code, notes,
-                    md5, size_bytes, content_type, uploaded_by
+                    md5, size_bytes, content_type, apk_blob, uploaded_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     upload["original_filename"],
@@ -8048,6 +8103,7 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
                     upload["md5"],
                     len(payload),
                     upload["content_type"],
+                    payload,
                     str(uploaded_by or "admin").strip() or "admin",
                 ),
             )
@@ -8065,50 +8121,80 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
     return release
 
 
-def remove_old_android_app_releases():
-    latest = fetch_latest_android_app_release()
-    if not latest:
-        return {"removed": 0, "files_removed": 0, "latest": None}
-
+def remove_all_android_app_releases():
     with get_db() as db:
         rows = db.execute(
             """
             SELECT id, stored_filename
             FROM android_app_releases
-            WHERE id <> ?
-            """,
-            (latest["id"],),
+            """
         ).fetchall()
         db.execute(
             """
             DELETE FROM android_app_releases
-            WHERE id <> ?
-            """,
-            (latest["id"],),
+            """
         )
-        remaining_rows = db.execute(
-            "SELECT DISTINCT stored_filename FROM android_app_releases"
-        ).fetchall()
 
-    remaining_filenames = {str(row["stored_filename"] or "") for row in remaining_rows}
-    files_removed = 0
+    release_dir = ensure_android_release_dir()
+    candidate_paths = set()
     for row in rows:
-        stored_filename = str(row["stored_filename"] or "")
-        if not stored_filename or stored_filename in remaining_filenames:
+        stored_filename = str(row["stored_filename"] or "").strip()
+        if stored_filename:
+            candidate_paths.add(android_release_storage_path(stored_filename))
+    candidate_paths.update(release_dir.glob("*.apk"))
+
+    removed_paths = set()
+    files_removed = 0
+    for path in candidate_paths:
+        resolved_path = path.resolve()
+        if resolved_path in removed_paths:
+            continue
+        if release_dir.resolve() not in (resolved_path, *resolved_path.parents):
+            logger.warning("Skipping Android release cleanup outside release directory: %s", resolved_path)
             continue
         try:
-            android_release_storage_path(stored_filename).unlink()
+            resolved_path.unlink()
+            removed_paths.add(resolved_path)
             files_removed += 1
         except FileNotFoundError:
             pass
         except OSError as exc:
-            logger.warning("Unable to remove old Android release file %s: %s", stored_filename, exc)
+            logger.warning("Unable to remove Android release file %s: %s", resolved_path, exc)
 
-    return {"removed": len(rows), "files_removed": files_removed, "latest": latest}
+    return {"removed": len(rows), "files_removed": files_removed, "latest": None}
 
 
 def build_android_apk_file_response(release, storage_path):
     return build_android_apk_file_response_payload(send_file, release, storage_path)
+
+
+def build_android_apk_blob_response(release, payload):
+    return build_android_apk_blob_response_payload(send_file, release, payload)
+
+
+def fetch_android_app_release_blob(release_id):
+    release = fetch_android_app_release(release_id, include_payload=True)
+    if not release:
+        return None
+    payload = release.get("apk_blob")
+    if not payload:
+        return None
+    if isinstance(payload, memoryview):
+        payload = payload.tobytes()
+    return bytes(payload)
+
+
+def build_android_update_manifest_for_request(release, apk_url):
+    manifest = build_android_release_manifest(release, apk_url)
+    current_version_code = max(0, request.args.get("currentVersionCode", default=0, type=int) or 0)
+    latest_version_code = int(manifest.get("versionCode") or 0)
+    update_available = bool(apk_url and latest_version_code > current_version_code)
+    manifest["updateAvailable"] = update_available
+    if current_version_code > 0:
+        manifest["currentVersionCode"] = current_version_code
+    if not update_available:
+        manifest["apkUrl"] = ""
+    return manifest
 
 
 def build_firmware_artifact_file_response(artifact, storage_path):
@@ -9173,7 +9259,7 @@ register_mobile_firmware_routes(
 def mobile_android_version_manifest():
     release = fetch_latest_android_app_release()
     apk_url = url_for("mobile_android_app_download", _external=True) if release else ""
-    manifest = build_android_release_manifest(release, apk_url)
+    manifest = build_android_update_manifest_for_request(release, apk_url)
     manifest["requiresAuth"] = True
     manifest["viewer"] = resolve_mobile_user()
     response = jsonify(manifest)
@@ -9189,11 +9275,16 @@ def mobile_android_app_download():
         return Response("Android app release has not been uploaded yet.", status=404, mimetype="text/plain")
 
     storage_path = android_release_storage_path(release.get("stored_filename"))
-    if not storage_path.is_file():
-        logger.warning("Android app release %s is registered but missing on disk: %s", release.get("id"), storage_path)
-        return Response("Android app release file is missing.", status=404, mimetype="text/plain")
+    if storage_path.is_file():
+        return build_android_apk_file_response(release, storage_path)
 
-    return build_android_apk_file_response(release, storage_path)
+    payload = fetch_android_app_release_blob(release.get("id"))
+    if payload:
+        logger.warning("Android app release %s is missing on disk, serving database copy: %s", release.get("id"), storage_path)
+        return build_android_apk_blob_response(release, payload)
+
+    logger.warning("Android app release %s is registered but missing on disk and in database storage: %s", release.get("id"), storage_path)
+    return Response("Android app release file is missing. Re-upload the Android app from admin.", status=404, mimetype="text/plain")
 
 
 @app.route("/device/command")
@@ -9962,29 +10053,22 @@ def admin_android_release_prune():
     success = None
     search_query = request.values.get("q", "", type=str) or ""
     try:
-        result = remove_old_android_app_releases()
-        latest = result.get("latest")
+        result = remove_all_android_app_releases()
         log_audit_event(
             actor=current_actor_username(),
-            action="prune_old_android_app_releases",
+            action="remove_all_android_app_releases",
             target_type="release",
-            target_id=str(latest["id"]) if latest else "android_app",
+            target_id="android_app",
             details={
                 "removed": result["removed"],
                 "files_removed": result["files_removed"],
-                "kept_release_id": latest.get("id") if latest else None,
-                "kept_version_name": latest.get("version_name") if latest else None,
-                "kept_version_code": latest.get("version_code") if latest else None,
             },
         )
-        if latest:
-            success = (
-                f"Removed {result['removed']} old Android build record"
-                f"{'' if result['removed'] == 1 else 's'} and {result['files_removed']} old file"
-                f"{'' if result['files_removed'] == 1 else 's'}. Latest Android build stays active."
-            )
-        else:
-            success = "No Android build is uploaded yet."
+        success = (
+            f"Removed {result['removed']} Android build record"
+            f"{'' if result['removed'] == 1 else 's'} and {result['files_removed']} APK file"
+            f"{'' if result['files_removed'] == 1 else 's'}. Upload a new Android APK to restore the download link."
+        )
     except ValueError as exc:
         error = str(exc)
 
@@ -10008,7 +10092,7 @@ def admin_android_release_prune():
 def android_version_manifest():
     release = fetch_latest_android_app_release()
     apk_url = url_for("android_app_download", _external=True) if release else ""
-    response = jsonify(build_android_release_manifest(release, apk_url))
+    response = jsonify(build_android_update_manifest_for_request(release, apk_url))
     response.headers["Cache-Control"] = "no-store"
     return response
 
@@ -10020,11 +10104,16 @@ def android_app_download():
         return Response("Android app release has not been uploaded yet.", status=404, mimetype="text/plain")
 
     storage_path = android_release_storage_path(release.get("stored_filename"))
-    if not storage_path.is_file():
-        logger.warning("Android app release %s is registered but missing on disk: %s", release.get("id"), storage_path)
-        return Response("Android app release file is missing.", status=404, mimetype="text/plain")
+    if storage_path.is_file():
+        return build_android_apk_file_response(release, storage_path)
 
-    return build_android_apk_file_response(release, storage_path)
+    payload = fetch_android_app_release_blob(release.get("id"))
+    if payload:
+        logger.warning("Android app release %s is missing on disk, serving database copy: %s", release.get("id"), storage_path)
+        return build_android_apk_blob_response(release, payload)
+
+    logger.warning("Android app release %s is registered but missing on disk and in database storage: %s", release.get("id"), storage_path)
+    return Response("Android app release file is missing. Re-upload the Android app from admin.", status=404, mimetype="text/plain")
 
 
 @app.route("/admin/customers/<device_id>/edit", methods=["POST"])

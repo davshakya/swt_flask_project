@@ -145,6 +145,66 @@ def test_android_release_upload_modal_is_detached_and_shows_progress():
     assert '.android-upload-progress-bar' in admin_template
 
 
+def test_android_release_cleanup_removes_all_builds_copy():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert "Remove All Android Builds" in admin_template
+    assert "Remove every uploaded Android build record and APK file" in admin_template
+    assert "Latest Android build will stay active" not in admin_template
+
+
+def test_release_channel_can_publish_global_firmware_for_mobile_local_install():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    mobile_firmware_routes = (PROJECT_ROOT / "flask_app" / "mobile_firmware_routes.py").read_text(encoding="utf-8")
+
+    assert 'action="/admin/releases/firmware"' in admin_template
+    assert "Publish Firmware" in admin_template
+    assert "Firmware For Android Local Wi-Fi" in admin_template
+    assert "Device-row firmware uploads still stay separate" in admin_template
+    assert "Remove Old Firmware Builds" in admin_template
+    assert ".release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px" in admin_template
+    assert "latest_global_firmware_artifact=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET)" in server_source
+    assert 'fetch_latest_firmware_artifact("__all_customers__")' in mobile_firmware_routes
+    assert '"global_android_local_wifi"' in mobile_firmware_routes
+    assert "target_device=target_device" in mobile_firmware_routes
+
+
+def test_android_app_update_check_compares_installed_version_code():
+    android_source = (
+        PROJECT_ROOT.parent
+        / "swt_android_app_project"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "smartwatertank"
+        / "app"
+        / "MainActivity.kt"
+    ).read_text(encoding="utf-8")
+
+    assert '"currentVersionCode" to installedAppVersionCode().toString()' in android_source
+    assert "latestVersionCode > currentVersionCode" in android_source
+    assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
+
+
+def test_release_versions_use_year_train_increment_syntax():
+    android_build = (PROJECT_ROOT.parent / "swt_android_app_project" / "app" / "build.gradle.kts").read_text(
+        encoding="utf-8"
+    )
+    firmware_loader = (PROJECT_ROOT.parent / "swt_firmware_project" / "scripts" / "platformio_shared_device_env.py").read_text(
+        encoding="utf-8"
+    )
+    android_release_helper = (PROJECT_ROOT / "flask_app" / "android_releases.py").read_text(encoding="utf-8")
+    firmware_release_helper = (PROJECT_ROOT / "flask_app" / "firmware_artifacts.py").read_text(encoding="utf-8")
+
+    assert 'return "${releaseVersionYearPrefix()}.$train.$patch"' in android_build
+    assert 'return f"{current_version_year_prefix()}.{train}.{patch}"' in firmware_loader
+    assert r"^\d{2}\.[1-9]\d*\.[1-9]\d*$" in android_release_helper
+    assert rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b".decode("ascii") in firmware_release_helper
+
+
 def test_register_device_modal_is_detached_and_shows_progress():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 

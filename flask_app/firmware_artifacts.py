@@ -6,6 +6,9 @@ import re
 import secrets
 import time
 
+FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
+FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b")
+
 
 def sanitize_firmware_filename(filename):
     raw_name = Path(str(filename or "")).name.strip()
@@ -24,13 +27,16 @@ def firmware_artifact_storage_path(base_dir, stored_filename):
 
 
 def extract_firmware_version_label(payload):
-    matches = re.findall(rb"\b\d+\.\d+\.\d+\+\d+\b", payload)
+    matches = FIRMWARE_RELEASE_VERSION_BYTES_PATTERN.findall(payload)
     if not matches:
         raise ValueError(
-            "Firmware version was not found inside the uploaded binary. "
+            "Firmware version in YY.n.n format was not found inside the uploaded binary. "
             "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
         )
-    return matches[-1].decode("ascii")
+    version_label = matches[-1].decode("ascii")
+    if not FIRMWARE_RELEASE_VERSION_PATTERN.match(version_label):
+        raise ValueError("Firmware version must use YY.n.n format, for example 26.1.276.")
+    return version_label
 
 
 def read_uploaded_firmware(uploaded_file, max_bytes):

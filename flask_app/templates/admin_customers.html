@@ -163,6 +163,18 @@
 .inline-panel[data-panel-mode="modal"] .modal-close{min-height:38px;padding:8px 12px;border-radius:13px;border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
 .inline-panel[data-panel-mode="modal"] .release-channel-layout,.inline-panel[data-panel-mode="modal"] .customer-access-layout{margin-top:0}
 .inline-panel[data-panel-mode="modal"] .customer-access-layout{grid-template-columns:1fr}
+.release-form-card{display:grid;gap:12px}
+.release-form-card .service-form{gap:9px;padding:12px;border-radius:16px;border:1px solid var(--admin-border);background:rgba(255,255,255,.46)}
+.release-form-card .group{gap:4px}
+.release-form-card .group label{font-size:9px;letter-spacing:.12em}
+.release-form-card input{min-height:36px;padding:8px 10px;border-radius:12px;font-size:12px}
+.release-action-row{display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px;padding:7px 11px;border-radius:12px;font-size:12px;line-height:1.1}
+.release-action-row .clearLink{background:rgba(255,255,255,.62)}
+.release-subhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.release-subhead h3{margin:0;font-size:1rem;letter-spacing:-.02em}
+.release-subhead p{margin:3px 0 0;color:var(--admin-text-soft);font-size:11px;line-height:1.4}
+.release-utility-form{margin-top:2px}
 .android-upload-progress{display:none;gap:8px;margin-top:2px;padding:12px;border:1px solid var(--admin-border);border-radius:16px;background:rgba(255,255,255,.54)}
 .android-upload-progress.is-active{display:grid}
 .android-upload-progress-head{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px;font-weight:800;color:var(--admin-accent-strong)}
@@ -692,7 +704,7 @@
                         <div>
                             <div class="eyebrow">Release Channel</div>
                             <h2 id="release_channel_title">Publish Android updates</h2>
-                            <p class="section-helper">Upload one approved Android release here for the website footer and Android update checks. Firmware builds are uploaded from each device row so OTA packages stay matched to the controller.</p>
+                            <p class="section-helper">Upload the approved Android app and the global firmware used by the Android local Wi-Fi installer. Device-row firmware uploads remain available as the separate controller-specific channel.</p>
                         </div>
                         <button class="modal-close" type="button" data-panel-dismiss>Close</button>
                     </div>
@@ -702,10 +714,21 @@
                         {% else %}
                         <span class="pill pill-warning">No Android APK uploaded</span>
                         {% endif %}
+                        {% if latest_global_firmware_artifact %}
+                        <span class="pill pill-info">Firmware {{ latest_global_firmware_artifact.version_label }} for Android local Wi-Fi</span>
+                        {% else %}
+                        <span class="pill pill-warning">No global firmware uploaded</span>
+                        {% endif %}
                     </div>
                     <div class="release-channel-layout">
                         <div class="release-form-card">
                             <form method="post" action="/admin/releases/android" enctype="multipart/form-data" class="service-form" data-android-upload-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                <div class="release-subhead">
+                                    <div>
+                                        <h3>Android App</h3>
+                                        <p>Used by website download links and app update checks.</p>
+                                    </div>
+                                </div>
                                 <div class="group">
                                     <label for="apk_file">Android APK</label>
                                     <input id="apk_file" name="apk_file" type="file" accept=".apk,application/vnd.android.package-archive" required>
@@ -714,7 +737,7 @@
                                     <label for="android_release_notes">Release Notes</label>
                                     <input id="android_release_notes" name="notes" type="text" placeholder="What changed for customers?">
                                 </div>
-                                <div class="row">
+                                <div class="release-action-row">
                                     <button type="submit">Publish Android App</button>
                                     <a class="clearLink" href="{{ url_for('android_version_manifest') }}">Version Manifest</a>
                                     <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
@@ -730,8 +753,30 @@
                                     <p class="android-upload-progress-note" data-android-upload-note>Keep this popup open while the APK uploads.</p>
                                 </div>
                             </form>
-                            <form method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                <button type="submit">Remove Old Android Builds</button>
+                            <form method="post" action="/admin/releases/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                <div class="release-subhead">
+                                    <div>
+                                        <h3>Firmware For Android Local Wi-Fi</h3>
+                                        <p>Global firmware fallback for the Android app when the local tank is reachable. Device-row firmware uploads still stay separate.</p>
+                                    </div>
+                                </div>
+                                <div class="group">
+                                    <label for="global_firmware_file">Firmware BIN</label>
+                                    <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                                </div>
+                                <div class="group">
+                                    <label for="global_firmware_notes">Firmware Notes</label>
+                                    <input id="global_firmware_notes" name="notes" type="text" placeholder="What changed for devices?">
+                                </div>
+                                <div class="release-action-row">
+                                    <button type="submit">Publish Firmware</button>
+                                </div>
+                            </form>
+                            <form class="release-utility-form" method="post" action="{{ url_for('admin_global_firmware_prune') }}" onsubmit="return confirm('Remove old global firmware builds? The latest global firmware will stay active for Android local Wi-Fi installs.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                <button type="submit">Remove Old Firmware Builds</button>
+                            </form>
+                            <form class="release-utility-form" method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove every uploaded Android build record and APK file? The public Android download link will stop working until a new APK is uploaded.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                                <button type="submit">Remove All Android Builds</button>
                             </form>
                         </div>
                     </div>

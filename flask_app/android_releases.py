@@ -22,6 +22,7 @@ ANDROID_TYPED_VALUE_BOOLEAN = 0x12
 ANDROID_STRING_POOL_UTF8_FLAG = 0x00000100
 ANDROID_VERSION_CODE_RESOURCE_ID = 0x0101021B
 ANDROID_VERSION_NAME_RESOURCE_ID = 0x0101021C
+ANDROID_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
 
 
 def sanitize_android_apk_filename(filename):
@@ -78,10 +79,8 @@ def normalize_android_version_name(value):
     text = str(value or "").strip()
     if not text:
         raise ValueError("Android version name is required.")
-    if len(text) > 96:
-        raise ValueError("Android version name is too long.")
-    if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._+\- ]*$", text):
-        raise ValueError("Android version name contains unsupported characters.")
+    if not ANDROID_RELEASE_VERSION_PATTERN.match(text):
+        raise ValueError("Android version name must use YY.n.n format, for example 26.1.34.")
     return text
 
 
@@ -275,6 +274,22 @@ def build_android_apk_file_response(send_file_func, release, storage_path):
         mimetype=release.get("content_type") or ANDROID_APK_CONTENT_TYPE,
         as_attachment=True,
         download_name=release.get("original_filename") or storage_path.name,
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-MD5"] = release.get("md5") or ""
+    response.headers["X-Android-Version-Code"] = str(release.get("version_code") or "")
+    response.headers["X-Android-Version-Name"] = release.get("version_name") or ""
+    return response
+
+
+def build_android_apk_blob_response(send_file_func, release, payload):
+    response = send_file_func(
+        io.BytesIO(payload),
+        mimetype=release.get("content_type") or ANDROID_APK_CONTENT_TYPE,
+        as_attachment=True,
+        download_name=release.get("original_filename") or "smart-water-tank.apk",
         conditional=False,
         max_age=0,
     )

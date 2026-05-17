@@ -23,6 +23,10 @@ def register_mobile_firmware_routes(
             return jsonify({"error": "device not found"}), 404
 
         artifact = fetch_latest_firmware_artifact(target_device)
+        artifact_scope = target_device
+        if not artifact:
+            artifact = fetch_latest_firmware_artifact("__all_customers__")
+            artifact_scope = "__all_customers__"
         if not artifact:
             return jsonify({"error": "No firmware upload is available for this device yet."}), 404
 
@@ -39,6 +43,7 @@ def register_mobile_firmware_routes(
                     target_device=target_device,
                     download_endpoint=download_url,
                 ),
+                "delivery": "device_specific" if artifact_scope == target_device else "global_android_local_wifi",
             }
         )
 
@@ -50,6 +55,8 @@ def register_mobile_firmware_routes(
             return jsonify({"error": "device not found"}), 404
 
         artifact = fetch_firmware_artifact(artifact_id, device_id=target_device)
+        if not artifact:
+            artifact = fetch_firmware_artifact(artifact_id, device_id="__all_customers__")
         if not artifact:
             return jsonify({"error": "firmware artifact not found"}), 404
 
