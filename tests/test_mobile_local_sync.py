@@ -67,3 +67,22 @@ def test_local_flask_can_auto_relay_to_shared_cloud_without_explicit_relay_urls(
     assert "should_auto_relay_local_request_to_shared_cloud" in server_source
     assert "host_is_private_or_local" in server_source
     assert 'relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")' in server_source
+
+
+def test_cloud_ingestion_accepts_firmware_device_ip_url():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert "def apply_device_status_aliases(cleaned):" in server_source
+    assert 'cleaned.get("device_ip_url")' in server_source
+    assert 'cleaned["device_local_url"] = cleaned.get("device_ip_url")' in server_source
+    assert 'cleaned["level"] = cleaned.get("main_tank_level")' in server_source
+    assert 'cleaned["motor"] = cleaned.get("pump")' in server_source
+    assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
+
+
+def test_admin_templates_do_not_show_public_source_ip_as_local_ip():
+    admin_source = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    detail_source = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert "{% elif device.source_ip %}" not in admin_source
+    assert "snapshot.device_local_url||snapshot.source_ip" not in detail_source

@@ -2180,15 +2180,7 @@ def build_admin_device_entry(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
     payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
     source_ip = payload.get("source_ip")
-    reported_local_url = normalize_device_base_url(payload.get("device_local_url"))
-    device_local_url = reported_local_url
-    if source_ip:
-        try:
-            reported_host = urlparse(str(reported_local_url or "")).hostname or ""
-        except Exception:
-            reported_host = ""
-        if not reported_local_url or reported_host.endswith(".local") or reported_host.endswith(".lan"):
-            device_local_url = f"http://{source_ip}/"
+    device_local_url = normalize_device_base_url(payload.get("device_local_url") or payload.get("device_ip_url"))
     device_local_host = None
     if device_local_url:
         try:
@@ -2223,7 +2215,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
-        "upper_sensor": payload.get("main_sensor") or payload.get("sensor"),
+        "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),
         "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
@@ -2676,6 +2668,22 @@ def sanitize_payload(payload):
     return cleaned
 
 
+def apply_device_status_aliases(cleaned):
+    if not isinstance(cleaned, dict):
+        return cleaned
+    if not cleaned.get("device_local_url") and cleaned.get("device_ip_url"):
+        cleaned["device_local_url"] = cleaned.get("device_ip_url")
+    if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
+        cleaned["level"] = cleaned.get("main_tank_level")
+    if cleaned.get("motor") is None and cleaned.get("pump") is not None:
+        cleaned["motor"] = cleaned.get("pump")
+    if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
+        cleaned["sensor"] = cleaned.get("upper_sensor")
+    if cleaned.get("source_tank_simulator") is None and cleaned.get("lower_tank_simulator") is not None:
+        cleaned["source_tank_simulator"] = cleaned.get("lower_tank_simulator")
+    return cleaned
+
+
 SOURCE_TANK_ALIAS_FIELDS = {
     "lower_tank_level": ("source_tank_level", "source_level"),
     "lower_sensor": ("source_tank_sensor", "source_sensor"),
@@ -2950,6 +2958,7 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 def process_telemetry_payload(data, source_ip=None, transport="http"):
     cleaned = sanitize_payload(dict(data or {}))
     cleaned.pop("device_key", None)
+    apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     cleaned["simulator"] = (

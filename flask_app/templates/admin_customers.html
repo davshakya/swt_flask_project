@@ -466,7 +466,7 @@
                         <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.source_ip or '') ~ ' ' ~ (device.device_local_host or '') ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
                             <td class="device-id-cell">
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
-                                <div class="cell-sub">Local IP: {% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% elif device.source_ip %}{{ device.source_ip }}{% else %}--{% endif %}</div>
+                                <div class="cell-sub">Local IP: {% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% else %}--{% endif %}</div>
                             </td>
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
