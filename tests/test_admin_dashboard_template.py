@@ -134,6 +134,51 @@ def test_dashboard_titles_are_simple_and_icon_precedes_title():
     assert "Home Water Dashboard" in login_template
 
 
+def test_android_release_upload_modal_is_detached_and_shows_progress():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert 'data-android-upload-form' in admin_template
+    assert 'data-android-upload-progress' in admin_template
+    assert 'request.upload.addEventListener("progress"' in admin_template
+    assert 'document.body.appendChild(panel)' in admin_template
+    assert 'panel.dataset.busy === "true"' in admin_template
+    assert '.android-upload-progress-bar' in admin_template
+
+
+def test_register_device_modal_is_detached_and_shows_progress():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert 'data-register-device-form' in admin_template
+    assert 'data-register-device-progress' in admin_template
+    assert 'setRegisterProgress' in admin_template
+    assert 'document.body.appendChild(panel)' in admin_template
+    assert 'panel.dataset.busy === "true"' in admin_template
+    assert '.form-submit-progress-bar' in admin_template
+
+
+def test_admin_dashboard_renders_online_offline_pie_chart():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert "fleet-health-chart" in admin_template
+    assert "fleet-pie" in admin_template
+    assert "--online-pct: {{ online_percent }}%" in admin_template
+    assert "Online <b>{{ online_devices }}</b>" in admin_template
+    assert "Offline <b>{{ offline_devices }}</b>" in admin_template
+
+
+def test_admin_dashboard_uses_compact_aligned_layout():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert ".admin-control-room{padding:14px}" in admin_template
+    assert ".hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:16px;align-items:start}" in admin_template
+    assert ".hero-panel{padding:18px}" in admin_template
+    assert ".hero-actions a,.hero-actions button{min-height:38px" in admin_template
+    assert ".admin-control-room .summary-card{min-height:118px" in admin_template
+    assert ".searchControls button,.searchControls a,.searchInput{min-height:38px" in admin_template
+    assert ".alert-table-shell{max-height:14rem}" in admin_template
+    assert ".device-table-shell{max-height:35rem}" in admin_template
+
+
 def test_homepage_shows_active_identity_and_logout():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")

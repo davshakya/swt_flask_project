@@ -92,6 +92,18 @@
 .hero-focus-card.primary strong{color:#fff}
 .hero-focus-card .focus-mini{margin-top:auto;font-size:12px;color:var(--admin-text-soft)}
 .hero-focus-card.primary .focus-mini{color:rgba(239,252,255,.78)}
+.fleet-health-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(128px,160px);gap:18px;align-items:center}
+.fleet-health-copy{display:grid;gap:8px;min-width:0}
+.fleet-health-chart{display:grid;place-items:center;gap:10px;justify-self:end}
+.fleet-pie{--online-color:#46d18f;--offline-color:#ffb3c0;position:relative;display:grid;place-items:center;width:clamp(118px,11vw,154px);aspect-ratio:1;border-radius:50%;background:conic-gradient(var(--online-color) 0 var(--online-pct),var(--offline-color) var(--online-pct) 100%);box-shadow:inset 0 0 0 1px rgba(255,255,255,.2),0 22px 42px rgba(0,0,0,.16)}
+.fleet-pie::after{content:"";position:absolute;inset:18%;border-radius:50%;background:linear-gradient(180deg,rgba(7,55,70,.96),rgba(8,80,94,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.1)}
+.fleet-pie-label{position:relative;z-index:1;display:grid;gap:1px;text-align:center;line-height:1}
+.fleet-pie-label strong{font-size:1.4rem}
+.fleet-pie-label span{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:rgba(239,252,255,.72)}
+.fleet-pie-legend{display:grid;gap:6px;width:100%;font-size:11px;color:rgba(239,252,255,.78)}
+.fleet-pie-legend span{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.fleet-pie-legend span::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--legend-color);box-shadow:0 0 0 3px rgba(255,255,255,.08);flex:0 0 auto}
+.fleet-pie-legend b{margin-left:auto;color:#fff}
 .admin-control-room .summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 .admin-control-room .summary-card{background:var(--admin-card);border:1px solid var(--admin-border);padding:18px 16px 16px;border-radius:24px}
 .admin-control-room .summary-value{font-size:32px}
@@ -143,14 +155,34 @@
 .device-table-row.is-match{background:color-mix(in srgb,var(--admin-match) 72%,rgba(255,255,255,.78))}
 .device-table-row.has-alerts td:first-child{box-shadow:inset 4px 0 0 rgba(218,79,99,.42)}
 .inline-panel{margin-top:12px;padding-top:12px;border-top:1px solid var(--admin-border)}
-.inline-panel[data-panel-mode="modal"]{position:fixed;inset:0;z-index:110;display:none;margin:0;padding:24px 18px 96px;border:0;background:rgba(7,27,36,.5);backdrop-filter:blur(4px);align-items:flex-start;justify-content:center;overflow-y:auto;overscroll-behavior:contain}
+.inline-panel[data-panel-mode="modal"]{position:fixed;inset:0;z-index:110;display:none;margin:0;padding:24px 18px;border:0;background:rgba(7,27,36,.5);backdrop-filter:blur(4px);align-items:center;justify-content:center;overflow-y:auto;overscroll-behavior:contain}
 .inline-panel[data-panel-mode="modal"].is-open{display:flex}
-.inline-panel[data-panel-mode="modal"] .modal-dialog{width:min(760px,calc(100vw - 24px));max-height:none;overflow:visible;padding:20px;border-radius:24px;border:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 30px 70px rgba(7,36,47,.28)}
+.inline-panel[data-panel-mode="modal"] .modal-dialog{width:min(760px,calc(100vw - 24px));max-height:min(86vh,780px);overflow:auto;padding:20px;border-radius:24px;border:1px solid var(--admin-border);background:var(--admin-surface);box-shadow:0 30px 70px rgba(7,36,47,.28)}
 .inline-panel[data-panel-mode="modal"] .modal-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}
 .inline-panel[data-panel-mode="modal"] .modal-head h2{margin:4px 0 0;font-size:1.35rem;letter-spacing:-.03em;font-family:"Bahnschrift","Aptos","Trebuchet MS","Segoe UI",sans-serif}
 .inline-panel[data-panel-mode="modal"] .modal-close{min-height:38px;padding:8px 12px;border-radius:13px;border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
 .inline-panel[data-panel-mode="modal"] .release-channel-layout,.inline-panel[data-panel-mode="modal"] .customer-access-layout{margin-top:0}
 .inline-panel[data-panel-mode="modal"] .customer-access-layout{grid-template-columns:1fr}
+.android-upload-progress{display:none;gap:8px;margin-top:2px;padding:12px;border:1px solid var(--admin-border);border-radius:16px;background:rgba(255,255,255,.54)}
+.android-upload-progress.is-active{display:grid}
+.android-upload-progress-head{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px;font-weight:800;color:var(--admin-accent-strong)}
+.android-upload-progress-track{height:10px;overflow:hidden;border-radius:999px;background:rgba(14,84,99,.12)}
+.android-upload-progress-bar{width:0%;height:100%;border-radius:inherit;background:linear-gradient(135deg,#34b9d6,#1f9d68);transition:width .18s ease}
+.android-upload-progress-note{margin:0;color:var(--admin-text-soft);font-size:11px;line-height:1.45}
+.android-upload-progress.is-error{border-color:var(--error-line);background:var(--error-bg)}
+.android-upload-progress.is-error .android-upload-progress-head,.android-upload-progress.is-error .android-upload-progress-note{color:var(--error-text)}
+.android-upload-progress.is-complete{border-color:var(--ok-line);background:var(--ok-bg)}
+.android-upload-progress.is-complete .android-upload-progress-head,.android-upload-progress.is-complete .android-upload-progress-note{color:var(--ok-text)}
+.form-submit-progress{display:none;gap:8px;margin-top:12px;padding:12px;border:1px solid var(--admin-border);border-radius:16px;background:rgba(255,255,255,.54)}
+.form-submit-progress.is-active{display:grid}
+.form-submit-progress-head{display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px;font-weight:800;color:var(--admin-accent-strong)}
+.form-submit-progress-track{height:10px;overflow:hidden;border-radius:999px;background:rgba(14,84,99,.12)}
+.form-submit-progress-bar{width:0%;height:100%;border-radius:inherit;background:linear-gradient(135deg,#34b9d6,#1f9d68);transition:width .18s ease}
+.form-submit-progress-note{margin:0;color:var(--admin-text-soft);font-size:11px;line-height:1.45}
+.form-submit-progress.is-error{border-color:var(--error-line);background:var(--error-bg)}
+.form-submit-progress.is-error .form-submit-progress-head,.form-submit-progress.is-error .form-submit-progress-note{color:var(--error-text)}
+.form-submit-progress.is-complete{border-color:var(--ok-line);background:var(--ok-bg)}
+.form-submit-progress.is-complete .form-submit-progress-head,.form-submit-progress.is-complete .form-submit-progress-note{color:var(--ok-text)}
 .inline-form button{min-height:42px;padding:10px 14px;border-radius:14px}
 .service-group{background:rgba(255,255,255,.58);border:1px solid var(--admin-border)}
 .service-preset{border-color:var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
@@ -177,6 +209,56 @@
 .service-modal .service-option span{font-size:12px;font-weight:700;line-height:1.35}
 .service-form-footer{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .service-modal .service-form-footer button{width:100%}
+.admin-control-room{padding:14px}
+.admin-control-room .shell{gap:12px}
+.admin-control-room .panel{border-radius:22px}
+.hero-panel{padding:18px}
+.hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:16px;align-items:start}
+.hero-copy{gap:12px}
+.dashboard-brand-link{width:48px;height:48px;border-radius:15px}
+.dashboard-brand-link img{width:34px;height:34px}
+.dashboard-title-row{gap:12px}
+.hero-title{font-size:clamp(2rem,3.2vw,2.85rem);line-height:.98}
+.hero-lead{font-size:.94rem;line-height:1.48}
+.system-status-bar{gap:8px;padding:13px 15px;border-radius:18px}
+.system-status-main{font-size:clamp(1.08rem,1.9vw,1.42rem);line-height:1.15}
+.system-status-note{margin:0;line-height:1.45}
+.hero-pill-row{gap:8px}
+.hero-pill{min-height:34px;padding:7px 11px;font-size:10px;letter-spacing:.1em}
+.hero-pill strong{font-size:12px}
+.hero-actions{gap:8px;margin-top:0}
+.hero-actions a,.hero-actions button{min-height:38px;padding:9px 13px;border-radius:14px;white-space:nowrap}
+.hero-actions form{margin:0;align-items:stretch}
+.hero-focus-grid{gap:10px;align-content:start}
+.hero-focus-card{min-height:126px;padding:14px;border-radius:18px;gap:7px}
+.hero-focus-card.primary{box-shadow:0 22px 46px rgba(7,44,57,.28)}
+.hero-focus-card strong{font-size:clamp(1.28rem,2.35vw,1.72rem);line-height:1.06}
+.hero-focus-card p{line-height:1.42}
+.hero-focus-card .focus-mini{font-size:11px}
+.fleet-health-layout{grid-template-columns:minmax(0,1fr) minmax(112px,136px);gap:14px}
+.fleet-health-copy{gap:7px}
+.fleet-health-chart{gap:8px}
+.fleet-pie{width:clamp(104px,8.8vw,128px)}
+.fleet-pie::after{inset:20%}
+.fleet-pie-label strong{font-size:1.2rem}
+.fleet-pie-label span{font-size:9px}
+.fleet-pie-legend{gap:5px;font-size:10px}
+.admin-control-room .summary-grid{gap:10px}
+.admin-control-room .summary-card{min-height:118px;padding:13px 14px;border-radius:18px}
+.admin-control-room .summary-value{font-size:25px}
+.summary-caption{margin-top:6px;font-size:11px;line-height:1.38}
+.section-panel{padding:16px}
+.section-panel .section-head{gap:10px;align-items:center}
+.section-panel .section-head h2{font-size:1.25rem}
+.section-helper{margin-top:5px;line-height:1.45}
+.section-badges{gap:6px}
+.section-badges .pill{min-height:28px}
+.searchBar{gap:7px;margin:10px 0 8px}
+.searchControls{gap:8px;align-items:stretch}
+.searchControls button,.searchControls a,.searchInput{min-height:38px;padding:9px 12px;border-radius:14px}
+.table-toolbar{margin-top:8px}
+.alert-table-shell{max-height:14rem}
+.device-table-shell{max-height:35rem}
 @keyframes admin-rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 .admin-control-room .panel{animation:admin-rise .42s ease both}
 @media (prefers-color-scheme: dark){
@@ -202,12 +284,18 @@
 }
 @media (max-width:1180px){
 .hero-grid,.split{grid-template-columns:1fr}
+.hero-focus-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .admin-control-room .summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-access-layout,.form-helper-grid,.release-channel-layout{grid-template-columns:1fr}
 }
 @media (max-width:760px){
-.admin-control-room{padding:16px}
+.admin-control-room{padding:10px}
+.hero-panel,.section-panel{padding:14px}
+.hero-title{font-size:2rem}
+.dashboard-brand-link{width:44px;height:44px}
 .admin-control-room .summary-grid,.hero-focus-grid{grid-template-columns:1fr}
+.fleet-health-layout{grid-template-columns:1fr}
+.fleet-health-chart{justify-self:start}
 .hero-focus-card.primary{grid-column:auto}
 .admin-control-room .summary-grid{grid-template-columns:1fr}
 .searchControls{grid-template-columns:1fr}
@@ -318,10 +406,26 @@
             </div>
             <div class="hero-focus-grid">
                 <div class="hero-focus-card primary">
-                    <div class="eyebrow">Fleet Health</div>
-                    <strong>{{ online_percent }}% online coverage</strong>
-                    <p>{{ online_devices }} of {{ total_devices }} registered devices are online right now{% if total_devices == 0 %}; devices appear here after the first registration or check-in{% endif %}.</p>
-                    <div class="focus-mini">Alerts first, fleet recovery second, onboarding third.</div>
+                    <div class="fleet-health-layout">
+                        <div class="fleet-health-copy">
+                            <div class="eyebrow">Fleet Health</div>
+                            <strong>{{ online_percent }}% online coverage</strong>
+                            <p>{{ online_devices }} of {{ total_devices }} registered devices are online right now{% if total_devices == 0 %}; devices appear here after the first registration or check-in{% endif %}.</p>
+                            <div class="focus-mini">Alerts first, fleet recovery second, onboarding third.</div>
+                        </div>
+                        <div class="fleet-health-chart" aria-label="{{ online_devices }} online and {{ offline_devices }} offline devices">
+                            <div class="fleet-pie" style="--online-pct: {{ online_percent }}%" role="img" aria-label="{{ online_percent }} percent online">
+                                <div class="fleet-pie-label">
+                                    <strong>{{ online_percent }}%</strong>
+                                    <span>online</span>
+                                </div>
+                            </div>
+                            <div class="fleet-pie-legend" aria-hidden="true">
+                                <span style="--legend-color:#46d18f">Online <b>{{ online_devices }}</b></span>
+                                <span style="--legend-color:#ffb3c0">Offline <b>{{ offline_devices }}</b></span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="hero-focus-card">
                     <div class="eyebrow">Customer Impact</div>
@@ -543,7 +647,7 @@
                     <div class="message success" style="margin-bottom:14px">{{ success }}</div>
                     {% endif %}
                     <div class="customer-access-layout">
-                        <form method="post" action="/admin/devices/register" class="form-grid customer-access-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                        <form method="post" action="/admin/devices/register" class="form-grid customer-access-form" data-register-device-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                             <div class="group">
                                 <label for="register_device_id">Device ID / Username</label>
                                 <input id="register_device_id" name="device_id" type="text" placeholder="e.g. swt-000-000-000-002" required>
@@ -566,6 +670,16 @@
                             </div>
                             <div class="row">
                                 <button type="submit">Register Device</button>
+                            </div>
+                            <div class="form-submit-progress" data-register-device-progress role="status" aria-live="polite" aria-hidden="true">
+                                <div class="form-submit-progress-head">
+                                    <span data-register-device-label>Preparing registration</span>
+                                    <span data-register-device-percent>0%</span>
+                                </div>
+                                <div class="form-submit-progress-track" aria-hidden="true">
+                                    <div class="form-submit-progress-bar" data-register-device-bar></div>
+                                </div>
+                                <p class="form-submit-progress-note" data-register-device-note>Keep this popup open while the device is registered.</p>
                             </div>
                         </form>
                     </div>
@@ -591,7 +705,7 @@
                     </div>
                     <div class="release-channel-layout">
                         <div class="release-form-card">
-                            <form method="post" action="/admin/releases/android" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
+                            <form method="post" action="/admin/releases/android" enctype="multipart/form-data" class="service-form" data-android-upload-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                 <div class="group">
                                     <label for="apk_file">Android APK</label>
                                     <input id="apk_file" name="apk_file" type="file" accept=".apk,application/vnd.android.package-archive" required>
@@ -604,6 +718,16 @@
                                     <button type="submit">Publish Android App</button>
                                     <a class="clearLink" href="{{ url_for('android_version_manifest') }}">Version Manifest</a>
                                     <a class="clearLink" href="{{ url_for('android_app_download') }}">Download Link</a>
+                                </div>
+                                <div class="android-upload-progress" data-android-upload-progress role="status" aria-live="polite" aria-hidden="true">
+                                    <div class="android-upload-progress-head">
+                                        <span data-android-upload-label>Preparing upload</span>
+                                        <span data-android-upload-percent>0%</span>
+                                    </div>
+                                    <div class="android-upload-progress-track" aria-hidden="true">
+                                        <div class="android-upload-progress-bar" data-android-upload-bar></div>
+                                    </div>
+                                    <p class="android-upload-progress-note" data-android-upload-note>Keep this popup open while the APK uploads.</p>
                                 </div>
                             </form>
                             <form method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove old Android build records and unused APK files? The latest Android build will stay active.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
@@ -759,6 +883,9 @@
     const inlinePanels = Array.from(document.querySelectorAll(".inline-panel"));
     const panelToggles = Array.from(document.querySelectorAll("[data-panel-toggle]"));
     const panelDismissers = Array.from(document.querySelectorAll("[data-panel-dismiss]"));
+    inlinePanels.forEach((panel) => {
+        if (isModalPanel(panel) && panel.parentElement !== document.body) document.body.appendChild(panel);
+    });
 
     function isModalPanel(panel) {
         return !!panel && panel.dataset.panelMode === "modal";
@@ -802,6 +929,7 @@
         node.addEventListener("click", (event) => {
             event.preventDefault();
             const panel = node.closest(".inline-panel");
+            if (panel && panel.dataset.busy === "true") return;
             setPanelState(panel, false);
             const toggle = panel ? panelToggleFor(panel) : null;
             if (toggle) toggle.focus();
@@ -811,10 +939,171 @@
         if (event.key !== "Escape") return;
         const openModal = inlinePanels.find((panel) => isModalPanel(panel) && !panel.hidden);
         if (!openModal) return;
+        if (openModal.dataset.busy === "true") return;
         setPanelState(openModal, false);
         const toggle = panelToggleFor(openModal);
         if (toggle) toggle.focus();
     });
+
+    const androidUploadForm = document.querySelector("[data-android-upload-form]");
+    if (androidUploadForm) {
+        const progressBox = androidUploadForm.querySelector("[data-android-upload-progress]");
+        const progressBar = androidUploadForm.querySelector("[data-android-upload-bar]");
+        const progressPercent = androidUploadForm.querySelector("[data-android-upload-percent]");
+        const progressLabel = androidUploadForm.querySelector("[data-android-upload-label]");
+        const progressNote = androidUploadForm.querySelector("[data-android-upload-note]");
+        const submitButton = androidUploadForm.querySelector('button[type="submit"]');
+        const fileInput = androidUploadForm.querySelector('input[type="file"]');
+
+        function setUploadProgress(percent, label, note, state) {
+            const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+            if (progressBox) {
+                progressBox.classList.add("is-active");
+                progressBox.classList.toggle("is-error", state === "error");
+                progressBox.classList.toggle("is-complete", state === "complete");
+                progressBox.setAttribute("aria-hidden", "false");
+            }
+            if (progressBar) progressBar.style.width = `${safePercent}%`;
+            if (progressPercent) progressPercent.textContent = `${safePercent}%`;
+            if (progressLabel && label) progressLabel.textContent = label;
+            if (progressNote && note) progressNote.textContent = note;
+        }
+
+        androidUploadForm.addEventListener("submit", (event) => {
+            if (!window.XMLHttpRequest || !window.FormData) return;
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) return;
+            event.preventDefault();
+
+            const ownerPanel = androidUploadForm.closest(".inline-panel");
+            if (ownerPanel) ownerPanel.dataset.busy = "true";
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = "Uploading...";
+            }
+            setUploadProgress(0, "Uploading Android APK", "Starting upload. Keep this popup open.", "");
+
+            const request = new XMLHttpRequest();
+            request.open("POST", androidUploadForm.action, true);
+            request.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+            request.upload.addEventListener("progress", (progressEvent) => {
+                if (!progressEvent.lengthComputable) {
+                    setUploadProgress(5, "Uploading Android APK", "Upload is in progress. Waiting for browser progress details.", "");
+                    return;
+                }
+                const percent = (progressEvent.loaded / progressEvent.total) * 100;
+                setUploadProgress(percent, "Uploading Android APK", "Uploading APK to the release channel.", "");
+            });
+
+            request.addEventListener("load", () => {
+                if (request.status >= 200 && request.status < 400) {
+                    setUploadProgress(100, "Upload complete", "Processing finished. Refreshing the admin page.", "complete");
+                    window.setTimeout(() => {
+                        document.open();
+                        document.write(request.responseText);
+                        document.close();
+                    }, 450);
+                    return;
+                }
+                if (ownerPanel) ownerPanel.dataset.busy = "false";
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Publish Android App";
+                }
+                setUploadProgress(100, "Upload failed", `Server returned HTTP ${request.status}.`, "error");
+            });
+
+            request.addEventListener("error", () => {
+                if (ownerPanel) ownerPanel.dataset.busy = "false";
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Publish Android App";
+                }
+                setUploadProgress(100, "Upload failed", "Network error while uploading APK.", "error");
+            });
+
+            request.send(new FormData(androidUploadForm));
+        });
+    }
+
+    const registerDeviceForm = document.querySelector("[data-register-device-form]");
+    if (registerDeviceForm) {
+        const progressBox = registerDeviceForm.querySelector("[data-register-device-progress]");
+        const progressBar = registerDeviceForm.querySelector("[data-register-device-bar]");
+        const progressPercent = registerDeviceForm.querySelector("[data-register-device-percent]");
+        const progressLabel = registerDeviceForm.querySelector("[data-register-device-label]");
+        const progressNote = registerDeviceForm.querySelector("[data-register-device-note]");
+        const submitButton = registerDeviceForm.querySelector('button[type="submit"]');
+
+        function setRegisterProgress(percent, label, note, state) {
+            const safePercent = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+            if (progressBox) {
+                progressBox.classList.add("is-active");
+                progressBox.classList.toggle("is-error", state === "error");
+                progressBox.classList.toggle("is-complete", state === "complete");
+                progressBox.setAttribute("aria-hidden", "false");
+            }
+            if (progressBar) progressBar.style.width = `${safePercent}%`;
+            if (progressPercent) progressPercent.textContent = `${safePercent}%`;
+            if (progressLabel && label) progressLabel.textContent = label;
+            if (progressNote && note) progressNote.textContent = note;
+        }
+
+        registerDeviceForm.addEventListener("submit", (event) => {
+            if (!window.XMLHttpRequest || !window.FormData) return;
+            event.preventDefault();
+
+            const ownerPanel = registerDeviceForm.closest(".inline-panel");
+            if (ownerPanel) ownerPanel.dataset.busy = "true";
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.textContent = "Registering...";
+            }
+            setRegisterProgress(15, "Registering device", "Sending device and customer access details.", "");
+
+            const request = new XMLHttpRequest();
+            request.open("POST", registerDeviceForm.action, true);
+            request.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+
+            request.upload.addEventListener("progress", (progressEvent) => {
+                if (!progressEvent.lengthComputable) {
+                    setRegisterProgress(35, "Registering device", "Request is being sent.", "");
+                    return;
+                }
+                const percent = 15 + ((progressEvent.loaded / progressEvent.total) * 45);
+                setRegisterProgress(percent, "Registering device", "Sending registration request.", "");
+            });
+
+            request.addEventListener("load", () => {
+                if (request.status >= 200 && request.status < 400) {
+                    setRegisterProgress(100, "Registration complete", "Refreshing the admin page.", "complete");
+                    window.setTimeout(() => {
+                        document.open();
+                        document.write(request.responseText);
+                        document.close();
+                    }, 350);
+                    return;
+                }
+                if (ownerPanel) ownerPanel.dataset.busy = "false";
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Register Device";
+                }
+                setRegisterProgress(100, "Registration failed", `Server returned HTTP ${request.status}.`, "error");
+            });
+
+            request.addEventListener("error", () => {
+                if (ownerPanel) ownerPanel.dataset.busy = "false";
+                if (submitButton) {
+                    submitButton.disabled = false;
+                    submitButton.textContent = "Register Device";
+                }
+                setRegisterProgress(100, "Registration failed", "Network error while registering device.", "error");
+            });
+
+            request.send(new FormData(registerDeviceForm));
+        });
+    }
 
     applySort();
     applyFilter();
