@@ -7689,8 +7689,8 @@ def fetch_local_device_status(base_url, device_id=None):
         raise ValueError("local device URL is not configured")
 
     username = (
-        normalize_device_id(device_id)
-        or os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+        os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()
+        or normalize_device_id(device_id)
         or normalize_device_id(os.environ.get("SWT_DEVICE_ID", ""))
     )
     password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip()
