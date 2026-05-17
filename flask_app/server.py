@@ -2681,8 +2681,6 @@ def apply_device_status_aliases(cleaned):
         cleaned["motor"] = cleaned.get("pump")
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
-    if cleaned.get("source_tank_simulator") is None and cleaned.get("lower_tank_simulator") is not None:
-        cleaned["source_tank_simulator"] = cleaned.get("lower_tank_simulator")
     return cleaned
 
 
@@ -2963,20 +2961,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
-    cleaned["simulator"] = (
-        str(cleaned.get("simulator") or "OFF").strip().upper()
-        if str(cleaned.get("simulator") or "").strip()
-        else "OFF"
-    )
-    if cleaned["simulator"] not in {"ON", "OFF"}:
-        cleaned["simulator"] = "OFF"
-    cleaned["source_tank_simulator"] = (
-        str(cleaned.get("source_tank_simulator") or "OFF").strip().upper()
-        if str(cleaned.get("source_tank_simulator") or "").strip()
-        else "OFF"
-    )
-    if cleaned["source_tank_simulator"] not in {"ON", "OFF"}:
-        cleaned["source_tank_simulator"] = "OFF"
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -3000,8 +2984,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("ai_usage_rate"),
         cleaned.get("tomorrow_prediction"),
         cleaned.get("dry_run"),
-        cleaned.get("simulator"),
-        cleaned.get("source_tank_simulator"),
         cleaned.get("wifi"),
         cleaned.get("wifi_rssi"),
         cleaned.get("sensor"),
@@ -3053,7 +3035,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 leak, pump_failure, abnormal,
                 drip, slow_leak, pipe_leak,
                 ai_usage_rate, tomorrow_prediction,
-                dry_run, simulator, source_tank_simulator,
+                dry_run,
                 wifi, wifi_rssi, sensor,
                 device_source,
                 sensor_info, sensor_distance_cm,
@@ -3444,8 +3426,6 @@ def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
         "device_source": "TEXT",
-        "simulator": "TEXT",
-        "source_tank_simulator": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
         "tank_height_cm": "REAL",
@@ -4002,8 +3982,6 @@ def init_db():
                 ai_usage_rate REAL,
                 tomorrow_prediction REAL,
                 dry_run TEXT,
-                simulator TEXT,
-                source_tank_simulator TEXT,
                 wifi TEXT,
                 wifi_rssi INTEGER,
                 sensor TEXT,
