@@ -261,6 +261,37 @@ function infoValue(value,fallback="Not reported"){
   const text=String(value).trim();
   return text&&text!=="--"?text:fallback;
 }
+function isPositiveServiceValue(value){
+  const raw=String(value??"").trim().toUpperCase();
+  return ["ON","OK","YES","TRUE","1"].includes(raw);
+}
+function isReportedInfoValue(value){
+  const text=String(value??"").trim();
+  if(!text||text==="--")return false;
+  const normalized=text.toLowerCase();
+  const emptyValues=new Set([
+    "not reported",
+    "status not reported",
+    "distance not reported",
+    "heap not reported",
+    "uptime not reported",
+    "reset reason not reported",
+    "local ip not reported",
+    "source mode not reported",
+    "channel not reported",
+    "no relay error reported",
+    "lower sensor disabled",
+    "disabled / distance not reported",
+    "not calibrated",
+    "unknown",
+    "0.0.0.0",
+    "http://0.0.0.0",
+  ]);
+  if(emptyValues.has(normalized))return false;
+  if(normalized.includes("not reported")&&!["error","warning","watch","offline"].some((token)=>normalized.includes(token)))return false;
+  if(normalized.includes("disabled")&&normalized.includes("distance not reported"))return false;
+  return true;
+}
 function formatInfoDateTime(value){return infoValue(formatLocaleDateTime(value,""));}
 function escapeHtml(value){
   return String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
@@ -284,32 +315,37 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
   const lowerDistance=snapshot.lower_sensor_distance_cm!==undefined&&snapshot.lower_sensor_distance_cm!==null?`${snapshot.lower_sensor_distance_cm} cm`:"Distance not reported";
   const tankHeight=snapshot.tank_height_cm!==undefined&&snapshot.tank_height_cm!==null?`${Number(snapshot.tank_height_cm).toFixed(1)} cm`:"Not calibrated";
+  const usesSlave=Boolean(serviceConfig.slave_device_enabled);
+  const sourceMonitoringEnabled=Boolean(serviceConfig.source_tank_monitoring_enabled)||isPositiveServiceValue(snapshot.lower_tank_service);
+  const mainSensorEnabled=serviceConfig.main_sensor_enabled!==false;
+  const slaveIp=infoValue(snapshot.direct_peer_remote_ip,"");
   const items=[
-    ["Firmware",infoValue(snapshot.firmware_version)],
-    ["Configuration",serviceConfig.slave_device_enabled?"Master + Slave":"Master Only"],
-    ["Source Mode",infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")],
-    ["Tank Geometry",`${formatLiters(capacity)} capacity / ${tankHeight} height`],
-    ["Command Service",yesNo(snapshot.command_service)],
-    ["Telemetry Service",yesNo(snapshot.telemetry_service)],
-    ["OTA Service",yesNo(snapshot.ota_service)],
-    ["Lower Tank Service",yesNo(snapshot.lower_tank_service)],
-    ["Main Sensor Detail",`${infoValue(titleCase(snapshot.sensor||""),"Status not reported")} / ${sensorDistance}`],
-    ["Main Sensor Message",infoValue(snapshot.sensor_info)],
-    ["Lower Sensor Detail",`${infoValue(titleCase(snapshot.lower_sensor||""),"Status not reported")} / ${lowerDistance}`],
-    ["Lower Sensor Message",infoValue(snapshot.lower_sensor_info)],
-    ["Network Channel",infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")],
-    ["Local Device IP",infoValue(snapshot.device_local_url,"Local IP not reported")],
-    ["Buzzer",yesNo(snapshot.buzzer_service)],
-    ["LED Display",yesNo(snapshot.led_display_service)],
-    ["Local Firmware Upload",yesNo(snapshot.local_firmware_upload_service)],
-    ["Memory",infoValue(snapshot.free_heap_label,"Heap not reported")],
-    ["Uptime",infoValue(snapshot.uptime_label,"Uptime not reported")],
-    ["Reset Reason",infoValue(snapshot.reset_reason,"Reset reason not reported")],
-    ["Cloud Relay",relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled"],
-    ["Relay Last Success",formatInfoDateTime(relay.last_success_at)],
-    ["Relay Last Error",relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported"],
-  ];
-  root.innerHTML=items.map(([label,value])=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join("");
+    {label:"Firmware",value:infoValue(snapshot.firmware_version)},
+    {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
+    {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
+    {label:"Tank Geometry",value:`${formatLiters(capacity)} capacity / ${tankHeight} height`,show:isReportedInfoValue(capacity)||isReportedInfoValue(tankHeight)},
+    {label:"Command Service",value:yesNo(snapshot.command_service)},
+    {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
+    {label:"OTA Service",value:yesNo(snapshot.ota_service),show:Boolean(serviceConfig.ota_enabled)||isPositiveServiceValue(snapshot.ota_service)},
+    {label:"Lower Tank Service",value:yesNo(snapshot.lower_tank_service),show:sourceMonitoringEnabled||isPositiveServiceValue(snapshot.lower_tank_service)},
+    {label:"Main Sensor Detail",value:`${infoValue(titleCase(snapshot.sensor||""),"Status not reported")} / ${sensorDistance}`,show:mainSensorEnabled},
+    {label:"Main Sensor Message",value:infoValue(snapshot.sensor_info),show:mainSensorEnabled},
+    {label:"Lower Sensor Detail",value:`${infoValue(titleCase(snapshot.lower_sensor||""),"Status not reported")} / ${lowerDistance}`,show:sourceMonitoringEnabled},
+    {label:"Lower Sensor Message",value:infoValue(snapshot.lower_sensor_info),show:sourceMonitoringEnabled},
+    {label:"Network Channel",value:infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")},
+    {label:"Local Device IP",value:infoValue(snapshot.device_local_url,"Local IP not reported")},
+    {label:"Slave Device IP",value:slaveIp,show:usesSlave&&isReportedInfoValue(slaveIp)},
+    {label:"Buzzer",value:yesNo(snapshot.buzzer_service),show:Boolean(serviceConfig.buzzer_enabled)||isPositiveServiceValue(snapshot.buzzer_service)},
+    {label:"LED Display",value:yesNo(snapshot.led_display_service),show:Boolean(serviceConfig.led_display_enabled)||isPositiveServiceValue(snapshot.led_display_service)},
+    {label:"Local Firmware Upload",value:yesNo(snapshot.local_firmware_upload_service),show:Boolean(serviceConfig.local_firmware_upload_enabled)||isPositiveServiceValue(snapshot.local_firmware_upload_service)},
+    {label:"Memory",value:infoValue(snapshot.free_heap_label,"Heap not reported")},
+    {label:"Uptime",value:infoValue(snapshot.uptime_label,"Uptime not reported")},
+    {label:"Reset Reason",value:infoValue(snapshot.reset_reason,"Reset reason not reported")},
+    {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
+    {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
+    {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
+  ].filter((item)=>item.show!==false&&isReportedInfoValue(item.value));
+  root.innerHTML=items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join("");
 }
 function uniqueFeedItems(items){
   const seen=new Set();
@@ -353,7 +389,8 @@ async function loadDevice(){
   const availableWater=formatLiters(snapshot.remaining_liters);
   const capacityLiters=snapshot.capacity_liters??systemStatus.capacity_liters;
   const signal=snapshot.signal_quality||systemStatus.signal_quality||"--";
-  const sourceMonitoringActive=String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON"||snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null;
+  const sourceMonitoringConfigured=Boolean(serviceConfig.source_tank_monitoring_enabled)||String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON";
+  const sourceMonitoringActive=sourceMonitoringConfigured&&(String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON"||snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null);
 
   setText("headline",`${telemetryLabel(telemetry)} status | Last update ${formatLocaleDateTime(lastSync)} | Sensor ${snapshot.sensor||"--"} | Signal ${signal}`);
   setText("level",level);

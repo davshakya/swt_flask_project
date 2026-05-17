@@ -37,6 +37,18 @@ def test_mobile_local_sync_preserves_scope_and_transport_markers():
     assert 'transport="android_local_wifi"' in server_source
 
 
+def test_mobile_simulator_route_queues_firmware_simulator_commands():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert '@app.route("/api/mobile/simulator", methods=["POST"])' in server_source
+    assert '@app.route("/api/mobile/device/simulator", methods=["POST"])' in server_source
+    assert "def resolve_simulator_command(payload):" in server_source
+    assert '"all": "SIMULATOR"' in server_source
+    assert '"upper": "UPPER_SIMULATOR"' in server_source
+    assert '"source": "LOWER_SIMULATOR"' in server_source
+    assert 'f"{command_prefix}_{state_suffix}"' in server_source
+
+
 def test_dashboard_local_sync_route_polls_private_lan_device():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     dashboard_source = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

@@ -8840,6 +8840,87 @@ def mobile_queue_command_response(command, target_device=None, message=None):
     return jsonify(payload)
 
 
+def resolve_simulator_command(payload):
+    payload = payload or {}
+    raw_target = str(
+        payload.get("target")
+        or payload.get("scope")
+        or payload.get("tank")
+        or "all"
+    ).strip().lower().replace("-", "_")
+    raw_state = (
+        payload.get("enabled")
+        if "enabled" in payload
+        else payload.get("state", payload.get("value", payload.get("action", "on")))
+    )
+    if raw_state is None:
+        enabled = True
+    elif isinstance(raw_state, bool):
+        enabled = raw_state
+    else:
+        normalized_state = str(raw_state).strip().lower()
+        if normalized_state in {"1", "true", "yes", "on", "enable", "enabled"}:
+            enabled = True
+        elif normalized_state in {"0", "false", "no", "off", "disable", "disabled"}:
+            enabled = False
+        else:
+            raise ValueError("enabled/state must be true, false, on, or off")
+    state_suffix = "ON" if enabled else "OFF"
+    target_map = {
+        "all": "SIMULATOR",
+        "dual": "SIMULATOR",
+        "dual_tank": "SIMULATOR",
+        "tank": "SIMULATOR",
+        "simulator": "SIMULATOR",
+        "main": "UPPER_SIMULATOR",
+        "upper": "UPPER_SIMULATOR",
+        "upper_tank": "UPPER_SIMULATOR",
+        "main_tank": "UPPER_SIMULATOR",
+        "source": "LOWER_SIMULATOR",
+        "lower": "LOWER_SIMULATOR",
+        "source_tank": "LOWER_SIMULATOR",
+        "lower_tank": "LOWER_SIMULATOR",
+    }
+    command_prefix = target_map.get(raw_target)
+    if not command_prefix:
+        raise ValueError("target must be one of all, upper, main, lower, or source")
+    return f"{command_prefix}_{state_suffix}", raw_target, enabled
+
+
+def mobile_simulator_command_response():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    data = request.get_json(silent=True) or {}
+    try:
+        command, target, enabled = resolve_simulator_command(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    target_device = current_mobile_scope_device_id(data.get("device_id") or request.args.get("device_id", type=str))
+    result = queue_command(command, target_device=target_device)
+    if isinstance(result, tuple):
+        payload, status_code = result
+        return jsonify(payload), status_code
+    payload = dict(result)
+    payload.update(
+        {
+            "message": f"Simulator {'enable' if enabled else 'disable'} command queued.",
+            "simulator_target": target,
+            "simulator_enabled": enabled,
+        }
+    )
+    user = resolve_mobile_user() or {}
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="queue_simulator_command",
+        target_type="device",
+        target_id=payload.get("target_device"),
+        device_id=payload.get("target_device"),
+        details={"command": command, "target": target, "enabled": enabled, "source": "mobile_api"},
+    )
+    return jsonify(payload)
+
+
 def build_mobile_auth_response_payload(authenticated_user, message=None):
     payload = {
         "token": issue_mobile_token(authenticated_user),
@@ -9116,6 +9197,13 @@ def mobile_sensor_configure():
     payload["capacity_liters"] = round(capacity_liters, 1)
     payload["message"] = "Tank capacity command queued. Calibrate to learn tank height."
     return jsonify(payload)
+
+
+@app.route("/api/mobile/simulator", methods=["POST"])
+@app.route("/api/mobile/device/simulator", methods=["POST"])
+@mobile_auth_required
+def mobile_device_simulator():
+    return mobile_simulator_command_response()
 
 
 @app.route("/api/mobile/device/status")
