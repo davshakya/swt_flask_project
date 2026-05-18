@@ -127,15 +127,12 @@ body.modal-open{overflow:hidden}
 50%{transform:translateY(18px)}
 }
 @keyframes brandSpinUp{
-0%{transform:rotate(0deg) scale(.94)}
-16%{transform:rotate(180deg) scale(1.04)}
-100%{transform:rotate(1080deg) scale(1)}
+from{transform:rotate(0deg)}
+to{transform:rotate(1080deg)}
 }
 @keyframes chatbotIconSpinUp{
-0%{transform:rotate(0deg) scale(1)}
-10%{transform:rotate(150deg) scale(1.08)}
-22%{transform:rotate(300deg) scale(1)}
-100%{transform:rotate(1080deg) scale(1)}
+from{transform:rotate(0deg)}
+to{transform:rotate(360deg)}
 }
 a{color:inherit}
 a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link){
@@ -197,8 +194,9 @@ overflow:hidden;
 display:block;
 width:38px;
 height:38px;
-animation:brandSpinUp 1.65s cubic-bezier(.2,.78,.18,1) both;
+animation:brandSpinUp 2.1s linear both;
 transform-origin:center;
+will-change:transform;
 }
 .brand-copy strong{
 display:block;
@@ -2566,7 +2564,7 @@ height:30px;
 transform-origin:center;
 }
 .site-chatbot.is-open .chatbot-avatar img{
-animation:chatbotIconSpinUp 2.4s cubic-bezier(.2,.78,.18,1) infinite;
+animation:chatbotIconSpinUp 1.4s linear infinite;
 }
 .chatbot-title strong{
 display:block;
@@ -4326,7 +4324,7 @@ width:100%;
             <button class="chatbot-close" id="chatbotClose" type="button" aria-label="Close chat">&times;</button>
         </div>
         <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
-            <div class="chatbot-message is-bot">Hi, I am your SaleWell Tank Advisor. Tell me what you are trying to solve: overflow, motor safety, pump control, water shortage, pricing, or installation. I will answer like a site engineer and keep it practical.</div>
+            <div class="chatbot-message is-bot">Hi, I can help you choose a plan. Ask about overflow, motor safety, pump control, water shortage, price, or installation.</div>
         </div>
         <div class="chatbot-suggestions" aria-label="Quick questions">
             <button class="chatbot-chip" type="button" data-chat-prompt="Which plan fits my home?">Home plan</button>
@@ -4714,39 +4712,39 @@ const chatAddOns = [
 const chatBookingFields = [
     {
         key: "name",
-        question: "Let us book this properly. First, what name should our team use?",
-        validate: (value) => value.trim().length >= 2,
+        question: "What is your name?",
+        validate: (value) => value.trim().length >= 2 && reDigits(value).length < 4 && !chatLooksLikeQuestion(value.toLowerCase()),
         error: "Please share a real name with at least 2 characters.",
     },
     {
         key: "phone",
-        question: "Thanks. What phone or WhatsApp number should we call?",
+        question: "What phone or WhatsApp number should we call?",
         validate: (value) => reDigits(value).length >= 10,
         error: "Please enter a valid phone or WhatsApp number with at least 10 digits.",
     },
     {
         key: "email",
-        question: "Please share your email too, so we can send the booking confirmation.",
+        question: "What email should we send the confirmation to?",
         normalize: (value) => value.trim().toLowerCase(),
         validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
         error: "Please enter a valid email address, for example name@example.com.",
     },
     {
         key: "city",
-        question: "Which city or service area is the installation for?",
+        question: "Which city is this for?",
         validate: (value) => value.trim().length >= 2,
         error: "Please enter the city or service area.",
     },
     {
         key: "segment",
-        question: "What type of property is it? You can reply: Home, Apartment/RWA, Hotel, Dealer, or Commercial.",
+        question: "What type of property is it? Reply: Home, Apartment/RWA, Hotel, Dealer, or Commercial.",
         normalize: normalizeChatSegment,
         validate: (value) => Boolean(normalizeChatSegment(value)),
         error: "Please choose one project type: Home, Apartment/RWA, Hotel, Dealer, or Commercial.",
     },
     {
         key: "devices",
-        question: "How many tanks or devices should we plan for? A rough number is fine.",
+        question: "How many tanks or devices? A rough number is fine.",
         normalize: (value) => extractRequirementCount(value) || value.trim(),
         validate: (value) => {
             const count = Number(extractRequirementCount(value) || value.trim());
@@ -4756,7 +4754,7 @@ const chatBookingFields = [
     },
     {
         key: "note",
-        question: "Last detail: what is the main problem to solve? Overflow, pump control, dry-run, source tank, leakage, or installation timing. Type 'skip' if nothing else.",
+        question: "What problem should we solve? Overflow, pump control, dry-run, leak, or setup. Type 'skip' if nothing else.",
         normalize: (value) => value.trim().toLowerCase() === "skip" ? "" : value.trim(),
         validate: (value) => value.trim().length <= 800,
         error: "Please keep the note under 800 characters.",
@@ -4812,6 +4810,27 @@ function chatLooksLikeQuestion(input) {
     );
 }
 
+function shortBookingInterruptAnswer(rawInput) {
+    const input = rawInput.toLowerCase();
+    const plan = recommendPlan(input);
+    if (chatHasAny(input, ["price", "pricing", "cost", "rate", "monthly", "subscription"])) {
+        return `${plan.name} looks closest. Price: ${plan.price}. Final quote depends on tank count, pump control, and city.`;
+    }
+    if (chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "automation"])) {
+        return `Yes. Pump control helps you switch the motor from your phone and reduce manual checks. ${plan.name} is a good starting point.`;
+    }
+    if (chatHasAny(input, ["overflow", "leak", "water loss", "tank full", "spillage"])) {
+        return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
+    }
+    if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
+        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, and city.`;
+    }
+    if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
+        return `For apartments or managed sites, start with Commercial Standard. Choose AI Pro for reports, leak insight, or many tanks.`;
+    }
+    return `${plan.name} looks like the best starting point. It should solve the need without overbuying.`;
+}
+
 function extractRequirementCount(input) {
     const match = input.match(/(\d+)\s*(tank|device|flat|home|house|site|tower|building|unit|room)s?/i);
     return match ? match[1] : "";
@@ -4861,7 +4880,7 @@ function startChatBooking(fill = {}) {
         },
     };
     const planLine = fill.plan ? ` for ${fill.plan}` : "";
-    appendChatMessage(`Good choice. I will collect the booking details${planLine} one by one. Nothing is submitted until the details are complete, so the sales team gets a useful enquiry instead of a blank lead.`, "bot");
+    appendChatMessage(`Good choice. I will ask the booking details${planLine} one by one. Nothing is submitted until the end.`, "bot");
     askChatBookingQuestion();
 }
 
@@ -4875,20 +4894,16 @@ function handleChatBookingAnswer(answer) {
     const normalizedAnswer = answer.trim().toLowerCase();
     if (normalizedAnswer === "cancel" || normalizedAnswer === "stop") {
         chatBookingState = null;
-        appendChatMessage("Booking collection is cancelled. You can still ask me about plans, pricing, pump control or installation.", "bot");
+        appendChatMessage("Booking cancelled. You can still ask about plans, price, pump control, or installation.", "bot");
         return true;
     }
     if (normalizedAnswer === "resume" || normalizedAnswer === "continue") {
         resumeChatBooking();
         return true;
     }
-    if (chatLooksLikeQuestion(normalizedAnswer) && !field.validate(answer)) {
-        const response = getChatbotResponse(answer);
-        appendChatMessage(response.text, "bot", [
-            ...(response.actions || []),
-            { label: "Resume booking", action: "resume-booking" },
-            { label: "Cancel booking", action: "cancel-booking" },
-        ]);
+    if (field.key !== "note" && chatLooksLikeQuestion(normalizedAnswer)) {
+        appendChatMessage(shortBookingInterruptAnswer(answer), "bot");
+        appendChatMessage(field.question, "bot");
         return true;
     }
 
@@ -5012,7 +5027,7 @@ function planPricingLine(plan) {
 }
 
 function describePlan(plan) {
-    return `My honest read: ${plan.name} fits when the site is ${plan.bestFor}.\n\nPrice: ${plan.price}.\nWhat you get: ${plan.includes.join(", ")}.\nWhy it works: ${plan.strengths.join(", ")}.\n\nFriend-to-friend: do not overbuy. Choose this only if those features match your daily pain point.`;
+    return `${plan.name} is good for ${plan.bestFor}.\n\nPrice: ${plan.price}.\nIncludes: ${plan.includes.slice(0, 4).join(", ")}.\n\nChoose it only if these features match your problem.`;
 }
 
 function recommendPlan(input) {
@@ -5045,18 +5060,17 @@ function chatRequirementSignals(input) {
 
 function expertRecommendationText(plan, rawInput, count = "") {
     const signals = chatRequirementSignals(rawInput.toLowerCase());
-    const signalText = signals.length ? signals.join(", ") : "daily tank visibility and faster response";
-    const deviceText = count ? ` I noticed you mentioned ${count}; final device count should be confirmed after tank/source mapping.` : "";
+    const signalText = signals.length ? signals.join(", ") : "daily tank checking";
+    const deviceText = count ? ` You mentioned ${count}; we can confirm the final count on call.` : "";
     return (
-        `My practical recommendation is ${plan.name}.\n\n` +
-        `Why: your requirement points to ${signalText}. ${plan.name} is designed for ${plan.bestFor}.\n\n` +
-        `Commercial logic: start with the smallest plan that solves the real pain. Upgrade only when you need remote pump control, AI leak insight, source-tank logic, reports, or multiple-user/admin visibility.${deviceText}\n\n` +
-        `Budget view: ${plan.price}. Key inclusions: ${plan.includes.slice(0, 5).join(", ")}.`
+        `I suggest ${plan.name}.\n\n` +
+        `Why: it matches ${signalText}. It is made for ${plan.bestFor}.${deviceText}\n\n` +
+        `Price: ${plan.price}. Includes: ${plan.includes.slice(0, 4).join(", ")}.`
     );
 }
 
 function friendlyNextStepText(plan) {
-    return `If this sounds close, the next smart step is a quick setup check for tank count, pump location, internet/Wi-Fi access and installation city. That avoids wrong hardware and surprise pricing later.`;
+    return `Next step: check tank count, pump location, internet/Wi-Fi, and city.`;
 }
 
 function isChatBookingIntent(input) {
@@ -5091,7 +5105,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsBooking) {
         return {
-            text: `Absolutely. I can book this as a demo enquiry and I will keep it tidy.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nI will ask the required details one by one before anything is submitted.`,
+            text: `Sure. I can book a demo.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nI will ask the details one by one.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
             ],
@@ -5103,7 +5117,7 @@ function getChatbotResponse(rawInput) {
         const recommendation = recommendedPlan ? `\n\nMy shortlist for your case: ${recommendedPlan.name}. Reason: ${recommendedPlan.bestFor}.` : "";
         const addOnText = wantsPrice ? `\n\nCommon add-ons:\n${chatAddOns.join("\n")}` : "";
         return {
-            text: `Here is the clean pricing view, without sales fog:\n\n${pricingLines}${recommendation}${addOnText}\n\nExpert tip: compare against the cost of one motor repair, regular overflow wastage, tanker dependency, and staff time. The cheapest plan is not always best, but the right plan should pay for itself through fewer daily problems.`,
+            text: `Pricing:\n${pricingLines}${recommendation}${addOnText}\n\nTip: compare this with motor repair cost, water waste, tanker cost, and staff time.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Open comparison", href: `${pricingPageUrl}#comparison` },
@@ -5113,7 +5127,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsPump && wantsOverflow) {
         return {
-            text: `You are thinking about the right pair of problems: overflow and motor safety usually belong together.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nIn simple terms: live tank level tells you when water is near full or low, and pump control helps you act without waiting for someone to climb up or manually switch the motor. For hidden leakage or usage patterns, choose an AI plan.`,
+            text: `Overflow and motor safety are linked.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nLive level shows full or low water. Pump control helps you act fast. Choose AI only for leak or usage details.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Setup check", href: "#setup-check" },
@@ -5123,7 +5137,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsPump) {
         return {
-            text: `For pump control, I would not recommend the local-only plan unless you only need visibility.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nFriendly advice: if someone currently depends on a guard, tenant, staff member, or family member to switch the pump, remote control and alerts are worth it. If the pump is already automated and you only want status, we can keep the plan lighter.`,
+            text: `For pump control, avoid local-only plans.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nIf someone switches the pump manually today, remote control will help.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "View pump plans", href: selectedPlanUrl(recommendedPlan.name, recommendedPlan.segment) },
@@ -5133,7 +5147,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsOverflow) {
         return {
-            text: `Overflow is usually a visibility and response-time problem.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nIf the issue is only 'tank gets full and spills', basic monitoring may be enough. If the issue is 'water disappears, bills look high, or complaints come late', add AI leak/usage insight. That is the difference between alerting and diagnosis.`,
+            text: `Overflow happens when people cannot see or act in time.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nBasic monitoring gives alerts. AI helps for leak or unusual usage.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Check overflow setup", href: "#setup-check" },
@@ -5143,7 +5157,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `For installation, here is the engineer checklist I would use:\n\n1. Property type and city\n2. Number of overhead, underground and source tanks\n3. Tank height/capacity and access safety\n4. Pump location and starter/control panel position\n5. Wi-Fi/internet availability near the controller\n6. Whether you need remote pump control, alerts, AI analytics or reports\n\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation needs:\n1. Property type and city\n2. Tank count and type\n3. Pump location\n4. Wi-Fi/internet access\n5. Need for pump control, alerts, or AI\n\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",
@@ -5160,7 +5174,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsSupport) {
         return {
-            text: "You can reach SaleWell at support@salewell.co.in or +91-8299812878.\n\nBest use of that call: share property type, tank count, city, and whether pump control is required. That lets the team discuss the correct plan instead of giving a generic quote.",
+            text: "You can contact SaleWell at support@salewell.co.in or +91-8299812878.\n\nFor a faster answer, share property type, tank count, city, and pump-control need.",
             actions: [
                 { label: "Email sales", href: "mailto:support@salewell.co.in" },
                 { label: "Call sales", href: "tel:+918299812878" },
@@ -5170,7 +5184,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsCoverage) {
         return {
-            text: `SaleWell is positioned for Delhi NCR use cases, including Delhi, Noida, Gurgaon/Gurugram and nearby managed properties.\n\nExpert note: installation timing depends less on the city name and more on site access, tank count, pump-panel access and whether underground/source tanks are included.\n\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `SaleWell serves Delhi NCR, including Delhi, Noida and Gurgaon/Gurugram.\n\nTiming depends on tank count, site access, and pump-panel access.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Book local call", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
@@ -5180,7 +5194,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsDashboard) {
         return {
-            text: "After installation, the practical value is simple: customers see tank level, pump status and alerts on the phone, while the service/admin side can manage devices and support work.\n\nFor homes, this reduces daily checking. For RWAs and commercial sites, it reduces confusion because the same tank/pump status is visible to the people responsible for action.",
+            text: "After installation, customers can see tank level, pump status, and alerts on the phone.\n\nHomes get easier daily checking. Apartments and commercial sites get clearer shared status.",
             actions: [
                 { label: "Book dashboard demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
                 { label: "Download app", href: "{{ url_for('android_app_download') }}" },
@@ -5190,7 +5204,7 @@ function getChatbotResponse(rawInput) {
 
     if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"]) || wantsGreeting) {
         return {
-            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nTo make this exact, tell me: number of tanks, property type, and whether pump control or AI leak detection is needed.`,
+            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nTo make it exact, tell me tank count, property type, and whether pump control or AI leak detection is needed.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
@@ -5199,7 +5213,7 @@ function getChatbotResponse(rawInput) {
     }
 
     return {
-        text: "I can help like a practical site advisor, not just a FAQ bot.\n\nAsk me about plan selection, pricing, pump control, overflow, leak detection, installation, app/dashboard access, support, or Delhi NCR availability.\n\nBest format: 'home with 1 tank and pump control', 'RWA with 10 tanks', 'price of Home Smart', or 'installation for underground tank'.",
+        text: "I can help with plans, price, pump control, overflow, leak detection, installation, app access, support, and Delhi NCR availability.\n\nTry: 'home with 1 tank', 'RWA with 10 tanks', 'price of Home Smart', or 'installation for underground tank'.",
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
