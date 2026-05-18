@@ -1142,7 +1142,11 @@ def remember_registered_device(device_id, registration_source, key_rule=None, be
                 """,
                 (normalized_device_id, registration_source, key_rule),
             )
-    except Exception:
+    except Exception as exc:
+        if best_effort:
+            logger.warning("Could not remember registered device %s: %s", normalized_device_id, exc)
+            note_registered_device_touch(normalized_device_id, registration_source, key_rule)
+            return
         raise
     note_registered_device_touch(normalized_device_id, registration_source, key_rule)
 
@@ -3028,13 +3032,13 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
             """
             DELETE FROM tank_data
             WHERE id IN (
-                SELECT id FROM (
+                SELECT capped_rows.id FROM (
                     SELECT id
                     FROM tank_data
                     WHERE COALESCE(device_id, '') = ?
                     ORDER BY created_at DESC, id DESC
                     LIMIT -1 OFFSET ?
-                )
+                ) AS capped_rows
             )
             """,
             (normalized_device_id, MAX_TELEMETRY_ROWS_PER_DEVICE),
@@ -3056,9 +3060,11 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         DELETE FROM ops_audit_log
         WHERE created_at < datetime('now', ?)
           AND id NOT IN (
-              SELECT MAX(id)
-              FROM ops_audit_log
-              GROUP BY COALESCE(device_id, '')
+              SELECT audit_keep.id FROM (
+                  SELECT MAX(id) AS id
+                  FROM ops_audit_log
+                  GROUP BY COALESCE(device_id, '')
+              ) AS audit_keep
           )
         """,
         (f"-{OPS_AUDIT_RETENTION_DAYS} day",),
