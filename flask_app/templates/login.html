@@ -22,6 +22,8 @@ color-scheme:light dark;
 --brand:#0d93a8;
 --brand-deep:#0c6678;
 --brand-soft:rgba(13,147,168,.1);
+--link-blue:#0b63ce;
+--link-blue-hover:#084fa8;
 --accent:#ef9b41;
 --accent-soft:rgba(239,155,65,.14);
 --success:#198a61;
@@ -58,6 +60,8 @@ color-scheme:light dark;
 --brand:#59d3e6;
 --brand-deep:#95eeff;
 --brand-soft:rgba(89,211,230,.14);
+--link-blue:#83c5ff;
+--link-blue-hover:#b7ddff;
 --accent:#ffbb61;
 --accent-soft:rgba(255,187,97,.16);
 --success:#49d597;
@@ -128,6 +132,17 @@ body.modal-open{overflow:hidden}
 100%{transform:rotate(720deg) scale(1)}
 }
 a{color:inherit}
+a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link){
+color:var(--link-blue);
+text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);
+text-underline-offset:3px;
+font-weight:800;
+transition:color .18s ease,text-decoration-color .18s ease;
+}
+a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link):hover{
+color:var(--link-blue-hover);
+text-decoration-color:currentColor;
+}
 button,input,select,textarea{font:inherit}
 img{display:block;max-width:100%}
 .page{
@@ -417,7 +432,7 @@ font-family:"Georgia","Times New Roman",serif;
 font-size:clamp(2.5rem,4.5vw,4.3rem);
 line-height:.95;
 letter-spacing:-.05em;
-max-width:11ch;
+max-width:100%;
 }
 .hero-text{
 margin:0;
@@ -770,9 +785,21 @@ color:var(--muted);
 margin-top:22px;
 padding:28px;
 }
+.section.surface{
+--section-accent:var(--brand);
+--section-accent-deep:var(--brand-deep);
+--section-tint:rgba(13,147,168,.08);
+--section-tint-strong:rgba(13,147,168,.14);
+--section-line:rgba(13,147,168,.18);
+--section-glow:rgba(13,147,168,.14);
+background:
+    radial-gradient(circle at 100% 0,var(--section-glow),transparent 32%),
+    linear-gradient(180deg,var(--surface-strong),var(--surface));
+border-color:var(--section-line);
+}
 .section-header{
 display:grid;
-grid-template-columns:minmax(0,.82fr) minmax(0,1.18fr);
+grid-template-columns:minmax(0,1fr);
 gap:18px;
 align-items:end;
 margin-bottom:20px;
@@ -783,13 +810,184 @@ font-family:"Georgia","Times New Roman",serif;
 font-size:clamp(2rem,3.3vw,2.9rem);
 line-height:1.02;
 letter-spacing:-.04em;
-max-width:14ch;
+max-width:100%;
+color:var(--section-accent-deep);
 }
 .section-copy{
 margin:0;
 line-height:1.68;
 color:var(--muted);
 max-width:64ch;
+}
+.section .eyebrow,
+.section .card-tag{
+background:var(--section-tint-strong);
+border-color:var(--section-line);
+color:var(--section-accent-deep);
+}
+.section .card{
+border-color:var(--section-line);
+background:linear-gradient(180deg,var(--surface-strong),var(--surface));
+}
+.section .urgency-banner,
+.section .support-panel,
+.section .promo-card,
+#enquiry .enquiry-form{
+border-color:var(--section-line);
+background:
+    radial-gradient(circle at 100% 0,var(--section-tint-strong),transparent 34%),
+    linear-gradient(180deg,var(--surface-strong),var(--surface));
+}
+.section .form-speed-note{
+background:var(--section-tint-strong);
+border-color:var(--section-line);
+color:var(--section-accent-deep);
+}
+.section .card h3,
+.section .card strong.price,
+.section .support-panel h3,
+.section .promo-copy h3{
+color:var(--section-accent-deep);
+}
+.section .card li::before{
+background:var(--section-accent);
+box-shadow:0 0 0 4px var(--section-tint-strong);
+}
+.section .ghost-link{
+border-color:var(--section-line);
+color:var(--section-accent-deep);
+}
+#social-proof{
+--section-accent:#0d93a8;
+--section-accent-deep:#0b6676;
+--section-tint:rgba(13,147,168,.08);
+--section-tint-strong:rgba(13,147,168,.14);
+--section-line:rgba(13,147,168,.2);
+--section-glow:rgba(13,147,168,.16);
+}
+#benefits{
+--section-accent:#e77934;
+--section-accent-deep:#8f4914;
+--section-tint:rgba(231,121,52,.09);
+--section-tint-strong:rgba(231,121,52,.15);
+--section-line:rgba(231,121,52,.22);
+--section-glow:rgba(231,121,52,.16);
+}
+#before-after{
+--section-accent:#198a61;
+--section-accent-deep:#126746;
+--section-tint:rgba(25,138,97,.08);
+--section-tint-strong:rgba(25,138,97,.14);
+--section-line:rgba(25,138,97,.2);
+--section-glow:rgba(25,138,97,.15);
+}
+#demo,
+#how-it-works{
+--section-accent:#2879a8;
+--section-accent-deep:#174f72;
+--section-tint:rgba(40,121,168,.08);
+--section-tint-strong:rgba(40,121,168,.14);
+--section-line:rgba(40,121,168,.2);
+--section-glow:rgba(40,121,168,.15);
+}
+#solutions{
+--section-accent:#8a7a16;
+--section-accent-deep:#61540c;
+--section-tint:rgba(188,157,36,.09);
+--section-tint-strong:rgba(188,157,36,.16);
+--section-line:rgba(188,157,36,.24);
+--section-glow:rgba(188,157,36,.15);
+}
+#proof{
+--section-accent:#118070;
+--section-accent-deep:#0b5d52;
+--section-tint:rgba(17,128,112,.08);
+--section-tint-strong:rgba(17,128,112,.14);
+--section-line:rgba(17,128,112,.2);
+--section-glow:rgba(17,128,112,.15);
+}
+#setup-check{
+--section-accent:#0f8d97;
+--section-accent-deep:#0b626a;
+--section-tint:rgba(15,141,151,.08);
+--section-tint-strong:rgba(15,141,151,.14);
+--section-line:rgba(15,141,151,.2);
+--section-glow:rgba(15,141,151,.15);
+}
+#enquiry{
+--section-accent:#ef9b41;
+--section-accent-deep:#8d5311;
+--section-tint:rgba(239,155,65,.09);
+--section-tint-strong:rgba(239,155,65,.16);
+--section-line:rgba(239,155,65,.25);
+--section-glow:rgba(239,155,65,.2);
+}
+@media (prefers-color-scheme: dark){
+#social-proof{
+--section-accent:#59d3e6;
+--section-accent-deep:#a6eff8;
+--section-tint:rgba(89,211,230,.1);
+--section-tint-strong:rgba(89,211,230,.16);
+--section-line:rgba(89,211,230,.2);
+--section-glow:rgba(89,211,230,.14);
+}
+#benefits{
+--section-accent:#ffb36f;
+--section-accent-deep:#ffd4aa;
+--section-tint:rgba(255,179,111,.09);
+--section-tint-strong:rgba(255,179,111,.16);
+--section-line:rgba(255,179,111,.22);
+--section-glow:rgba(255,179,111,.14);
+}
+#before-after{
+--section-accent:#61d597;
+--section-accent-deep:#bdf5d5;
+--section-tint:rgba(97,213,151,.09);
+--section-tint-strong:rgba(97,213,151,.15);
+--section-line:rgba(97,213,151,.2);
+--section-glow:rgba(97,213,151,.14);
+}
+#demo,
+#how-it-works{
+--section-accent:#7fcfff;
+--section-accent-deep:#b9e6ff;
+--section-tint:rgba(127,207,255,.09);
+--section-tint-strong:rgba(127,207,255,.15);
+--section-line:rgba(127,207,255,.2);
+--section-glow:rgba(127,207,255,.14);
+}
+#solutions{
+--section-accent:#eadb73;
+--section-accent-deep:#f3eaa6;
+--section-tint:rgba(234,219,115,.09);
+--section-tint-strong:rgba(234,219,115,.15);
+--section-line:rgba(234,219,115,.2);
+--section-glow:rgba(234,219,115,.13);
+}
+#proof{
+--section-accent:#69dcca;
+--section-accent-deep:#b8f3ea;
+--section-tint:rgba(105,220,202,.09);
+--section-tint-strong:rgba(105,220,202,.15);
+--section-line:rgba(105,220,202,.2);
+--section-glow:rgba(105,220,202,.13);
+}
+#setup-check{
+--section-accent:#6fdae0;
+--section-accent-deep:#b9f2f5;
+--section-tint:rgba(111,218,224,.09);
+--section-tint-strong:rgba(111,218,224,.15);
+--section-line:rgba(111,218,224,.2);
+--section-glow:rgba(111,218,224,.13);
+}
+#enquiry{
+--section-accent:#ffc77b;
+--section-accent-deep:#ffdfb4;
+--section-tint:rgba(255,199,123,.1);
+--section-tint-strong:rgba(255,199,123,.17);
+--section-line:rgba(255,199,123,.24);
+--section-glow:rgba(255,199,123,.15);
+}
 }
 .value-grid,
 .proof-grid,
@@ -2011,7 +2209,7 @@ font-family:"Georgia","Times New Roman",serif;
 font-size:clamp(2rem,3.4vw,2.8rem);
 line-height:1.04;
 letter-spacing:-.04em;
-max-width:15ch;
+max-width:100%;
 }
 .promo-card{
 padding:16px 18px;
@@ -3623,6 +3821,13 @@ padding:12px;
                     <h2>Book a free installation call or pricing demo.</h2>
                 </div>
 
+                <div class="form-speed-note">Takes less than 30 seconds &bull; No spam &bull; No commitment</div>
+                <div class="form-urgency" aria-label="Form urgency signals">
+                    <span>&#9888; Be ready for summer water shortages</span>
+                    <span>&#9888; Prevent &#8377;10,000+ motor repair costs</span>
+                    <span>&#9888; Limited installation slots available this month</span>
+                </div>
+
                 <div class="what-you-get-grid">
                     <article class="card">
                         <div class="card-tag">Site Planning</div>
@@ -3656,12 +3861,6 @@ padding:12px;
                 {% if sales_error %}
                 <div class="banner error">{{ sales_error }}</div>
                 {% endif %}
-                <div class="form-speed-note">Takes less than 30 seconds &bull; No spam &bull; No commitment</div>
-                <div class="form-urgency" aria-label="Form urgency signals">
-                    <span>&#9888; Be ready for summer water shortages</span>
-                    <span>&#9888; Prevent &#8377;10,000+ motor repair costs</span>
-                    <span>&#9888; Limited installation slots available this month</span>
-                </div>
                 <div class="row-2">
                     <div class="group">
                         <label for="lead_name">Name</label>
