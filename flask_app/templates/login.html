@@ -4281,7 +4281,6 @@ width:100%;
                 </div>
                 <div class="form-actions">
                     <button class="button-secondary" type="submit">Book Installation Call</button>
-                    <a class="ghost-link" id="emailEnquiryButton" href="mailto:support@salewell.co.in">Prefer email instead</a>
                 </div>
                 <div class="form-note">Send this form for a pricing discussion, demo scheduling, or a quick tank setup recommendation.</div>
             </form>
@@ -4765,6 +4764,7 @@ const chatBookingFields = [
 ];
 
 let chatBookingState = null;
+let chatCompletedBooking = null;
 let chatEnquirySubmitting = false;
 
 function reDigits(value) {
@@ -4912,8 +4912,7 @@ function completeChatBooking() {
     if (data.baseNote) noteLines.push(data.baseNote);
     if (data.note) noteLines.push(`Visitor requirement: ${data.note}`);
     const finalNote = noteLines.join("\n");
-
-    applyChatRecommendation({
+    chatCompletedBooking = {
         name: data.name,
         phone: data.phone,
         email: data.email,
@@ -4921,13 +4920,12 @@ function completeChatBooking() {
         segment: data.segment,
         devices: data.devices,
         note: finalNote,
-    });
+    };
     chatBookingState = null;
     appendChatMessage(
-        `Booking details are ready in the enquiry form.\n\nName: ${data.name}\nPhone: ${data.phone}\nEmail: ${data.email}\nCity: ${data.city}\nProject type: ${data.segment}\nDevices: ${data.devices}\n\nPlease review once and submit.`,
+        `Booking details are ready.\n\nName: ${data.name}\nPhone: ${data.phone}\nEmail: ${data.email}\nCity: ${data.city}\nProject type: ${data.segment}\nDevices: ${data.devices}\n\nSubmit now and I will send it directly without filling the page form.`,
         "bot",
         [
-            { label: "Review form", href: "#enquiry" },
             { label: "Submit enquiry now", action: "submit-enquiry" },
         ],
     );
@@ -4936,8 +4934,8 @@ function completeChatBooking() {
 async function submitCompletedEnquiry() {
     const form = document.getElementById("enquiryForm");
     if (!form) return;
-    if (typeof form.reportValidity === "function" && !form.reportValidity()) {
-        appendChatMessage("Some required fields are still missing in the enquiry form. Please review the highlighted fields before submitting.", "bot");
+    if (!chatCompletedBooking) {
+        appendChatMessage("Please complete the chatbot booking details first. I will ask one detail at a time.", "bot");
         return;
     }
     if (chatEnquirySubmitting) {
@@ -4945,21 +4943,31 @@ async function submitCompletedEnquiry() {
         return;
     }
 
+    const formData = new FormData();
+    formData.set("csrf_token", form.querySelector('[name="csrf_token"]')?.value || "");
+    formData.set("landing_mode", document.getElementById("landingModeInput")?.value || "customer");
+    formData.set("name", chatCompletedBooking.name || "");
+    formData.set("phone", chatCompletedBooking.phone || "");
+    formData.set("email", chatCompletedBooking.email || "");
+    formData.set("city", chatCompletedBooking.city || "");
+    formData.set("segment", chatCompletedBooking.segment || "");
+    formData.set("device_count", chatCompletedBooking.devices || "");
+    formData.set("message", chatCompletedBooking.note || "");
+
     chatEnquirySubmitting = true;
     appendChatMessage("Submitting your booking request now. The chat will stay open.", "bot");
     try {
         const response = await fetch(form.action, {
             method: "POST",
-            body: new FormData(form),
+            body: formData,
             credentials: "same-origin",
             redirect: "follow",
         });
         if (!response.ok) {
-            appendChatMessage("I could not submit the booking yet. Please review the form fields, then try again.", "bot", [
-                { label: "Review form", href: "#enquiry" },
-            ]);
+            appendChatMessage("I could not submit the booking yet. Please check the details and try again.", "bot");
             return;
         }
+        chatCompletedBooking = null;
         appendChatMessage(
             "Thank you for submitting your demo booking. SaleWell has received your details and the team will follow up for pricing, setup scope and installation planning.\n\nYou can continue asking me questions here.",
             "bot",
@@ -5470,37 +5478,6 @@ if (demoStoryboard && demoScenes.length) {
     }
 }
 
-const emailEnquiryButton = document.getElementById("emailEnquiryButton");
-if (emailEnquiryButton) {
-    emailEnquiryButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        const getValue = (id) => (document.getElementById(id)?.value || "").trim();
-        const name = getValue("lead_name");
-        const phone = getValue("lead_phone");
-        const city = getValue("lead_city");
-        const segment = getValue("lead_segment");
-        const deviceCount = getValue("lead_device_count");
-        const message = getValue("lead_message");
-
-        const subjectParts = ["SaleWell Smart Tank Enquiry"];
-        if (segment) subjectParts.push(segment);
-        if (city) subjectParts.push(city);
-        const subject = subjectParts.join(" | ");
-
-        const bodyLines = [
-            `Name: ${name || "--"}`,
-            `Phone / WhatsApp: ${phone || "--"}`,
-            `City: ${city || "--"}`,
-            `Project Type: ${segment || "--"}`,
-            `Estimated Devices Needed: ${deviceCount || "--"}`,
-            "",
-            "Project Notes:",
-            message || "--",
-        ];
-        const mailtoUrl = `mailto:support@salewell.co.in?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyLines.join("\n"))}`;
-        window.location.href = mailtoUrl;
-    });
-}
 </script>
 {% include '_pwa_install.html' %}
 </body>
