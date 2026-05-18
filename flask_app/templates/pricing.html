@@ -181,10 +181,50 @@ justify-content:center;
 flex-wrap:wrap;
 }
 .nav-links a{
+display:inline-flex;
+align-items:center;
+position:relative;
+padding:8px 2px;
 font-size:13px;
 font-weight:800;
 color:var(--muted);
 text-decoration:none;
+transition:color .18s ease,transform .18s ease,text-shadow .18s ease;
+}
+.nav-links a:hover{
+color:var(--link-blue);
+transform:translateY(-1px);
+text-shadow:0 8px 20px color-mix(in srgb,var(--link-blue) 28%,transparent);
+}
+.nav-links a::after{
+content:"";
+position:absolute;
+left:0;
+right:0;
+bottom:1px;
+height:3px;
+border-radius:999px;
+background:linear-gradient(90deg,var(--link-blue),var(--brand),var(--accent),var(--link-blue));
+background-size:220% 100%;
+transform:scaleX(.18);
+transform-origin:left;
+opacity:.28;
+transition:transform .22s ease,opacity .22s ease;
+animation:pricing-nav-link-flow 5s linear infinite;
+}
+.nav-links a:hover::after,
+.nav-links a:focus-visible::after{
+transform:scaleX(1);
+opacity:1;
+}
+.nav-links a:focus-visible{
+outline:none;
+color:var(--link-blue);
+text-shadow:0 8px 20px color-mix(in srgb,var(--link-blue) 28%,transparent);
+}
+@keyframes pricing-nav-link-flow{
+0%{background-position:0% 50%}
+100%{background-position:220% 50%}
 }
 .nav-actions{
 display:flex;
@@ -225,8 +265,7 @@ color:var(--text);
 }
 .button:hover,
 .button-secondary:hover,
-.ghost-link:hover,
-.filter-button:hover{
+.ghost-link:hover{
 transform:translateY(-1px);
 }
 .hero{
@@ -243,28 +282,13 @@ display:grid;
 gap:18px;
 align-content:start;
 }
-.eyebrow{
-display:inline-flex;
-align-items:center;
-gap:8px;
-padding:9px 13px;
-border-radius:999px;
-background:rgba(255,255,255,.72);
-border:1px solid var(--line);
-font-size:11px;
-letter-spacing:.16em;
-text-transform:uppercase;
-font-weight:900;
-color:var(--brand-deep);
-justify-self:start;
-}
 .hero h1{
 margin:0;
 font-family:"Georgia","Times New Roman",serif;
 font-size:clamp(2.5rem,5vw,4.6rem);
 line-height:.97;
 letter-spacing:-.05em;
-max-width:11ch;
+max-width:100%;
 }
 .hero-copy p{
 margin:0;
@@ -353,13 +377,13 @@ border-color:rgba(13,147,168,.16);
 }
 .section-head{
 display:grid;
-grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);
+grid-template-columns:minmax(0,1fr);
 gap:20px;
 align-items:end;
 margin-bottom:18px;
 }
 .section-head h2{
-margin:12px 0 0;
+margin:0;
 font-family:"Georgia","Times New Roman",serif;
 font-size:clamp(2rem,3.6vw,3.1rem);
 line-height:1;
@@ -369,41 +393,6 @@ letter-spacing:-.05em;
 margin:0;
 line-height:1.68;
 color:var(--muted);
-}
-.filter-shell{
-display:flex;
-gap:12px;
-flex-wrap:wrap;
-align-items:center;
-justify-content:space-between;
-}
-.filter-copy{
-color:var(--muted);
-line-height:1.6;
-font-weight:700;
-}
-.filter-actions{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
-}
-.filter-button{
-display:inline-flex;
-align-items:center;
-justify-content:center;
-min-height:44px;
-padding:10px 14px;
-border-radius:14px;
-border:1px solid var(--line);
-background:rgba(255,255,255,.58);
-color:var(--text);
-font-weight:900;
-cursor:pointer;
-transition:transform .18s ease,background .18s ease,border-color .18s ease;
-}
-.filter-button.is-active{
-background:linear-gradient(135deg,rgba(13,147,168,.14),rgba(255,255,255,.94));
-border-color:rgba(13,147,168,.28);
 }
 .plans-grid{
 display:grid;
@@ -631,7 +620,7 @@ margin:0;
 font-size:clamp(2rem,3vw,3rem);
 line-height:.98;
 letter-spacing:-.05em;
-max-width:12ch;
+max-width:100%;
 }
 .cta-copy p{
 margin:0;
@@ -679,10 +668,9 @@ text-decoration:none;
 margin-top:18px;
 padding:18px 20px;
 border-radius:24px;
-display:flex;
-gap:16px;
-justify-content:space-between;
-flex-wrap:wrap;
+display:grid;
+grid-template-columns:1fr;
+gap:8px;
 font-size:14px;
 line-height:1.6;
 color:var(--muted);
@@ -705,7 +693,9 @@ grid-template-columns:repeat(2,minmax(0,1fr));
 .nav{
 grid-template-columns:1fr;
 }
-.nav-links,
+.nav-links{
+justify-content:flex-start;
+}
 .nav-actions{
 justify-content:flex-start;
 }
@@ -729,14 +719,8 @@ padding-right:18px;
 }
 .cta-row,
 .nav-actions,
-.filter-actions{
-display:grid;
-grid-template-columns:1fr;
-width:100%;
-}
 .cta-row > *,
-.nav-actions > *,
-.filter-actions > *{
+.nav-actions > *{
 width:100%;
 }
 .hero{
@@ -777,7 +761,6 @@ max-width:none;
 
     <section class="hero surface">
         <div class="hero-copy">
-            <div class="eyebrow">Pricing Plans</div>
             <h1>Simple pricing for every type of property</h1>
             <p>Choose local monitoring, internet pump control, or full AI-based analytics based on your needs.</p>
             <div class="trust-line">Small monthly subscription. Big savings in water loss, tanker dependency, and motor repair costs.</div>
@@ -789,7 +772,6 @@ max-width:none;
         </div>
 
         <aside class="hero-panel" aria-label="Pricing strategy summary">
-            <div class="eyebrow">Best Pricing Strategy</div>
             <h2>Start with Basic, move to Smart, scale with AI Pro.</h2>
             <p>Use local-only monitoring for simple homes, Smart for internet and pump control, AI Pro for advanced analytics, and Enterprise for custom rollouts.</p>
             <div class="tier-grid">
@@ -820,17 +802,7 @@ max-width:none;
     <section class="section surface" id="plans">
         <div class="section-head">
             <div>
-                <div class="eyebrow">Choose Your Plan</div>
                 <h2>Pricing built around real customer types.</h2>
-            </div>
-        </div>
-
-        <div class="filter-shell">
-            <div class="filter-actions" role="tablist" aria-label="Pricing filters">
-                <button class="filter-button is-active" type="button" data-plan-filter="all" aria-pressed="true">All Plans</button>
-                <button class="filter-button" type="button" data-plan-filter="home" aria-pressed="false">Home</button>
-                <button class="filter-button" type="button" data-plan-filter="commercial" aria-pressed="false">Commercial</button>
-                <button class="filter-button" type="button" data-plan-filter="enterprise" aria-pressed="false">Enterprise</button>
             </div>
         </div>
 
@@ -1023,7 +995,6 @@ max-width:none;
     <section class="section surface" id="comparison">
         <div class="section-head">
             <div>
-                <div class="eyebrow">Quick Comparison</div>
                 <h2>Compare the plans buyers usually shortlist.</h2>
             </div>
         </div>
@@ -1104,7 +1075,6 @@ max-width:none;
     <section class="section surface" id="addons">
         <div class="section-head">
             <div>
-                <div class="eyebrow">Add-On Services</div>
                 <h2>Optional upgrades for specific site needs.</h2>
             </div>
         </div>
@@ -1148,7 +1118,6 @@ max-width:none;
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
-                <div class="eyebrow">Ready To Choose?</div>
                 <h2>Book the right pricing conversation, not a generic call.</h2>
                 <p>Use a quick setup review when the buyer is unsure about tank count or pump logic. Use a live demo when the buyer wants to see the real dashboard before deciding.</p>
                 <div class="cta-row">
@@ -1176,37 +1145,7 @@ max-width:none;
     <footer class="footer surface">
         <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers local monitoring, internet pump control and AI-driven water analytics in plans that fit both homes and managed properties.</div>
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918299812878">+91-8299812878</a></div>
-        <div><a href="{{ url_for('android_app_download') }}">Download Android App</a></div>
     </footer>
 </div>
-
-<script>
-const planFilterButtons = Array.from(document.querySelectorAll("[data-plan-filter]"));
-const planCards = Array.from(document.querySelectorAll("[data-plan-segment]"));
-const planRows = Array.from(document.querySelectorAll("[data-plan-row]"));
-
-function setPlanFilter(filter) {
-    const activeFilter = filter || "all";
-    planFilterButtons.forEach((button) => {
-        const isActive = button.dataset.planFilter === activeFilter;
-        button.classList.toggle("is-active", isActive);
-        button.setAttribute("aria-pressed", isActive ? "true" : "false");
-    });
-    planCards.forEach((card) => {
-        const matches = activeFilter === "all" || card.dataset.planSegment === activeFilter;
-        card.hidden = !matches;
-    });
-    planRows.forEach((row) => {
-        const matches = activeFilter === "all" || row.dataset.planRow === activeFilter;
-        row.hidden = !matches;
-    });
-}
-
-planFilterButtons.forEach((button) => {
-    button.addEventListener("click", () => setPlanFilter(button.dataset.planFilter));
-});
-
-setPlanFilter("all");
-</script>
 </body>
 </html>
