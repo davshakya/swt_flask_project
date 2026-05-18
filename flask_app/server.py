@@ -1814,6 +1814,7 @@ def validate_sales_enquiry_payload(form):
     cleaned = {
         "name": str(form.get("name", "")).strip(),
         "phone": str(form.get("phone", "")).strip(),
+        "email": str(form.get("email", "")).strip(),
         "city": str(form.get("city", "")).strip(),
         "segment": str(form.get("segment", "")).strip(),
         "device_count": str(form.get("device_count", "")).strip(),
@@ -1823,6 +1824,12 @@ def validate_sales_enquiry_payload(form):
 
     if len(cleaned["name"]) < 2:
         errors.append("Please enter your name.")
+
+    if cleaned["email"]:
+        try:
+            cleaned["email"] = normalize_customer_email(cleaned["email"])
+        except ValueError:
+            errors.append("Please enter a valid email address.")
 
     phone_digits = re.sub(r"\D", "", cleaned["phone"])
     if len(phone_digits) < 10:
@@ -1851,6 +1858,100 @@ def validate_sales_enquiry_payload(form):
         errors.append("Project notes must stay under 800 characters.")
 
     return cleaned, errors
+
+
+def build_sales_enquiry_email(cleaned, lead_details):
+    submitted_at = datetime.now(timezone.utc).astimezone(IST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %Z")
+    subject_parts = ["New SaleWell Smart Tank booking"]
+    if cleaned.get("segment"):
+        subject_parts.append(cleaned["segment"])
+    if cleaned.get("city"):
+        subject_parts.append(cleaned["city"])
+    subject = " | ".join(subject_parts)
+
+    body_lines = [
+        "New SaleWell Smart Tank booking/enquiry received.",
+        "",
+        f"Submitted at: {submitted_at}",
+        f"Name: {cleaned.get('name') or '--'}",
+        f"Phone / WhatsApp: {cleaned.get('phone') or '--'}",
+        f"Email: {cleaned.get('email') or '--'}",
+        f"City / service area: {cleaned.get('city') or '--'}",
+        f"Project type: {cleaned.get('segment') or '--'}",
+        f"Estimated devices needed: {cleaned.get('device_count') or '--'}",
+        "",
+        "Project notes:",
+        cleaned.get("message") or "--",
+        "",
+        "Request metadata:",
+        f"Landing mode: {lead_details.get('landing_mode') or '--'}",
+        f"Remote address: {lead_details.get('remote_addr') or '--'}",
+    ]
+    return subject, "\n".join(body_lines)
+
+
+def send_sales_enquiry_email(cleaned, lead_details):
+    subject, body = build_sales_enquiry_email(cleaned, lead_details)
+    try:
+        sent = send_customer_email(
+            CUSTOMER_COMMUNICATION_FROM_EMAIL,
+            subject,
+            body,
+            category="transactional",
+            reply_to=cleaned.get("email") or None,
+        )
+    except Exception as exc:
+        logger.warning("Sales enquiry email failed for %s (%s): %s", cleaned.get("name"), cleaned.get("phone"), exc)
+        return False
+    if not sent:
+        logger.warning("Sales enquiry email was not sent because SMTP is not configured.")
+    return sent
+
+
+def selected_pricing_plan_from_notes(message):
+    for line in str(message or "").splitlines():
+        normalized_line = line.strip()
+        if normalized_line.lower().startswith("selected pricing plan:"):
+            return normalized_line.split(":", 1)[1].strip()
+    return ""
+
+
+def build_sales_enquiry_confirmation_email(cleaned):
+    selected_plan = selected_pricing_plan_from_notes(cleaned.get("message"))
+    greeting_name = cleaned.get("name") or "there"
+    subject = "Thanks for booking SaleWell Smart Tank"
+    plan_line = f"Selected plan: {selected_plan}\n" if selected_plan else ""
+    body = (
+        f"Hi {greeting_name},\n\n"
+        "Thank you for booking a SaleWell Smart Tank pricing/demo request. "
+        "We have received your details and our team will review your site requirements shortly.\n\n"
+        "Booking summary:\n"
+        f"{plan_line}"
+        f"Project type: {cleaned.get('segment') or '--'}\n"
+        f"City / service area: {cleaned.get('city') or '--'}\n"
+        f"Estimated devices needed: {cleaned.get('device_count') or '--'}\n\n"
+        "What happens next:\n"
+        "1. Our team will check the selected plan and your site type.\n"
+        "2. We will contact you on your phone/WhatsApp number for setup details.\n"
+        "3. If needed, we will suggest a better-fit plan before final pricing or installation.\n\n"
+        "For urgent questions, reply to this email or contact support@salewell.co.in.\n\n"
+        "Welcome to SaleWell Smart Tank.\n"
+        "SaleWell IoT Solutions Pvt. Ltd.\n"
+    )
+    return subject, body
+
+
+def send_sales_enquiry_confirmation_email(cleaned):
+    if not cleaned.get("email"):
+        return False
+    subject, body = build_sales_enquiry_confirmation_email(cleaned)
+    try:
+        return send_customer_email(cleaned["email"], subject, body, category="transactional")
+    except Exception as exc:
+        logger.warning("Sales enquiry confirmation email failed for %s: %s", cleaned.get("email"), exc)
+        return False
+
+
 def handle_role_login(mode):
     expected_role = "admin" if mode == "admin" else "customer"
     if request.method == "GET" and activate_dashboard_identity(expected_role):
@@ -4388,10 +4489,11 @@ def smtp_email_configured():
     return bool(SMTP_HOST and (not SMTP_USERNAME or SMTP_PASSWORD))
 
 
-def send_customer_email(to_email, subject, body, category="transactional", account=None):
+def send_customer_email(to_email, subject, body, category="transactional", account=None, reply_to=None):
     normalized_email = normalize_customer_email(to_email)
     if not normalized_email:
         return False
+    normalized_reply_to = normalize_customer_email(reply_to) if reply_to else None
     if category in {"updates", "service_update"} and account and int(account.get("service_updates_enabled", 1) or 0) != 1:
         logger.info("Customer service update email skipped because consent is off for %s", account.get("device_id"))
         return False
@@ -4408,6 +4510,8 @@ def send_customer_email(to_email, subject, body, category="transactional", accou
     message["From"] = from_header
     message["To"] = normalized_email
     message["Subject"] = subject
+    if normalized_reply_to:
+        message["Reply-To"] = normalized_reply_to
     message.set_content(body)
     smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
     with smtp_client(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
@@ -9648,6 +9752,8 @@ def sales_enquiry():
         target_type="sales_enquiry",
         details=lead_details,
     )
+    send_sales_enquiry_email(cleaned, lead_details)
+    send_sales_enquiry_confirmation_email(cleaned)
     logger.info("Sales enquiry submitted for %s (%s)", cleaned["name"], cleaned["phone"])
     return redirect(url_for("dashboard", enquiry="success"))
 

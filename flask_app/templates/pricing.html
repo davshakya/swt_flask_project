@@ -1362,7 +1362,7 @@ max-width:none;
             <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_email">Email</label>
-                    <input id="pricing_lead_email" type="email" placeholder="you@example.com" required>
+                    <input id="pricing_lead_email" name="email" type="email" placeholder="you@example.com" required>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_city">City</label>
@@ -1410,8 +1410,6 @@ const pricingLeadSegment = document.getElementById("pricing_lead_segment");
 const pricingLeadDeviceCount = document.getElementById("pricing_lead_device_count");
 const pricingLeadMessage = document.getElementById("pricing_lead_message");
 const pricingLeadName = document.getElementById("pricing_lead_name");
-const pricingLeadEmail = document.getElementById("pricing_lead_email");
-const pricingBookingForm = document.querySelector(".booking-form");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
 const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
 
@@ -1461,20 +1459,6 @@ document.addEventListener("keydown", (event) => {
         closePricingBooking();
     }
 });
-
-if (pricingBookingForm) {
-    pricingBookingForm.addEventListener("submit", () => {
-        if (!pricingLeadMessage || !pricingLeadEmail) return;
-        const email = pricingLeadEmail.value.trim();
-        if (!email) return;
-        const emailLine = `Email: ${email}`;
-        if (!pricingLeadMessage.value.includes(emailLine)) {
-            pricingLeadMessage.value = pricingLeadMessage.value.trim()
-                ? `${pricingLeadMessage.value.trim()}\n${emailLine}`
-                : emailLine;
-        }
-    });
-}
 </script>
 </body>
 </html>

@@ -2426,6 +2426,274 @@ font-size:13px;
 line-height:1.6;
 color:var(--muted);
 }
+.site-chatbot{
+position:fixed;
+right:24px;
+bottom:24px;
+z-index:26;
+display:grid;
+justify-items:end;
+gap:12px;
+pointer-events:none;
+}
+.site-chatbot > *{
+pointer-events:auto;
+}
+.chatbot-launcher{
+display:flex;
+align-items:center;
+gap:12px;
+min-height:58px;
+padding:10px 16px 10px 10px;
+border:1px solid rgba(13,147,168,.24);
+border-radius:999px;
+background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(226,248,250,.92));
+box-shadow:0 20px 44px rgba(9,72,80,.22);
+color:var(--text);
+cursor:pointer;
+transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+}
+.chatbot-launcher:hover{
+transform:translateY(-2px);
+box-shadow:0 26px 54px rgba(9,72,80,.26);
+border-color:rgba(239,155,65,.42);
+}
+.chatbot-launcher-icon{
+display:grid;
+place-items:center;
+width:42px;
+height:42px;
+border-radius:999px;
+background:linear-gradient(135deg,var(--brand),var(--brand-deep));
+color:#fff;
+font-size:22px;
+font-weight:1000;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
+}
+.chatbot-launcher strong,
+.chatbot-launcher small{
+display:block;
+text-align:left;
+}
+.chatbot-launcher strong{
+font-size:14px;
+line-height:1.1;
+letter-spacing:-.01em;
+}
+.chatbot-launcher small{
+margin-top:2px;
+font-size:11px;
+font-weight:900;
+color:var(--muted);
+}
+.chatbot-panel{
+display:none;
+width:min(420px,calc(100vw - 28px));
+height:min(620px,calc(100vh - 118px));
+overflow:hidden;
+border-radius:24px;
+border:1px solid rgba(13,147,168,.2);
+background:linear-gradient(180deg,var(--surface-strong),rgba(238,250,250,.96));
+box-shadow:0 34px 90px rgba(8,31,39,.28);
+color:var(--text);
+}
+.site-chatbot.is-open .chatbot-panel{
+display:flex;
+flex-direction:column;
+}
+.chatbot-header{
+display:flex;
+align-items:center;
+justify-content:space-between;
+gap:14px;
+padding:16px;
+background:linear-gradient(135deg,rgba(13,147,168,.14),rgba(239,155,65,.13));
+border-bottom:1px solid var(--line);
+}
+.chatbot-title{
+display:flex;
+align-items:center;
+gap:10px;
+min-width:0;
+}
+.chatbot-avatar{
+display:grid;
+place-items:center;
+flex:0 0 auto;
+width:38px;
+height:38px;
+border-radius:14px;
+background:var(--button-primary);
+color:#fff;
+font-weight:1000;
+box-shadow:0 10px 26px rgba(13,147,168,.22);
+}
+.chatbot-title strong{
+display:block;
+font-size:16px;
+line-height:1.08;
+letter-spacing:-.03em;
+}
+.chatbot-title span{
+display:block;
+margin-top:2px;
+font-size:12px;
+line-height:1.35;
+color:var(--muted);
+font-weight:800;
+}
+.chatbot-close{
+display:grid;
+place-items:center;
+width:34px;
+height:34px;
+border-radius:12px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.58);
+color:var(--text);
+cursor:pointer;
+font-size:22px;
+line-height:1;
+}
+.chatbot-messages{
+display:grid;
+align-content:start;
+gap:10px;
+flex:1;
+overflow:auto;
+padding:16px;
+background:
+    linear-gradient(180deg,rgba(255,255,255,.34),rgba(255,255,255,0)),
+    radial-gradient(circle at 86% 0%,rgba(13,147,168,.1),transparent 34%);
+}
+.chatbot-message{
+width:fit-content;
+max-width:88%;
+padding:11px 13px;
+border-radius:16px;
+font-size:13px;
+line-height:1.5;
+box-shadow:0 10px 22px rgba(9,72,80,.08);
+white-space:pre-line;
+}
+.chatbot-message.is-bot{
+justify-self:start;
+background:rgba(255,255,255,.88);
+border:1px solid var(--line);
+border-top-left-radius:6px;
+}
+.chatbot-message.is-user{
+justify-self:end;
+background:linear-gradient(135deg,rgba(13,147,168,.95),rgba(12,102,120,.95));
+color:#fff;
+border-top-right-radius:6px;
+}
+.chatbot-actions{
+display:flex;
+flex-wrap:wrap;
+gap:8px;
+margin-top:10px;
+}
+.chatbot-action{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:34px;
+padding:8px 10px;
+border-radius:999px;
+border:1px solid rgba(13,147,168,.22);
+background:rgba(226,248,250,.8);
+color:var(--link-blue);
+font-size:12px;
+font-weight:1000;
+text-decoration:none;
+cursor:pointer;
+}
+.chatbot-action:hover{
+color:var(--link-blue-hover);
+border-color:rgba(239,155,65,.38);
+background:rgba(255,244,226,.92);
+}
+.chatbot-suggestions{
+display:flex;
+gap:8px;
+overflow:auto;
+padding:12px 16px 0;
+border-top:1px solid var(--line);
+background:rgba(255,255,255,.5);
+}
+.chatbot-chip{
+flex:0 0 auto;
+min-height:34px;
+padding:8px 11px;
+border-radius:999px;
+border:1px solid rgba(13,147,168,.18);
+background:rgba(255,255,255,.78);
+color:var(--text);
+font-size:12px;
+font-weight:900;
+cursor:pointer;
+}
+.chatbot-chip:hover{
+background:var(--brand-soft);
+color:var(--brand-deep);
+}
+.chatbot-form{
+display:grid;
+grid-template-columns:minmax(0,1fr) auto;
+gap:8px;
+padding:12px 16px 16px;
+background:rgba(255,255,255,.5);
+}
+.chatbot-form input{
+width:100%;
+min-height:42px;
+padding:10px 13px;
+border-radius:14px;
+border:1px solid var(--line-strong);
+background:var(--input-bg);
+color:var(--text);
+}
+.chatbot-form button{
+min-height:42px;
+padding:10px 14px;
+border:0;
+border-radius:14px;
+background:var(--button-secondary);
+color:#102c33;
+font-weight:1000;
+cursor:pointer;
+box-shadow:0 12px 22px rgba(239,155,65,.2);
+}
+@media (prefers-color-scheme: dark){
+.chatbot-launcher{
+background:linear-gradient(135deg,rgba(8,31,39,.96),rgba(10,50,61,.96));
+border-color:rgba(150,207,218,.16);
+}
+.chatbot-panel{
+background:linear-gradient(180deg,rgba(8,31,39,.98),rgba(4,18,24,.98));
+border-color:rgba(150,207,218,.16);
+}
+.chatbot-header{
+background:linear-gradient(135deg,rgba(89,211,230,.13),rgba(255,187,97,.11));
+}
+.chatbot-close,
+.chatbot-message.is-bot,
+.chatbot-chip{
+background:rgba(255,255,255,.06);
+}
+.chatbot-suggestions,
+.chatbot-form{
+background:rgba(255,255,255,.03);
+}
+.chatbot-action{
+background:rgba(89,211,230,.12);
+border-color:rgba(150,207,218,.18);
+}
+.chatbot-action:hover{
+background:rgba(255,187,97,.12);
+}
+}
 .modal{
 position:fixed;
 inset:0;
@@ -2842,6 +3110,32 @@ max-width:180px;
 }
 .modal{
 padding:12px;
+}
+.site-chatbot{
+right:12px;
+bottom:12px;
+}
+.chatbot-panel{
+height:min(620px,calc(100vh - 96px));
+border-radius:20px;
+}
+.chatbot-launcher{
+min-height:52px;
+padding:8px 12px 8px 8px;
+}
+.chatbot-launcher-icon{
+width:38px;
+height:38px;
+font-size:20px;
+}
+.chatbot-launcher small{
+display:none;
+}
+.chatbot-form{
+grid-template-columns:1fr;
+}
+.chatbot-form button{
+width:100%;
 }
 }
 </style>
@@ -3972,6 +4266,42 @@ padding:12px;
     </footer>
 </div>
 
+<div class="site-chatbot" id="siteChatbot">
+    <section class="chatbot-panel" id="chatbotPanel" aria-label="SaleWell visitor assistant" hidden>
+        <div class="chatbot-header">
+            <div class="chatbot-title">
+                <div class="chatbot-avatar" aria-hidden="true">S</div>
+                <div>
+                    <strong>SaleWell Tank Advisor</strong>
+                    <span>Answers plan, pump, installation and pricing questions.</span>
+                </div>
+            </div>
+            <button class="chatbot-close" id="chatbotClose" type="button" aria-label="Close chat">&times;</button>
+        </div>
+        <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
+            <div class="chatbot-message is-bot">Hi, I can help you choose the right Smart Tank plan. Tell me your property type, tank count, and whether you need pump control.</div>
+        </div>
+        <div class="chatbot-suggestions" aria-label="Quick questions">
+            <button class="chatbot-chip" type="button" data-chat-prompt="Which plan fits my home?">Home plan</button>
+            <button class="chatbot-chip" type="button" data-chat-prompt="I need pump control over internet">Pump control</button>
+            <button class="chatbot-chip" type="button" data-chat-prompt="I manage an apartment or RWA">Apartment/RWA</button>
+            <button class="chatbot-chip" type="button" data-chat-prompt="What is the pricing?">Pricing</button>
+            <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
+        </div>
+        <form class="chatbot-form" id="chatbotForm">
+            <input id="chatbotInput" type="text" autocomplete="off" placeholder="Ask about plan, pump, overflow or installation">
+            <button type="submit">Ask</button>
+        </form>
+    </section>
+    <button class="chatbot-launcher" id="chatbotLauncher" type="button" aria-controls="chatbotPanel" aria-expanded="false">
+        <span class="chatbot-launcher-icon" aria-hidden="true">?</span>
+        <span>
+            <strong>Ask SaleWell</strong>
+            <small>Plan, price, installation</small>
+        </span>
+    </button>
+</div>
+
 <div
     class="modal {% if show_login_modal|default(false) %}is-open{% endif %}"
     id="loginModal"
@@ -4163,6 +4493,303 @@ if (selectedPricingPlan) {
         leadMessage.value = leadMessage.value.trim() ? `${planLine}\n\n${leadMessage.value.trim()}` : planLine;
     }
 }
+
+const chatbot = document.getElementById("siteChatbot");
+const chatbotPanel = document.getElementById("chatbotPanel");
+const chatbotLauncher = document.getElementById("chatbotLauncher");
+const chatbotClose = document.getElementById("chatbotClose");
+const chatbotMessages = document.getElementById("chatbotMessages");
+const chatbotForm = document.getElementById("chatbotForm");
+const chatbotInput = document.getElementById("chatbotInput");
+const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
+const pricingPageUrl = "{{ url_for('pricing_page') }}";
+
+function setChatbotOpen(isOpen) {
+    if (!chatbot || !chatbotPanel || !chatbotLauncher) return;
+    chatbot.classList.toggle("is-open", isOpen);
+    chatbotPanel.hidden = !isOpen;
+    chatbotLauncher.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    if (isOpen) {
+        window.setTimeout(() => chatbotInput?.focus(), 40);
+        scrollChatToBottom();
+    }
+}
+
+function scrollChatToBottom() {
+    if (!chatbotMessages) return;
+    chatbotMessages.scrollTop = chatbotMessages.scrollHeight;
+}
+
+function appendChatMessage(text, sender = "bot", actions = []) {
+    if (!chatbotMessages) return;
+    const message = document.createElement("div");
+    message.className = `chatbot-message is-${sender === "user" ? "user" : "bot"}`;
+    message.textContent = text;
+
+    if (actions.length) {
+        const actionWrap = document.createElement("div");
+        actionWrap.className = "chatbot-actions";
+        actions.forEach((action) => {
+            const actionElement = action.href ? document.createElement("a") : document.createElement("button");
+            actionElement.className = "chatbot-action";
+            actionElement.textContent = action.label;
+            if (action.href) {
+                actionElement.href = action.href;
+            } else {
+                actionElement.type = "button";
+                actionElement.dataset.chatFill = JSON.stringify(action.fill || {});
+            }
+            actionWrap.appendChild(actionElement);
+        });
+        message.appendChild(actionWrap);
+    }
+
+    chatbotMessages.appendChild(message);
+    scrollChatToBottom();
+}
+
+function selectedPlanUrl(plan, segment) {
+    const url = new URL(pricingPageUrl, window.location.origin);
+    if (plan) url.searchParams.set("plan", plan);
+    if (segment) url.searchParams.set("segment", segment);
+    url.hash = "plans";
+    return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function setLeadValue(id, value, replaceExisting = false) {
+    const field = document.getElementById(id);
+    if (!field || (!replaceExisting && field.value)) return;
+    field.value = value;
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function addLeadNote(note) {
+    const leadMessage = document.getElementById("lead_message");
+    if (!leadMessage || !note) return;
+    const current = leadMessage.value.trim();
+    if (current.includes(note)) return;
+    leadMessage.value = current ? `${current}\n\n${note}` : note;
+}
+
+function applyChatRecommendation(fill = {}) {
+    if (fill.segment) setLeadValue("lead_segment", fill.segment, true);
+    if (fill.devices) setLeadValue("lead_device_count", fill.devices, true);
+    if (fill.note) addLeadNote(fill.note);
+    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function getChatbotResponse(rawInput) {
+    const input = rawInput.toLowerCase();
+    const hasAny = (words) => words.some((word) => input.includes(word));
+    const bookAction = {
+        label: "Fill enquiry form",
+        fill: {
+            devices: "1",
+            note: `Visitor asked chatbot: ${rawInput}`,
+        },
+    };
+
+    if (hasAny(["book", "demo", "call", "contact", "sales", "visit"])) {
+        return {
+            text: "Share your name, phone, city and site type in the booking form. SaleWell can then call back with a site-fit plan, pricing and installation next steps.",
+            actions: [
+                bookAction,
+                { label: "Open booking form", href: "#enquiry" },
+            ],
+        };
+    }
+
+    if (hasAny(["apartment", "rwa", "society", "hostel", "builder", "managed"])) {
+        return {
+            text: "For apartments, RWAs and managed properties, start with Commercial Standard. Move to AI Pro when you need analytics, leak detection, source tank logic or reporting for multiple tanks.",
+            actions: [
+                {
+                    label: "Book RWA discussion",
+                    fill: {
+                        segment: "Apartment / Hostel",
+                        devices: "12",
+                        note: "Interested in Apartment/RWA monitoring with tank and pump planning.",
+                    },
+                },
+                { label: "Compare plans", href: selectedPlanUrl("Commercial Standard", "Apartment / Hostel") },
+            ],
+        };
+    }
+
+    if (hasAny(["hotel", "school", "factory", "institution", "commercial", "office", "hospital"])) {
+        return {
+            text: "For commercial sites, the best path is usually Commercial Standard for monitoring and pump control, or Commercial AI Pro when leak detection, alerts, analytics and larger reporting matter.",
+            actions: [
+                {
+                    label: "Plan commercial setup",
+                    fill: {
+                        segment: "Commercial Site",
+                        devices: "6",
+                        note: "Interested in a commercial Smart Tank setup with monitoring, alerts and pump control.",
+                    },
+                },
+                { label: "View commercial pricing", href: selectedPlanUrl("Commercial AI Pro", "Commercial Site") },
+            ],
+        };
+    }
+
+    if (hasAny(["home", "villa", "house", "flat", "bungalow", "family"])) {
+        return {
+            text: "For a home or villa, Home Smart is the practical choice when you want internet access and pump control. Home Basic works when you only need local monitoring.",
+            actions: [
+                {
+                    label: "Book home demo",
+                    fill: {
+                        segment: "Home / Villa",
+                        devices: "1",
+                        note: "Interested in Home Smart for tank monitoring and pump control.",
+                    },
+                },
+                { label: "See Home Smart", href: selectedPlanUrl("Home Smart", "Home / Villa") },
+            ],
+        };
+    }
+
+    if (hasAny(["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"])) {
+        return {
+            text: "Choose a plan with pump control if motor protection and remote operation matter. The system can help reduce dry-run risk, avoid manual switching and give faster alerts before damage happens.",
+            actions: [
+                {
+                    label: "Discuss pump control",
+                    fill: {
+                        devices: "1",
+                        note: "Need pump control and motor protection recommendation.",
+                    },
+                },
+                { label: "View pump-control plans", href: selectedPlanUrl("Home Smart", "Home / Villa") },
+            ],
+        };
+    }
+
+    if (hasAny(["overflow", "leak", "waste", "water loss", "tank full", "spillage"])) {
+        return {
+            text: "For overflow and hidden water loss, focus on live tank level, high-level alerts and AI leak detection. This is strongest when the buyer wants fewer complaints and less emergency follow-up.",
+            actions: [
+                {
+                    label: "Check overflow setup",
+                    fill: {
+                        devices: "1",
+                        note: "Need recommendation to prevent overflow and detect unusual water loss.",
+                    },
+                },
+                { label: "Setup check", href: "#setup-check" },
+            ],
+        };
+    }
+
+    if (hasAny(["price", "pricing", "cost", "rate", "plan", "basic", "smart", "enterprise", "package"])) {
+        return {
+            text: "Pricing depends on property type, tank count, pump control and analytics needs. Start from the pricing page, then book a call so the team can confirm the right package before installation.",
+            actions: [
+                { label: "Open pricing page", href: pricingPageUrl },
+                {
+                    label: "Ask for quote",
+                    fill: {
+                        devices: "1",
+                        note: "Need pricing recommendation and quote confirmation.",
+                    },
+                },
+            ],
+        };
+    }
+
+    if (hasAny(["install", "installation", "sensor", "setup", "tank", "underground", "source", "overhead"])) {
+        return {
+            text: "For installation, the key details are tank type, tank height, number of tanks, source tank visibility and pump location. Share those details and SaleWell can recommend hardware before you buy.",
+            actions: [
+                {
+                    label: "Start setup check",
+                    fill: {
+                        devices: "1",
+                        note: "Need setup check for tank type, sensor placement and installation planning.",
+                    },
+                },
+                { label: "Go to setup check", href: "#setup-check" },
+            ],
+        };
+    }
+
+    if (hasAny(["shortage", "summer", "tanker", "low water", "daily water"])) {
+        return {
+            text: "For water shortage days, live level visibility and low-level alerts help buyers act before the tank runs dry. Societies and managed sites usually benefit most when multiple tanks are watched together.",
+            actions: [
+                {
+                    label: "Plan shortage alerts",
+                    fill: {
+                        devices: "1",
+                        note: "Need low-water alerts and shortage planning for daily use.",
+                    },
+                },
+                { label: "Book free demo", href: "#enquiry" },
+            ],
+        };
+    }
+
+    return {
+        text: "I can guide you faster if you share property type, number of tanks, and whether pump control is needed. For example: home with 1 tank, or RWA with 12 tanks and pump control.",
+        actions: [
+            { label: "View pricing", href: pricingPageUrl },
+            { label: "Book demo", href: "#enquiry" },
+            { label: "Setup check", href: "#setup-check" },
+        ],
+    };
+}
+
+function submitChatbotPrompt(prompt) {
+    const trimmed = prompt.trim();
+    if (!trimmed) return;
+    setChatbotOpen(true);
+    appendChatMessage(trimmed, "user");
+    const response = getChatbotResponse(trimmed);
+    window.setTimeout(() => appendChatMessage(response.text, "bot", response.actions), 180);
+}
+
+if (chatbotLauncher) {
+    chatbotLauncher.addEventListener("click", () => {
+        setChatbotOpen(!chatbot?.classList.contains("is-open"));
+    });
+}
+
+if (chatbotClose) {
+    chatbotClose.addEventListener("click", () => setChatbotOpen(false));
+}
+
+if (chatbotForm) {
+    chatbotForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitChatbotPrompt(chatbotInput?.value || "");
+        if (chatbotInput) chatbotInput.value = "";
+    });
+}
+
+chatbotChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+        submitChatbotPrompt(chip.dataset.chatPrompt || chip.textContent || "");
+    });
+});
+
+if (chatbotMessages) {
+    chatbotMessages.addEventListener("click", (event) => {
+        const fillButton = event.target.closest("[data-chat-fill]");
+        if (!fillButton) return;
+        try {
+            applyChatRecommendation(JSON.parse(fillButton.dataset.chatFill || "{}"));
+        } catch (error) {
+            console.warn("Chatbot recommendation could not be applied", error);
+        }
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && chatbot?.classList.contains("is-open") && !loginModal.classList.contains("is-open")) {
+        setChatbotOpen(false);
+    }
+});
 
 const demoStoryboard = document.getElementById("demoStoryboard");
 const demoSection = document.getElementById("demo");
