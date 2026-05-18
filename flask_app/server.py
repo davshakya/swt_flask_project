@@ -1837,7 +1837,9 @@ def validate_sales_enquiry_payload(form):
     if len(cleaned["name"]) < 2:
         errors.append("Please enter your name.")
 
-    if cleaned["email"]:
+    if not cleaned["email"]:
+        errors.append("Please enter your email address.")
+    else:
         try:
             cleaned["email"] = normalize_customer_email(cleaned["email"])
         except ValueError:

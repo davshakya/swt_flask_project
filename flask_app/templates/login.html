@@ -128,7 +128,12 @@ body.modal-open{overflow:hidden}
 }
 @keyframes brandSpinUp{
 0%{transform:rotate(0deg) scale(.94)}
-18%{transform:rotate(130deg) scale(1.04)}
+16%{transform:rotate(180deg) scale(1.04)}
+100%{transform:rotate(1080deg) scale(1)}
+}
+@keyframes chatbotIconSpinUp{
+0%{transform:rotate(0deg) scale(.9)}
+22%{transform:rotate(190deg) scale(1.08)}
 100%{transform:rotate(720deg) scale(1)}
 }
 a{color:inherit}
@@ -191,7 +196,7 @@ overflow:hidden;
 display:block;
 width:38px;
 height:38px;
-animation:brandSpinUp 1.35s cubic-bezier(.2,.78,.18,1) both;
+animation:brandSpinUp 1.65s cubic-bezier(.2,.78,.18,1) both;
 transform-origin:center;
 }
 .brand-copy strong{
@@ -4214,6 +4219,12 @@ width:100%;
                         <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" placeholder="City or service area" required>
                     </div>
                     <div class="group">
+                        <label for="lead_email">Email</label>
+                        <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" placeholder="you@example.com" required>
+                    </div>
+                </div>
+                <div class="row-2">
+                    <div class="group">
                         <label for="lead_segment">Project Type</label>
                         <select id="lead_segment" name="segment" required>
                             <option value="">Select one</option>
@@ -4224,10 +4235,10 @@ width:100%;
                             <option value="Commercial Site" {% if sales_form.get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
                         </select>
                     </div>
-                </div>
-                <div class="group">
-                    <label for="lead_device_count">Estimated Devices Needed</label>
-                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" placeholder="Example: 12" required>
+                    <div class="group">
+                        <label for="lead_device_count">Estimated Devices Needed</label>
+                        <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" placeholder="Example: 12" required>
+                    </div>
                 </div>
                 <div class="group">
                     <label for="lead_message">Project Notes</label>
@@ -4540,6 +4551,7 @@ function appendChatMessage(text, sender = "bot", actions = []) {
                 actionElement.href = action.href;
             } else {
                 actionElement.type = "button";
+                actionElement.dataset.chatAction = action.action || "fill-form";
                 actionElement.dataset.chatFill = JSON.stringify(action.fill || {});
             }
             actionWrap.appendChild(actionElement);
@@ -4575,6 +4587,10 @@ function addLeadNote(note) {
 }
 
 function applyChatRecommendation(fill = {}) {
+    if (fill.name) setLeadValue("lead_name", fill.name, true);
+    if (fill.phone) setLeadValue("lead_phone", fill.phone, true);
+    if (fill.email) setLeadValue("lead_email", fill.email, true);
+    if (fill.city) setLeadValue("lead_city", fill.city, true);
     if (fill.segment) setLeadValue("lead_segment", fill.segment, true);
     if (fill.devices) setLeadValue("lead_device_count", fill.devices, true);
     if (fill.note) addLeadNote(fill.note);
@@ -4659,6 +4675,64 @@ const chatAddOns = [
     "Custom reporting: quote-based",
 ];
 
+const chatBookingFields = [
+    {
+        key: "name",
+        question: "Please share your full name.",
+        validate: (value) => value.trim().length >= 2,
+        error: "Please enter at least 2 characters for the name.",
+    },
+    {
+        key: "phone",
+        question: "Please share your phone or WhatsApp number.",
+        validate: (value) => reDigits(value).length >= 10,
+        error: "Please enter a valid phone or WhatsApp number with at least 10 digits.",
+    },
+    {
+        key: "email",
+        question: "Please share your email address for booking confirmation.",
+        normalize: (value) => value.trim().toLowerCase(),
+        validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
+        error: "Please enter a valid email address, for example name@example.com.",
+    },
+    {
+        key: "city",
+        question: "Which city or service area is this for?",
+        validate: (value) => value.trim().length >= 2,
+        error: "Please enter the city or service area.",
+    },
+    {
+        key: "segment",
+        question: "What is the project type? You can reply: Home, Apartment/RWA, Hotel, Dealer, or Commercial.",
+        normalize: normalizeChatSegment,
+        validate: (value) => Boolean(normalizeChatSegment(value)),
+        error: "Please choose one project type: Home, Apartment/RWA, Hotel, Dealer, or Commercial.",
+    },
+    {
+        key: "devices",
+        question: "How many tanks/devices should we plan for?",
+        normalize: (value) => extractRequirementCount(value) || value.trim(),
+        validate: (value) => {
+            const count = Number(extractRequirementCount(value) || value.trim());
+            return Number.isInteger(count) && count >= 1 && count <= 10000;
+        },
+        error: "Please enter a whole number between 1 and 10000.",
+    },
+    {
+        key: "note",
+        question: "Any short requirement note? Mention overflow, pump control, source tank, installation timing, or type 'skip'.",
+        normalize: (value) => value.trim().toLowerCase() === "skip" ? "" : value.trim(),
+        validate: (value) => value.trim().length <= 800,
+        error: "Please keep the note under 800 characters.",
+    },
+];
+
+let chatBookingState = null;
+
+function reDigits(value) {
+    return String(value || "").replace(/\D/g, "");
+}
+
 function chatHasAny(input, words) {
     return words.some((word) => input.includes(word));
 }
@@ -4668,14 +4742,121 @@ function extractRequirementCount(input) {
     return match ? match[1] : "";
 }
 
+function normalizeChatSegment(value) {
+    const input = String(value || "").trim().toLowerCase();
+    if (!input) return "";
+    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow"])) return "Home / Villa";
+    if (chatHasAny(input, ["apartment", "rwa", "society", "hostel", "resident"])) return "Apartment / Hostel";
+    if (chatHasAny(input, ["hotel", "school", "college", "hospital", "institution"])) return "Hotel / Institution";
+    if (chatHasAny(input, ["dealer", "installer", "reseller", "channel"])) return "Dealer / Installer";
+    if (chatHasAny(input, ["commercial", "factory", "office", "builder", "township", "industrial", "site"])) return "Commercial Site";
+    return "";
+}
+
+function chatBookingNextField() {
+    if (!chatBookingState) return null;
+    return chatBookingFields.find((field) => {
+        if (field.key === "note") return !Object.prototype.hasOwnProperty.call(chatBookingState.data, "note");
+        return !String(chatBookingState.data[field.key] || "").trim();
+    }) || null;
+}
+
+function askChatBookingQuestion() {
+    const nextField = chatBookingNextField();
+    if (!nextField) {
+        completeChatBooking();
+        return;
+    }
+    appendChatMessage(nextField.question, "bot");
+}
+
+function startChatBooking(fill = {}) {
+    chatBookingState = {
+        data: {
+            plan: fill.plan || "",
+            segment: fill.segment || "",
+            devices: fill.devices || "",
+            baseNote: fill.note || "",
+        },
+    };
+    const planLine = fill.plan ? ` for ${fill.plan}` : "";
+    appendChatMessage(`Great, I will collect the booking details${planLine} before the enquiry is submitted. This prevents blank enquiries and helps the team call back with the right pricing.`, "bot");
+    askChatBookingQuestion();
+}
+
+function handleChatBookingAnswer(answer) {
+    if (!chatBookingState) return false;
+    const field = chatBookingNextField();
+    if (!field) {
+        completeChatBooking();
+        return true;
+    }
+
+    const normalizedValue = field.normalize ? field.normalize(answer) : answer.trim();
+    if (!field.validate(answer)) {
+        appendChatMessage(field.error, "bot");
+        appendChatMessage(field.question, "bot");
+        return true;
+    }
+
+    chatBookingState.data[field.key] = normalizedValue;
+    askChatBookingQuestion();
+    return true;
+}
+
+function completeChatBooking() {
+    if (!chatBookingState) return;
+    const data = chatBookingState.data;
+    const noteLines = [];
+    if (data.plan) noteLines.push(`Selected pricing plan: ${data.plan}`);
+    if (data.baseNote) noteLines.push(data.baseNote);
+    if (data.note) noteLines.push(`Visitor requirement: ${data.note}`);
+    const finalNote = noteLines.join("\n");
+
+    applyChatRecommendation({
+        name: data.name,
+        phone: data.phone,
+        email: data.email,
+        city: data.city,
+        segment: data.segment,
+        devices: data.devices,
+        note: finalNote,
+    });
+    chatBookingState = null;
+    appendChatMessage(
+        `Booking details are ready in the enquiry form.\n\nName: ${data.name}\nPhone: ${data.phone}\nEmail: ${data.email}\nCity: ${data.city}\nProject type: ${data.segment}\nDevices: ${data.devices}\n\nPlease review once and submit.`,
+        "bot",
+        [
+            { label: "Review form", href: "#enquiry" },
+            { label: "Submit enquiry now", action: "submit-enquiry" },
+        ],
+    );
+}
+
+function submitCompletedEnquiry() {
+    const form = document.getElementById("enquiryForm");
+    if (!form) return;
+    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (typeof form.reportValidity === "function" && !form.reportValidity()) {
+        appendChatMessage("Some required fields are still missing in the enquiry form. Please review the highlighted fields before submitting.", "bot");
+        return;
+    }
+    if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+    } else {
+        form.submit();
+    }
+}
+
 function findMentionedPlan(input) {
     return chatPlanCatalog.find((plan) => plan.keywords.some((keyword) => input.includes(keyword)));
 }
 
 function makePlanFill(plan, rawInput, count = "") {
     return {
+        plan: plan.name,
         segment: plan.segment,
-        devices: count || plan.devices,
+        devices: count || "",
         note: `Chatbot recommendation: ${plan.name}. Visitor question: ${rawInput}`,
     };
 }
@@ -4683,6 +4864,7 @@ function makePlanFill(plan, rawInput, count = "") {
 function bookPlanAction(plan, rawInput, count = "") {
     return {
         label: `Book ${plan.name}`,
+        action: "start-booking",
         fill: makePlanFill(plan, rawInput, count),
     };
 }
@@ -4823,7 +5005,7 @@ function getChatbotResponse(rawInput) {
             text: "The page is positioned for Delhi NCR buyers, including Delhi, Noida, Gurgaon/Gurugram and nearby managed properties. Final installation timing depends on city, site access and available installation slots.",
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
-                { label: "Book local call", href: "#enquiry" },
+                { label: "Book local call", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
             ],
         };
     }
@@ -4832,7 +5014,7 @@ function getChatbotResponse(rawInput) {
         return {
             text: "After installation, buyers can use phone-based visibility for tank level, pump status and alerts. Customers get their dashboard access, while service/admin teams can manage devices and support workflows from the admin side.",
             actions: [
-                { label: "Book dashboard demo", href: "#enquiry" },
+                { label: "Book dashboard demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
                 { label: "Download app", href: "{{ url_for('android_app_download') }}" },
             ],
         };
@@ -4852,7 +5034,7 @@ function getChatbotResponse(rawInput) {
         text: "I can answer plan, price, pump control, overflow, leak detection, installation, app/dashboard, support and Delhi NCR availability questions.\n\nPlease ask with a little context, like: home with 1 tank and pump control, RWA with 10 tanks, price of Home Smart, or installation for underground tank.",
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
-            { label: "Book demo", href: "#enquiry" },
+            { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
             { label: "Setup check", href: "#setup-check" },
         ],
     };
@@ -4863,6 +5045,10 @@ function submitChatbotPrompt(prompt) {
     if (!trimmed) return;
     setChatbotOpen(true);
     appendChatMessage(trimmed, "user");
+    if (handleChatBookingAnswer(trimmed)) {
+        if (chatbotInput) chatbotInput.value = "";
+        return;
+    }
     const response = getChatbotResponse(trimmed);
     window.setTimeout(() => appendChatMessage(response.text, "bot", response.actions), 180);
 }
@@ -4893,10 +5079,19 @@ chatbotChips.forEach((chip) => {
 
 if (chatbotMessages) {
     chatbotMessages.addEventListener("click", (event) => {
-        const fillButton = event.target.closest("[data-chat-fill]");
-        if (!fillButton) return;
+        const actionButton = event.target.closest("[data-chat-action]");
+        if (!actionButton) return;
         try {
-            applyChatRecommendation(JSON.parse(fillButton.dataset.chatFill || "{}"));
+            const fill = JSON.parse(actionButton.dataset.chatFill || "{}");
+            if (actionButton.dataset.chatAction === "start-booking") {
+                startChatBooking(fill);
+                return;
+            }
+            if (actionButton.dataset.chatAction === "submit-enquiry") {
+                submitCompletedEnquiry();
+                return;
+            }
+            applyChatRecommendation(fill);
         } catch (error) {
             console.warn("Chatbot recommendation could not be applied", error);
         }
