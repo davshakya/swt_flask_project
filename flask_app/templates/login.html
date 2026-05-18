@@ -132,9 +132,10 @@ body.modal-open{overflow:hidden}
 100%{transform:rotate(1080deg) scale(1)}
 }
 @keyframes chatbotIconSpinUp{
-0%{transform:rotate(0deg) scale(.9)}
-22%{transform:rotate(190deg) scale(1.08)}
-100%{transform:rotate(720deg) scale(1)}
+0%{transform:rotate(0deg) scale(1)}
+10%{transform:rotate(150deg) scale(1.08)}
+22%{transform:rotate(300deg) scale(1)}
+100%{transform:rotate(1080deg) scale(1)}
 }
 a{color:inherit}
 a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link){
@@ -2565,7 +2566,7 @@ height:30px;
 transform-origin:center;
 }
 .site-chatbot.is-open .chatbot-avatar img{
-animation:chatbotIconSpinUp 1.1s cubic-bezier(.2,.78,.18,1) both;
+animation:chatbotIconSpinUp 2.4s cubic-bezier(.2,.78,.18,1) infinite;
 }
 .chatbot-title strong{
 display:block;
@@ -4764,6 +4765,7 @@ const chatBookingFields = [
 ];
 
 let chatBookingState = null;
+let chatEnquirySubmitting = false;
 
 function reDigits(value) {
     return String(value || "").replace(/\D/g, "");
@@ -4869,18 +4871,48 @@ function completeChatBooking() {
     );
 }
 
-function submitCompletedEnquiry() {
+async function submitCompletedEnquiry() {
     const form = document.getElementById("enquiryForm");
     if (!form) return;
-    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (typeof form.reportValidity === "function" && !form.reportValidity()) {
         appendChatMessage("Some required fields are still missing in the enquiry form. Please review the highlighted fields before submitting.", "bot");
         return;
     }
-    if (typeof form.requestSubmit === "function") {
-        form.requestSubmit();
-    } else {
-        form.submit();
+    if (chatEnquirySubmitting) {
+        appendChatMessage("Your booking request is already being submitted. Please wait a moment.", "bot");
+        return;
+    }
+
+    chatEnquirySubmitting = true;
+    appendChatMessage("Submitting your booking request now. The chat will stay open.", "bot");
+    try {
+        const response = await fetch(form.action, {
+            method: "POST",
+            body: new FormData(form),
+            credentials: "same-origin",
+            redirect: "follow",
+        });
+        if (!response.ok) {
+            appendChatMessage("I could not submit the booking yet. Please review the form fields, then try again.", "bot", [
+                { label: "Review form", href: "#enquiry" },
+            ]);
+            return;
+        }
+        appendChatMessage(
+            "Thank you for submitting your demo booking. SaleWell has received your details and the team will follow up for pricing, setup scope and installation planning.\n\nYou can continue asking me questions here.",
+            "bot",
+            [
+                { label: "Ask pricing question", action: "ask-prompt", fill: { prompt: "What is the pricing?" } },
+                { label: "Ask installation question", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
+            ],
+        );
+    } catch (error) {
+        console.warn("Chatbot enquiry submit failed", error);
+        appendChatMessage("Network issue while submitting the booking. Please try again, or use the form below.", "bot", [
+            { label: "Review form", href: "#enquiry" },
+        ]);
+    } finally {
+        chatEnquirySubmitting = false;
     }
 }
 
@@ -5135,6 +5167,10 @@ if (chatbotMessages) {
             }
             if (actionButton.dataset.chatAction === "submit-enquiry") {
                 submitCompletedEnquiry();
+                return;
+            }
+            if (actionButton.dataset.chatAction === "ask-prompt") {
+                submitChatbotPrompt(fill.prompt || "");
                 return;
             }
             applyChatRecommendation(fill);
