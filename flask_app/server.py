@@ -1749,6 +1749,29 @@ def can_access_next_url(role, next_url):
     return not next_url.startswith("/admin/")
 
 
+def sales_form_from_pricing_query():
+    selected_plan = str(request.args.get("plan", "")).strip()
+    if not selected_plan:
+        return {}
+
+    selected_segment = str(request.args.get("segment", "")).strip()
+    valid_segments = {
+        "Home / Villa",
+        "Apartment / Hostel",
+        "Hotel / Institution",
+        "Dealer / Installer",
+        "Commercial Site",
+    }
+    if selected_segment not in valid_segments:
+        selected_segment = "Commercial Site" if selected_plan == "Enterprise" or "Commercial" in selected_plan else "Home / Villa"
+
+    return {
+        "segment": selected_segment,
+        "device_count": "1",
+        "message": f"Selected pricing plan: {selected_plan}",
+    }
+
+
 def render_login_page(mode="customer", error=None, next_url="/", sales_error=None, sales_success=None, sales_form=None):
     is_admin_mode = mode == "admin"
     is_landing_page = request.endpoint in {"dashboard", "homepage"}
@@ -1761,7 +1784,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
         if request.args.get("enquiry") == "success"
         else None
     )
-    sales_form = sales_form or {}
+    sales_form = sales_form or sales_form_from_pricing_query()
     return render_template(
         "login.html",
         error=error,

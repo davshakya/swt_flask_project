@@ -4145,6 +4145,25 @@ if (shouldAutoOpenLogin) {
     setLoginRole(bodyDefaultRole);
 }
 
+const selectedPricingPlan = new URLSearchParams(window.location.search).get("plan");
+if (selectedPricingPlan) {
+    const selectedSegment = new URLSearchParams(window.location.search).get("segment");
+    const leadSegment = document.getElementById("lead_segment");
+    const leadDeviceCount = document.getElementById("lead_device_count");
+    const leadMessage = document.getElementById("lead_message");
+    const planLine = `Selected pricing plan: ${selectedPricingPlan}`;
+
+    if (leadSegment && selectedSegment && Array.from(leadSegment.options).some((option) => option.value === selectedSegment)) {
+        leadSegment.value = selectedSegment;
+    }
+    if (leadDeviceCount && !leadDeviceCount.value) {
+        leadDeviceCount.value = "1";
+    }
+    if (leadMessage && !leadMessage.value.includes(planLine)) {
+        leadMessage.value = leadMessage.value.trim() ? `${planLine}\n\n${leadMessage.value.trim()}` : planLine;
+    }
+}
+
 const demoStoryboard = document.getElementById("demoStoryboard");
 const demoSection = document.getElementById("demo");
 const demoProgressBar = document.getElementById("demoProgressBar");

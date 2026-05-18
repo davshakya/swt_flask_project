@@ -460,6 +460,22 @@ margin:0;
 color:var(--muted);
 line-height:1.6;
 }
+.plan-action{
+margin-top:auto;
+display:grid;
+gap:8px;
+}
+.plan-action .button,
+.plan-action .button-secondary{
+width:100%;
+min-height:44px;
+}
+.plan-action span{
+font-size:12px;
+font-weight:800;
+line-height:1.45;
+color:var(--muted);
+}
 .price-stack{
 display:grid;
 gap:4px;
@@ -524,7 +540,7 @@ background:var(--surface-strong);
 table{
 width:100%;
 border-collapse:collapse;
-min-width:900px;
+min-width:1040px;
 }
 th,
 td{
@@ -558,6 +574,26 @@ font-weight:900;
 .no{
 color:var(--muted);
 font-weight:900;
+}
+.table-book-link{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+min-height:38px;
+padding:9px 13px;
+border-radius:13px;
+background:var(--button-primary);
+color:#fff!important;
+font-weight:900;
+text-decoration:none;
+white-space:nowrap;
+box-shadow:0 10px 20px rgba(12,88,104,.16);
+transition:transform .18s ease,box-shadow .18s ease,filter .18s ease;
+}
+.table-book-link:hover{
+transform:translateY(-1px);
+filter:brightness(1.04);
+box-shadow:0 14px 26px rgba(12,88,104,.22);
 }
 .addons-grid{
 display:grid;
@@ -664,6 +700,114 @@ color:var(--muted);
 font-weight:900;
 text-decoration:none;
 }
+.booking-modal{
+position:fixed;
+inset:0;
+z-index:80;
+display:none;
+align-items:center;
+justify-content:center;
+padding:18px;
+background:rgba(7,31,40,.56);
+backdrop-filter:blur(8px);
+}
+.booking-modal.is-open{
+display:flex;
+}
+.booking-dialog{
+width:min(720px,calc(100vw - 24px));
+max-height:min(88vh,820px);
+overflow:auto;
+padding:22px;
+border-radius:28px;
+background:linear-gradient(180deg,var(--surface-strong),var(--surface));
+border:1px solid var(--line-strong);
+box-shadow:0 34px 80px rgba(7,31,40,.28);
+}
+.booking-head{
+display:flex;
+justify-content:space-between;
+gap:14px;
+align-items:flex-start;
+margin-bottom:16px;
+}
+.booking-head h2{
+margin:0;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(1.8rem,3vw,2.5rem);
+line-height:1;
+letter-spacing:-.05em;
+}
+.booking-head p{
+margin:8px 0 0;
+color:var(--muted);
+line-height:1.55;
+}
+.booking-close{
+min-width:42px;
+min-height:42px;
+padding:0;
+border-radius:14px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.58);
+color:var(--text);
+font-size:24px;
+line-height:1;
+cursor:pointer;
+}
+.booking-selected-plan{
+margin-bottom:14px;
+padding:13px 15px;
+border-radius:18px;
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(239,155,65,.12));
+border:1px solid rgba(13,147,168,.18);
+font-weight:900;
+color:var(--brand-deep);
+}
+.booking-form{
+display:grid;
+gap:13px;
+}
+.booking-grid{
+display:grid;
+grid-template-columns:repeat(2,minmax(0,1fr));
+gap:12px;
+}
+.booking-group{
+display:grid;
+gap:7px;
+}
+.booking-group label{
+font-size:11px;
+letter-spacing:.14em;
+text-transform:uppercase;
+font-weight:900;
+color:var(--muted);
+}
+.booking-group input,
+.booking-group select,
+.booking-group textarea{
+width:100%;
+padding:12px 13px;
+border-radius:14px;
+border:1px solid var(--line);
+background:rgba(255,255,255,.72);
+color:var(--text);
+font:inherit;
+}
+.booking-group textarea{
+min-height:112px;
+resize:vertical;
+}
+.booking-actions{
+display:flex;
+gap:10px;
+align-items:center;
+flex-wrap:wrap;
+}
+.booking-actions .button{
+min-width:190px;
+}
 .footer{
 margin-top:18px;
 padding:18px 20px;
@@ -721,6 +865,15 @@ padding-right:18px;
 .nav-actions,
 .cta-row > *,
 .nav-actions > *{
+width:100%;
+}
+.booking-grid,
+.booking-actions{
+grid-template-columns:1fr;
+display:grid;
+}
+.booking-actions .button,
+.booking-actions .ghost-link{
 width:100%;
 }
 .hero{
@@ -834,6 +987,10 @@ max-width:none;
                     <li>Small buildings</li>
                     <li>Property Wi-Fi only use</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book Home Basic</a>
+                    <span>Good when you only need local tank visibility.</span>
+                </div>
             </article>
 
             <article class="plan-card is-featured" data-plan-segment="home">
@@ -864,6 +1021,10 @@ max-width:none;
                     <li>Villas</li>
                     <li>Users who want control from anywhere</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Smart', segment='Home / Villa') }}#enquiry" data-plan="Home Smart" data-segment="Home / Villa">Book Home Smart</a>
+                    <span>Best first choice for remote access and pump control.</span>
+                </div>
             </article>
 
             <article class="plan-card" data-plan-segment="home">
@@ -895,6 +1056,10 @@ max-width:none;
                     <li>Smart home users</li>
                     <li>Customers who want savings plus prevention</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home AI', segment='Home / Villa') }}#enquiry" data-plan="Home AI" data-segment="Home / Villa">Book Home AI</a>
+                    <span>Use this when prevention and usage insight matter.</span>
+                </div>
             </article>
 
             <article class="plan-card" data-plan-segment="commercial">
@@ -925,6 +1090,10 @@ max-width:none;
                     <li>Small hotels</li>
                     <li>Schools and commercial buildings</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Commercial Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="Commercial Standard" data-segment="Apartment / Hostel">Book Commercial Standard</a>
+                    <span>Built for shared tanks and managed properties.</span>
+                </div>
             </article>
 
             <article class="plan-card is-featured" data-plan-segment="commercial">
@@ -957,6 +1126,10 @@ max-width:none;
                     <li>Hotels</li>
                     <li>Factories and institutions</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book Commercial AI Pro</a>
+                    <span>Recommended for multi-tank sites and reporting needs.</span>
+                </div>
             </article>
 
             <article class="plan-card" data-plan-segment="enterprise">
@@ -988,6 +1161,10 @@ max-width:none;
                     <li>Township projects</li>
                     <li>Industrial and large commercial groups</li>
                 </ul>
+                <div class="plan-action">
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Enterprise', segment='Commercial Site') }}#enquiry" data-plan="Enterprise" data-segment="Commercial Site">Book Enterprise Call</a>
+                    <span>Use this for custom rollout planning and integrations.</span>
+                </div>
             </article>
         </div>
     </section>
@@ -1010,6 +1187,7 @@ max-width:none;
                         <th>AI Analytics</th>
                         <th>Source Tank</th>
                         <th>Price</th>
+                        <th>Book</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1021,6 +1199,7 @@ max-width:none;
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><strong>&#8377;4,999</strong><span>No monthly fee</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
                         <td><strong>Home Smart</strong><span>Internet plus control</span></td>
@@ -1030,6 +1209,7 @@ max-width:none;
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><strong>&#8377;6,999</strong><span>+ &#8377;149/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Smart', segment='Home / Villa') }}#enquiry" data-plan="Home Smart" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
                         <td><strong>Home AI</strong><span>Premium smart monitoring</span></td>
@@ -1039,6 +1219,7 @@ max-width:none;
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><strong>&#8377;8,999</strong><span>+ &#8377;249/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home AI', segment='Home / Villa') }}#enquiry" data-plan="Home AI" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
                         <td><strong>Commercial Standard</strong><span>Managed property monitoring</span></td>
@@ -1048,6 +1229,7 @@ max-width:none;
                         <td><span class="no">No</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><strong>&#8377;9,999</strong><span>+ &#8377;399/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="Commercial Standard" data-segment="Apartment / Hostel">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
                         <td><strong>Commercial AI Pro</strong><span>Advanced multi-tank insight</span></td>
@@ -1057,6 +1239,7 @@ max-width:none;
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><strong>&#8377;12,999</strong><span>+ &#8377;699/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
                     <tr data-plan-row="enterprise">
                         <td><strong>Enterprise</strong><span>Custom scope</span></td>
@@ -1066,6 +1249,7 @@ max-width:none;
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><strong>Custom Pricing</strong><span>By project scope</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise', segment='Commercial Site') }}#enquiry" data-plan="Enterprise" data-segment="Commercial Site">Book</a></td>
                     </tr>
                 </tbody>
             </table>
@@ -1147,5 +1331,150 @@ max-width:none;
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918299812878">+91-8299812878</a></div>
     </footer>
 </div>
+
+<div class="booking-modal" id="pricingBookingModal" aria-hidden="true">
+    <div class="booking-dialog" role="dialog" aria-modal="true" aria-labelledby="pricingBookingTitle">
+        <div class="booking-head">
+            <div>
+                <h2 id="pricingBookingTitle">Book this plan</h2>
+                <p>Share basic site details and the SaleWell team will follow up with pricing, setup scope and installation planning.</p>
+            </div>
+            <button class="booking-close" type="button" data-close-booking aria-label="Close booking form">&times;</button>
+        </div>
+
+        <div class="booking-selected-plan" id="pricingBookingPlan">Selected plan: Home Smart</div>
+
+        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="landing_mode" value="customer">
+
+            <div class="booking-grid">
+                <div class="booking-group">
+                    <label for="pricing_lead_name">Name</label>
+                    <input id="pricing_lead_name" name="name" type="text" placeholder="Your full name" required>
+                </div>
+                <div class="booking-group">
+                    <label for="pricing_lead_phone">Phone / WhatsApp</label>
+                    <input id="pricing_lead_phone" name="phone" type="tel" placeholder="+91 98765 43210" required>
+                </div>
+            </div>
+
+            <div class="booking-grid">
+                <div class="booking-group">
+                    <label for="pricing_lead_email">Email</label>
+                    <input id="pricing_lead_email" type="email" placeholder="you@example.com" required>
+                </div>
+                <div class="booking-group">
+                    <label for="pricing_lead_city">City</label>
+                    <input id="pricing_lead_city" name="city" type="text" placeholder="City or service area" required>
+                </div>
+            </div>
+
+            <div class="booking-grid">
+                <div class="booking-group">
+                    <label for="pricing_lead_segment">Project Type</label>
+                    <select id="pricing_lead_segment" name="segment" required>
+                        <option value="">Select one</option>
+                        <option value="Home / Villa">Home / Villa</option>
+                        <option value="Apartment / Hostel">Apartment / Hostel</option>
+                        <option value="Hotel / Institution">Hotel / Institution</option>
+                        <option value="Dealer / Installer">Dealer / Installer</option>
+                        <option value="Commercial Site">Commercial Site</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="booking-grid">
+                <div class="booking-group">
+                    <label for="pricing_lead_device_count">Estimated Devices Needed</label>
+                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="1" placeholder="Example: 12" required>
+                </div>
+                <div class="booking-group">
+                    <label for="pricing_lead_message">Project Notes</label>
+                    <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
+                </div>
+            </div>
+
+            <div class="booking-actions">
+                <button class="button" type="submit">Submit Booking Request</button>
+                <a class="ghost-link" href="mailto:support@salewell.co.in">Prefer email instead</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+const pricingBookingModal = document.getElementById("pricingBookingModal");
+const pricingBookingPlan = document.getElementById("pricingBookingPlan");
+const pricingLeadSegment = document.getElementById("pricing_lead_segment");
+const pricingLeadDeviceCount = document.getElementById("pricing_lead_device_count");
+const pricingLeadMessage = document.getElementById("pricing_lead_message");
+const pricingLeadName = document.getElementById("pricing_lead_name");
+const pricingLeadEmail = document.getElementById("pricing_lead_email");
+const pricingBookingForm = document.querySelector(".booking-form");
+const bookingButtons = document.querySelectorAll(".js-book-plan");
+const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
+
+function openPricingBooking(plan, segment) {
+    const selectedPlan = plan || "Selected plan";
+    const selectedSegment = segment || "";
+    const planLine = `Selected pricing plan: ${selectedPlan}`;
+
+    if (pricingBookingPlan) pricingBookingPlan.textContent = planLine;
+    if (pricingLeadSegment && selectedSegment) pricingLeadSegment.value = selectedSegment;
+    if (pricingLeadDeviceCount && !pricingLeadDeviceCount.value) pricingLeadDeviceCount.value = "1";
+    if (pricingLeadMessage) pricingLeadMessage.value = planLine;
+    if (pricingBookingModal) {
+        pricingBookingModal.classList.add("is-open");
+        pricingBookingModal.setAttribute("aria-hidden", "false");
+        document.body.style.overflow = "hidden";
+        window.setTimeout(() => pricingLeadName?.focus(), 30);
+    }
+}
+
+function closePricingBooking() {
+    if (!pricingBookingModal) return;
+    pricingBookingModal.classList.remove("is-open");
+    pricingBookingModal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+}
+
+bookingButtons.forEach((button) => {
+    button.addEventListener("click", (event) => {
+        event.preventDefault();
+        openPricingBooking(button.dataset.plan, button.dataset.segment);
+    });
+});
+
+bookingCloseButtons.forEach((button) => {
+    button.addEventListener("click", closePricingBooking);
+});
+
+if (pricingBookingModal) {
+    pricingBookingModal.addEventListener("click", (event) => {
+        if (event.target === pricingBookingModal) closePricingBooking();
+    });
+}
+
+document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && pricingBookingModal?.classList.contains("is-open")) {
+        closePricingBooking();
+    }
+});
+
+if (pricingBookingForm) {
+    pricingBookingForm.addEventListener("submit", () => {
+        if (!pricingLeadMessage || !pricingLeadEmail) return;
+        const email = pricingLeadEmail.value.trim();
+        if (!email) return;
+        const emailLine = `Email: ${email}`;
+        if (!pricingLeadMessage.value.includes(emailLine)) {
+            pricingLeadMessage.value = pricingLeadMessage.value.trim()
+                ? `${pricingLeadMessage.value.trim()}\n${emailLine}`
+                : emailLine;
+        }
+    });
+}
+</script>
 </body>
 </html>
