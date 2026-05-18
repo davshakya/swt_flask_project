@@ -317,6 +317,67 @@
 .service-modal-head,.service-form-footer{flex-direction:column;align-items:stretch}
 .service-modal-close{width:100%}
 }
+.admin-control-room{--link-blue:#0b63ce;--link-blue-hover:#084fa8}
+.admin-control-room .device-link,
+.admin-control-room .cell-sub a,
+.admin-control-room .section-helper a,
+.admin-control-room .focus-note a{
+color:var(--link-blue);
+border:none;
+padding:0;
+background:transparent;
+text-decoration:underline;
+text-decoration-color:color-mix(in srgb,var(--link-blue) 44%,transparent);
+text-underline-offset:3px;
+font-weight:800;
+}
+.admin-control-room .device-link:hover,
+.admin-control-room .cell-sub a:hover,
+.admin-control-room .section-helper a:hover,
+.admin-control-room .focus-note a:hover{
+color:var(--link-blue-hover);
+text-decoration-color:currentColor;
+}
+.admin-control-room .panel,
+.admin-control-room .summary-card,
+.admin-control-room .hero-focus-card,
+.admin-control-room .form-helper-card{
+transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease,filter .2s ease;
+}
+.admin-control-room .summary-card:hover,
+.admin-control-room .hero-focus-card:hover,
+.admin-control-room .form-helper-card:hover{
+transform:translateY(-2px);
+border-color:color-mix(in srgb,var(--admin-accent) 32%,var(--admin-border));
+box-shadow:0 24px 46px rgba(10,58,72,.14);
+}
+.admin-control-room .section-panel:nth-of-type(3n+1){
+--admin-accent:#0e8096;
+--admin-accent-strong:#0b5567;
+}
+.admin-control-room .section-panel:nth-of-type(3n+2){
+--admin-accent:#1f9d68;
+--admin-accent-strong:#126747;
+}
+.admin-control-room .section-panel:nth-of-type(3n){
+--admin-accent:#d88a22;
+--admin-accent-strong:#8a5512;
+}
+@media (prefers-color-scheme: dark){
+.admin-control-room{--link-blue:#83c5ff;--link-blue-hover:#b7ddff}
+.admin-control-room .section-panel:nth-of-type(3n+1){
+--admin-accent:#78dae7;
+--admin-accent-strong:#c4f8ff;
+}
+.admin-control-room .section-panel:nth-of-type(3n+2){
+--admin-accent:#66df9e;
+--admin-accent-strong:#c5f7dc;
+}
+.admin-control-room .section-panel:nth-of-type(3n){
+--admin-accent:#ffc56d;
+--admin-accent-strong:#ffe2ad;
+}
+}
 </style>
 </head>
 <body class="admin-control-room">

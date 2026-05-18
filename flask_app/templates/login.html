@@ -828,6 +828,12 @@ color:var(--section-accent-deep);
 .section .card{
 border-color:var(--section-line);
 background:linear-gradient(180deg,var(--surface-strong),var(--surface));
+transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease;
+}
+.section .card:hover{
+transform:translateY(-2px);
+border-color:color-mix(in srgb,var(--section-accent) 34%,var(--section-line));
+box-shadow:0 24px 46px rgba(12,56,66,.12),inset 0 1px 0 rgba(255,255,255,.58);
 }
 .section .urgency-banner,
 .section .support-panel,
