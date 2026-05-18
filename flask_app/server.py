@@ -97,6 +97,8 @@ DEVICE_ENV_OVERRIDE_KEYS = {
     "SMTP_USE_TLS",
     "SMTP_USE_SSL",
     "SMTP_TIMEOUT_SECONDS",
+    "SALES_ENQUIRY_TO_EMAILS",
+    "SALES_ENQUIRY_BACKUP_PATH",
 }
 
 
@@ -460,6 +462,12 @@ SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
 SMTP_USE_TLS = env_flag("SMTP_USE_TLS", default=False)
 SMTP_USE_SSL = env_flag("SMTP_USE_SSL", default=True)
 SMTP_TIMEOUT_SECONDS = max(3, env_int("SMTP_TIMEOUT_SECONDS", 10))
+SALES_ENQUIRY_TO_EMAILS = os.environ.get("SALES_ENQUIRY_TO_EMAILS", CUSTOMER_COMMUNICATION_FROM_EMAIL).strip()
+SALES_ENQUIRY_BACKUP_PATH = Path(
+    os.environ.get("SALES_ENQUIRY_BACKUP_PATH", str(DATA_DIR / "sales_enquiries.jsonl")).strip()
+).expanduser()
+if not SALES_ENQUIRY_BACKUP_PATH.is_absolute():
+    SALES_ENQUIRY_BACKUP_PATH = PROJECT_ROOT / SALES_ENQUIRY_BACKUP_PATH
 LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
@@ -1784,6 +1792,10 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
         if request.args.get("enquiry") == "success"
         else None
     )
+    if request.args.get("enquiry") == "saved_email_pending" and not sales_success:
+        sales_success = (
+            "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
+        )
     sales_form = sales_form or sales_form_from_pricing_query()
     return render_template(
         "login.html",
@@ -1890,22 +1902,76 @@ def build_sales_enquiry_email(cleaned, lead_details):
     return subject, "\n".join(body_lines)
 
 
+def sales_enquiry_recipients():
+    configured = SALES_ENQUIRY_TO_EMAILS or CUSTOMER_COMMUNICATION_FROM_EMAIL
+    recipients = []
+    seen = set()
+    for raw_email in re.split(r"[,;\s]+", configured):
+        normalized_email = normalize_customer_email(raw_email)
+        if normalized_email and normalized_email not in seen:
+            recipients.append(normalized_email)
+            seen.add(normalized_email)
+    fallback_email = normalize_customer_email(CUSTOMER_COMMUNICATION_FROM_EMAIL)
+    if not recipients and fallback_email:
+        recipients.append(fallback_email)
+    return recipients
+
+
 def send_sales_enquiry_email(cleaned, lead_details):
     subject, body = build_sales_enquiry_email(cleaned, lead_details)
+    recipients = sales_enquiry_recipients()
+    if not recipients:
+        logger.warning("Sales enquiry email was not sent because no support recipient is configured.")
+        return False
+
+    sent_any = False
     try:
-        sent = send_customer_email(
-            CUSTOMER_COMMUNICATION_FROM_EMAIL,
-            subject,
-            body,
-            category="transactional",
-            reply_to=cleaned.get("email") or None,
-        )
+        for recipient in recipients:
+            sent = send_customer_email(
+                recipient,
+                subject,
+                body,
+                category="transactional",
+                reply_to=cleaned.get("email") or None,
+            )
+            sent_any = sent_any or sent
     except Exception as exc:
         logger.warning("Sales enquiry email failed for %s (%s): %s", cleaned.get("name"), cleaned.get("phone"), exc)
         return False
-    if not sent:
+    if not sent_any:
         logger.warning("Sales enquiry email was not sent because SMTP is not configured.")
-    return sent
+    else:
+        logger.info("Sales enquiry email sent to %s", ", ".join(recipients))
+    return sent_any
+
+
+def append_sales_enquiry_backup(cleaned, lead_details, support_email_sent=False, confirmation_email_sent=False):
+    record = {
+        "saved_at": datetime.now(timezone.utc).astimezone(IST_TIMEZONE).isoformat(),
+        "support_email_sent": bool(support_email_sent),
+        "confirmation_email_sent": bool(confirmation_email_sent),
+        "support_recipients": sales_enquiry_recipients(),
+        "lead": {
+            "name": cleaned.get("name") or "",
+            "phone": cleaned.get("phone") or "",
+            "email": cleaned.get("email") or "",
+            "city": cleaned.get("city") or "",
+            "segment": cleaned.get("segment") or "",
+            "device_count": cleaned.get("device_count") or "",
+            "message": cleaned.get("message") or "",
+        },
+        "metadata": {
+            "landing_mode": lead_details.get("landing_mode") or "",
+            "next_url": lead_details.get("next_url") or "",
+            "remote_addr": lead_details.get("remote_addr") or "",
+        },
+    }
+    try:
+        SALES_ENQUIRY_BACKUP_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with SALES_ENQUIRY_BACKUP_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=True, sort_keys=True) + "\n")
+    except Exception as exc:
+        logger.warning("Sales enquiry backup could not be written to %s: %s", SALES_ENQUIRY_BACKUP_PATH, exc)
 
 
 def selected_pricing_plan_from_notes(message):
@@ -9752,10 +9818,24 @@ def sales_enquiry():
         target_type="sales_enquiry",
         details=lead_details,
     )
-    send_sales_enquiry_email(cleaned, lead_details)
-    send_sales_enquiry_confirmation_email(cleaned)
-    logger.info("Sales enquiry submitted for %s (%s)", cleaned["name"], cleaned["phone"])
-    return redirect(url_for("dashboard", enquiry="success"))
+    support_email_sent = send_sales_enquiry_email(cleaned, lead_details)
+    confirmation_email_sent = send_sales_enquiry_confirmation_email(cleaned)
+    append_sales_enquiry_backup(
+        cleaned,
+        lead_details,
+        support_email_sent=support_email_sent,
+        confirmation_email_sent=confirmation_email_sent,
+    )
+    logger.info(
+        "Sales enquiry submitted for %s (%s). support_email_sent=%s confirmation_email_sent=%s backup=%s",
+        cleaned["name"],
+        cleaned["phone"],
+        support_email_sent,
+        confirmation_email_sent,
+        SALES_ENQUIRY_BACKUP_PATH,
+    )
+    enquiry_status = "success" if support_email_sent else "saved_email_pending"
+    return redirect(url_for("dashboard", enquiry=enquiry_status))
 
 
 @app.route("/logout", methods=["POST"])

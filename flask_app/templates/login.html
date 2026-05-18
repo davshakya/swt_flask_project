@@ -4581,103 +4581,226 @@ function applyChatRecommendation(fill = {}) {
     document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+const chatPlanCatalog = [
+    {
+        name: "Home Basic",
+        segment: "Home / Villa",
+        devices: "1",
+        price: "Rs. 4,999 one-time setup, no monthly subscription",
+        shortPrice: "Rs. 4,999",
+        bestFor: "individual homes and small buildings that only need local Wi-Fi monitoring",
+        includes: ["local network access", "water level monitoring", "pump status view", "basic alerts", "single tank support"],
+        strengths: ["lowest entry cost", "simple local tank visibility", "no monthly fee"],
+        keywords: ["home basic", "basic", "local", "no monthly", "without internet", "wifi only"],
+    },
+    {
+        name: "Home Smart",
+        segment: "Home / Villa",
+        devices: "1",
+        price: "Rs. 6,999 one-time setup + Rs. 149/month",
+        shortPrice: "Rs. 6,999 + Rs. 149/mo",
+        bestFor: "homes and villas that need internet access, mobile alerts and pump control",
+        includes: ["everything in Home Basic", "remote access over Internet", "pump control from mobile", "alert notifications", "basic usage history"],
+        strengths: ["most popular for homes", "remote pump control", "best first choice for daily use"],
+        keywords: ["home smart", "smart", "internet", "remote", "pump control", "mobile control"],
+    },
+    {
+        name: "Home AI",
+        segment: "Home / Villa",
+        devices: "1",
+        price: "Rs. 8,999 one-time setup + Rs. 249/month",
+        shortPrice: "Rs. 8,999 + Rs. 249/mo",
+        bestFor: "premium homes that want prevention, leak insight and deeper usage trends",
+        includes: ["everything in Home Smart", "AI analytics", "leak detection insights", "water usage trends", "overflow and dry-run intelligence", "priority support"],
+        strengths: ["strongest home prevention plan", "AI leak insight", "usage trend visibility"],
+        keywords: ["home ai", "ai home", "premium", "leak", "analytics", "usage trend", "smart home"],
+    },
+    {
+        name: "Commercial Standard",
+        segment: "Apartment / Hostel",
+        devices: "6",
+        price: "Rs. 9,999 per tank/setup + Rs. 399/month",
+        shortPrice: "Rs. 9,999 + Rs. 399/mo",
+        bestFor: "apartments, RWAs, schools, hotels and managed properties with shared tanks",
+        includes: ["remote monitoring over Internet", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
+        strengths: ["built for shared tanks", "admin visibility", "good RWA starting plan"],
+        keywords: ["commercial standard", "apartment", "rwa", "society", "hostel", "school", "small hotel", "managed"],
+    },
+    {
+        name: "Commercial AI Pro",
+        segment: "Commercial Site",
+        devices: "10",
+        price: "Rs. 12,999 per setup + Rs. 699/month",
+        shortPrice: "Rs. 12,999 + Rs. 699/mo",
+        bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
+        includes: ["everything in Commercial Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
+        strengths: ["best for multi-tank sites", "advanced reporting", "source-to-destination logic"],
+        keywords: ["commercial ai pro", "ai pro", "large apartment", "factory", "institution", "hotel", "multi tank", "advanced report"],
+    },
+    {
+        name: "Enterprise",
+        segment: "Commercial Site",
+        devices: "25",
+        price: "custom pricing by project scope",
+        shortPrice: "Custom",
+        bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
+        includes: ["multi-site deployment", "custom dashboard", "multiple users and roles", "API integrations", "dedicated support", "custom AI reports"],
+        strengths: ["custom rollout planning", "multi-site support", "API and role-based access"],
+        keywords: ["enterprise", "builder", "township", "industrial", "api", "custom", "multi site", "large project"],
+    },
+];
+
+const chatAddOns = [
+    "Pump control over Internet: Rs. 1,500 setup add-on",
+    "AI analytics: Rs. 99 to Rs. 199/month",
+    "Source tank monitoring: Rs. 2,000",
+    "Extra tank connection: Rs. 1,500 to Rs. 3,000",
+    "Installation visit: quoted by city and project size",
+    "Custom reporting: quote-based",
+];
+
+function chatHasAny(input, words) {
+    return words.some((word) => input.includes(word));
+}
+
+function extractRequirementCount(input) {
+    const match = input.match(/(\d+)\s*(tank|device|flat|home|house|site|tower|building|unit|room)s?/i);
+    return match ? match[1] : "";
+}
+
+function findMentionedPlan(input) {
+    return chatPlanCatalog.find((plan) => plan.keywords.some((keyword) => input.includes(keyword)));
+}
+
+function makePlanFill(plan, rawInput, count = "") {
+    return {
+        segment: plan.segment,
+        devices: count || plan.devices,
+        note: `Chatbot recommendation: ${plan.name}. Visitor question: ${rawInput}`,
+    };
+}
+
+function bookPlanAction(plan, rawInput, count = "") {
+    return {
+        label: `Book ${plan.name}`,
+        fill: makePlanFill(plan, rawInput, count),
+    };
+}
+
+function planPricingLine(plan) {
+    return `${plan.name}: ${plan.shortPrice}`;
+}
+
+function describePlan(plan) {
+    return `${plan.name} is best for ${plan.bestFor}.\nPrice: ${plan.price}.\nIncludes: ${plan.includes.join(", ")}.`;
+}
+
+function recommendPlan(input) {
+    const count = Number(extractRequirementCount(input) || 0);
+    const wantsAI = chatHasAny(input, ["ai", "analytics", "leak", "usage", "trend", "report", "saving", "intelligence"]);
+    const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "control", "automation", "internet"]);
+    const wantsNoMonthly = chatHasAny(input, ["no monthly", "without monthly", "one time", "one-time", "local only", "offline"]);
+    const commercial = chatHasAny(input, ["apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "office", "hospital", "builder", "township", "industrial", "managed", "source tank", "underground tank", "multiple tanks"]) || count >= 3;
+    const enterprise = chatHasAny(input, ["enterprise", "builder", "township", "multi site", "multi-site", "api", "custom dashboard", "industrial"]) || count >= 25;
+
+    if (enterprise) return chatPlanCatalog.find((plan) => plan.name === "Enterprise");
+    if (commercial && (wantsAI || count >= 10)) return chatPlanCatalog.find((plan) => plan.name === "Commercial AI Pro");
+    if (commercial) return chatPlanCatalog.find((plan) => plan.name === "Commercial Standard");
+    if (wantsAI) return chatPlanCatalog.find((plan) => plan.name === "Home AI");
+    if (wantsPump) return chatPlanCatalog.find((plan) => plan.name === "Home Smart");
+    if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Home Basic");
+    return chatPlanCatalog.find((plan) => plan.name === "Home Smart");
+}
+
 function getChatbotResponse(rawInput) {
     const input = rawInput.toLowerCase();
-    const hasAny = (words) => words.some((word) => input.includes(word));
-    const bookAction = {
-        label: "Fill enquiry form",
-        fill: {
-            devices: "1",
-            note: `Visitor asked chatbot: ${rawInput}`,
-        },
-    };
+    const count = extractRequirementCount(rawInput);
+    const mentionedPlan = findMentionedPlan(input);
+    const recommendedPlan = recommendPlan(input);
+    const wantsBooking = chatHasAny(input, ["book", "demo", "call", "contact", "sales", "visit", "quote", "callback", "meeting"]);
+    const wantsPrice = chatHasAny(input, ["price", "pricing", "cost", "rate", "fee", "monthly", "subscription", "package", "quote", "charges"]);
+    const wantsCompare = chatHasAny(input, ["compare", "comparison", "difference", "all plans", "plans", "which plan", "best plan", "recommend", "suggest"]);
+    const wantsInstall = chatHasAny(input, ["install", "installation", "sensor", "setup", "tank height", "underground", "source", "overhead", "plumber", "site visit", "hardware"]);
+    const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"]);
+    const wantsOverflow = chatHasAny(input, ["overflow", "over flow", "leak", "leakage", "waste", "water loss", "tank full", "spillage", "dry"]);
+    const wantsSupport = chatHasAny(input, ["support", "phone", "email", "whatsapp", "number", "service"]);
+    const wantsCoverage = chatHasAny(input, ["delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "area", "available", "location"]);
+    const wantsDashboard = chatHasAny(input, ["app", "dashboard", "login", "mobile", "notification", "alert"]);
+    const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
 
-    if (hasAny(["book", "demo", "call", "contact", "sales", "visit"])) {
+    if (mentionedPlan && !wantsCompare) {
         return {
-            text: "Share your name, phone, city and site type in the booking form. SaleWell can then call back with a site-fit plan, pricing and installation next steps.",
+            text: describePlan(mentionedPlan),
             actions: [
-                bookAction,
+                bookPlanAction(mentionedPlan, rawInput, count),
+                { label: "Open pricing", href: selectedPlanUrl(mentionedPlan.name, mentionedPlan.segment) },
+            ],
+        };
+    }
+
+    if (wantsBooking) {
+        return {
+            text: `I can route this as a booking enquiry. Based on your question, ${recommendedPlan.name} looks like the closest starting point.\n\nPlease share name, phone, city, project type and estimated tank/device count. The sales team can confirm exact pricing, installation scope and demo timing.`,
+            actions: [
+                bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Open booking form", href: "#enquiry" },
             ],
         };
     }
 
-    if (hasAny(["apartment", "rwa", "society", "hostel", "builder", "managed"])) {
+    if (wantsCompare || wantsPrice) {
+        const pricingLines = chatPlanCatalog.map(planPricingLine).join("\n");
+        const recommendation = recommendedPlan ? `\n\nFor your question, I would shortlist ${recommendedPlan.name}: ${recommendedPlan.bestFor}.` : "";
+        const addOnText = wantsPrice ? `\n\nCommon add-ons:\n${chatAddOns.join("\n")}` : "";
         return {
-            text: "For apartments, RWAs and managed properties, start with Commercial Standard. Move to AI Pro when you need analytics, leak detection, source tank logic or reporting for multiple tanks.",
+            text: `Current pricing shortlist:\n${pricingLines}${recommendation}${addOnText}`,
             actions: [
-                {
-                    label: "Book RWA discussion",
-                    fill: {
-                        segment: "Apartment / Hostel",
-                        devices: "12",
-                        note: "Interested in Apartment/RWA monitoring with tank and pump planning.",
-                    },
-                },
-                { label: "Compare plans", href: selectedPlanUrl("Commercial Standard", "Apartment / Hostel") },
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Open comparison", href: `${pricingPageUrl}#comparison` },
             ],
         };
     }
 
-    if (hasAny(["hotel", "school", "factory", "institution", "commercial", "office", "hospital"])) {
+    if (wantsPump && wantsOverflow) {
         return {
-            text: "For commercial sites, the best path is usually Commercial Standard for monitoring and pump control, or Commercial AI Pro when leak detection, alerts, analytics and larger reporting matter.",
+            text: "For overflow plus motor safety, choose a plan with tank level alerts and pump control. The system helps by showing live tank level, warning before low-water dry-run risk, and making pump action possible from the phone.\n\nHome Smart fits most homes. Commercial Standard fits RWAs and shared tanks. Add AI Pro when leak detection, usage trends or advanced reporting are required.",
             actions: [
-                {
-                    label: "Plan commercial setup",
-                    fill: {
-                        segment: "Commercial Site",
-                        devices: "6",
-                        note: "Interested in a commercial Smart Tank setup with monitoring, alerts and pump control.",
-                    },
-                },
-                { label: "View commercial pricing", href: selectedPlanUrl("Commercial AI Pro", "Commercial Site") },
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Setup check", href: "#setup-check" },
             ],
         };
     }
 
-    if (hasAny(["home", "villa", "house", "flat", "bungalow", "family"])) {
+    if (wantsPump) {
         return {
-            text: "For a home or villa, Home Smart is the practical choice when you want internet access and pump control. Home Basic works when you only need local monitoring.",
+            text: "Pump control is included from Home Smart upward. It is useful when the buyer wants remote on/off action, fewer manual pump checks, dry-run risk reduction, and mobile alerts.\n\nFor homes: Home Smart. For RWA or commercial tanks: Commercial Standard. For multi-tank analytics: Commercial AI Pro.",
             actions: [
-                {
-                    label: "Book home demo",
-                    fill: {
-                        segment: "Home / Villa",
-                        devices: "1",
-                        note: "Interested in Home Smart for tank monitoring and pump control.",
-                    },
-                },
-                { label: "See Home Smart", href: selectedPlanUrl("Home Smart", "Home / Villa") },
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "View pump plans", href: selectedPlanUrl(recommendedPlan.name, recommendedPlan.segment) },
             ],
         };
     }
 
-    if (hasAny(["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"])) {
+    if (wantsOverflow) {
         return {
-            text: "Choose a plan with pump control if motor protection and remote operation matter. The system can help reduce dry-run risk, avoid manual switching and give faster alerts before damage happens.",
+            text: "For overflow, the key value is live tank visibility plus high-level alerts before water spills. For hidden leakage or unusual water loss, choose an AI plan because it adds leak insight and usage pattern checks.\n\nFor simple overflow alerts: Home Basic or Home Smart. For prevention plus leak intelligence: Home AI or Commercial AI Pro.",
             actions: [
-                {
-                    label: "Discuss pump control",
-                    fill: {
-                        devices: "1",
-                        note: "Need pump control and motor protection recommendation.",
-                    },
-                },
-                { label: "View pump-control plans", href: selectedPlanUrl("Home Smart", "Home / Villa") },
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Check overflow setup", href: "#setup-check" },
             ],
         };
     }
 
-    if (hasAny(["overflow", "leak", "waste", "water loss", "tank full", "spillage"])) {
+    if (wantsInstall) {
         return {
-            text: "For overflow and hidden water loss, focus on live tank level, high-level alerts and AI leak detection. This is strongest when the buyer wants fewer complaints and less emergency follow-up.",
+            text: "For installation, the team needs: property type, city, number of tanks, overhead/underground/source tank details, pump location, Wi-Fi or internet availability, and whether remote pump control is required.\n\nInstallation visit pricing can vary by city and site access. For multi-tank sites, source tank monitoring and extra tank connections may be added.",
             actions: [
                 {
-                    label: "Check overflow setup",
+                    label: "Fill setup details",
                     fill: {
-                        devices: "1",
-                        note: "Need recommendation to prevent overflow and detect unusual water loss.",
+                        segment: recommendedPlan.segment,
+                        devices: count || recommendedPlan.devices,
+                        note: `Need setup check for installation. Visitor question: ${rawInput}`,
                     },
                 },
                 { label: "Setup check", href: "#setup-check" },
@@ -4685,58 +4808,50 @@ function getChatbotResponse(rawInput) {
         };
     }
 
-    if (hasAny(["price", "pricing", "cost", "rate", "plan", "basic", "smart", "enterprise", "package"])) {
+    if (wantsSupport) {
         return {
-            text: "Pricing depends on property type, tank count, pump control and analytics needs. Start from the pricing page, then book a call so the team can confirm the right package before installation.",
+            text: "You can contact SaleWell support and sales at support@salewell.co.in or +91-8299812878. Use this for pricing, demo scheduling, installation planning, device count checks or support follow-up.",
             actions: [
-                { label: "Open pricing page", href: pricingPageUrl },
-                {
-                    label: "Ask for quote",
-                    fill: {
-                        devices: "1",
-                        note: "Need pricing recommendation and quote confirmation.",
-                    },
-                },
+                { label: "Email sales", href: "mailto:support@salewell.co.in" },
+                { label: "Call sales", href: "tel:+918299812878" },
             ],
         };
     }
 
-    if (hasAny(["install", "installation", "sensor", "setup", "tank", "underground", "source", "overhead"])) {
+    if (wantsCoverage) {
         return {
-            text: "For installation, the key details are tank type, tank height, number of tanks, source tank visibility and pump location. Share those details and SaleWell can recommend hardware before you buy.",
+            text: "The page is positioned for Delhi NCR buyers, including Delhi, Noida, Gurgaon/Gurugram and nearby managed properties. Final installation timing depends on city, site access and available installation slots.",
             actions: [
-                {
-                    label: "Start setup check",
-                    fill: {
-                        devices: "1",
-                        note: "Need setup check for tank type, sensor placement and installation planning.",
-                    },
-                },
-                { label: "Go to setup check", href: "#setup-check" },
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Book local call", href: "#enquiry" },
             ],
         };
     }
 
-    if (hasAny(["shortage", "summer", "tanker", "low water", "daily water"])) {
+    if (wantsDashboard) {
         return {
-            text: "For water shortage days, live level visibility and low-level alerts help buyers act before the tank runs dry. Societies and managed sites usually benefit most when multiple tanks are watched together.",
+            text: "After installation, buyers can use phone-based visibility for tank level, pump status and alerts. Customers get their dashboard access, while service/admin teams can manage devices and support workflows from the admin side.",
             actions: [
-                {
-                    label: "Plan shortage alerts",
-                    fill: {
-                        devices: "1",
-                        note: "Need low-water alerts and shortage planning for daily use.",
-                    },
-                },
-                { label: "Book free demo", href: "#enquiry" },
+                { label: "Book dashboard demo", href: "#enquiry" },
+                { label: "Download app", href: "{{ url_for('android_app_download') }}" },
+            ],
+        };
+    }
+
+    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"]) || wantsGreeting) {
+        return {
+            text: `Based on what you shared, I would start with ${recommendedPlan.name}.\n\nWhy: ${recommendedPlan.bestFor}.\nPrice: ${recommendedPlan.price}.\nUseful features: ${recommendedPlan.includes.slice(0, 4).join(", ")}.\n\nTo make this exact, tell me number of tanks, property type, and whether pump control or AI leak detection is needed.`,
+            actions: [
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             ],
         };
     }
 
     return {
-        text: "I can guide you faster if you share property type, number of tanks, and whether pump control is needed. For example: home with 1 tank, or RWA with 12 tanks and pump control.",
+        text: "I can answer plan, price, pump control, overflow, leak detection, installation, app/dashboard, support and Delhi NCR availability questions.\n\nPlease ask with a little context, like: home with 1 tank and pump control, RWA with 10 tanks, price of Home Smart, or installation for underground tank.",
         actions: [
-            { label: "View pricing", href: pricingPageUrl },
+            { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", href: "#enquiry" },
             { label: "Setup check", href: "#setup-check" },
         ],
