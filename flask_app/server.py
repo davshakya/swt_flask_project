@@ -10894,6 +10894,7 @@ def admin_device_detail_configuration(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
 
 
+@app.route("/admin/customers/<device_id>/simulator", methods=["POST"])
 @app.route("/devices/<device_id>/simulator", methods=["POST"])
 @admin_required
 @csrf_protect

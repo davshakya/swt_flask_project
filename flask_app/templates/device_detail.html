@@ -183,8 +183,9 @@
 
             <div class="admin-form">
                 <h3>Device Commands</h3>
-                <form method="post" action="/devices/{{ device_id }}/simulator">
+                <form method="post" action="/admin/customers/{{ device_id }}/simulator">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
                     <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
                 </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" onsubmit="return confirm('Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check.');">
