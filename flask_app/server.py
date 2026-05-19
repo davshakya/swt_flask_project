@@ -179,6 +179,7 @@ MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
+DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
 DEVICE_SOURCE_REAL = "real"
@@ -3260,6 +3261,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         force=True,
     )
     clear_runtime_caches(cleaned.get("device_id"))
+    record_device_simulator_state(
+        cleaned.get("device_id"),
+        simulator_payload_enabled(cleaned),
+        source=transport,
+    )
     try:
         sync_device_events(device_id=cleaned.get("device_id"))
     except Exception as exc:
@@ -9073,14 +9079,14 @@ def resolve_simulator_command(payload):
         "dual_tank": "SIMULATOR",
         "tank": "SIMULATOR",
         "simulator": "SIMULATOR",
-        "main": "UPPER_SIMULATOR",
-        "upper": "UPPER_SIMULATOR",
-        "upper_tank": "UPPER_SIMULATOR",
-        "main_tank": "UPPER_SIMULATOR",
-        "source": "LOWER_SIMULATOR",
-        "lower": "LOWER_SIMULATOR",
-        "source_tank": "LOWER_SIMULATOR",
-        "lower_tank": "LOWER_SIMULATOR",
+        "main": "SIMULATOR",
+        "upper": "SIMULATOR",
+        "upper_tank": "SIMULATOR",
+        "main_tank": "SIMULATOR",
+        "source": "SIMULATOR",
+        "lower": "SIMULATOR",
+        "source_tank": "SIMULATOR",
+        "lower_tank": "SIMULATOR",
     }
     command_prefix = target_map.get(raw_target)
     if not command_prefix:
@@ -10786,16 +10792,68 @@ def device_detail_page(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
     service_config = fetch_device_service_config(scoped_device_id, account=account)
+    snapshot = fetch_device_snapshot(scoped_device_id)
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
         is_admin=True,
         customer_account=account,
         service_config=service_config,
+        simulator_enabled=device_simulator_enabled(scoped_device_id, snapshot=snapshot),
         latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
     )
+
+
+def device_simulator_state_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    return f"{DEVICE_SIMULATOR_STATE_PREFIX}{normalized_device_id}" if normalized_device_id else None
+
+
+def simulator_payload_enabled(payload):
+    if not payload:
+        return False
+    for key in (
+        "simulator",
+        "upper_tank_simulator",
+        "main_tank_simulator",
+        "source_tank_simulator",
+        "lower_tank_simulator",
+    ):
+        value = str(payload.get(key) or "").strip().upper()
+        if value in {"ON", "TRUE", "YES", "1"}:
+            return True
+    return False
+
+
+def record_device_simulator_state(device_id, enabled, source="telemetry"):
+    state_key = device_simulator_state_key(device_id)
+    if not state_key:
+        return
+    set_app_setting(
+        state_key,
+        json.dumps(
+            {
+                "enabled": bool(enabled),
+                "source": str(source or "unknown"),
+                "updated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+            },
+            separators=(",", ":"),
+        ),
+    )
+
+
+def device_simulator_enabled(device_id, snapshot=None):
+    state_key = device_simulator_state_key(device_id)
+    if state_key:
+        raw_state = get_app_setting(state_key)
+        if raw_state:
+            try:
+                return bool(json.loads(raw_state).get("enabled"))
+            except (TypeError, ValueError, json.JSONDecodeError):
+                pass
+    return simulator_payload_enabled(snapshot)
 
 
 @app.route("/devices/<device_id>/configuration", methods=["POST"])
@@ -10827,6 +10885,42 @@ def admin_device_detail_configuration(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Configuration saved. Device changes apply on the next command poll."))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/simulator", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_simulator(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id)
+    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    record_device_simulator_state(scoped_device_id, not simulator_enabled, source="admin_command")
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_device_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "command": result.get("command"),
+            "previous_simulator_enabled": simulator_enabled,
+            "mqtt_delivery": result.get("mqtt_delivery"),
+            "queued_at": result.get("queued_at"),
+        },
+    )
+    message = (
+        "Simulator disable command queued."
+        if simulator_enabled
+        else "Simulator enable command queued. The device will apply it using the current service configuration."
+    )
+    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
 
 
 @app.route("/devices/<device_id>/customer-profile", methods=["POST"])

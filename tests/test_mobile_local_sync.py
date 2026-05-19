@@ -44,8 +44,8 @@ def test_mobile_simulator_route_queues_firmware_simulator_commands():
     assert '@app.route("/api/mobile/device/simulator", methods=["POST"])' in server_source
     assert "def resolve_simulator_command(payload):" in server_source
     assert '"all": "SIMULATOR"' in server_source
-    assert '"upper": "UPPER_SIMULATOR"' in server_source
-    assert '"source": "LOWER_SIMULATOR"' in server_source
+    assert '"upper": "SIMULATOR"' in server_source
+    assert '"source": "SIMULATOR"' in server_source
     assert 'f"{command_prefix}_{state_suffix}"' in server_source
 
 
