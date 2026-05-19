@@ -217,6 +217,8 @@
 
 <script>
 const DEVICE_ID={{ device_id|tojson }};
+const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
+const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const localeTools=window.swtLocale||{};
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
   if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
@@ -314,7 +316,11 @@ function setVisible(id,visible){
   node.classList.toggle("hidden-section",!visible);
 }
 function simulatorActive(snapshot){
-  if(Boolean(snapshot?.simulator_enabled))return true;
+  const override=String(SIMULATOR_STATE_OVERRIDE||"").trim().toLowerCase();
+  if(override==="on")return true;
+  if(override==="off")return false;
+  if(typeof snapshot?.simulator_enabled==="boolean")return snapshot.simulator_enabled;
+  if(Boolean(INITIAL_SIMULATOR_ENABLED))return true;
   return ["simulator","upper_tank_simulator","main_tank_simulator","source_tank_simulator","lower_tank_simulator"].some((key)=>{
     const raw=String(snapshot?.[key]??"").trim().toUpperCase();
     return ["ON","TRUE","YES","1"].includes(raw);
@@ -365,16 +371,14 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
-    {label:"Simulator",value:simulatorStatusText(snapshot,serviceConfig),show:simulatorActive(snapshot)},
+    {label:"Simulator",value:simulatorStatusText(snapshot,serviceConfig),show:true},
     {label:"Tank Geometry",value:`${formatLiters(capacity)} capacity / ${tankHeight} height`,show:isReportedInfoValue(capacity)||isReportedInfoValue(tankHeight)},
     {label:"Command Service",value:yesNo(snapshot.command_service)},
     {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
     {label:"OTA Service",value:yesNo(snapshot.ota_service),show:Boolean(serviceConfig.ota_enabled)||isPositiveServiceValue(snapshot.ota_service)},
-    {label:"Lower Tank Service",value:yesNo(snapshot.lower_tank_service),show:sourceMonitoringEnabled||isPositiveServiceValue(snapshot.lower_tank_service)},
-    {label:"Main Sensor Detail",value:`${infoValue(titleCase(snapshot.sensor||""),"Status not reported")} / ${sensorDistance}`,show:mainSensorEnabled},
+    {label:"Upper Measured Depth",value:sensorDistance,show:mainSensorEnabled},
     {label:"Main Sensor Message",value:infoValue(snapshot.sensor_info),show:mainSensorEnabled},
-    {label:"Lower Sensor Detail",value:`${infoValue(titleCase(snapshot.lower_sensor||""),"Status not reported")} / ${lowerDistance}`,show:sourceMonitoringEnabled},
-    {label:"Lower Sensor Message",value:infoValue(snapshot.lower_sensor_info),show:sourceMonitoringEnabled},
+    {label:"Lower Measured Depth",value:lowerDistance,show:sourceMonitoringEnabled},
     {label:"Network Channel",value:infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")},
     {label:"Local Device IP",value:infoValue(snapshot.device_local_url,"Local IP not reported")},
     {label:"Slave Device IP",value:slaveIp,show:usesSlave&&isReportedInfoValue(slaveIp)},

@@ -550,6 +550,8 @@ const state={
     preferences:{lowThreshold:20,overflowThreshold:95,leakAlerts:true,systemAlerts:true,desktopAlerts:false},
     cache:{},
     data:{snapshot:null,systemStatus:null,analytics:null,events:null},
+    lastUpperTankLevel:null,
+    upperTankIncreasing:false,
     inFlight:{bootstrap:false,live:false,events:false,analytics:false},
     controllers:{analytics:null},
     lastRefreshAt:null,
@@ -616,7 +618,24 @@ function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)re
 function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
 function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
-function updatePumpLogoMotion({motorState="",pending=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const spinning=isPumpRunning(motorState)||pending;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pending&&!isPumpRunning(motorState));status.innerHTML=spinning?(pending&&!isPumpRunning(motorState)?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>"):"Pump Status <strong>idle</strong>";}
+function updateUpperTankTrend(snapshot){
+    const raw=Number(snapshot?.level);
+    if(!Number.isFinite(raw)){
+        state.upperTankIncreasing=false;
+        return false;
+    }
+    const previous=state.lastUpperTankLevel;
+    const increasing=Number.isFinite(previous)&&raw>previous+0.2;
+    state.lastUpperTankLevel=raw;
+    state.upperTankIncreasing=increasing;
+    return increasing;
+}
+function pumpDisplayState(motorState,levelIncreasing=false){
+    const motor=String(motorState||"").toUpperCase();
+    if(levelIncreasing&&!isPumpRunning(motor))return"START";
+    return motor||"--";
+}
+function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const running=isPumpRunning(motorState);const startInferred=levelIncreasing&&!running;const spinning=running||pending||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pending||startInferred)&&!running);status.innerHTML=spinning?(startInferred?"Pump Status <strong>start</strong>":(pending&&!running?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>")):"Pump Status <strong>idle</strong>";}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;
@@ -686,6 +705,7 @@ function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.s
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
     const sourceState=buildSourceTankState(snapshot);
     const motorState=String(snapshot.motor||"").toUpperCase();
+    const displayMotorState=pumpDisplayState(motorState,state.upperTankIncreasing);
     const staleTelemetry=String(snapshot.telemetry_status||system?.telemetry_status||"").toLowerCase()==="stale";
     const modeChip=currentMode==="MANUAL"?"Manual":"Auto";
     const modeDetail=currentMode==="MANUAL"?"Manual override":"Auto protection";
@@ -697,11 +717,13 @@ function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.s
     setText("heroModeHint",modeHint);
     applyStatusTone("heroModeChip",currentMode==="MANUAL"?"warn":"ok");
     applyStatusTone("heroModeDetail",currentMode==="MANUAL"?"warn":"ok");
-    setText("heroPumpState",motorState||"--");
-    setText("heroPumpDetail",motorState==="ON"
+    setText("heroPumpState",displayMotorState);
+    setText("heroPumpDetail",state.upperTankIncreasing&&!isPumpRunning(motorState)
+        ?"Tank level is rising, so pump start is detected."
+        :motorState==="ON"
         ?(staleTelemetry?"Running in the last synced device state.":"Pump is running now.")
         :(staleTelemetry?"Waiting for a fresh device check-in.":"Pump is idle."));
-    applyStatusTone("heroPumpState",motorState==="ON"?"ok":(staleTelemetry?"warn":""));
+    applyStatusTone("heroPumpState",displayMotorState==="START"||motorState==="ON"?"ok":(staleTelemetry?"warn":""));
     const sourceSummary=sourceState.monitoringActive?sourceState.statusText:"Monitoring off";
     const sourceDetail=sourceState.monitoringActive?sourceState.infoText:"Start Pump follows the main tank when source monitoring is off.";
     setText("heroSourceChip",sourceSummary);
@@ -1415,8 +1437,9 @@ function renderTank(snapshot){
 }
 
 function renderSnapshot(snapshot){
+    const upperTankIncreasing=updateUpperTankTrend(snapshot);
     renderTank(snapshot);
-    setText("motor",snapshot.motor||"--");
+    setText("motor",pumpDisplayState(snapshot.motor,upperTankIncreasing));
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
     const sourceState=buildSourceTankState(snapshot);
     const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
@@ -1459,7 +1482,7 @@ function renderSnapshot(snapshot){
     const staleTelemetry=snapshot.telemetry_status==="stale";
     if(motorState==="ON")state.pendingPumpStart=false;
     else if(!staleTelemetry)state.pendingPumpStart=false;
-    updatePumpLogoMotion({motorState,pending:state.pendingPumpStart});
+    updatePumpLogoMotion({motorState,pending:state.pendingPumpStart,levelIncreasing:upperTankIncreasing});
     if(!staleTelemetry){
         if(motorState==="ON")document.getElementById("btn_on").classList.add("active");
         else document.getElementById("btn_off").classList.add("active");

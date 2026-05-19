@@ -10793,13 +10793,18 @@ def device_detail_page(device_id):
     account = fetch_customer_account(scoped_device_id)
     service_config = fetch_device_service_config(scoped_device_id, account=account)
     snapshot = fetch_device_snapshot(scoped_device_id)
+    simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
+    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    if simulator_state in {"on", "off"}:
+        simulator_enabled = simulator_state == "on"
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
         is_admin=True,
         customer_account=account,
         service_config=service_config,
-        simulator_enabled=device_simulator_enabled(scoped_device_id, snapshot=snapshot),
+        simulator_enabled=simulator_enabled,
+        simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
         latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
@@ -10928,7 +10933,14 @@ def admin_device_detail_simulator(device_id):
         if simulator_enabled
         else "Simulator enable command queued. The device will apply it using the current service configuration."
     )
-    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=message,
+            simulator_state="off" if simulator_enabled else "on",
+        )
+    )
 
 
 @app.route("/devices/<device_id>/customer-profile", methods=["POST"])
