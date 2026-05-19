@@ -618,6 +618,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
                     <div class="section-badges">
                         <span id="device_visibility_status" class="pill pill-info">{{ available_devices|length }} visible</span>
+                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh 10s</span>
                         <span class="pill pill-clear">Press Escape in search to clear quickly</span>
                     </div>
                 </div>
@@ -864,14 +865,15 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
         return { date: parts[0], time: parts.slice(1).join(" ") };
     }
 
-    if (typeof localeTools.applyUtcDateTimeNodes === "function") localeTools.applyUtcDateTimeNodes(document);
-    else {
-        document.querySelectorAll("[data-utc-datetime]").forEach((node) => {
-            const raw = node.getAttribute("data-utc-datetime");
-            node.textContent = formatLocaleDateTime(raw, node.textContent || "--");
-        });
-    }
-    document.querySelectorAll(".last-sync-cell").forEach((cell) => {
+    function applyLocaleDateTime(root = document) {
+        if (typeof localeTools.applyUtcDateTimeNodes === "function") localeTools.applyUtcDateTimeNodes(root);
+        else {
+            root.querySelectorAll("[data-utc-datetime]").forEach((node) => {
+                const raw = node.getAttribute("data-utc-datetime");
+                node.textContent = formatLocaleDateTime(raw, node.textContent || "--");
+            });
+        }
+        root.querySelectorAll(".last-sync-cell").forEach((cell) => {
         const dateNode = cell.querySelector("[data-utc-date]");
         const timeNode = cell.querySelector("[data-utc-time]");
         if (!dateNode || !timeNode) return;
@@ -879,16 +881,25 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
         const split = splitDateTimeLabel(raw, dateNode.textContent || "--");
         dateNode.textContent = split.date;
         timeNode.textContent = split.time || "--";
-    });
+        });
+    }
+
+    applyLocaleDateTime(document);
 
     const input = document.getElementById("device_search");
     const meta = document.getElementById("device_search_meta");
     const visibilityStatus = document.getElementById("device_visibility_status");
+    const autoRefreshStatus = document.getElementById("device_auto_refresh_status");
     const emptyDevices = document.getElementById("search_empty_devices");
     const tableBody = document.getElementById("device_table_body");
-    const deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
+    let deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
     const sortButtons = Array.from(document.querySelectorAll("[data-device-sort]"));
     let currentSort = { key: "device_id", direction: "asc" };
+    let refreshInFlight = false;
+
+    function refreshDeviceRows() {
+        deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
+    }
 
     function normalizeText(value) {
         return String(value || "").trim().toLowerCase();
@@ -925,6 +936,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
 
     function applySort() {
         if (!tableBody) return;
+        refreshDeviceRows();
         const sortedRows = [...deviceRows].sort((left, right) => compareRows(left, right, currentSort.key, currentSort.direction));
         sortedRows.forEach((row) => tableBody.appendChild(row));
         updateSortButtons();
@@ -954,6 +966,43 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
         }
         if (visibilityStatus) {
             visibilityStatus.textContent = `${visibleDevices} visible`;
+        }
+    }
+
+    function setAutoRefreshStatus(message, tone = "clear") {
+        if (!autoRefreshStatus) return;
+        autoRefreshStatus.textContent = message;
+        autoRefreshStatus.className = `pill pill-${tone}`;
+    }
+
+    async function refreshDeviceTable() {
+        if (!tableBody || refreshInFlight || document.hidden) return;
+        refreshInFlight = true;
+        setAutoRefreshStatus("Refreshing...", "info");
+        try {
+            const url = new URL(window.location.href);
+            url.searchParams.delete("q");
+            const response = await fetch(url.toString(), {
+                credentials: "same-origin",
+                cache: "no-store",
+                headers: { "X-Requested-With": "XMLHttpRequest" },
+            });
+            if (!response.ok) throw new Error(`refresh failed: ${response.status}`);
+            const html = await response.text();
+            const doc = new DOMParser().parseFromString(html, "text/html");
+            const nextTableBody = doc.getElementById("device_table_body");
+            if (!nextTableBody) throw new Error("refresh response missing device table");
+            tableBody.innerHTML = nextTableBody.innerHTML;
+            applyLocaleDateTime(tableBody);
+            refreshDeviceRows();
+            applySort();
+            applyFilter();
+            setAutoRefreshStatus("Updated now", "clear");
+        } catch (error) {
+            console.warn("Admin device table refresh failed", error);
+            setAutoRefreshStatus("Refresh paused", "warning");
+        } finally {
+            refreshInFlight = false;
         }
     }
 
@@ -1215,6 +1264,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
 
     applySort();
     applyFilter();
+    window.setInterval(refreshDeviceTable, 10000);
 })();
 </script>
 </body>
