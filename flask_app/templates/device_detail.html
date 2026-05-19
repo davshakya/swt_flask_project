@@ -314,10 +314,21 @@ function setVisible(id,visible){
   node.classList.toggle("hidden-section",!visible);
 }
 function simulatorActive(snapshot){
+  if(Boolean(snapshot?.simulator_enabled))return true;
   return ["simulator","upper_tank_simulator","main_tank_simulator","source_tank_simulator","lower_tank_simulator"].some((key)=>{
     const raw=String(snapshot?.[key]??"").trim().toUpperCase();
     return ["ON","TRUE","YES","1"].includes(raw);
   });
+}
+function simulatorStatusText(snapshot,serviceConfig){
+  const active=simulatorActive(snapshot);
+  const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
+  const usesSource=Boolean(serviceConfig?.source_tank_monitoring_enabled)||isPositiveServiceValue(snapshot?.lower_tank_service);
+  const parts=[usesSlave?"slave upper":"local upper"];
+  if(usesSource)parts.push("source");
+  const pump=String(snapshot?.simulator_pump_active??"").trim().toUpperCase();
+  const pumpText=pump==="ON"?" / pump active":"";
+  return `${active?"ON":"OFF"} - ${parts.join(" + ")}${pumpText}`;
 }
 function updateSimulatorControls(snapshot,serviceConfig){
   const button=document.getElementById("simulatorToggleButton");
@@ -354,6 +365,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
+    {label:"Simulator",value:simulatorStatusText(snapshot,serviceConfig),show:simulatorActive(snapshot)},
     {label:"Tank Geometry",value:`${formatLiters(capacity)} capacity / ${tankHeight} height`,show:isReportedInfoValue(capacity)||isReportedInfoValue(tankHeight)},
     {label:"Command Service",value:yesNo(snapshot.command_service)},
     {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},

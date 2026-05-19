@@ -10990,6 +10990,12 @@ def device_detail_status(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         return jsonify({"error": "device not found"}), 404
+    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    snapshot_payload = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    snapshot_payload["simulator_enabled"] = simulator_enabled
+    snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
+    if simulator_enabled and not simulator_payload_enabled(snapshot_payload):
+        snapshot_payload["simulator"] = "ON"
     alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
     audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
     history = fetch_device_history(scoped_device_id, limit=10)
@@ -10999,7 +11005,7 @@ def device_detail_status(device_id):
             "device_id": scoped_device_id,
             "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
             "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
-            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
+            "snapshot": snapshot_payload,
             "service_config": fetch_device_service_config(scoped_device_id),
             "alerts": alerts,
             "audit": audit,
