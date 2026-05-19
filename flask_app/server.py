@@ -3166,6 +3166,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         mode = "AUTO"
 
     latest_row_id = None
+    received_at = now_utc().strftime(TIMESTAMP_FORMAT)
     insert_values = (
         cleaned.get("level"),
         cleaned.get("motor"),
@@ -3221,6 +3222,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("direct_peer_remote_ip"),
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
+        received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
@@ -3247,7 +3249,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 buzzer_service, led_display_service, local_firmware_upload_service,
                 arch_id, node_role, device_type,
                 direct_peer, direct_peer_remote_ip, direct_peer_last_packet_age_s,
-                direct_peer_last_packet_bytes
+                direct_peer_last_packet_bytes,
+                created_at
             )
             VALUES ({placeholders})
             """,

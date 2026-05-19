@@ -618,7 +618,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
                     <div class="section-badges">
                         <span id="device_visibility_status" class="pill pill-info">{{ available_devices|length }} visible</span>
-                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh 10s</span>
+                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh 5s</span>
                         <span class="pill pill-clear">Press Escape in search to clear quickly</span>
                     </div>
                 </div>
@@ -690,7 +690,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                             <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}">
                                 {% if device.last_sync_at %}
                                 <span class="sync-date" data-utc-date="{{ device.last_sync_at }}">{{ device.last_sync_at[:10] }}</span>
-                                <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }}</span>
+                                <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }} UTC</span>
                                 {% else %}
                                 <span class="sync-date">--</span>
                                 {% endif %}
@@ -852,10 +852,52 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
 <script>
 (() => {
     const localeTools = window.swtLocale || {};
+    const BACKEND_TIMESTAMP_RE = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/;
+    const IST_TIME_ZONE = "Asia/Kolkata";
+    const IST_TIME_ZONE_LABEL = "IST";
+
+    function parseUtcTimestamp(value) {
+        if (typeof localeTools.parseBackendTimestamp === "function") {
+            return localeTools.parseBackendTimestamp(value);
+        }
+        const raw = String(value || "").trim();
+        const match = raw.match(BACKEND_TIMESTAMP_RE);
+        if (!match) return null;
+        const [, year, month, day, hour = "0", minute = "0", second = "0"] = match;
+        return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second)));
+    }
+
+    function formatIstLastSyncParts(value, fallback = "--") {
+        const parsed = parseUtcTimestamp(value);
+        if (!parsed || Number.isNaN(parsed.getTime())) return { date: fallback, time: "" };
+        try {
+            const parts = new Intl.DateTimeFormat("en-CA", {
+                timeZone: IST_TIME_ZONE,
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: false,
+                hourCycle: "h23",
+            }).formatToParts(parsed).reduce((acc, part) => {
+                acc[part.type] = part.value;
+                return acc;
+            }, {});
+            return {
+                date: `${parts.year}-${parts.month}-${parts.day}`,
+                time: `${parts.hour}:${parts.minute}:${parts.second} ${IST_TIME_ZONE_LABEL}`,
+            };
+        } catch (error) {
+            return { date: fallback, time: "" };
+        }
+    }
+
     function formatLocaleDateTime(value, fallback = "--") {
         if (typeof localeTools.formatDateTime === "function") return localeTools.formatDateTime(value, fallback);
-        const raw = String(value || "").trim();
-        return raw || fallback;
+        const parts = formatIstLastSyncParts(value, fallback);
+        return parts.time ? `${parts.date} ${parts.time}` : parts.date;
     }
     function splitDateTimeLabel(value, fallback = "--") {
         const label = formatLocaleDateTime(value, fallback);
@@ -878,13 +920,15 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
         const timeNode = cell.querySelector("[data-utc-time]");
         if (!dateNode || !timeNode) return;
         const raw = dateNode.getAttribute("data-utc-date");
-        const split = splitDateTimeLabel(raw, dateNode.textContent || "--");
+        const split = formatIstLastSyncParts(raw, dateNode.textContent || "--");
         dateNode.textContent = split.date;
         timeNode.textContent = split.time || "--";
+        if (raw) cell.title = `${raw} UTC, shown in IST`;
         });
     }
 
     applyLocaleDateTime(document);
+    window.addEventListener("DOMContentLoaded", () => applyLocaleDateTime(document));
 
     const input = document.getElementById("device_search");
     const meta = document.getElementById("device_search_meta");
@@ -1264,7 +1308,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
 
     applySort();
     applyFilter();
-    window.setInterval(refreshDeviceTable, 10000);
+    window.setInterval(refreshDeviceTable, 5000);
 })();
 </script>
 </body>
