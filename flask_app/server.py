@@ -10831,23 +10831,30 @@ def record_device_simulator_state(device_id, enabled, source="telemetry"):
     state_key = device_simulator_state_key(device_id)
     if not state_key:
         return
-    set_app_setting(
-        state_key,
-        json.dumps(
-            {
-                "enabled": bool(enabled),
-                "source": str(source or "unknown"),
-                "updated_at": now_utc().strftime(TIMESTAMP_FORMAT),
-            },
-            separators=(",", ":"),
-        ),
-    )
+    try:
+        set_app_setting(
+            state_key,
+            json.dumps(
+                {
+                    "enabled": bool(enabled),
+                    "source": str(source or "unknown"),
+                    "updated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+                },
+                separators=(",", ":"),
+            ),
+        )
+    except Exception as exc:
+        logger.warning("Could not persist simulator state for %s: %s", normalize_device_id(device_id), exc)
 
 
 def device_simulator_enabled(device_id, snapshot=None):
     state_key = device_simulator_state_key(device_id)
     if state_key:
-        raw_state = get_app_setting(state_key)
+        try:
+            raw_state = get_app_setting(state_key)
+        except Exception as exc:
+            logger.warning("Could not load simulator state for %s: %s", normalize_device_id(device_id), exc)
+            raw_state = None
         if raw_state:
             try:
                 return bool(json.loads(raw_state).get("enabled"))
