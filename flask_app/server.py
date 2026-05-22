@@ -4270,6 +4270,7 @@ def init_db():
         for statement in (
             "CREATE INDEX idx_created_at ON tank_data(created_at)",
             "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
+            "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
             "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
             "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
             "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
@@ -4388,7 +4389,9 @@ def active_device_source_conflict_response(request_source):
 
 def device_source_where_clause(column="device_source", mode=None):
     normalized_mode = normalize_device_source(mode, default=get_device_source_mode())
-    return f"COALESCE({column}, '{DEVICE_SOURCE_REAL}') = ?", [normalized_mode]
+    if normalized_mode == DEVICE_SOURCE_REAL:
+        return f"({column} = ? OR {column} IS NULL)", [DEVICE_SOURCE_REAL]
+    return f"{column} = ?", [normalized_mode]
 
 
 def ensure_app_secret_key_persisted():
@@ -5716,14 +5719,16 @@ def build_analytics_query(start_dt, end_exclusive, device_id=None):
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
-        WHERE created_at >= ? AND created_at < ?
-          AND """
-    query += source_clause
-    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT), *source_params]
+        WHERE """
+    params = []
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
-        query += " AND device_id = ?"
+        query += "device_id = ? AND "
         params.append(normalized_device_id)
+    query += "created_at >= ? AND created_at < ? AND "
+    params.extend([start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)])
+    query += source_clause
+    params.extend(source_params)
     query += " ORDER BY created_at ASC, id ASC"
     return query, tuple(params)
 
@@ -6628,8 +6633,6 @@ def build_db_summary_payload():
 
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    if normalized_device_id:
-        sync_device_events(device_id=normalized_device_id)
     active_mode = get_device_source_mode()
     cache_key = (
         start_dt.strftime(DATE_ONLY_FORMAT),
@@ -6641,6 +6644,8 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
         return cached_payload
+    if normalized_device_id:
+        sync_device_events(device_id=normalized_device_id)
 
     if not TELEMETRY_HISTORY_ENABLED:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
