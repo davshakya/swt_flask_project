@@ -5899,6 +5899,23 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "change_pct": None
         },
         "prediction": {"tomorrow_usage": 0},
+        "analysis": {
+            "quality": {
+                "score": 20,
+                "row_count": 0,
+                "usable_hours": 0,
+                "gap_count": 0,
+                "valid_drop_count": 0,
+                "status": "limited",
+            },
+            "forecast_confidence": 20,
+            "anomaly_count": 0,
+            "anomalies": [],
+            "model": {
+                "family": "robust-rule-ml-hybrid",
+                "signals": [],
+            },
+        },
         "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
     }
     payload["guidance"] = build_shared_guidance_payload(snapshot, payload)
@@ -5907,6 +5924,8 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
 
 def meaningful_forecast_hours(snapshot, analytics_payload):
     insights = (analytics_payload or {}).get("insights") or {}
+    analysis = (analytics_payload or {}).get("analysis") or {}
+    quality = analysis.get("quality") or {}
     forecast = insights.get("empty_prediction")
     if forecast in (None, "", "null"):
         return None
@@ -5919,6 +5938,8 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
 
     level = safe_float((snapshot or {}).get("level"), 0)
     consumption_rate = safe_float(insights.get("consumption_rate"), 0)
+    confidence = safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 0))
+    leak_signal = any(bool_flag((snapshot or {}).get(key)) for key in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     # A short extrapolated empty-time from noisy history should not override a
     # clearly full live tank. Keep the forecast actionable only near the working
     # range or when current consumption is extremely high.
@@ -5926,13 +5947,152 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
         return None
     if level >= 75 and forecast_hours < 6 and consumption_rate < 12:
         return None
+    if level >= 70 and forecast_hours < 4 and confidence < 75 and not leak_signal:
+        return None
     return round(forecast_hours, 2)
+
+
+def numeric_percentile(values, fraction):
+    clean_values = []
+    for value in values or []:
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(numeric_value):
+            clean_values.append(numeric_value)
+    clean_values = sorted(clean_values)
+    if not clean_values:
+        return None
+    if len(clean_values) == 1:
+        return clean_values[0]
+    position = (len(clean_values) - 1) * max(0.0, min(1.0, float(fraction)))
+    lower_index = int(math.floor(position))
+    upper_index = int(math.ceil(position))
+    if lower_index == upper_index:
+        return clean_values[lower_index]
+    weight = position - lower_index
+    return clean_values[lower_index] + ((clean_values[upper_index] - clean_values[lower_index]) * weight)
+
+
+def robust_consumption_rate(mean_rate, segment_rates, valid_hours, valid_drop_count):
+    clean_rates = []
+    for rate in segment_rates or []:
+        try:
+            numeric_rate = float(rate)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(numeric_rate) and numeric_rate >= 0:
+            clean_rates.append(numeric_rate)
+    if valid_hours < 0.25 or valid_drop_count < 2 or not clean_rates:
+        return 0.0
+
+    median_rate = numeric_percentile(clean_rates, 0.5) or 0.0
+    upper_rate = numeric_percentile(clean_rates, 0.75) or median_rate
+    blended_rate = (max(0.0, float(mean_rate or 0.0)) * 0.55) + (median_rate * 0.45)
+    if len(clean_rates) < 4:
+        blended_rate = min(blended_rate, median_rate)
+    else:
+        blended_rate = min(blended_rate, max(median_rate, upper_rate))
+    if blended_rate < ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR:
+        return 0.0
+    return round(float(blended_rate), 4)
+
+
+def build_analytics_quality_payload(row_count, valid_hours, gap_count, valid_drop_count, latest_seconds_since_sync):
+    score = 35
+    score += min(25, int(row_count / 4))
+    score += min(25, int(valid_hours * 3))
+    score += min(15, valid_drop_count * 3)
+    score -= min(20, gap_count * 4)
+    if latest_seconds_since_sync is not None and latest_seconds_since_sync > STALE_AFTER_SECONDS:
+        score -= 20
+    score = max(20, min(96, score))
+    return {
+        "score": score,
+        "row_count": int(row_count),
+        "usable_hours": round(float(valid_hours), 2),
+        "gap_count": int(gap_count),
+        "valid_drop_count": int(valid_drop_count),
+        "status": "strong" if score >= 80 else "moderate" if score >= 60 else "limited",
+    }
+
+
+def forecast_confidence_from_quality(quality, consumption_rate, current_level, leak_events=0):
+    score = safe_float((quality or {}).get("score"), 35)
+    if consumption_rate <= 0:
+        score -= 25
+    if current_level >= 70 and consumption_rate >= 25 and leak_events <= 0:
+        score -= 18
+    if leak_events > 0:
+        score += 8
+    return max(20, min(96, int(round(score))))
+
+
+def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usage, peak_value):
+    values = [float(value or 0.0) for value in (avg_daily_usage, latest_day_usage, previous_day_usage, peak_value)]
+    avg_usage, latest_usage, previous_usage, peak_usage = values
+    if max(values) <= 0:
+        return 0.0
+    baseline = (avg_usage * 0.45) + (latest_usage * 0.35) + (previous_usage * 0.15) + (min(peak_usage, max(avg_usage, latest_usage) * 1.5) * 0.05)
+    if latest_usage > previous_usage > 0:
+        baseline *= min(1.18, 1.0 + ((latest_usage - previous_usage) / previous_usage) * 0.12)
+    return round(max(0.0, baseline), 2)
+
+
+def build_analysis_payload(
+    *,
+    quality,
+    current_level,
+    consumption_rate,
+    empty_prediction,
+    usage_change_pct,
+    leak_events,
+    motor_cycles,
+    refill_events,
+):
+    anomalies = []
+    if leak_events > 0:
+        anomalies.append({"kind": "leak_signal", "severity": "danger", "message": "Leak indicators were active in this range."})
+    if usage_change_pct is not None and usage_change_pct >= 60:
+        anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
+    elif usage_change_pct is not None and usage_change_pct >= 25:
+        anomalies.append({"kind": "usage_spike", "severity": "warning", "message": "Usage is above the recent baseline."})
+    if motor_cycles > 12:
+        anomalies.append({"kind": "short_cycling", "severity": "warning", "message": "Pump cycling is higher than expected."})
+    if refill_events > 0:
+        anomalies.append({"kind": "refill_activity", "severity": "info", "message": "Refill events were detected in the selected range."})
+
+    forecast_confidence = forecast_confidence_from_quality(quality, consumption_rate, current_level, leak_events=leak_events)
+    if empty_prediction is not None and empty_prediction <= 6:
+        severity = "danger" if empty_prediction <= 3 else "warning"
+        anomalies.append({"kind": "empty_forecast", "severity": severity, "message": "Tank may run low soon if the current trend continues."})
+
+    return {
+        "quality": quality,
+        "forecast_confidence": forecast_confidence,
+        "anomaly_count": len([item for item in anomalies if item.get("severity") in {"danger", "warning"}]),
+        "anomalies": anomalies[:6],
+        "model": {
+            "family": "robust-rule-ml-hybrid",
+            "signals": [
+                "level_trend",
+                "consumption_rate",
+                "daily_baseline",
+                "pump_cycles",
+                "leak_flags",
+                "telemetry_quality",
+            ],
+        },
+    }
 
 
 def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     snapshot = snapshot or {}
     analytics_payload = analytics_payload or {}
     insights = analytics_payload.get("insights") or {}
+    analysis = analytics_payload.get("analysis") or {}
+    quality = analysis.get("quality") or {}
     comparison = analytics_payload.get("comparison") or {}
 
     level = safe_float(snapshot.get("level"), 0)
@@ -6050,7 +6210,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         observations.append("Pump cycling is higher than normal.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
 
-    confidence = 92
+    confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 92)))
     if telemetry == "stale":
         confidence -= 20
     if not analytics_payload or not (analytics_payload.get("levels") or {}).get("values"):
@@ -6386,6 +6546,10 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     leak_events = 0
     total_usage = 0.0
     valid_hours = 0.0
+    valid_drop_count = 0
+    gap_count = 0
+    refill_events = 0
+    consumption_rate_segments = []
     prev_created_at = None
     prev_level = None
     prev_motor = "OFF"
@@ -6412,17 +6576,31 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             if prev_created_at is not None:
                 delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
                 gap_break = delta_hours > gap_threshold_hours
+                if gap_break:
+                    gap_count += 1
 
             drop = 0.0 if prev_level is None else level - prev_level
+            refill_event = (
+                prev_level is not None
+                and (not gap_break)
+                and drop > 0.25
+                and abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+            )
+            if refill_event:
+                refill_events += 1
             valid_drop = (
                 (not gap_break)
                 and (drop < -0.05)
                 and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
             )
-            usage = abs(drop) if valid_drop else 0.0
+            stable_consumption_window = prev_motor != "ON" and motor != "ON"
+            usage = abs(drop) if valid_drop and stable_consumption_window else 0.0
             total_usage += usage
             if not gap_break:
                 valid_hours += delta_hours
+            if usage > 0 and delta_hours >= (1.0 / 60.0):
+                valid_drop_count += 1
+                consumption_rate_segments.append(usage / delta_hours)
 
             date_key = created_at.date().isoformat()
             daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
@@ -6452,9 +6630,13 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
         return store_cached_analytics(cache_key, payload, now_ts=now_ts)
 
-    consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
-    if consumption_rate < ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR:
-        consumption_rate = 0.0
+    mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
+    consumption_rate = robust_consumption_rate(
+        mean_consumption_rate,
+        consumption_rate_segments,
+        valid_hours,
+        valid_drop_count,
+    )
     current_level = float(prev_level)
     empty_prediction = current_level / consumption_rate if consumption_rate > 0 else None
     daily_dates = list(daily_usage.keys())
@@ -6476,6 +6658,13 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
+    analytics_quality = build_analytics_quality_payload(
+        row_count=row_count,
+        valid_hours=valid_hours,
+        gap_count=gap_count,
+        valid_drop_count=valid_drop_count,
+        latest_seconds_since_sync=latest_row["seconds_since_sync"],
+    )
     health = calculate_health(
         snapshot=latest_row,
         leak_events=leak_events,
@@ -6560,10 +6749,25 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "prediction": {
-            "tomorrow_usage": round(avg_daily_usage * 1.05, 2),
+            "tomorrow_usage": estimate_tomorrow_usage(
+                avg_daily_usage,
+                latest_day_usage,
+                previous_day_usage,
+                peak_value,
+            ),
         },
         "alerts": alerts,
     }
+    payload["analysis"] = build_analysis_payload(
+        quality=analytics_quality,
+        current_level=current_level,
+        consumption_rate=consumption_rate,
+        empty_prediction=empty_prediction,
+        usage_change_pct=usage_change_pct,
+        leak_events=leak_events,
+        motor_cycles=motor_cycles,
+        refill_events=refill_events,
+    )
     if normalized_device_id:
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
     else:
