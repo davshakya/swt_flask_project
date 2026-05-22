@@ -485,6 +485,7 @@ TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
+DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
@@ -3009,10 +3010,22 @@ def prune_tank_data_retention(cursor):
     return max(0, int(cursor.rowcount or 0))
 
 
+def prune_device_events_retention(cursor):
+    cursor.execute(
+        """
+        DELETE FROM device_events
+        WHERE event_at < datetime('now', ?)
+        """,
+        (f"-{DEVICE_EVENT_RETENTION_DAYS} day",),
+    )
+    return max(0, int(cursor.rowcount or 0))
+
+
 def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
     pruned = {}
 
     pruned["tank_data_retention"] = prune_tank_data_retention(cursor)
+    pruned["device_events_retention"] = prune_device_events_retention(cursor)
 
     normalized_device_id = normalize_device_id(device_id) or ""
     if latest_row_id is not None and not TELEMETRY_HISTORY_ENABLED:
@@ -5916,6 +5929,16 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
                 "signals": [],
             },
         },
+        "events_analysis": {
+            "event_count": 0,
+            "event_counts": {},
+            "severity_counts": {},
+            "pump_runtime_seconds": 0,
+            "pump_runtime_hours": 0,
+            "pump_runs": 0,
+            "latest_warning": None,
+            "retention_days": DEVICE_EVENT_RETENTION_DAYS,
+        },
         "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
     }
     payload["guidance"] = build_shared_guidance_payload(snapshot, payload)
@@ -6050,20 +6073,32 @@ def build_analysis_payload(
     leak_events,
     motor_cycles,
     refill_events,
+    event_analysis=None,
 ):
+    event_analysis = event_analysis or {}
+    event_counts = event_analysis.get("event_counts") or {}
+    severity_counts = event_analysis.get("severity_counts") or {}
     anomalies = []
-    if leak_events > 0:
+    event_leak_count = sum(int(event_counts.get(kind, 0) or 0) for kind in ("pipe_leak", "slow_leak", "drip", "abnormal"))
+    if leak_events > 0 or event_leak_count > 0:
         anomalies.append({"kind": "leak_signal", "severity": "danger", "message": "Leak indicators were active in this range."})
     if usage_change_pct is not None and usage_change_pct >= 60:
         anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
     elif usage_change_pct is not None and usage_change_pct >= 25:
         anomalies.append({"kind": "usage_spike", "severity": "warning", "message": "Usage is above the recent baseline."})
-    if motor_cycles > 12:
+    if motor_cycles > 12 or int(event_counts.get("pump_started", 0) or 0) > 12:
         anomalies.append({"kind": "short_cycling", "severity": "warning", "message": "Pump cycling is higher than expected."})
+    if int(severity_counts.get("warning", 0) or 0) >= 3:
+        anomalies.append({"kind": "event_warning_pattern", "severity": "warning", "message": "Several warning events were recorded in the event history."})
     if refill_events > 0:
         anomalies.append({"kind": "refill_activity", "severity": "info", "message": "Refill events were detected in the selected range."})
 
-    forecast_confidence = forecast_confidence_from_quality(quality, consumption_rate, current_level, leak_events=leak_events)
+    forecast_confidence = forecast_confidence_from_quality(
+        quality,
+        consumption_rate,
+        current_level,
+        leak_events=max(leak_events, event_leak_count),
+    )
     if empty_prediction is not None and empty_prediction <= 6:
         severity = "danger" if empty_prediction <= 3 else "warning"
         anomalies.append({"kind": "empty_forecast", "severity": severity, "message": "Tank may run low soon if the current trend continues."})
@@ -6073,6 +6108,12 @@ def build_analysis_payload(
         "forecast_confidence": forecast_confidence,
         "anomaly_count": len([item for item in anomalies if item.get("severity") in {"danger", "warning"}]),
         "anomalies": anomalies[:6],
+        "event_window": {
+            "event_count": int(event_analysis.get("event_count", 0) or 0),
+            "pump_runtime_seconds": int(event_analysis.get("pump_runtime_seconds", 0) or 0),
+            "warning_count": int(severity_counts.get("warning", 0) or 0),
+            "danger_count": int(severity_counts.get("danger", 0) or 0),
+        },
         "model": {
             "family": "robust-rule-ml-hybrid",
             "signals": [
@@ -6087,12 +6128,80 @@ def build_analysis_payload(
     }
 
 
+def build_device_event_analysis(start_dt, end_exclusive, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    query = """
+        SELECT event_kind, severity, details_json, duration_seconds, event_at
+        FROM device_events
+        WHERE event_at >= ? AND event_at < ?
+    """
+    params = [start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)]
+    if normalized_device_id:
+        query += " AND device_id = ?"
+        params.append(normalized_device_id)
+    query += " ORDER BY event_at ASC, id ASC"
+
+    event_counts = {}
+    severity_counts = {}
+    pump_runtime_seconds = 0
+    pump_runs = 0
+    latest_warning = None
+
+    with get_db() as db:
+        rows = db.execute(query, tuple(params)).fetchall()
+
+    for row in rows:
+        kind = str(row["event_kind"] or "event").strip().lower() or "event"
+        severity = str(row["severity"] or "info").strip().lower() or "info"
+        event_counts[kind] = int(event_counts.get(kind, 0) or 0) + 1
+        severity_counts[severity] = int(severity_counts.get(severity, 0) or 0) + 1
+        if severity in {"warning", "danger"}:
+            latest_warning = {
+                "kind": kind,
+                "severity": severity,
+                "event_at": format_timestamp(row["event_at"]),
+            }
+
+        details = {}
+        raw_details = row["details_json"]
+        if raw_details:
+            try:
+                details = json.loads(raw_details)
+            except (TypeError, ValueError):
+                details = {}
+
+        run_seconds = details.get("run_seconds")
+        if run_seconds is None and kind == "pump_stopped":
+            run_seconds = row["duration_seconds"]
+        try:
+            run_seconds = int(run_seconds) if run_seconds is not None else None
+        except (TypeError, ValueError):
+            run_seconds = None
+        if kind == "pump_stopped" and run_seconds is not None and run_seconds > 0:
+            pump_runtime_seconds += min(run_seconds, 24 * 60 * 60)
+            pump_runs += 1
+
+    return {
+        "event_count": len(rows),
+        "event_counts": event_counts,
+        "severity_counts": severity_counts,
+        "pump_runtime_seconds": int(pump_runtime_seconds),
+        "pump_runtime_hours": round(pump_runtime_seconds / 3600.0, 3),
+        "pump_runs": pump_runs,
+        "latest_warning": latest_warning,
+        "retention_days": DEVICE_EVENT_RETENTION_DAYS,
+    }
+
+
 def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     snapshot = snapshot or {}
     analytics_payload = analytics_payload or {}
     insights = analytics_payload.get("insights") or {}
     analysis = analytics_payload.get("analysis") or {}
     quality = analysis.get("quality") or {}
+    event_analysis = analytics_payload.get("events_analysis") or {}
+    event_counts = event_analysis.get("event_counts") or {}
+    severity_counts = event_analysis.get("severity_counts") or {}
     comparison = analytics_payload.get("comparison") or {}
 
     level = safe_float(snapshot.get("level"), 0)
@@ -6206,9 +6315,13 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         actions.append("Keep auto protection enabled and review the chart trend later today.")
 
     motor_cycles = safe_float(insights.get("motor_cycles"), safe_float(snapshot.get("motor_cycles"), 0))
-    if motor_cycles > 12:
+    event_pump_cycles = safe_float(event_counts.get("pump_started"), 0)
+    if max(motor_cycles, event_pump_cycles) > 12:
         observations.append("Pump cycling is higher than normal.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
+    if safe_float(severity_counts.get("warning"), 0) >= 3:
+        observations.append("Event history shows repeated warnings in this range.")
+        actions.append("Review recent device events before changing automation settings.")
 
     confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 92)))
     if telemetry == "stale":
@@ -6465,6 +6578,7 @@ def build_db_summary_payload():
             "history_enabled": TELEMETRY_HISTORY_ENABLED,
             "device_source_mode": active_mode,
             "retention_days": DATA_RETENTION_DAYS,
+            "device_event_retention_days": DEVICE_EVENT_RETENTION_DAYS,
             "max_rows_per_device": MAX_TELEMETRY_ROWS_PER_DEVICE,
             "graphs_ready": TELEMETRY_HISTORY_ENABLED and telemetry_rows >= 2,
             "reason": graph_reason,
@@ -6496,6 +6610,7 @@ def build_db_summary_payload():
             "hard_size_cap_batch_rows": TEMP_HARD_DB_CAP_BATCH_ROWS,
             "hard_size_cap_max_batches": TEMP_HARD_DB_CAP_MAX_BATCHES,
             "device_command_retention_days": DEVICE_COMMAND_RETENTION_DAYS,
+            "device_event_retention_days": DEVICE_EVENT_RETENTION_DAYS,
             "ops_alert_retention_days": OPS_ALERT_RETENTION_DAYS,
             "ops_audit_retention_days": OPS_AUDIT_RETENTION_DAYS,
             "last_run_at_epoch": db_maintenance_state.get("last_run_at"),
@@ -6513,6 +6628,8 @@ def build_db_summary_payload():
 
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
+    if normalized_device_id:
+        sync_device_events(device_id=normalized_device_id)
     active_mode = get_device_source_mode()
     cache_key = (
         start_dt.strftime(DATE_ONLY_FORMAT),
@@ -6758,6 +6875,8 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         },
         "alerts": alerts,
     }
+    event_analysis = build_device_event_analysis(start_dt, end_exclusive, device_id=normalized_device_id)
+    payload["events_analysis"] = event_analysis
     payload["analysis"] = build_analysis_payload(
         quality=analytics_quality,
         current_level=current_level,
@@ -6767,6 +6886,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         leak_events=leak_events,
         motor_cycles=motor_cycles,
         refill_events=refill_events,
+        event_analysis=event_analysis,
     )
     if normalized_device_id:
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
