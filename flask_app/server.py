@@ -10550,6 +10550,14 @@ def admin_device_firmware_upload(device_id):
         except ValueError as exc:
             error = str(exc)
 
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        payload = {
+            "ok": not bool(error),
+            "message": success or "",
+            "error": error or "",
+        }
+        return jsonify(payload), 200 if not error else 400
+
     if request.form.get("return_to") == "device_detail":
         return redirect(
             url_for(
@@ -10615,6 +10623,14 @@ def admin_android_release_upload():
         )
     except ValueError as exc:
         error = str(exc)
+
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        payload = {
+            "ok": not bool(error),
+            "message": success or "",
+            "error": error or "",
+        }
+        return jsonify(payload), 200 if not error else 400
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)

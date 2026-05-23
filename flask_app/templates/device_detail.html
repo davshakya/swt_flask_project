@@ -221,7 +221,7 @@
         <div class="firmware-upload-grid">
             {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
             {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data">
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
                 <h3>Master Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -242,7 +242,7 @@
                 <div class="helper-text">Master uploads must match the current {{ firmware_install_profile.label }} install profile.</div>
                 <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
             </form>
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data">
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
                 <h3>Slave Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -276,22 +276,6 @@
         <ul id="events" class="list" style="margin-top:16px"></ul>
     </section>
 </div>
-{% if config_message or config_error %}
-{% set result_text = config_error or config_message %}
-{% set result_is_upload = "firmware" in (result_text|lower) or "upload" in (result_text|lower) %}
-<div class="result-modal" data-result-modal role="dialog" aria-modal="true" aria-labelledby="device_result_title">
-    <div class="result-dialog">
-        <div class="result-head">
-            <div>
-                <div class="eyebrow">Result</div>
-                <h2 id="device_result_title">{% if config_error %}{% if result_is_upload %}Upload failed{% else %}Action failed{% endif %}{% else %}{% if result_is_upload %}Upload successful{% else %}Action successful{% endif %}{% endif %}</h2>
-            </div>
-            <button class="result-close" type="button" data-result-close>Close</button>
-        </div>
-        <div class="message {% if config_error %}error{% else %}success{% endif %}">{{ result_text }}</div>
-    </div>
-</div>
-{% endif %}
 
 <script>
 const DEVICE_ID={{ device_id|tojson }};
@@ -317,13 +301,61 @@ function syncRuntimeConfigurationOptions(){
   }
 }
 document.addEventListener("DOMContentLoaded",()=>{
-  const resultModal=document.querySelector("[data-result-modal]");
-  const closeResult=()=>{
-    if(resultModal)resultModal.remove();
-  };
-  document.querySelector("[data-result-close]")?.addEventListener("click",closeResult);
+  function closeResultModal(){
+    document.querySelector("[data-result-modal]")?.remove();
+  }
+  function showResultModal(title,message,isError=false){
+    closeResultModal();
+    const modal=document.createElement("div");
+    modal.className="result-modal";
+    modal.dataset.resultModal="";
+    modal.setAttribute("role","dialog");
+    modal.setAttribute("aria-modal","true");
+    modal.setAttribute("aria-labelledby","device_result_title");
+    modal.innerHTML=`<div class="result-dialog"><div class="result-head"><div><div class="eyebrow">Result</div><h2 id="device_result_title"></h2></div><button class="result-close" type="button" data-result-close>Close</button></div><div class="message"></div></div>`;
+    modal.querySelector("#device_result_title").textContent=title||"Upload result";
+    const messageNode=modal.querySelector(".message");
+    messageNode.textContent=message||"No upload result message was returned.";
+    messageNode.classList.add(isError?"error":"success");
+    modal.querySelector("[data-result-close]").addEventListener("click",closeResultModal);
+    document.body.appendChild(modal);
+  }
   document.addEventListener("keydown",(event)=>{
-    if(event.key==="Escape")closeResult();
+    if(event.key==="Escape")closeResultModal();
+  });
+  document.querySelectorAll("[data-firmware-upload-form]").forEach((form)=>{
+    form.addEventListener("submit",(event)=>{
+      if(!window.XMLHttpRequest||!window.FormData)return;
+      event.preventDefault();
+      const button=form.querySelector('button[type="submit"]');
+      const originalLabel=button?.textContent||"Upload Firmware";
+      if(button){
+        button.disabled=true;
+        button.textContent="Uploading...";
+      }
+      const request=new XMLHttpRequest();
+      request.open("POST",form.action,true);
+      request.setRequestHeader("X-Requested-With","XMLHttpRequest");
+      request.addEventListener("load",()=>{
+        let payload=null;
+        try{payload=JSON.parse(request.responseText||"{}");}catch(error){payload=null;}
+        const ok=request.status>=200&&request.status<400&&payload?.ok!==false;
+        showResultModal(ok?"Upload successful":"Upload failed",payload?.message||payload?.error||`Server returned HTTP ${request.status}.`,!ok);
+        if(ok)form.reset();
+        if(button){
+          button.disabled=false;
+          button.textContent=originalLabel;
+        }
+      });
+      request.addEventListener("error",()=>{
+        showResultModal("Upload failed","Network error while uploading firmware.",true);
+        if(button){
+          button.disabled=false;
+          button.textContent=originalLabel;
+        }
+      });
+      request.send(new FormData(form));
+    });
   });
   syncRuntimeConfigurationOptions();
   document.getElementById("slaveDeviceOption")?.addEventListener("change",syncRuntimeConfigurationOptions);

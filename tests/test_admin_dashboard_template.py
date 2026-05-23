@@ -9,7 +9,7 @@ def test_admin_customer_page_renders_one_popup_status_message_slot():
 
     assert template.count('id="upload_result_panel"') == 1
     assert template.count("data-upload-result-message") == 2
-    assert '{% if error or success %}data-auto-open-panel{% endif %}' in template
+    assert "data-auto-open-panel" not in template
 
 
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
@@ -153,12 +153,16 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
 
 def test_device_detail_upload_result_uses_closable_popup():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert 'data-result-modal role="dialog"' in device_template
-    assert 'data-result-close>Close</button>' in device_template
-    assert 'document.querySelector("[data-result-close]")?.addEventListener("click",closeResult)' in device_template
+    assert 'data-firmware-upload-form' in device_template
+    assert 'modal.dataset.resultModal=""' in device_template
+    assert 'request.setRequestHeader("X-Requested-With","XMLHttpRequest")' in device_template
+    assert "showResultModal(ok?\"Upload successful\":\"Upload failed\"" in device_template
+    assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
     assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
     assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template
+    assert "{% if config_message or config_error %}" not in device_template
 
 
 def test_android_release_upload_modal_is_detached_and_shows_progress():
@@ -169,7 +173,11 @@ def test_android_release_upload_modal_is_detached_and_shows_progress():
     assert 'id="upload_result_panel"' in admin_template
     assert 'data-upload-result-message' in admin_template
     assert 'showUploadResultPanel("Upload failed"' in admin_template
-    assert 'data-auto-open-panel' in admin_template
+    assert 'showUploadResultPanel("Upload successful"' in admin_template
+    assert 'document.write(request.responseText)' not in admin_template[
+        admin_template.index('const androidUploadForm = document.querySelector("[data-android-upload-form]")')
+        : admin_template.index('const registerDeviceForm = document.querySelector("[data-register-device-form]")')
+    ]
     assert 'request.upload.addEventListener("progress"' in admin_template
     assert 'document.body.appendChild(panel)' in admin_template
     assert 'panel.dataset.busy === "true"' in admin_template

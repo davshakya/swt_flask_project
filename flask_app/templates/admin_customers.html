@@ -813,7 +813,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     </div>
                 </div>
             </div>
-            <div id="upload_result_panel" class="inline-panel" data-panel-mode="modal" {% if error or success %}data-auto-open-panel{% endif %} hidden>
+            <div id="upload_result_panel" class="inline-panel" data-panel-mode="modal" hidden>
                 <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="upload_result_title">
                     <div class="modal-head">
                         <div>
@@ -1108,9 +1108,6 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
     }
 
     inlinePanels.forEach((panel) => setPanelState(panel, false));
-    if (uploadResultPanel && uploadResultPanel.hasAttribute("data-auto-open-panel")) {
-        setPanelState(uploadResultPanel, true);
-    }
     panelToggles.forEach((toggle) => {
         toggle.addEventListener("click", (event) => {
             event.preventDefault();
@@ -1193,13 +1190,21 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
             });
 
             request.addEventListener("load", () => {
+                let payload = null;
+                try {
+                    payload = JSON.parse(request.responseText || "{}");
+                } catch (error) {
+                    payload = null;
+                }
                 if (request.status >= 200 && request.status < 400) {
-                    setUploadProgress(100, "Upload complete", "Processing finished. Refreshing the admin page.", "complete");
-                    window.setTimeout(() => {
-                        document.open();
-                        document.write(request.responseText);
-                        document.close();
-                    }, 450);
+                    setUploadProgress(100, "Upload complete", "Processing finished.", "complete");
+                    showUploadResultPanel("Upload successful", payload?.message || "Android app uploaded successfully.", "success");
+                    androidUploadForm.reset();
+                    if (ownerPanel) ownerPanel.dataset.busy = "false";
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                        submitButton.textContent = "Publish Android App";
+                    }
                     return;
                 }
                 if (ownerPanel) ownerPanel.dataset.busy = "false";
@@ -1207,8 +1212,9 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     submitButton.disabled = false;
                     submitButton.textContent = "Publish Android App";
                 }
-                setUploadProgress(100, "Upload failed", `Server returned HTTP ${request.status}.`, "error");
-                showUploadResultPanel("Upload failed", `Server returned HTTP ${request.status}.`, "error");
+                const errorMessage = payload?.error || payload?.message || `Server returned HTTP ${request.status}.`;
+                setUploadProgress(100, "Upload failed", errorMessage, "error");
+                showUploadResultPanel("Upload failed", errorMessage, "error");
             });
 
             request.addEventListener("error", () => {
