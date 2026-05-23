@@ -8,6 +8,14 @@ import time
 
 FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
 FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b")
+FIRMWARE_ARTIFACT_ROLES = ("master", "slave")
+
+
+def normalize_firmware_artifact_role(value, default="master"):
+    normalized = str(value or default or "master").strip().lower()
+    if normalized not in FIRMWARE_ARTIFACT_ROLES:
+        raise ValueError("Choose master or slave firmware role.")
+    return normalized
 
 
 def sanitize_firmware_filename(filename):
@@ -64,8 +72,9 @@ def read_uploaded_firmware(uploaded_file, max_bytes):
     }
 
 
-def make_stored_firmware_filename(device_id):
-    return f"{device_id}-{int(time.time())}-{secrets.token_hex(4)}.bin"
+def make_stored_firmware_filename(device_id, role="master"):
+    safe_role = normalize_firmware_artifact_role(role)
+    return f"{device_id}-{safe_role}-{int(time.time())}-{secrets.token_hex(4)}.bin"
 
 
 def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None, normalize_device_id=lambda value: value):
@@ -83,6 +92,7 @@ def build_firmware_artifact_payload(artifact, target_device=None, download_endpo
         "content_type": artifact.get("content_type") or "application/octet-stream",
         "uploaded_by": artifact.get("uploaded_by") or "",
         "created_at": artifact.get("created_at") or "",
+        "role": normalize_firmware_artifact_role(artifact.get("target_role") or artifact.get("role") or "master"),
     }
     if download_endpoint:
         payload["download_url"] = download_endpoint

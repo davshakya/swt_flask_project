@@ -161,25 +161,49 @@
                 <button class="btn btn-admin" type="submit"><span>Save Services</span></button>
             </form>
 
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data">
+            <div class="admin-form">
+                {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
+                {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
+                <h3>Firmware</h3>
+                <form method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
-                <h3>Firmware</h3>
+                <input type="hidden" name="firmware_role" value="master">
                 <div class="form-group">
-                    <label for="firmware_file">Firmware Binary</label>
-                    <input id="firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                    <label for="master_firmware_file">Master Firmware Binary</label>
+                    <input id="master_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
                 </div>
                 <div class="form-group">
-                    <label for="firmware_notes">Release Notes</label>
-                    <input id="firmware_notes" name="notes" type="text" placeholder="Firmware change summary">
+                    <label for="master_firmware_notes">Master Release Notes</label>
+                    <input id="master_firmware_notes" name="notes" type="text" placeholder="Master firmware change summary">
                 </div>
-                {% if latest_firmware_artifact %}
-                <div class="helper-text">Latest build: {{ latest_firmware_artifact.version_label or "--" }} from {{ latest_firmware_artifact.original_filename or "firmware.bin" }}.</div>
+                {% if master_firmware %}
+                <div class="helper-text">Latest master build: {{ master_firmware.version_label or "--" }} from {{ master_firmware.original_filename or "firmware.bin" }}.</div>
                 {% else %}
-                <div class="helper-text">No firmware build has been uploaded for this device yet.</div>
+                <div class="helper-text">No master firmware build has been uploaded for this device yet.</div>
                 {% endif %}
-                <button class="btn btn-admin" type="submit"><span>Upload Firmware</span></button>
-            </form>
+                <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
+                </form>
+                <form method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="return_to" value="device_detail">
+                <input type="hidden" name="firmware_role" value="slave">
+                <div class="form-group">
+                    <label for="slave_firmware_file">Slave Firmware Binary</label>
+                    <input id="slave_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                </div>
+                <div class="form-group">
+                    <label for="slave_firmware_notes">Slave Release Notes</label>
+                    <input id="slave_firmware_notes" name="notes" type="text" placeholder="Slave firmware change summary">
+                </div>
+                {% if slave_firmware %}
+                <div class="helper-text">Latest slave build: {{ slave_firmware.version_label or "--" }} from {{ slave_firmware.original_filename or "firmware.bin" }}.</div>
+                {% else %}
+                <div class="helper-text">No slave firmware build has been uploaded for this device yet.</div>
+                {% endif %}
+                <button class="btn btn-admin" type="submit"><span>Upload Slave Firmware</span></button>
+                </form>
+            </div>
 
             <div class="admin-form">
                 <h3>Device Commands</h3>

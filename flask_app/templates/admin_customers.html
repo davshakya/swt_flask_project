@@ -768,7 +768,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                         <div>
                             <div class="eyebrow">Release Channel</div>
                             <h2 id="release_channel_title">Publish Android updates</h2>
-                            <p class="section-helper">Upload the approved Android app and the global firmware used by the Android local Wi-Fi installer. Device-row firmware uploads remain available as the separate controller-specific channel.</p>
+                            <p class="section-helper">Upload the approved Android app. Master and slave firmware are uploaded from each device detail page.</p>
                         </div>
                         <button class="modal-close" type="button" data-panel-dismiss>Close</button>
                     </div>
@@ -777,11 +777,6 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                         <span class="pill pill-info">Android {{ latest_android_release.version_name }} ({{ latest_android_release.version_code }})</span>
                         {% else %}
                         <span class="pill pill-warning">No Android APK uploaded</span>
-                        {% endif %}
-                        {% if latest_global_firmware_artifact %}
-                        <span class="pill pill-info">Firmware {{ latest_global_firmware_artifact.version_label }} for Android local Wi-Fi</span>
-                        {% else %}
-                        <span class="pill pill-warning">No global firmware uploaded</span>
                         {% endif %}
                     </div>
                     <div class="release-channel-layout">
@@ -816,28 +811,6 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                                     </div>
                                     <p class="android-upload-progress-note" data-android-upload-note>Keep this popup open while the APK uploads.</p>
                                 </div>
-                            </form>
-                            <form method="post" action="/admin/releases/firmware" enctype="multipart/form-data" class="service-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                <div class="release-subhead">
-                                    <div>
-                                        <h3>Firmware For Android Local Wi-Fi</h3>
-                                        <p>Global firmware fallback for the Android app when the local tank is reachable. Device-row firmware uploads still stay separate.</p>
-                                    </div>
-                                </div>
-                                <div class="group">
-                                    <label for="global_firmware_file">Firmware BIN</label>
-                                    <input id="global_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
-                                </div>
-                                <div class="group">
-                                    <label for="global_firmware_notes">Firmware Notes</label>
-                                    <input id="global_firmware_notes" name="notes" type="text" placeholder="What changed for devices?">
-                                </div>
-                                <div class="release-action-row">
-                                    <button type="submit">Publish Firmware</button>
-                                </div>
-                            </form>
-                            <form class="release-utility-form" method="post" action="{{ url_for('admin_global_firmware_prune') }}" onsubmit="return confirm('Remove old global firmware builds? The latest global firmware will stay active for Android local Wi-Fi installs.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
-                                <button type="submit">Remove Old Firmware Builds</button>
                             </form>
                             <form class="release-utility-form" method="post" action="{{ url_for('admin_android_release_prune') }}" onsubmit="return confirm('Remove every uploaded Android build record and APK file? The public Android download link will stop working until a new APK is uploaded.');"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="q" value="{{ search_query or '' }}">
                                 <button type="submit">Remove All Android Builds</button>

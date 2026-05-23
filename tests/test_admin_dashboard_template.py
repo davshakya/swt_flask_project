@@ -153,20 +153,22 @@ def test_android_release_cleanup_removes_all_builds_copy():
     assert "Latest Android build will stay active" not in admin_template
 
 
-def test_release_channel_can_publish_global_firmware_for_mobile_local_install():
+def test_release_channel_keeps_firmware_on_device_detail_page():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     mobile_firmware_routes = (PROJECT_ROOT / "flask_app" / "mobile_firmware_routes.py").read_text(encoding="utf-8")
 
-    assert 'action="/admin/releases/firmware"' in admin_template
-    assert "Publish Firmware" in admin_template
-    assert "Firmware For Android Local Wi-Fi" in admin_template
-    assert "Device-row firmware uploads still stay separate" in admin_template
-    assert "Remove Old Firmware Builds" in admin_template
+    assert 'action="/admin/releases/firmware"' not in admin_template
+    assert "Master and slave firmware are uploaded from each device detail page." in admin_template
+    assert 'name="firmware_role" value="master"' in device_template
+    assert 'name="firmware_role" value="slave"' in device_template
+    assert "Upload Master Firmware" in device_template
+    assert "Upload Slave Firmware" in device_template
     assert ".release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px" in admin_template
-    assert "latest_global_firmware_artifact=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET)" in server_source
-    assert 'fetch_latest_firmware_artifact("__all_customers__")' in mobile_firmware_routes
-    assert '"global_android_local_wifi"' in mobile_firmware_routes
+    assert "latest_global_firmware_artifact" not in server_source
+    assert '"__all_customers__"' not in mobile_firmware_routes
+    assert "target_role" in server_source
     assert "target_device=target_device" in mobile_firmware_routes
 
 

@@ -23,7 +23,7 @@ Within the wider workspace:
 - Browser dashboard, customer dashboard, and per-device detail pages
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
 - Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
-- Firmware artifact upload/download flow for device-scoped and fleet-wide OTA-style updates
+- Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - Optional HTTP relay and MQTT bridge support
 - Optional ML-based tank level forecasting through `/ml/predict`
@@ -213,8 +213,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/login/customer` | Customer login page | Public |
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
-| `/admin/customers/<device_id>/firmware` | Upload a firmware artifact for one device | Admin |
-| `/admin/releases/firmware` | Upload a global firmware artifact for all customers | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
@@ -261,8 +260,8 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/last` | `GET` | Latest snapshot |
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
-| `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware, falling back to the global fleet firmware |
-| `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device or global fleet release |
+| `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware for `role=master` or `role=slave` |
+| `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device and role |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
@@ -283,7 +282,7 @@ Important tables include:
 - `customer_accounts`: Customer login records keyed by `device_id`
 - `registered_devices`: Known devices seen by the backend
 - `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
-- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped and global fleet updates
+- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
 

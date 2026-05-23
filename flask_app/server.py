@@ -54,10 +54,12 @@ from flask_app.forecast_payloads import (
     build_unavailable_level_forecast_payload as build_unavailable_level_forecast_response_payload,
 )
 from flask_app.firmware_artifacts import (
+    FIRMWARE_ARTIFACT_ROLES,
     build_firmware_artifact_file_response as build_firmware_artifact_file_response_payload,
     build_firmware_artifact_payload as build_firmware_artifact_response_payload,
     firmware_artifact_storage_path as firmware_artifact_storage_path_for_dir,
     make_stored_firmware_filename,
+    normalize_firmware_artifact_role,
     read_uploaded_firmware,
     sanitize_firmware_filename as sanitize_firmware_filename_value,
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
@@ -545,7 +547,6 @@ FIRMWARE_ARTIFACT_DIR = normalize_db_path(
     os.environ.get("FIRMWARE_ARTIFACT_DIR", str(DATA_DIR / "firmware_artifacts"))
 )
 FIRMWARE_ARTIFACT_MAX_BYTES = max(256 * 1024, env_int("FIRMWARE_ARTIFACT_MAX_MB", 4) * 1024 * 1024)
-GLOBAL_FIRMWARE_TARGET = "__all_customers__"
 ANDROID_RELEASE_DIR = normalize_db_path(
     os.environ.get("ANDROID_RELEASE_DIR", str(DATA_DIR / "android_releases"))
 )
@@ -2467,7 +2468,6 @@ def render_customer_admin_page(accounts, available_devices, error=None, success=
         global_alerts=fetch_filtered_alerts(limit=10, updated_since=alert_cutoff),
         persistence_warnings=auth_persistence_warnings(),
         latest_android_release=fetch_latest_android_app_release(),
-        latest_global_firmware_artifact=fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET),
     )
 
 
@@ -3813,6 +3813,7 @@ def ensure_firmware_artifacts_table(cursor):
         CREATE TABLE IF NOT EXISTS firmware_artifacts(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_device TEXT NOT NULL,
+            target_role VARCHAR(16) NOT NULL DEFAULT 'master',
             original_filename TEXT NOT NULL,
             stored_filename TEXT NOT NULL,
             version_label TEXT,
@@ -3825,6 +3826,16 @@ def ensure_firmware_artifacts_table(cursor):
         )
         """
     )
+
+
+def ensure_firmware_artifacts_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(firmware_artifacts)").fetchall()}
+    required = {
+        "target_role": "VARCHAR(16) NOT NULL DEFAULT 'master'",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE firmware_artifacts ADD COLUMN {column} {definition}")
 
 
 def ensure_android_app_releases_table(cursor):
@@ -4249,6 +4260,7 @@ def init_db():
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
+        ensure_firmware_artifacts_columns(cursor)
         ensure_android_app_releases_table(cursor)
         ensure_android_app_releases_columns(cursor)
         ensure_android_app_releases_mysql_column_types(cursor)
@@ -4276,6 +4288,7 @@ def init_db():
             "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
             "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
             "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
+            "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
             "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
             "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
             "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
@@ -7512,14 +7525,11 @@ def build_command_events(limit=20, device_id=None):
 def build_ota_events(limit=20, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
     query = """
-        SELECT id, target_device, version_label, original_filename, created_at
+        SELECT id, target_device, target_role, version_label, original_filename, created_at
         FROM firmware_artifacts
         WHERE target_device = ?
     """
-    params = [GLOBAL_FIRMWARE_TARGET]
-    if normalized_device_id:
-        query += " OR target_device = ?"
-        params.append(normalized_device_id)
+    params = [normalized_device_id] if normalized_device_id else [""]
     query += " ORDER BY created_at DESC, id DESC LIMIT ?"
     params.append(max(1, int(limit or 20)))
 
@@ -7533,9 +7543,9 @@ def build_ota_events(limit=20, device_id=None):
     ota_failure_after_seconds = 24 * 60 * 60
     for row in rows:
         version_label = str(row["version_label"] or row["original_filename"] or "firmware").strip()
-        target_device = normalize_device_id(row["target_device"]) or GLOBAL_FIRMWARE_TARGET
-        scoped = target_device != GLOBAL_FIRMWARE_TARGET
-        target_label = target_device if scoped else "fleet"
+        target_device = normalize_device_id(row["target_device"]) or normalized_device_id
+        target_role = normalize_firmware_artifact_role(row["target_role"] or "master")
+        target_label = f"{target_device} {target_role}"
         created_at = parse_timestamp(row["created_at"])
         age_seconds = int((now - created_at).total_seconds()) if created_at else None
         events.append(
@@ -7549,6 +7559,7 @@ def build_ota_events(limit=20, device_id=None):
                     "source_row_id": row["id"],
                     "artifact_id": row["id"],
                     "target_device": target_device,
+                    "target_role": target_role,
                     "version_label": version_label,
                 },
             }
@@ -7566,6 +7577,7 @@ def build_ota_events(limit=20, device_id=None):
                             "source_row_id": row["id"],
                             "artifact_id": row["id"],
                             "target_device": normalized_device_id,
+                            "target_role": target_role,
                             "version_label": version_label,
                             "firmware_version": current_firmware,
                         },
@@ -7588,6 +7600,7 @@ def build_ota_events(limit=20, device_id=None):
                             "source_row_id": row["id"],
                             "artifact_id": row["id"],
                             "target_device": normalized_device_id,
+                            "target_role": target_role,
                             "version_label": version_label,
                             "firmware_version": current_firmware,
                             "age_seconds": age_seconds,
@@ -8310,7 +8323,7 @@ def extract_firmware_version_label(payload):
     return extract_firmware_version_label_from_payload(payload)
 
 
-def fetch_firmware_artifact(artifact_id, device_id=None):
+def fetch_firmware_artifact(artifact_id, device_id=None, role=None):
     try:
         normalized_artifact_id = int(artifact_id)
     except (TypeError, ValueError):
@@ -8320,8 +8333,12 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
         return None
 
     normalized_device_id = normalize_device_id(device_id)
+    try:
+        normalized_role = normalize_firmware_artifact_role(role) if role else None
+    except ValueError:
+        return None
     query = """
-        SELECT id, target_device, original_filename, stored_filename, version_label, notes,
+        SELECT id, target_device, target_role, original_filename, stored_filename, version_label, notes,
                md5, size_bytes, content_type, uploaded_by, created_at
         FROM firmware_artifacts
         WHERE id = ?
@@ -8330,6 +8347,9 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
     if normalized_device_id:
         query += " AND target_device = ?"
         params.append(normalized_device_id)
+    if normalized_role:
+        query += " AND target_role = ?"
+        params.append(normalized_role)
 
     with get_db() as db:
         row = db.execute(query, tuple(params)).fetchone()
@@ -8341,9 +8361,13 @@ def fetch_firmware_artifact(artifact_id, device_id=None):
     return artifact
 
 
-def fetch_latest_firmware_artifact(device_id):
+def fetch_latest_firmware_artifact(device_id, role="master"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
+        return None
+    try:
+        normalized_role = normalize_firmware_artifact_role(role)
+    except ValueError:
         return None
 
     with get_db() as db:
@@ -8351,15 +8375,19 @@ def fetch_latest_firmware_artifact(device_id):
             """
             SELECT id
             FROM firmware_artifacts
-            WHERE target_device = ?
+            WHERE target_device = ? AND target_role = ?
             ORDER BY created_at DESC, id DESC
             LIMIT 1
             """,
-            (normalized_device_id,),
+            (normalized_device_id, normalized_role),
         ).fetchone()
     if not row:
         return None
-    return fetch_firmware_artifact(row["id"], device_id=normalized_device_id)
+    return fetch_firmware_artifact(row["id"], device_id=normalized_device_id, role=normalized_role)
+
+
+def fetch_latest_firmware_artifacts_by_role(device_id):
+    return {role: fetch_latest_firmware_artifact(device_id, role=role) for role in FIRMWARE_ARTIFACT_ROLES}
 
 
 def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None):
@@ -8371,14 +8399,15 @@ def build_firmware_artifact_payload(artifact, target_device=None, download_endpo
     )
 
 
-def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin"):
+def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin", role="master"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         raise ValueError("Choose a valid device before uploading firmware.")
+    normalized_role = normalize_firmware_artifact_role(role)
 
     upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
     payload = upload["payload"]
-    stored_filename = make_stored_firmware_filename(normalized_device_id)
+    stored_filename = make_stored_firmware_filename(normalized_device_id, normalized_role)
     storage_path = firmware_artifact_storage_path(stored_filename)
     notes_text = str(notes or "").strip() or None
 
@@ -8392,13 +8421,14 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
             cursor = db.execute(
                 """
                 INSERT INTO firmware_artifacts(
-                    target_device, original_filename, stored_filename, version_label, notes,
+                    target_device, target_role, original_filename, stored_filename, version_label, notes,
                     md5, size_bytes, content_type, uploaded_by
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     normalized_device_id,
+                    normalized_role,
                     upload["original_filename"],
                     stored_filename,
                     upload["version_label"],
@@ -8417,100 +8447,10 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
             pass
         raise ValueError("Unable to register the uploaded firmware artifact.") from exc
 
-    artifact = fetch_firmware_artifact(artifact_id, device_id=normalized_device_id)
+    artifact = fetch_firmware_artifact(artifact_id, device_id=normalized_device_id, role=normalized_role)
     if not artifact:
         raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
     return artifact
-
-
-def create_global_firmware_artifact(uploaded_file, notes="", uploaded_by="admin"):
-    upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
-    payload = upload["payload"]
-    stored_filename = make_stored_firmware_filename(GLOBAL_FIRMWARE_TARGET)
-    storage_path = firmware_artifact_storage_path(stored_filename)
-    notes_text = str(notes or "").strip() or None
-
-    try:
-        storage_path.write_bytes(payload)
-    except OSError as exc:
-        raise ValueError("Unable to store the uploaded firmware on disk.") from exc
-
-    try:
-        with get_db() as db:
-            cursor = db.execute(
-                """
-                INSERT INTO firmware_artifacts(
-                    target_device, original_filename, stored_filename, version_label, notes,
-                    md5, size_bytes, content_type, uploaded_by
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    GLOBAL_FIRMWARE_TARGET,
-                    upload["original_filename"],
-                    stored_filename,
-                    upload["version_label"],
-                    notes_text,
-                    upload["md5"],
-                    len(payload),
-                    upload["content_type"],
-                    str(uploaded_by or "admin").strip() or "admin",
-                ),
-            )
-            artifact_id = int(cursor.lastrowid or 0)
-    except Exception as exc:
-        try:
-            storage_path.unlink()
-        except OSError:
-            pass
-        raise ValueError("Unable to register the uploaded firmware artifact.") from exc
-
-    artifact = fetch_firmware_artifact(artifact_id)
-    if not artifact:
-        raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
-    return artifact
-
-
-def remove_old_global_firmware_artifacts():
-    latest = fetch_latest_firmware_artifact(GLOBAL_FIRMWARE_TARGET)
-    if not latest:
-        return {"removed": 0, "files_removed": 0, "latest": None}
-
-    with get_db() as db:
-        rows = db.execute(
-            """
-            SELECT id, stored_filename
-            FROM firmware_artifacts
-            WHERE target_device = ? AND id <> ?
-            """,
-            (GLOBAL_FIRMWARE_TARGET, latest["id"]),
-        ).fetchall()
-        db.execute(
-            """
-            DELETE FROM firmware_artifacts
-            WHERE target_device = ? AND id <> ?
-            """,
-            (GLOBAL_FIRMWARE_TARGET, latest["id"]),
-        )
-        remaining_rows = db.execute(
-            "SELECT DISTINCT stored_filename FROM firmware_artifacts"
-        ).fetchall()
-
-    remaining_filenames = {str(row["stored_filename"] or "") for row in remaining_rows}
-    files_removed = 0
-    for row in rows:
-        stored_filename = str(row["stored_filename"] or "")
-        if not stored_filename or stored_filename in remaining_filenames:
-            continue
-        try:
-            firmware_artifact_storage_path(stored_filename).unlink()
-            files_removed += 1
-        except FileNotFoundError:
-            pass
-        except OSError as exc:
-            logger.warning("Unable to remove old firmware artifact file %s: %s", stored_filename, exc)
-
-    return {"removed": len(rows), "files_removed": files_removed, "latest": latest}
 
 
 def ensure_android_release_dir():
@@ -10449,13 +10389,16 @@ def admin_device_firmware_upload(device_id):
     else:
         firmware_file = request.files.get("firmware_file")
         notes = request.form.get("notes", "")
+        role = request.form.get("firmware_role", "master")
         try:
             artifact = create_firmware_artifact(
                 normalized_device_id,
                 firmware_file,
                 notes=notes,
                 uploaded_by=current_actor_username(),
+                role=role,
             )
+            firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or role)
             log_audit_event(
                 actor=current_actor_username(),
                 action="upload_device_firmware_artifact",
@@ -10464,6 +10407,7 @@ def admin_device_firmware_upload(device_id):
                 device_id=normalized_device_id,
                 details={
                     "artifact_id": artifact["id"],
+                    "role": firmware_role,
                     "version_label": artifact.get("version_label"),
                     "original_filename": artifact.get("original_filename"),
                     "md5": artifact.get("md5"),
@@ -10474,7 +10418,7 @@ def admin_device_firmware_upload(device_id):
             )
             version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
             success = (
-                f"Firmware uploaded for {normalized_device_id}. "
+                f"{firmware_role.title()} firmware uploaded for {normalized_device_id}. "
                 f"{artifact['original_filename']}{version_suffix} is now available to the Android app for local Wi-Fi upgrades."
             )
         except ValueError as exc:
@@ -10489,110 +10433,6 @@ def admin_device_firmware_upload(device_id):
                 config_message=success or "",
             )
         )
-
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
-    )
-
-
-@app.route("/admin/releases/firmware", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_global_firmware_upload():
-    error = None
-    success = None
-    search_query = request.values.get("q", "", type=str) or ""
-
-    firmware_file = request.files.get("firmware_file")
-    notes = request.form.get("notes", "")
-    try:
-        artifact = create_global_firmware_artifact(
-            firmware_file,
-            notes=notes,
-            uploaded_by=current_actor_username(),
-        )
-        log_audit_event(
-            actor=current_actor_username(),
-            action="upload_global_firmware_artifact",
-            target_type="release",
-            target_id=str(artifact["id"]),
-            details={
-                "artifact_id": artifact["id"],
-                "version_label": artifact.get("version_label"),
-                "original_filename": artifact.get("original_filename"),
-                "md5": artifact.get("md5"),
-                "size_bytes": artifact.get("size_bytes"),
-                "notes": artifact.get("notes"),
-                "delivery": "all_customers_android_local_wifi",
-            },
-        )
-        version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
-        success = (
-            f"Global firmware uploaded. {artifact['original_filename']}{version_suffix} "
-            "is now available to all customer Android apps for local Wi-Fi upgrades."
-        )
-    except ValueError as exc:
-        error = str(exc)
-
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
-    )
-
-
-@app.route("/admin/releases/firmware/prune", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_global_firmware_prune():
-    error = None
-    success = None
-    search_query = request.values.get("q", "", type=str) or ""
-    try:
-        result = remove_old_global_firmware_artifacts()
-        latest = result.get("latest")
-        log_audit_event(
-            actor=current_actor_username(),
-            action="prune_old_global_firmware_artifacts",
-            target_type="release",
-            target_id=str(latest["id"]) if latest else "global_firmware",
-            details={
-                "removed": result["removed"],
-                "files_removed": result["files_removed"],
-                "kept_artifact_id": latest.get("id") if latest else None,
-                "kept_version_label": latest.get("version_label") if latest else None,
-            },
-        )
-        if latest:
-            success = (
-                f"Removed {result['removed']} old firmware build record"
-                f"{'' if result['removed'] == 1 else 's'} and {result['files_removed']} old file"
-                f"{'' if result['files_removed'] == 1 else 's'}. Latest firmware stays active."
-            )
-        else:
-            success = "No global firmware build is uploaded yet."
-    except ValueError as exc:
-        error = str(exc)
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -11137,7 +10977,7 @@ def device_detail_page(device_id):
         service_config=service_config,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
-        latest_firmware_artifact=fetch_latest_firmware_artifact(scoped_device_id),
+        latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
     )
