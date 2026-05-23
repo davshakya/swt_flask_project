@@ -62,6 +62,7 @@ from flask_app.firmware_artifacts import (
     normalize_firmware_artifact_role,
     read_uploaded_firmware,
     sanitize_firmware_filename as sanitize_firmware_filename_value,
+    validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
@@ -4878,6 +4879,40 @@ def boolish_enabled(value, default=True):
     return bool(default)
 
 
+MASTER_ONLY_FIRMWARE_BUILD_FLAGS = {
+    "SWT_FEATURE_MASTER_LOWER_SENSOR": "0",
+    "SWT_ARCH_ID": "4",
+    "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "1",
+    "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "0",
+    "SWT_DIRECT_PEER_ENABLED": "0",
+}
+MASTER_SLAVE_FIRMWARE_BUILD_FLAGS = {
+    "SWT_FEATURE_MASTER_LOWER_SENSOR": "1",
+    "SWT_ARCH_ID": "1",
+    "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "0",
+    "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "1",
+    "SWT_DIRECT_PEER_ENABLED": "1",
+}
+
+
+def build_device_firmware_install_profile(service_config):
+    config = service_config or {}
+    master_slave_enabled = bool(config.get("slave_device_enabled", True))
+    flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
+    return {
+        "configuration_type": "master_slave" if master_slave_enabled else "master_only",
+        "label": "Master + Slave" if master_slave_enabled else "Master Only",
+        "description": (
+            "Build swt_master for a pump master that receives upper tank level from a slave MCU."
+            if master_slave_enabled
+            else "Build swt_master for a single MCU that reads the upper tank sensor locally."
+        ),
+        "requires_slave_firmware": master_slave_enabled,
+        "flags": dict(flags),
+        "flag_rows": [{"key": key, "value": value} for key, value in flags.items()],
+    }
+
+
 def serialize_device_service_config(device_id, payload=None, account=None):
     payload = payload or {}
     normalized_device_id = normalize_device_id(device_id or payload.get("device_id"))
@@ -8400,7 +8435,7 @@ def build_firmware_artifact_payload(artifact, target_device=None, download_endpo
     )
 
 
-def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin", role="master"):
+def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="admin", role="master", expected_build_flags=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         raise ValueError("Choose a valid device before uploading firmware.")
@@ -8409,6 +8444,8 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
     upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
     payload = upload["payload"]
     validate_firmware_binary_role(payload, normalized_role, upload["original_filename"])
+    if expected_build_flags:
+        validate_firmware_binary_build_flags(payload, expected_build_flags, upload["original_filename"])
     stored_filename = make_stored_firmware_filename(normalized_device_id, normalized_role)
     storage_path = firmware_artifact_storage_path(stored_filename)
     notes_text = str(notes or "").strip() or None
@@ -10393,14 +10430,20 @@ def admin_device_firmware_upload(device_id):
         notes = request.form.get("notes", "")
         role = request.form.get("firmware_role", "master")
         try:
+            normalized_role = normalize_firmware_artifact_role(role)
+            expected_build_flags = None
+            if normalized_role == "master":
+                service_config = fetch_device_service_config(normalized_device_id)
+                expected_build_flags = build_device_firmware_install_profile(service_config)["flags"]
             artifact = create_firmware_artifact(
                 normalized_device_id,
                 firmware_file,
                 notes=notes,
                 uploaded_by=current_actor_username(),
-                role=role,
+                role=normalized_role,
+                expected_build_flags=expected_build_flags,
             )
-            firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or role)
+            firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or normalized_role)
             log_audit_event(
                 actor=current_actor_username(),
                 action="upload_device_firmware_artifact",
@@ -10966,6 +11009,7 @@ def device_detail_page(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
     service_config = fetch_device_service_config(scoped_device_id, account=account)
+    firmware_install_profile = build_device_firmware_install_profile(service_config)
     snapshot = fetch_device_snapshot(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
@@ -10977,6 +11021,7 @@ def device_detail_page(device_id):
         is_admin=True,
         customer_account=account,
         service_config=service_config,
+        firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),

@@ -29,6 +29,13 @@ FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {
     "master": re.compile(rb"\bswt-000-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
     "slave": re.compile(rb"\bswt-100-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
 }
+FIRMWARE_BUILD_FLAG_KEYS = (
+    "SWT_FEATURE_MASTER_LOWER_SENSOR",
+    "SWT_ARCH_ID",
+    "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT",
+    "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT",
+    "SWT_DIRECT_PEER_ENABLED",
+)
 
 
 def normalize_firmware_artifact_role(value, default="master"):
@@ -113,6 +120,46 @@ def validate_firmware_binary_role(payload, expected_role, filename="firmware.bin
             f"but this upload slot expects {normalized_role} firmware."
         )
     return detected_role
+
+
+def detect_firmware_binary_build_flags(payload):
+    binary = bytes(payload or b"")
+    detected = {}
+    for key in FIRMWARE_BUILD_FLAG_KEYS:
+        pattern = re.compile(rb"\b" + re.escape(key.encode("ascii")) + rb"=([0-9]+)\b")
+        match = pattern.search(binary)
+        if match:
+            detected[key] = match.group(1).decode("ascii")
+    return detected
+
+
+def validate_firmware_binary_build_flags(payload, expected_flags, filename="firmware.bin"):
+    expected = {str(key): str(value) for key, value in dict(expected_flags or {}).items()}
+    if not expected:
+        return {}
+
+    detected = detect_firmware_binary_build_flags(payload)
+    missing_keys = [key for key in expected if key not in detected]
+    if missing_keys:
+        safe_name = sanitize_firmware_filename(filename)
+        raise ValueError(
+            f"Selected {safe_name} does not include firmware build flag markers. "
+            "Rebuild the firmware with the current source before uploading it."
+        )
+
+    mismatches = [
+        f"{key} expected {expected[key]} but found {detected[key]}"
+        for key in expected
+        if detected.get(key) != expected[key]
+    ]
+    if mismatches:
+        safe_name = sanitize_firmware_filename(filename)
+        raise ValueError(
+            f"Selected {safe_name} does not match this device installation profile: "
+            + "; ".join(mismatches)
+            + "."
+        )
+    return detected
 
 
 def read_uploaded_firmware(uploaded_file, max_bytes):
