@@ -213,7 +213,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/login/customer` | Customer login page | Public |
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
-| `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |

@@ -62,6 +62,7 @@ from flask_app.firmware_artifacts import (
     normalize_firmware_artifact_role,
     read_uploaded_firmware,
     sanitize_firmware_filename as sanitize_firmware_filename_value,
+    validate_firmware_binary_role,
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
@@ -8407,6 +8408,7 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
 
     upload = read_uploaded_firmware(uploaded_file, FIRMWARE_ARTIFACT_MAX_BYTES)
     payload = upload["payload"]
+    validate_firmware_binary_role(payload, normalized_role, upload["original_filename"])
     stored_filename = make_stored_firmware_filename(normalized_device_id, normalized_role)
     storage_path = firmware_artifact_storage_path(stored_filename)
     notes_text = str(notes or "").strip() or None

@@ -9,6 +9,26 @@ import time
 FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
 FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b")
 FIRMWARE_ARTIFACT_ROLES = ("master", "slave")
+FIRMWARE_BINARY_ROLE_MARKERS = {
+    "master": (
+        b"SWT_FIRMWARE_ROLE=master",
+        b'"firmware_role":"master"',
+        b'"node_role":"master_control"',
+        b'"device_type":"swt_master"',
+        b"swt_master",
+    ),
+    "slave": (
+        b"SWT_FIRMWARE_ROLE=slave",
+        b'"firmware_role":"slave"',
+        b'"node_role":"slave_tank"',
+        b'"device_type":"swt_slave"',
+        b"swt_slave",
+    ),
+}
+FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {
+    "master": re.compile(rb"\bswt-000-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
+    "slave": re.compile(rb"\bswt-100-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
+}
 
 
 def normalize_firmware_artifact_role(value, default="master"):
@@ -47,6 +67,54 @@ def extract_firmware_version_label(payload):
     return version_label
 
 
+def detect_firmware_binary_role(payload):
+    normalized_payload = bytes(payload or b"").lower()
+    if not normalized_payload:
+        return None
+
+    exact_marker_matches = [
+        role
+        for role in FIRMWARE_ARTIFACT_ROLES
+        if f"SWT_FIRMWARE_ROLE={role}".encode("ascii").lower() in normalized_payload
+    ]
+    if len(exact_marker_matches) == 1:
+        return exact_marker_matches[0]
+
+    marker_matches = [
+        role
+        for role, markers in FIRMWARE_BINARY_ROLE_MARKERS.items()
+        if any(marker.lower() in normalized_payload for marker in markers)
+    ]
+    if len(marker_matches) == 1:
+        return marker_matches[0]
+
+    device_id_matches = [
+        role
+        for role, pattern in FIRMWARE_BINARY_DEVICE_ID_PATTERNS.items()
+        if pattern.search(normalized_payload)
+    ]
+    if len(device_id_matches) == 1:
+        return device_id_matches[0]
+    return None
+
+
+def validate_firmware_binary_role(payload, expected_role, filename="firmware.bin"):
+    normalized_role = normalize_firmware_artifact_role(expected_role)
+    detected_role = detect_firmware_binary_role(payload)
+    if not detected_role:
+        raise ValueError(
+            "Could not verify whether this firmware binary is master or slave. "
+            "Rebuild the firmware with the current role marker and upload the matching .bin file."
+        )
+    if detected_role != normalized_role:
+        safe_name = sanitize_firmware_filename(filename)
+        raise ValueError(
+            f"Selected {safe_name} is {detected_role} firmware, "
+            f"but this upload slot expects {normalized_role} firmware."
+        )
+    return detected_role
+
+
 def read_uploaded_firmware(uploaded_file, max_bytes):
     if uploaded_file is None:
         raise ValueError("Choose a compiled firmware .bin file to upload.")
@@ -67,6 +135,7 @@ def read_uploaded_firmware(uploaded_file, max_bytes):
         "original_filename": sanitize_firmware_filename(raw_name),
         "payload": payload,
         "version_label": extract_firmware_version_label(payload),
+        "detected_role": detect_firmware_binary_role(payload),
         "md5": hashlib.md5(payload).hexdigest(),
         "content_type": str(uploaded_file.mimetype or "application/octet-stream").strip() or "application/octet-stream",
     }
