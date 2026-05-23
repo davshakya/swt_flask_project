@@ -163,8 +163,13 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "Master and slave firmware are uploaded from each device detail page." in admin_template
     assert 'name="firmware_role" value="master"' in device_template
     assert 'name="firmware_role" value="slave"' in device_template
-    assert 'name="configuration_type" value="master_only"' in device_template
-    assert 'name="configuration_type" value="master_slave"' in device_template
+    assert "Master Configuration" in device_template
+    assert "Slave Configuration" in device_template
+    assert "Other Features" in device_template
+    assert 'name="master_upper_sensor_enabled"' in device_template
+    assert 'name="slave_upper_sensor_enabled"' in device_template
+    assert 'name="relay_enabled"' in device_template
+    assert "syncRuntimeConfigurationOptions" in device_template
     assert "Required master firmware build flags" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template

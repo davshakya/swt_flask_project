@@ -15,6 +15,7 @@
 @media (max-width:960px){.content-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 .btn{min-height:40px;min-width:108px;padding:0 14px;border-radius:11px;background:rgba(255,255,255,.24);line-height:1.15;font-size:13px;cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease,filter .16s ease}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.34)}.hero-actions{align-items:center}.hero-actions form{display:flex}.hero-actions .btn{width:auto;height:40px;background:linear-gradient(135deg,#34b9d6,#1c89a3);border:0;color:#fff;box-shadow:0 8px 18px rgba(19,137,165,.16)}.hero-actions .btn:hover,.hero-actions .btn:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.admin-form .btn{width:100%;height:42px}.btn-admin{animation:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);background-size:auto;box-shadow:0 8px 18px rgba(19,137,165,.16);color:#fff}.btn-admin::after{display:none}.btn-admin:hover,.btn-admin:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.btn-danger{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ed6b7e,#c93c56);color:#fff;box-shadow:0 10px 22px rgba(218,79,99,.22);filter:brightness(1.03)}.admin-form form{display:grid}.form-group input[type=file]{min-height:44px;padding:8px 10px;background:rgba(255,255,255,.58)}.form-group input[type=file]::file-selector-button{height:28px;margin-right:10px;border:0;border-radius:9px;padding:0 12px;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font:800 12px "Trebuchet MS","Segoe UI",sans-serif;cursor:pointer}
+.config-form{grid-column:1/-1}.config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}.config-section{display:grid;gap:9px;padding:13px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.18)}.config-section h4{margin:0;font-size:14px}.service-option.is-disabled{opacity:.55}.service-option input:disabled{cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -127,14 +128,31 @@
         <div class="message error" style="margin-top:14px">{{ config_error }}</div>
         {% endif %}
         <div class="admin-grid">
-            <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_configuration', device_id=device_id) }}">
+            <form class="admin-form config-form" method="post" action="{{ url_for('admin_device_detail_configuration', device_id=device_id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <h3>Installation Profile</h3>
-                <div class="service-checklist">
-                    <label class="service-option"><input type="radio" name="configuration_type" value="master_only" {% if config_type == "master_only" %}checked{% endif %}> Master Only / Single MCU</label>
-                    <label class="service-option"><input type="radio" name="configuration_type" value="master_slave" {% if config_type == "master_slave" %}checked{% endif %}> Master + Slave</label>
-                    <label class="service-option"><input type="checkbox" name="main_sensor_enabled" value="1" {% if service_config.get("main_sensor_enabled", True) %}checked{% endif %}> Main Tank Sensor</label>
-                    <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Source Tank Sensor</label>
+                <h3>Device Runtime Configuration</h3>
+                <div class="config-sections">
+                    <div class="config-section">
+                        <h4>Master Configuration</h4>
+                        <label class="service-option"><input id="masterUpperSensorOption" type="checkbox" name="master_upper_sensor_enabled" value="1" {% if service_config.get("master_upper_sensor_enabled", not service_config.get("slave_device_enabled", True)) %}checked{% endif %}> Upper Sensor</label>
+                        <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Lower Sensor</label>
+                        <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
+                        <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
+                        <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
+                    </div>
+                    <div class="config-section">
+                        <h4>Slave Configuration</h4>
+                        <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if service_config.get("slave_device_enabled", True) %}checked{% endif %}> Use Slave Device</label>
+                        <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="checkbox" name="slave_upper_sensor_enabled" value="1" {% if service_config.get("slave_upper_sensor_enabled", service_config.get("slave_device_enabled", True)) %}checked{% endif %}> Upper Sensor</label>
+                        <div class="helper-text">When slave is disabled, upper level is read from the Master upper sensor.</div>
+                    </div>
+                    <div class="config-section">
+                        <h4>Other Features</h4>
+                        <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
+                        <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
+                        <label class="service-option"><input type="checkbox" name="ota_enabled" value="1" {% if service_config.get("ota_enabled") %}checked{% endif %}> OTA Service</label>
+                        <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled") %}checked{% endif %}> Local Firmware Upload</label>
+                    </div>
                 </div>
                 <div class="helper-text">{{ firmware_install_profile.description }}</div>
                 <ul class="flag-list" aria-label="Required master firmware build flags">
@@ -142,7 +160,7 @@
                     <li><span>{{ row.key }}</span><span>{{ row.value }}</span></li>
                     {% endfor %}
                 </ul>
-                <button class="btn btn-admin" type="submit"><span>Save Install Profile</span></button>
+                <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}">
@@ -188,24 +206,6 @@
             </div>
         </div>
         <div class="admin-actions-grid">
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/services">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" name="return_to" value="device_detail">
-                <h3>Services</h3>
-                <div class="service-checklist">
-                    <label class="service-option"><input type="checkbox" name="main_sensor_enabled" value="1" {% if service_config.get("main_sensor_enabled", True) %}checked{% endif %}> Main Tank Sensor</label>
-                    <label class="service-option"><input type="checkbox" name="slave_device_enabled" value="1" {% if service_config.get("slave_device_enabled", True) %}checked{% endif %}> Slave Device</label>
-                    <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Source Tank Sensor</label>
-                    <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
-                    <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
-                    <label class="service-option"><input type="checkbox" name="ota_enabled" value="1" {% if service_config.get("ota_enabled") %}checked{% endif %}> OTA Service</label>
-                    <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled") %}checked{% endif %}> Local Firmware Upload</label>
-                    <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
-                    <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
-                </div>
-                <button class="btn btn-admin" type="submit"><span>Save Services</span></button>
-            </form>
-
             <div class="admin-form">
                 {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
                 {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
@@ -290,6 +290,35 @@ const DEVICE_ID={{ device_id|tojson }};
 const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const localeTools=window.swtLocale||{};
+function syncRuntimeConfigurationOptions(){
+  const slaveDevice=document.getElementById("slaveDeviceOption");
+  const slaveUpper=document.getElementById("slaveUpperSensorOption");
+  const slaveUpperRow=document.getElementById("slaveUpperSensorOptionRow");
+  const masterUpper=document.getElementById("masterUpperSensorOption");
+  if(!slaveDevice||!slaveUpper||!masterUpper)return;
+  const slaveEnabled=slaveDevice.checked;
+  slaveUpper.disabled=!slaveEnabled;
+  slaveUpperRow?.classList.toggle("is-disabled",!slaveEnabled);
+  if(!slaveEnabled){
+    slaveUpper.checked=false;
+    masterUpper.checked=true;
+  }else if(slaveUpper.checked){
+    masterUpper.checked=false;
+  }else if(!masterUpper.checked){
+    masterUpper.checked=true;
+  }
+}
+document.addEventListener("DOMContentLoaded",()=>{
+  syncRuntimeConfigurationOptions();
+  document.getElementById("slaveDeviceOption")?.addEventListener("change",syncRuntimeConfigurationOptions);
+  document.getElementById("slaveUpperSensorOption")?.addEventListener("change",syncRuntimeConfigurationOptions);
+  document.getElementById("masterUpperSensorOption")?.addEventListener("change",()=>{
+    const masterUpper=document.getElementById("masterUpperSensorOption");
+    const slaveUpper=document.getElementById("slaveUpperSensorOption");
+    if(masterUpper?.checked&&slaveUpper)slaveUpper.checked=false;
+    syncRuntimeConfigurationOptions();
+  });
+});
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
   if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
   const raw=String(value??"").trim();

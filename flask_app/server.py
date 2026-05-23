@@ -2282,8 +2282,8 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
     service_config = service_config or {}
     online = admin_device_is_online(entry)
 
-    relay_service = str(entry.get("command_service") or entry.get("relay_service") or "").strip().upper()
-    relay_enabled = relay_service not in {"DISABLED", "OFF"}
+    relay_service = str(entry.get("relay_service") or entry.get("command_service") or "").strip().upper()
+    relay_enabled = bool(service_config.get("relay_enabled", True)) and relay_service not in {"DISABLED", "OFF"}
     if bool_flag(entry.get("pump_failure")) or bool_flag(entry.get("dry_run")):
         relay_label, relay_tone = "No level rise", "warning"
     else:
@@ -4005,8 +4005,11 @@ def ensure_device_service_configs_table(cursor):
         CREATE TABLE IF NOT EXISTS device_service_configs(
             device_id TEXT PRIMARY KEY,
             main_sensor_enabled INTEGER NOT NULL DEFAULT 1,
+            master_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             slave_device_enabled INTEGER NOT NULL DEFAULT 1,
+            slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+            relay_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
             ota_enabled INTEGER NOT NULL DEFAULT 0,
@@ -4024,8 +4027,11 @@ def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
     required = {
         "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "master_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "relay_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
         "ota_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -4924,9 +4930,25 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         payload.get("cloud_feed_mode"),
         default=DEVICE_SERVICE_CLOUD_FEED_FULL if account_cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF,
     )
-    main_sensor_enabled = boolish_enabled(payload.get("main_sensor_enabled"), default=True)
-    slave_device_enabled = boolish_enabled(payload.get("slave_device_enabled"), default=True)
+    legacy_slave_enabled = boolish_enabled(payload.get("slave_device_enabled"), default=True)
+    slave_upper_sensor_enabled = boolish_enabled(
+        payload.get("slave_upper_sensor_enabled"),
+        default=legacy_slave_enabled,
+    )
+    slave_device_enabled = legacy_slave_enabled and slave_upper_sensor_enabled
+    master_upper_sensor_enabled = boolish_enabled(
+        payload.get("master_upper_sensor_enabled"),
+        default=not slave_device_enabled,
+    )
+    if not slave_device_enabled:
+        master_upper_sensor_enabled = True
+        slave_upper_sensor_enabled = False
+    main_sensor_enabled = master_upper_sensor_enabled or slave_upper_sensor_enabled or boolish_enabled(
+        payload.get("main_sensor_enabled"),
+        default=True,
+    )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
+    relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
     local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=False)
@@ -4938,7 +4960,13 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         and cloud_feed_mode == DEVICE_SERVICE_CLOUD_FEED_FULL
         and effective_cloud_feed_enabled
     )
-    hardware_enabled_count = int(ota_enabled) + int(local_firmware_upload_enabled) + int(buzzer_enabled) + int(led_display_enabled)
+    hardware_enabled_count = (
+        int(relay_enabled)
+        + int(ota_enabled)
+        + int(local_firmware_upload_enabled)
+        + int(buzzer_enabled)
+        + int(led_display_enabled)
+    )
     cloud_note = "Customer cloud access starts after an account is created."
     if account is not None:
         cloud_note = (
@@ -4950,8 +4978,12 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     return {
         "device_id": normalized_device_id,
         "main_sensor_enabled": main_sensor_enabled,
+        "master_upper_sensor_enabled": master_upper_sensor_enabled,
         "slave_device_enabled": slave_device_enabled,
+        "slave_upper_sensor_enabled": slave_upper_sensor_enabled,
+        "upper_sensor_source": "slave" if slave_device_enabled else "master",
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
+        "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
         "cloud_feed_mode": cloud_feed_mode,
@@ -4963,12 +4995,14 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "buzzer_enabled": buzzer_enabled,
         "led_display_enabled": led_display_enabled,
         "hardware_enabled_count": hardware_enabled_count,
-        "hardware_enabled_label": f"{hardware_enabled_count}/4 device services active",
+        "hardware_enabled_label": f"{hardware_enabled_count}/5 device services active",
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
-            f" • AI {ai_label}"
-            f" • Buzzer {'On' if buzzer_enabled else 'Off'}"
-            f" • LED {'On' if led_display_enabled else 'Off'}"
+            f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
+            f" | Relay {'On' if relay_enabled else 'Off'}"
+            f" | AI {ai_label}"
+            f" | Buzzer {'On' if buzzer_enabled else 'Off'}"
+            f" | LED {'On' if led_display_enabled else 'Off'}"
         ),
     }
 
@@ -4981,8 +5015,11 @@ def default_device_service_config(device_id=None, account=None):
         device_id,
         {
             "main_sensor_enabled": True,
+            "master_upper_sensor_enabled": False,
             "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
+            "relay_enabled": True,
             "ai_analysis_enabled": True,
             "cloud_feed_mode": (
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
@@ -5020,8 +5057,9 @@ def fetch_device_service_config(device_id, account=None):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, main_sensor_enabled, slave_device_enabled,
-                   source_tank_monitoring_enabled, ai_analysis_enabled,
+            SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
+                   slave_device_enabled, slave_upper_sensor_enabled,
+                   source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled,
                    created_at, updated_at
@@ -5042,8 +5080,9 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
     accounts_by_device = accounts_by_device or {}
     query = (
         """
-        SELECT device_id, main_sensor_enabled, slave_device_enabled,
-               source_tank_monitoring_enabled, ai_analysis_enabled,
+        SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
+               slave_device_enabled, slave_upper_sensor_enabled,
+               source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled,
                created_at, updated_at
@@ -5080,8 +5119,11 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
 def upsert_device_service_config(
     device_id,
     main_sensor_enabled=None,
+    master_upper_sensor_enabled=None,
     slave_device_enabled=None,
+    slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
+    relay_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
     ota_enabled=None,
@@ -5095,17 +5137,39 @@ def upsert_device_service_config(
 
     account = fetch_customer_account(normalized_device_id)
     existing = fetch_device_service_config(normalized_device_id, account=account)
-    resolved_main_sensor_enabled = boolish_enabled(
-        main_sensor_enabled,
-        default=existing.get("main_sensor_enabled", True),
-    )
-    resolved_slave_device_enabled = boolish_enabled(
+    requested_slave_device_enabled = boolish_enabled(
         slave_device_enabled,
         default=existing.get("slave_device_enabled", True),
+    )
+    requested_slave_upper_sensor_enabled = boolish_enabled(
+        slave_upper_sensor_enabled,
+        default=existing.get("slave_upper_sensor_enabled", requested_slave_device_enabled),
+    )
+    resolved_slave_device_enabled = requested_slave_device_enabled and requested_slave_upper_sensor_enabled
+    resolved_slave_upper_sensor_enabled = requested_slave_upper_sensor_enabled and resolved_slave_device_enabled
+    resolved_master_upper_sensor_enabled = boolish_enabled(
+        master_upper_sensor_enabled,
+        default=existing.get("master_upper_sensor_enabled", not resolved_slave_device_enabled),
+    )
+    if not resolved_slave_device_enabled:
+        resolved_master_upper_sensor_enabled = True
+        resolved_slave_upper_sensor_enabled = False
+    elif resolved_slave_upper_sensor_enabled:
+        resolved_master_upper_sensor_enabled = False
+    resolved_main_sensor_enabled = boolish_enabled(
+        main_sensor_enabled,
+        default=resolved_master_upper_sensor_enabled or resolved_slave_upper_sensor_enabled,
+    )
+    resolved_main_sensor_enabled = (
+        resolved_main_sensor_enabled or resolved_master_upper_sensor_enabled or resolved_slave_upper_sensor_enabled
     )
     resolved_source_tank_monitoring_enabled = boolish_enabled(
         source_tank_monitoring_enabled,
         default=existing.get("source_tank_monitoring_enabled", True),
+    )
+    resolved_relay_enabled = boolish_enabled(
+        relay_enabled,
+        default=existing.get("relay_enabled", True),
     )
     resolved_ai_analysis_enabled = boolish_enabled(
         ai_analysis_enabled,
@@ -5136,17 +5200,21 @@ def upsert_device_service_config(
         db.execute(
             """
             INSERT INTO device_service_configs(
-                device_id, main_sensor_enabled, slave_device_enabled,
-                source_tank_monitoring_enabled, ai_analysis_enabled,
+                device_id, main_sensor_enabled, master_upper_sensor_enabled,
+                slave_device_enabled, slave_upper_sensor_enabled,
+                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
+                master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
                 slave_device_enabled=excluded.slave_device_enabled,
+                slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
+                relay_enabled=excluded.relay_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
                 ota_enabled=excluded.ota_enabled,
@@ -5158,8 +5226,11 @@ def upsert_device_service_config(
             (
                 normalized_device_id,
                 1 if resolved_main_sensor_enabled else 0,
+                1 if resolved_master_upper_sensor_enabled else 0,
                 1 if resolved_slave_device_enabled else 0,
+                1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
+                1 if resolved_relay_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
                 1 if resolved_ota_enabled else 0,
@@ -5183,10 +5254,17 @@ def upsert_device_service_config(
 def build_device_service_command(service_config):
     config = service_config or {}
     slave_device_enabled = bool(config.get("slave_device_enabled", True))
+    slave_upper_sensor_enabled = bool(config.get("slave_upper_sensor_enabled", slave_device_enabled)) and slave_device_enabled
+    master_upper_sensor_enabled = bool(config.get("master_upper_sensor_enabled", not slave_upper_sensor_enabled))
+    if not slave_upper_sensor_enabled:
+        master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
-    return "SERVICECFG3:{slave}:{source}:{buzzer}:{led}:{ota}:{upload}".format(
-        slave=1 if slave_device_enabled else 0,
+    relay_enabled = bool(config.get("relay_enabled", True))
+    return "SERVICECFG4:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}".format(
+        master_upper=1 if master_upper_sensor_enabled else 0,
+        slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
+        relay=1 if relay_enabled else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
         led=1 if bool(config.get("led_display_enabled")) else 0,
         ota=1 if bool(config.get("ota_enabled")) else 0,
@@ -9788,8 +9866,11 @@ def mobile_device_services():
     updated_config = upsert_device_service_config(
         target_device,
         main_sensor_enabled=source_payload.get("main_sensor_enabled"),
+        master_upper_sensor_enabled=source_payload.get("master_upper_sensor_enabled"),
         slave_device_enabled=source_payload.get("slave_device_enabled"),
+        slave_upper_sensor_enabled=source_payload.get("slave_upper_sensor_enabled"),
         source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
+        relay_enabled=source_payload.get("relay_enabled"),
         ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
         cloud_feed_mode=source_payload.get("cloud_feed_mode"),
         ota_enabled=source_payload.get("ota_enabled"),
@@ -11092,16 +11173,37 @@ def device_simulator_enabled(device_id, snapshot=None):
 @csrf_protect
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    configuration_type = str(request.form.get("configuration_type") or "master_only").strip().lower()
-    master_slave_enabled = configuration_type == "master_slave"
-    main_sensor_enabled = "main_sensor_enabled" in request.form
-    lower_sensor_enabled = master_slave_enabled and "source_tank_monitoring_enabled" in request.form
+    slave_device_enabled = "slave_device_enabled" in request.form
+    slave_upper_sensor_enabled = slave_device_enabled and "slave_upper_sensor_enabled" in request.form
+    master_upper_sensor_enabled = "master_upper_sensor_enabled" in request.form
+    if not slave_upper_sensor_enabled:
+        master_upper_sensor_enabled = True
+    elif slave_upper_sensor_enabled:
+        master_upper_sensor_enabled = False
+    main_sensor_enabled = master_upper_sensor_enabled or slave_upper_sensor_enabled
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
             main_sensor_enabled=main_sensor_enabled,
-            slave_device_enabled=master_slave_enabled,
-            source_tank_monitoring_enabled=lower_sensor_enabled,
+            master_upper_sensor_enabled=master_upper_sensor_enabled,
+            slave_device_enabled=slave_device_enabled,
+            slave_upper_sensor_enabled=slave_upper_sensor_enabled,
+            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            relay_enabled=("relay_enabled" in request.form),
+            buzzer_enabled=("buzzer_enabled" in request.form),
+            led_display_enabled=("led_display_enabled" in request.form),
+            ai_analysis_enabled=("ai_analysis_enabled" in request.form),
+            cloud_feed_mode=(
+                DEVICE_SERVICE_CLOUD_FEED_OFF
+                if "cloud_feed_disabled" in request.form
+                else (
+                    DEVICE_SERVICE_CLOUD_FEED_FULL
+                    if "ai_analysis_enabled" in request.form
+                    else DEVICE_SERVICE_CLOUD_FEED_BASIC
+                )
+            ),
+            ota_enabled=("ota_enabled" in request.form),
+            local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
         )
         queued_command = build_device_service_command(updated_config)
         queue_command(queued_command, target_device=scoped_device_id)
