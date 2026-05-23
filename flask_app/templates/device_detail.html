@@ -34,6 +34,33 @@
     </div>
 
     {% set config_type = "master_slave" if service_config.get("slave_device_enabled") else "master_only" %}
+    {% if firmware_install_profile is not defined %}
+        {% if config_type == "master_slave" %}
+            {% set firmware_install_profile = {
+                "label": "Master + Slave",
+                "description": "Build swt_master for a pump master that receives upper tank level from a slave MCU.",
+                "flag_rows": [
+                    {"key": "SWT_FEATURE_MASTER_LOWER_SENSOR", "value": "1"},
+                    {"key": "SWT_ARCH_ID", "value": "1"},
+                    {"key": "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT", "value": "0"},
+                    {"key": "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT", "value": "1"},
+                    {"key": "SWT_DIRECT_PEER_ENABLED", "value": "1"}
+                ]
+            } %}
+        {% else %}
+            {% set firmware_install_profile = {
+                "label": "Master Only",
+                "description": "Build swt_master for a single MCU that reads the upper tank sensor locally.",
+                "flag_rows": [
+                    {"key": "SWT_FEATURE_MASTER_LOWER_SENSOR", "value": "0"},
+                    {"key": "SWT_ARCH_ID", "value": "4"},
+                    {"key": "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT", "value": "1"},
+                    {"key": "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT", "value": "0"},
+                    {"key": "SWT_DIRECT_PEER_ENABLED", "value": "0"}
+                ]
+            } %}
+        {% endif %}
+    {% endif %}
     <section class="summary-grid">
         <div class="summary-card">
             <div class="summary-label">Tank Level</div>

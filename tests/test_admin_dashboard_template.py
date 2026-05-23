@@ -175,6 +175,14 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "target_device=target_device" in mobile_firmware_routes
 
 
+def test_device_detail_install_profile_template_has_deploy_fallback():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert "{% if firmware_install_profile is not defined %}" in device_template
+    assert '"SWT_ARCH_ID", "value": "4"' in device_template
+    assert '"SWT_DIRECT_PEER_ENABLED", "value": "0"' in device_template
+
+
 def test_android_app_update_check_compares_installed_version_code():
     android_source = (
         PROJECT_ROOT.parent
