@@ -134,6 +134,22 @@ def test_dashboard_titles_are_simple_and_icon_precedes_title():
     assert "Home Water Dashboard" in login_template
 
 
+def test_device_detail_dashboard_button_returns_to_admin_dashboard():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert '<a class="btn" href="{{ url_for(\'admin_customers\') }}">Dashboard</a>' in device_template
+    assert '<a class="btn" href="/">Dashboard</a>' not in device_template
+
+
+def test_device_detail_uses_compact_balanced_cards_and_buttons():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert ".hero-actions .btn{height:36px;min-height:36px;min-width:96px" in device_template
+    assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
+    assert ".admin-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}" in device_template
+    assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
+
+
 def test_android_release_upload_modal_is_detached_and_shows_progress():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
