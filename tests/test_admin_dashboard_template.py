@@ -4,11 +4,12 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_admin_customer_page_renders_one_status_message_slot():
+def test_admin_customer_page_renders_one_popup_status_message_slot():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
-    assert template.count("{% if success %}") == 1
-    assert template.count("{% if error %}") == 1
+    assert template.count('id="upload_result_panel"') == 1
+    assert template.count("data-upload-result-message") == 2
+    assert '{% if error or success %}data-auto-open-panel{% endif %}' in template
 
 
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
@@ -150,11 +151,25 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
 
 
+def test_device_detail_upload_result_uses_closable_popup():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert 'data-result-modal role="dialog"' in device_template
+    assert 'data-result-close>Close</button>' in device_template
+    assert 'document.querySelector("[data-result-close]")?.addEventListener("click",closeResult)' in device_template
+    assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
+    assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template
+
+
 def test_android_release_upload_modal_is_detached_and_shows_progress():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
     assert 'data-android-upload-form' in admin_template
     assert 'data-android-upload-progress' in admin_template
+    assert 'id="upload_result_panel"' in admin_template
+    assert 'data-upload-result-message' in admin_template
+    assert 'showUploadResultPanel("Upload failed"' in admin_template
+    assert 'data-auto-open-panel' in admin_template
     assert 'request.upload.addEventListener("progress"' in admin_template
     assert 'document.body.appendChild(panel)' in admin_template
     assert 'panel.dataset.busy === "true"' in admin_template

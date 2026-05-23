@@ -716,12 +716,6 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                         <span class="pill pill-info">No Flask restart needed</span>
                         <span class="pill pill-clear">Keys are stored as hashes</span>
                     </div>
-                    {% if error %}
-                    <div class="message error" style="margin-bottom:14px">{{ error }}</div>
-                    {% endif %}
-                    {% if success %}
-                    <div class="message success" style="margin-bottom:14px">{{ success }}</div>
-                    {% endif %}
                     <div class="customer-access-layout">
                         <form method="post" action="/admin/devices/register" class="form-grid customer-access-form" data-register-device-form><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="service_updates_enabled" value="1"><input type="hidden" name="q" value="{{ search_query or '' }}">
                             <div class="group">
@@ -817,6 +811,19 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                             </form>
                         </div>
                     </div>
+                </div>
+            </div>
+            <div id="upload_result_panel" class="inline-panel" data-panel-mode="modal" {% if error or success %}data-auto-open-panel{% endif %} hidden>
+                <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="upload_result_title">
+                    <div class="modal-head">
+                        <div>
+                            <div class="eyebrow">Result</div>
+                            <h2 id="upload_result_title" data-upload-result-title>{% if error %}Upload failed{% elif success %}Upload successful{% else %}Upload result{% endif %}</h2>
+                            <p class="section-helper">Review the result, then close this popup to continue.</p>
+                        </div>
+                        <button class="modal-close" type="button" data-panel-dismiss>Close</button>
+                    </div>
+                    <div class="message {% if error %}error{% else %}success{% endif %}" data-upload-result-message>{{ error or success or "" }}</div>
                 </div>
             </div>
         </div>
@@ -1087,7 +1094,23 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
         updateBodyModalState();
     }
 
+    const uploadResultPanel = document.getElementById("upload_result_panel");
+    const uploadResultTitle = uploadResultPanel ? uploadResultPanel.querySelector("[data-upload-result-title]") : null;
+    const uploadResultMessage = uploadResultPanel ? uploadResultPanel.querySelector("[data-upload-result-message]") : null;
+    function showUploadResultPanel(title, message, tone = "error") {
+        if (!uploadResultPanel || !uploadResultMessage) return;
+        if (uploadResultTitle) uploadResultTitle.textContent = title || "Upload result";
+        uploadResultMessage.textContent = message || "The upload did not return a message.";
+        uploadResultMessage.classList.toggle("success", tone === "success");
+        uploadResultMessage.classList.toggle("error", tone !== "success");
+        uploadResultPanel.dataset.busy = "false";
+        setPanelState(uploadResultPanel, true);
+    }
+
     inlinePanels.forEach((panel) => setPanelState(panel, false));
+    if (uploadResultPanel && uploadResultPanel.hasAttribute("data-auto-open-panel")) {
+        setPanelState(uploadResultPanel, true);
+    }
     panelToggles.forEach((toggle) => {
         toggle.addEventListener("click", (event) => {
             event.preventDefault();
@@ -1185,6 +1208,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     submitButton.textContent = "Publish Android App";
                 }
                 setUploadProgress(100, "Upload failed", `Server returned HTTP ${request.status}.`, "error");
+                showUploadResultPanel("Upload failed", `Server returned HTTP ${request.status}.`, "error");
             });
 
             request.addEventListener("error", () => {
@@ -1194,6 +1218,7 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
                     submitButton.textContent = "Publish Android App";
                 }
                 setUploadProgress(100, "Upload failed", "Network error while uploading APK.", "error");
+                showUploadResultPanel("Upload failed", "Network error while uploading APK.", "error");
             });
 
             request.send(new FormData(androidUploadForm));
