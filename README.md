@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-05-23`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
@@ -25,7 +25,7 @@ Within the wider workspace:
 - Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
-- Optional HTTP relay and MQTT bridge support
+- Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifest at `/static/version.json`
 - MySQL/MariaDB schema initialization for local and hosted deployment
@@ -56,7 +56,7 @@ Within the wider workspace:
 2. Flask authenticates the device using the `X-Device-Id` and `X-Device-Key` headers. The legacy `device_id` and `device_key` JSON fields remain accepted for compatibility, but new clients should use headers.
 3. Telemetry is stored in MySQL, device registration is refreshed, and operational alerts can be updated.
 4. The dashboard and mobile APIs read snapshot, history, analytics, alerts, and audit data from the database.
-5. Browser or mobile control actions queue commands in `device_command_queue` and optionally publish them to MQTT.
+5. Browser or mobile control actions queue commands in `device_command_queue`; optional integrations can relay selected payloads when configured.
 6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
 
 ## Local Setup
@@ -183,15 +183,12 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `ANDROID_RELEASE_DIR`: Optional directory for admin-uploaded Android APK releases. Defaults under local `data/`.
 - `ANDROID_RELEASE_MAX_MB`: Maximum size accepted for an admin Android APK upload. Defaults to `128`.
 
-### Relay, notifications, and MQTT
+### Relay and notifications
 
 - `RELAY_STATUS_URLS`: Comma-separated telemetry relay targets. Bare origins are treated as `/status`, and same-host request loops are skipped.
 - `RELAY_COMMAND_URLS`: Comma-separated remote command relay targets. Bare origins are treated as `/device/command`, and same-host request loops are skipped.
 - `RELAY_VERIFY_TLS`: TLS verification for relay HTTP calls.
 - `ALERT_WEBHOOK_URL`, `SLACK_WEBHOOK_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `WHATSAPP_WEBHOOK_URL`: Optional alert integrations.
-- `MQTT_ENABLED`: Enables MQTT bridge behavior.
-- `MQTT_BROKER_HOST`, `MQTT_BROKER_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD`
-- `MQTT_TOPIC_PREFIX`, `MQTT_KEEPALIVE_SEC`, `MQTT_QOS`, `MQTT_COMMAND_RETAIN`
 
 ### Analytics and forecasting
 
