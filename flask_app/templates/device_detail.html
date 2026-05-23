@@ -97,15 +97,15 @@
                 <p>Complete controller, relay, sensor, service, and network information from the latest sync.</p>
             </div>
         </div>
-        <div class="detail-grid" style="margin-top:16px">
-            <div class="detail-card">
-                <div class="detail-label">Tank Health</div>
-                <div id="healthStatus" class="detail-value">--</div>
+        <div class="info-grid" style="margin-top:16px">
+            <div class="info-item">
+                <div class="info-label">Tank Health</div>
+                <span id="healthStatus" class="info-value">--</span>
                 <div id="healthReason" class="detail-note">--</div>
             </div>
-            <div id="sourceCard" class="detail-card hidden-section">
-                <div class="detail-label">Source Tank</div>
-                <div id="sourceLevel" class="detail-value">--</div>
+            <div id="sourceCard" class="info-item hidden-section">
+                <div class="info-label">Source Tank</div>
+                <span id="sourceLevel" class="info-value">--</span>
                 <div id="sourceInfo" class="detail-note">--</div>
             </div>
         </div>
@@ -154,12 +154,6 @@
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled") %}checked{% endif %}> Local Firmware Upload</label>
                     </div>
                 </div>
-                <div class="helper-text">{{ firmware_install_profile.description }}</div>
-                <ul class="flag-list" aria-label="Required master firmware build flags">
-                    {% for row in firmware_install_profile.flag_rows %}
-                    <li><span>{{ row.key }}</span><span>{{ row.value }}</span></li>
-                    {% endfor %}
-                </ul>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
 

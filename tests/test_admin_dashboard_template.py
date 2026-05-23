@@ -170,7 +170,6 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert 'name="slave_upper_sensor_enabled"' in device_template
     assert 'name="relay_enabled"' in device_template
     assert "syncRuntimeConfigurationOptions" in device_template
-    assert "Required master firmware build flags" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template
     assert ".release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px" in admin_template
@@ -186,6 +185,7 @@ def test_device_detail_install_profile_template_has_deploy_fallback():
     assert "{% if firmware_install_profile is not defined %}" in device_template
     assert '"SWT_ARCH_ID", "value": "4"' in device_template
     assert '"SWT_DIRECT_PEER_ENABLED", "value": "0"' in device_template
+    assert "Required master firmware build flags" not in device_template
 
 
 def test_android_app_update_check_compares_installed_version_code():
