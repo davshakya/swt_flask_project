@@ -168,17 +168,29 @@ def test_device_detail_upload_result_uses_closable_popup():
 def test_device_detail_renders_master_slave_memory_health_graph():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    firmware_source = (PROJECT_ROOT.parent / "swt_firmware_project" / "src" / "two_node_udp.cpp").read_text(encoding="utf-8")
 
     assert "Memory Health" in device_template
     assert 'id="memoryChartWrap"' in device_template
     assert "function renderMemoryHealth(history,snapshot,serviceConfig)" in device_template
     assert "snapshotHeap=Number(snapshot?.free_heap)" in device_template
+    assert "snapshotSlaveHeap=Number(snapshot?.slave_free_heap)" in device_template
+    assert "Master CPU" in device_template
+    assert "Slave CPU" in device_template
     assert "memory-line-master" in device_template
     assert "memory-line-slave" in device_template
+    assert "memory-live-wave" in device_template
+    assert "wavePathFor" in device_template
     assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
-    assert "free_heap, node_role, device_type, created_at" in server_source
+    assert "slave_free_heap" in server_source
+    assert "slave_cpu_utilization_pct" in server_source
+    assert "cpu_utilization_pct REAL" in server_source
     assert '"free_heap": row["free_heap"]' in server_source
+    assert '"slave_free_heap": row["slave_free_heap"]' in server_source
     assert "fetch_device_history(scoped_device_id, limit=48)" in server_source
+    assert 'doc["slave_free_heap"] = lastSlaveFreeHeap' in firmware_source
+    assert 'doc["cpu_utilization_pct"] = cpuUtilizationPct' in firmware_source
+    assert 'doc["free_heap"] = ESP.getFreeHeap()' in firmware_source
 
 
 def test_android_release_upload_modal_is_detached_and_shows_progress():

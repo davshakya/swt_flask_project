@@ -3212,6 +3212,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("auto_timer"),
         cleaned.get("tank_health"),
         cleaned.get("free_heap"),
+        cleaned.get("cpu_utilization_pct"),
+        cleaned.get("slave_free_heap"),
+        cleaned.get("slave_cpu_utilization_pct"),
+        cleaned.get("slave_uptime_s"),
         cleaned.get("uptime_s"),
         cleaned.get("lower_tank_level"),
         cleaned.get("lower_sensor"),
@@ -3257,7 +3261,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
                 auto_status, auto_status_tone, auto_timer,
-                tank_health, free_heap, uptime_s,
+                tank_health, free_heap, cpu_utilization_pct,
+                slave_free_heap, slave_cpu_utilization_pct, slave_uptime_s,
+                uptime_s,
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 device_id, firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
@@ -3657,6 +3663,10 @@ def ensure_tank_data_columns(cursor):
         "auto_timer": "TEXT",
         "tank_health": "REAL",
         "free_heap": "INTEGER",
+        "cpu_utilization_pct": "REAL",
+        "slave_free_heap": "INTEGER",
+        "slave_cpu_utilization_pct": "REAL",
+        "slave_uptime_s": "INTEGER",
         "uptime_s": "INTEGER",
         "lower_tank_level": "REAL",
         "lower_sensor": "TEXT",
@@ -3740,6 +3750,10 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             auto_timer TEXT,
             tank_health REAL,
             free_heap INTEGER,
+            cpu_utilization_pct REAL,
+            slave_free_heap INTEGER,
+            slave_cpu_utilization_pct REAL,
+            slave_uptime_s INTEGER,
             uptime_s INTEGER,
             lower_tank_level REAL,
             lower_sensor TEXT,
@@ -4234,6 +4248,10 @@ def init_db():
                 auto_timer TEXT,
                 tank_health REAL,
                 free_heap INTEGER,
+                cpu_utilization_pct REAL,
+                slave_free_heap INTEGER,
+                slave_cpu_utilization_pct REAL,
+                slave_uptime_s INTEGER,
                 uptime_s INTEGER,
                 lower_tank_level REAL,
                 lower_sensor TEXT,
@@ -5767,6 +5785,32 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         free_heap_value = None
     data["free_heap"] = free_heap_value
     data["free_heap_label"] = f"{free_heap_value} B" if free_heap_value is not None else "--"
+    slave_free_heap = data.get("slave_free_heap")
+    try:
+        slave_free_heap_value = int(slave_free_heap) if slave_free_heap is not None else None
+    except (TypeError, ValueError):
+        slave_free_heap_value = None
+    if slave_free_heap_value is not None and slave_free_heap_value <= 0:
+        slave_free_heap_value = None
+    data["slave_free_heap"] = slave_free_heap_value
+    data["slave_free_heap_label"] = f"{slave_free_heap_value} B" if slave_free_heap_value is not None else "--"
+    for key in ("cpu_utilization_pct", "slave_cpu_utilization_pct"):
+        try:
+            cpu_value = float(data.get(key)) if data.get(key) is not None else None
+        except (TypeError, ValueError):
+            cpu_value = None
+        if cpu_value is not None:
+            if cpu_value < 0:
+                cpu_value = None
+            else:
+                cpu_value = max(0.0, min(100.0, cpu_value))
+        data[key] = round(cpu_value, 1) if cpu_value is not None else None
+        data[f"{key}_label"] = f"{data[key]:.1f}%" if data[key] is not None else "--"
+    try:
+        data["slave_uptime_s"] = int(data["slave_uptime_s"]) if data.get("slave_uptime_s") not in (None, "", "null") else None
+    except (TypeError, ValueError):
+        data["slave_uptime_s"] = None
+    data["slave_uptime_label"] = format_compact_uptime(data.get("slave_uptime_s"))
     auto_status = str(data.get("auto_status") or "").strip()
     auto_status_tone = str(data.get("auto_status_tone") or "").strip().lower()
     auto_timer = str(data.get("auto_timer") or "").strip()
@@ -6516,6 +6560,10 @@ def build_empty_snapshot_payload(device_id=None):
         "direct_peer_last_packet_bytes": None,
         "uptime_label": "--",
         "free_heap_label": "--",
+        "cpu_utilization_pct_label": "--",
+        "slave_free_heap_label": "--",
+        "slave_cpu_utilization_pct_label": "--",
+        "slave_uptime_label": "--",
         "lower_tank_level": None,
         "lower_sensor": "DISABLED",
         "lower_sensor_info": "Lower sensor disabled",
@@ -8267,7 +8315,8 @@ def fetch_device_history(device_id, limit=48):
         rows = db.execute(
             f"""
             SELECT level, lower_tank_level, motor, sensor, wifi_rssi,
-                   free_heap, node_role, device_type, created_at
+                   free_heap, cpu_utilization_pct, slave_free_heap,
+                   slave_cpu_utilization_pct, node_role, device_type, created_at
             FROM tank_data
             WHERE device_id = ?
               AND {source_clause}
@@ -8288,6 +8337,9 @@ def fetch_device_history(device_id, limit=48):
                 "sensor": row["sensor"],
                 "wifi_rssi": row["wifi_rssi"],
                 "free_heap": row["free_heap"],
+                "cpu_utilization_pct": row["cpu_utilization_pct"],
+                "slave_free_heap": row["slave_free_heap"],
+                "slave_cpu_utilization_pct": row["slave_cpu_utilization_pct"],
                 "node_role": row["node_role"],
                 "device_type": row["device_type"],
             }
