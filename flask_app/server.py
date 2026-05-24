@@ -6100,6 +6100,17 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "forecast_confidence": 20,
             "anomaly_count": 0,
             "anomalies": [],
+            "leakage": {
+                "model": "telemetry-leakage-ai-v1",
+                "status": "normal",
+                "label": "No leakage pattern",
+                "severity": "ok",
+                "score": 0,
+                "confidence": 20,
+                "leak_type": "none",
+                "features": {},
+                "reasons": ["Not enough telemetry is available for leakage analysis."],
+            },
             "model": {
                 "family": "robust-rule-ml-hybrid",
                 "signals": [],
@@ -6239,6 +6250,131 @@ def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usag
     return round(max(0.0, baseline), 2)
 
 
+def percentile_value(values, percentile):
+    numeric_values = sorted(float(value) for value in values if value is not None and math.isfinite(float(value)))
+    if not numeric_values:
+        return 0.0
+    if len(numeric_values) == 1:
+        return numeric_values[0]
+    position = (len(numeric_values) - 1) * max(0.0, min(100.0, float(percentile))) / 100.0
+    lower_index = int(math.floor(position))
+    upper_index = int(math.ceil(position))
+    if lower_index == upper_index:
+        return numeric_values[lower_index]
+    lower_value = numeric_values[lower_index]
+    upper_value = numeric_values[upper_index]
+    return lower_value + ((upper_value - lower_value) * (position - lower_index))
+
+
+def build_leakage_ai_model(
+    *,
+    leak_events,
+    consumption_rate,
+    consumption_rate_segments,
+    usage_change_pct,
+    motor_cycles,
+    refill_events,
+    valid_hours,
+    valid_drop_count,
+    quality,
+):
+    rates = [float(value) for value in (consumption_rate_segments or []) if value is not None and math.isfinite(float(value)) and value > 0]
+    median_rate = percentile_value(rates, 50)
+    p90_rate = percentile_value(rates, 90)
+    latest_rates = rates[-min(6, len(rates)) :] if rates else []
+    latest_rate = sum(latest_rates) / len(latest_rates) if latest_rates else 0.0
+    baseline = median_rate if median_rate > 0 else max(1.0, float(consumption_rate or 0.0))
+    rate_ratio = (latest_rate or float(consumption_rate or 0.0)) / baseline if baseline > 0 else 0.0
+
+    score = 0.0
+    reasons = []
+    if leak_events > 0:
+        score += min(55.0, 35.0 + (leak_events * 4.0))
+        reasons.append("Device leak flags were active.")
+    if valid_drop_count >= 3 and valid_hours >= 1:
+        score += min(18.0, 8.0 + valid_drop_count)
+        reasons.append("Tank level dropped repeatedly while the pump was off.")
+    if p90_rate >= 20:
+        score += 26.0
+        reasons.append("Peak off-pump loss rate is very high.")
+    elif p90_rate >= 10:
+        score += 16.0
+        reasons.append("Peak off-pump loss rate is above normal.")
+    if consumption_rate >= 15:
+        score += 16.0
+        reasons.append("Average consumption rate is high for the selected range.")
+    elif consumption_rate >= 8:
+        score += 8.0
+    if rate_ratio >= 2.5 and latest_rate >= 5:
+        score += 18.0
+        reasons.append("Recent usage is much higher than the learned baseline.")
+    elif rate_ratio >= 1.7 and latest_rate >= 3:
+        score += 10.0
+    if usage_change_pct is not None and usage_change_pct >= 60:
+        score += 22.0
+        reasons.append("Daily usage jumped sharply against the previous day.")
+    elif usage_change_pct is not None and usage_change_pct >= 25:
+        score += 12.0
+        reasons.append("Daily usage is above the recent baseline.")
+    if motor_cycles > 12:
+        score += 6.0
+    if refill_events > 0 and leak_events <= 0:
+        score = max(0.0, score - min(12.0, refill_events * 3.0))
+
+    quality_score = safe_float((quality or {}).get("score"), 35)
+    if quality_score < 60:
+        score *= 0.82
+        reasons.append("Telemetry quality is limited, so the model reduced confidence.")
+
+    score = round(max(0.0, min(100.0, score)), 1)
+    confidence = int(max(20, min(96, quality_score + (10 if len(rates) >= 6 else -8) + (8 if leak_events > 0 else 0))))
+    if score >= 70:
+        status = "likely_leak"
+        severity = "danger"
+        label = "Likely leakage"
+    elif score >= 45:
+        status = "possible_leak"
+        severity = "warning"
+        label = "Possible leakage"
+    elif score >= 30:
+        status = "watch"
+        severity = "info"
+        label = "Watch usage"
+    else:
+        status = "normal"
+        severity = "ok"
+        label = "No leakage pattern"
+
+    leak_type = "none"
+    if score >= 45:
+        if leak_events > 0 or p90_rate >= 20:
+            leak_type = "pipe_leak"
+        elif valid_drop_count >= 3 or rate_ratio >= 1.7:
+            leak_type = "slow_leak"
+        else:
+            leak_type = "usage_anomaly"
+
+    return {
+        "model": "telemetry-leakage-ai-v1",
+        "status": status,
+        "label": label,
+        "severity": severity,
+        "score": score,
+        "confidence": confidence,
+        "leak_type": leak_type,
+        "features": {
+            "off_pump_drop_count": int(valid_drop_count),
+            "usable_hours": round(float(valid_hours or 0.0), 2),
+            "avg_loss_rate_pct_per_hour": round(float(consumption_rate or 0.0), 2),
+            "p90_loss_rate_pct_per_hour": round(float(p90_rate), 2),
+            "recent_to_baseline_ratio": round(float(rate_ratio), 2),
+            "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
+            "device_leak_events": int(leak_events or 0),
+        },
+        "reasons": reasons[:5] or ["No unusual off-pump water loss pattern was found."],
+    }
+
+
 def build_analysis_payload(
     *,
     quality,
@@ -6250,14 +6386,25 @@ def build_analysis_payload(
     motor_cycles,
     refill_events,
     event_analysis=None,
+    leakage_model=None,
 ):
     event_analysis = event_analysis or {}
+    leakage_model = leakage_model or {}
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
     anomalies = []
     event_leak_count = sum(int(event_counts.get(kind, 0) or 0) for kind in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     if leak_events > 0 or event_leak_count > 0:
         anomalies.append({"kind": "leak_signal", "severity": "danger", "message": "Leak indicators were active in this range."})
+    if leakage_model.get("status") in {"likely_leak", "possible_leak"} and leak_events <= 0 and event_leak_count <= 0:
+        anomalies.append(
+            {
+                "kind": "ai_leakage",
+                "severity": leakage_model.get("severity") or "warning",
+                "message": "AI/ML telemetry pattern suggests possible leakage.",
+                "score": leakage_model.get("score"),
+            }
+        )
     if usage_change_pct is not None and usage_change_pct >= 60:
         anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
     elif usage_change_pct is not None and usage_change_pct >= 25:
@@ -6290,6 +6437,7 @@ def build_analysis_payload(
             "warning_count": int(severity_counts.get("warning", 0) or 0),
             "danger_count": int(severity_counts.get("danger", 0) or 0),
         },
+        "leakage": leakage_model,
         "model": {
             "family": "robust-rule-ml-hybrid",
             "signals": [
@@ -6298,6 +6446,7 @@ def build_analysis_payload(
                 "daily_baseline",
                 "pump_cycles",
                 "leak_flags",
+                "ai_leakage_score",
                 "telemetry_quality",
             ],
         },
@@ -6379,6 +6528,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
     comparison = analytics_payload.get("comparison") or {}
+    leakage_model = analysis.get("leakage") or {}
 
     level = safe_float(snapshot.get("level"), 0)
     motor = str(snapshot.get("motor") or "").upper()
@@ -6396,6 +6546,8 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         usage_change = None
 
     pipe_leak = any(bool_flag(snapshot.get(key)) for key in ("pipe_leak", "slow_leak", "drip"))
+    ai_leak_status = str(leakage_model.get("status") or "").lower()
+    ai_leak_active = ai_leak_status in {"likely_leak", "possible_leak"}
     dry_run = bool_flag(snapshot.get("dry_run"))
     source_blocked = (
         source_service == "ON"
@@ -6440,6 +6592,15 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         action_note = "Keep watching the trend after inspection to confirm it settles."
         observations.append("Leak-related alerts are active on the device.")
         actions.append("Check pipes, valves, and overflow points for unexpected water loss.")
+    elif ai_leak_active:
+        severity = "critical" if ai_leak_status == "likely_leak" else "warning"
+        tone = "bad" if severity == "critical" else "warn"
+        title = "AI found a leakage pattern"
+        summary = f"Telemetry leakage score is {safe_float(leakage_model.get('score'), 0):.0f}%."
+        action_title = "Inspect pipes and taps"
+        action_note = "Check outlets, flush lines, valves, overflow, and hidden damp areas, then compare the next trend."
+        observations.extend((leakage_model.get("reasons") or [])[:2])
+        actions.append("Inspect pipes, taps, valves, overflow, and pump line for continuous water loss.")
     elif source_blocked:
         severity = "warning"
         tone = "warn"
@@ -6962,6 +7123,17 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         valid_drop_count=valid_drop_count,
         latest_seconds_since_sync=latest_row["seconds_since_sync"],
     )
+    leakage_model = build_leakage_ai_model(
+        leak_events=leak_events,
+        consumption_rate=consumption_rate,
+        consumption_rate_segments=consumption_rate_segments,
+        usage_change_pct=usage_change_pct,
+        motor_cycles=motor_cycles,
+        refill_events=refill_events,
+        valid_hours=valid_hours,
+        valid_drop_count=valid_drop_count,
+        quality=analytics_quality,
+    )
     health = calculate_health(
         snapshot=latest_row,
         leak_events=leak_events,
@@ -6972,6 +7144,10 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     alerts = []
     if leak_events > 0:
         alerts.append("Possible pipe leak detected in the selected period.")
+    elif leakage_model.get("status") == "likely_leak":
+        alerts.append("AI/ML model found a likely leakage pattern in tank level history.")
+    elif leakage_model.get("status") == "possible_leak":
+        alerts.append("AI/ML model found a possible leakage pattern. Inspect pipes and taps.")
     if consumption_rate > 15:
         alerts.append("Water consumption is above the usual range.")
     if empty_prediction is not None and empty_prediction < 6:
@@ -7067,6 +7243,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         motor_cycles=motor_cycles,
         refill_events=refill_events,
         event_analysis=event_analysis,
+        leakage_model=leakage_model,
     )
     if normalized_device_id:
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
