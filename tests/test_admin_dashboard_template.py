@@ -175,13 +175,15 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "function renderMemoryHealth(history,snapshot,serviceConfig)" in device_template
     assert "snapshotHeap=Number(snapshot?.free_heap)" in device_template
     assert "snapshotSlaveHeap=Number(snapshot?.slave_free_heap)" in device_template
-    assert "Master CPU" in device_template
-    assert "Slave CPU" in device_template
+    assert "Master CPU" not in device_template
+    assert "Slave CPU" not in device_template
     assert "memory-line-master" in device_template
     assert "memory-line-slave" in device_template
-    assert "health-chart-grid" in device_template
-    assert 'title:"Heap"' in device_template
-    assert 'title:"CPU"' in device_template
+    assert "health-chart-grid" not in device_template
+    assert 'title:"Heap Graph"' in device_template
+    assert 'title:"CPU Graph"' not in device_template
+    assert "chart-series-legend" in device_template
+    assert "Master + Slave" in device_template
     assert "memory-live-wave" not in device_template
     assert "wavePathFor" not in device_template
     assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
