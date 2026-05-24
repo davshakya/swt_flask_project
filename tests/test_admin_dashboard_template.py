@@ -165,6 +165,21 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert "{% if config_message or config_error %}" not in device_template
 
 
+def test_device_detail_renders_master_slave_memory_health_graph():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "Memory Health" in device_template
+    assert 'id="memoryChartWrap"' in device_template
+    assert "function renderMemoryHealth(history,snapshot,serviceConfig)" in device_template
+    assert "memory-line-master" in device_template
+    assert "memory-line-slave" in device_template
+    assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
+    assert "free_heap, node_role, device_type, created_at" in server_source
+    assert '"free_heap": row["free_heap"]' in server_source
+    assert "fetch_device_history(scoped_device_id, limit=48)" in server_source
+
+
 def test_android_release_upload_modal_is_detached_and_shows_progress():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 

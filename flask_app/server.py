@@ -8266,7 +8266,8 @@ def fetch_device_history(device_id, limit=48):
     with get_db() as db:
         rows = db.execute(
             f"""
-            SELECT level, lower_tank_level, motor, sensor, wifi_rssi, created_at
+            SELECT level, lower_tank_level, motor, sensor, wifi_rssi,
+                   free_heap, node_role, device_type, created_at
             FROM tank_data
             WHERE device_id = ?
               AND {source_clause}
@@ -8286,6 +8287,9 @@ def fetch_device_history(device_id, limit=48):
                 "motor": row["motor"],
                 "sensor": row["sensor"],
                 "wifi_rssi": row["wifi_rssi"],
+                "free_heap": row["free_heap"],
+                "node_role": row["node_role"],
+                "device_type": row["device_type"],
             }
         )
     return history
@@ -11347,7 +11351,7 @@ def device_detail_status(device_id):
         snapshot_payload["simulator"] = "ON"
     alerts = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
     audit = fetch_audit_events(limit=10, device_id=scoped_device_id)
-    history = fetch_device_history(scoped_device_id, limit=10)
+    history = fetch_device_history(scoped_device_id, limit=48)
     events = build_events(limit=10, device_id=scoped_device_id)
     return jsonify(
         {
