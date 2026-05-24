@@ -175,6 +175,9 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "function renderMemoryHealth(history,snapshot,serviceConfig)" in device_template
     assert "snapshotHeap=Number(snapshot?.free_heap)" in device_template
     assert "snapshotSlaveHeap=Number(snapshot?.slave_free_heap)" in device_template
+    assert "const usesSlave=Boolean(serviceConfig?.slave_device_enabled)" in device_template
+    assert 'const slaveStat=usesSlave?' in device_template
+    assert 'const slaveLegend=usesSlave?' in device_template
     assert "Master CPU" not in device_template
     assert "Slave CPU" not in device_template
     assert "memory-line-master" in device_template
