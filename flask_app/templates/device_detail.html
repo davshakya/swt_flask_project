@@ -484,9 +484,14 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
   const wrap=document.getElementById("memoryChartWrap");
   const legend=document.getElementById("memoryLegend");
   if(!wrap)return;
-  const rows=(Array.isArray(history)?history:[])
+  const historyRows=Array.isArray(history)?history:[];
+  let rows=historyRows
     .map((row,index)=>({row,index,value:Number(row?.free_heap)}))
     .filter((entry)=>Number.isFinite(entry.value)&&entry.value>0);
+  const snapshotHeap=Number(snapshot?.free_heap);
+  if(!rows.length&&Number.isFinite(snapshotHeap)&&snapshotHeap>0){
+    rows=[{row:{...snapshot,time:snapshot?.last_sync_at,node_role:snapshot?.node_role,device_type:snapshot?.device_type},index:0,value:snapshotHeap}];
+  }
   if(!rows.length){
     wrap.innerHTML='<div class="memory-empty">Memory telemetry has not been reported yet.</div>';
     if(legend)legend.innerHTML="";
@@ -513,7 +518,7 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
   const margin={left:58,right:18,top:18,bottom:34};
   const innerWidth=width-margin.left-margin.right;
   const innerHeight=height-margin.top-margin.bottom;
-  const maxIndex=Math.max(1,(history||[]).length-1);
+  const maxIndex=Math.max(1,historyRows.length?historyRows.length-1:rows.length-1);
   const x=(index)=>margin.left+(index/maxIndex)*innerWidth;
   const y=(value)=>margin.top+((maxValue-value)/(maxValue-minValue))*innerHeight;
   const pathFor=(points)=>points.map((entry,pointIndex)=>`${pointIndex?"L":"M"}${x(entry.index).toFixed(1)},${y(entry.value).toFixed(1)}`).join(" ");
@@ -522,7 +527,9 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
   const grid=gridValues.map((value)=>`<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"></line><text x="10" y="${(y(value)+4).toFixed(1)}">${escapeHtml(formatBytes(value))}</text>`).join("");
   const thresholdY=y(lowThreshold);
   const lines=activeRoles.map((role)=>series[role].length>1?`<path class="memory-line-${role}" d="${pathFor(series[role])}"></path>`:"").join("");
-  wrap.innerHTML=`<div class="memory-chart-wrap"><svg class="memory-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Master and slave free heap trend">${grid}<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${thresholdY.toFixed(1)}" y2="${thresholdY.toFixed(1)}" stroke-dasharray="5 5"></line><text x="${width-margin.right-108}" y="${(thresholdY-6).toFixed(1)}">Low memory line</text>${lines}${activeRoles.map((role)=>dotsFor(role)).join("")}<text x="${margin.left}" y="${height-10}">${escapeHtml(formatLocaleDateTime(history[0]?.time,"First point"))}</text><text x="${width-margin.right-122}" y="${height-10}">${escapeHtml(formatLocaleDateTime(history[history.length-1]?.time,"Latest point"))}</text></svg></div>`;
+  const firstTime=historyRows[0]?.time||rows[0]?.row?.time;
+  const latestTime=historyRows[historyRows.length-1]?.time||rows[rows.length-1]?.row?.time;
+  wrap.innerHTML=`<div class="memory-chart-wrap"><svg class="memory-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Master and slave free heap trend">${grid}<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${thresholdY.toFixed(1)}" y2="${thresholdY.toFixed(1)}" stroke-dasharray="5 5"></line><text x="${width-margin.right-108}" y="${(thresholdY-6).toFixed(1)}">Low memory line</text>${lines}${activeRoles.map((role)=>dotsFor(role)).join("")}<text x="${margin.left}" y="${height-10}">${escapeHtml(formatLocaleDateTime(firstTime,"Current point"))}</text><text x="${width-margin.right-122}" y="${height-10}">${escapeHtml(formatLocaleDateTime(latestTime,"Latest point"))}</text></svg></div>`;
   if(legend){
     legend.innerHTML=activeRoles.map((role)=>{
       const latest=series[role][series[role].length-1];

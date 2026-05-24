@@ -172,6 +172,7 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "Memory Health" in device_template
     assert 'id="memoryChartWrap"' in device_template
     assert "function renderMemoryHealth(history,snapshot,serviceConfig)" in device_template
+    assert "snapshotHeap=Number(snapshot?.free_heap)" in device_template
     assert "memory-line-master" in device_template
     assert "memory-line-slave" in device_template
     assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
