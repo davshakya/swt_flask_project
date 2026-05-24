@@ -179,8 +179,11 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "Slave CPU" in device_template
     assert "memory-line-master" in device_template
     assert "memory-line-slave" in device_template
-    assert "memory-live-wave" in device_template
-    assert "wavePathFor" in device_template
+    assert "health-chart-grid" in device_template
+    assert 'title:"Heap"' in device_template
+    assert 'title:"CPU"' in device_template
+    assert "memory-live-wave" not in device_template
+    assert "wavePathFor" not in device_template
     assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
     assert "slave_free_heap" in server_source
     assert "slave_cpu_utilization_pct" in server_source
