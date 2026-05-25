@@ -2678,7 +2678,7 @@ color:var(--brand-deep);
 }
 .chatbot-form{
 display:grid;
-grid-template-columns:minmax(0,1fr) auto;
+grid-template-columns:auto minmax(0,1fr);
 gap:8px;
 padding:12px 16px 16px;
 background:rgba(255,255,255,.5);
@@ -2694,7 +2694,7 @@ color:var(--text);
 }
 .chatbot-form button{
 min-height:42px;
-padding:10px 14px;
+padding:10px 16px;
 border:0;
 border-radius:14px;
 background:var(--button-secondary);
@@ -3150,16 +3150,66 @@ max-width:180px;
 padding:12px;
 }
 .site-chatbot{
-right:12px;
-bottom:12px;
+right:10px;
+bottom:10px;
+left:10px;
+justify-items:stretch;
 }
 .chatbot-panel{
-height:min(620px,calc(100vh - 96px));
+width:100%;
+height:min(470px,calc(100dvh - 84px));
+max-height:calc(100dvh - 84px);
 border-radius:20px;
+}
+.chatbot-header{
+padding:10px 12px;
+gap:8px;
+}
+.chatbot-avatar{
+width:32px;
+height:32px;
+border-radius:12px;
+}
+.chatbot-avatar img{
+width:25px;
+height:25px;
+}
+.chatbot-title strong{
+font-size:14px;
+line-height:1.1;
+}
+.chatbot-title span{
+display:none;
+}
+.chatbot-close{
+width:32px;
+height:32px;
+border-radius:10px;
+}
+.chatbot-messages{
+gap:7px;
+padding:10px 12px;
+}
+.chatbot-message{
+max-width:94%;
+padding:9px 11px;
+font-size:12px;
+line-height:1.38;
+border-radius:14px;
+}
+.chatbot-suggestions{
+gap:6px;
+padding:8px 10px 0;
+}
+.chatbot-chip{
+min-height:30px;
+padding:6px 9px;
+font-size:11px;
 }
 .chatbot-launcher{
 min-height:52px;
 padding:8px 12px 8px 8px;
+justify-self:end;
 }
 .chatbot-launcher-icon{
 width:38px;
@@ -3170,10 +3220,67 @@ font-size:20px;
 display:none;
 }
 .chatbot-form{
-grid-template-columns:1fr;
+grid-template-columns:auto minmax(0,1fr);
+gap:7px;
+padding:9px 10px 10px;
 }
 .chatbot-form button{
-width:100%;
+width:auto;
+min-width:62px;
+min-height:40px;
+padding:9px 12px;
+grid-column:1;
+grid-row:1;
+font-size:13px;
+}
+.chatbot-form input{
+min-height:40px;
+padding:9px 11px;
+grid-column:2;
+grid-row:1;
+font-size:16px;
+}
+.promo-card{
+padding:14px;
+gap:14px;
+border-radius:24px;
+}
+.promo-copy h3{
+font-size:24px;
+}
+.promo-media{
+width:min(100%,360px);
+min-height:0;
+aspect-ratio:4 / 3;
+justify-self:center;
+border-radius:20px;
+}
+}
+@media (max-width:420px){
+.chatbot-panel{
+height:min(390px,calc(100dvh - 76px));
+max-height:calc(100dvh - 76px);
+}
+.chatbot-launcher{
+min-height:46px;
+padding:7px 10px 7px 7px;
+}
+.chatbot-launcher-icon{
+width:34px;
+height:34px;
+font-size:18px;
+}
+.chatbot-launcher strong{
+font-size:13px;
+}
+.chatbot-messages{
+max-height:170px;
+}
+.chatbot-suggestions{
+max-height:39px;
+}
+.chatbot-form input{
+min-width:0;
 }
 }
 </style>
@@ -4324,7 +4431,7 @@ width:100%;
             <button class="chatbot-close" id="chatbotClose" type="button" aria-label="Close chat">&times;</button>
         </div>
         <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
-            <div class="chatbot-message is-bot">Hi, I can help you choose a plan. Ask about overflow, motor safety, pump control, water shortage, price, or installation.</div>
+            <div class="chatbot-message is-bot">Hi, I can suggest the right SaleWell plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
         </div>
         <div class="chatbot-suggestions" aria-label="Quick questions">
             <button class="chatbot-chip" type="button" data-chat-prompt="Which plan fits my home?">Home plan</button>
@@ -4337,8 +4444,8 @@ width:100%;
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
         </div>
         <form class="chatbot-form" id="chatbotForm">
-            <input id="chatbotInput" type="text" autocomplete="off" placeholder="Ask about plan, pump, overflow or installation">
             <button type="submit">Ask</button>
+            <input id="chatbotInput" type="text" autocomplete="off" placeholder="Plan, pump, overflow, install">
         </form>
     </section>
     <button class="chatbot-launcher" id="chatbotLauncher" type="button" aria-controls="chatbotPanel" aria-expanded="false">
@@ -4866,7 +4973,7 @@ function askChatBookingQuestion() {
 
 function resumeChatBooking() {
     if (!chatBookingState) return;
-    appendChatMessage("Sure, continuing the booking details.", "bot");
+    appendChatMessage("Sure, let us finish the booking details.", "bot");
     askChatBookingQuestion();
 }
 
@@ -4880,7 +4987,7 @@ function startChatBooking(fill = {}) {
         },
     };
     const planLine = fill.plan ? ` for ${fill.plan}` : "";
-    appendChatMessage(`Good choice. I will ask the booking details${planLine} one by one. Nothing is submitted until the end.`, "bot");
+    appendChatMessage(`Good choice${planLine}. I will ask a few details, then you can submit the request.`, "bot");
     askChatBookingQuestion();
 }
 
@@ -4894,7 +5001,7 @@ function handleChatBookingAnswer(answer) {
     const normalizedAnswer = answer.trim().toLowerCase();
     if (normalizedAnswer === "cancel" || normalizedAnswer === "stop") {
         chatBookingState = null;
-        appendChatMessage("Booking cancelled. You can still ask about plans, price, pump control, or installation.", "bot");
+        appendChatMessage("Booking cancelled. You can still ask about plans, pricing, pump control, or installation.", "bot");
         return true;
     }
     if (normalizedAnswer === "resume" || normalizedAnswer === "continue") {
@@ -4938,7 +5045,7 @@ function completeChatBooking() {
     };
     chatBookingState = null;
     appendChatMessage(
-        `Booking details are ready.\n\nName: ${data.name}\nPhone: ${data.phone}\nEmail: ${data.email}\nCity: ${data.city}\nProject type: ${data.segment}\nDevices: ${data.devices}\n\nSubmit now and I will send it directly without filling the page form.`,
+        `Ready to submit: ${data.segment}, ${data.devices} device(s), ${data.city}.\nContact: ${data.name}, ${data.phone}.\nTap submit and SaleWell will follow up.`,
         "bot",
         [
             { label: "Submit enquiry now", action: "submit-enquiry" },
@@ -4950,11 +5057,11 @@ async function submitCompletedEnquiry() {
     const form = document.getElementById("enquiryForm");
     if (!form) return;
     if (!chatCompletedBooking) {
-        appendChatMessage("Please complete the chatbot booking details first. I will ask one detail at a time.", "bot");
+        appendChatMessage("Please complete the booking details first. I will ask one item at a time.", "bot");
         return;
     }
     if (chatEnquirySubmitting) {
-        appendChatMessage("Your booking request is already being submitted. Please wait a moment.", "bot");
+        appendChatMessage("Your request is already being sent. Please wait a moment.", "bot");
         return;
     }
 
@@ -4970,7 +5077,7 @@ async function submitCompletedEnquiry() {
     formData.set("message", chatCompletedBooking.note || "");
 
     chatEnquirySubmitting = true;
-    appendChatMessage("Submitting your booking request now. The chat will stay open.", "bot");
+    appendChatMessage("Submitting your request now.", "bot");
     try {
         const response = await fetch(form.action, {
             method: "POST",
@@ -4984,7 +5091,7 @@ async function submitCompletedEnquiry() {
         }
         chatCompletedBooking = null;
         appendChatMessage(
-            "Thank you for submitting your demo booking. SaleWell has received your details and the team will follow up for pricing, setup scope and installation planning.\n\nYou can continue asking me questions here.",
+            "Thanks. SaleWell received your request.\nOur team will follow up for pricing, setup scope, and installation planning.",
             "bot",
             [
                 { label: "Ask pricing question", action: "ask-prompt", fill: { prompt: "What is the pricing?" } },
@@ -4993,7 +5100,7 @@ async function submitCompletedEnquiry() {
         );
     } catch (error) {
         console.warn("Chatbot enquiry submit failed", error);
-        appendChatMessage("Network issue while submitting the booking. Please try again, or use the form below.", "bot", [
+        appendChatMessage("Network issue while submitting. Please try again, or use the form below.", "bot", [
             { label: "Review form", href: "#enquiry" },
         ]);
     } finally {
@@ -5027,7 +5134,7 @@ function planPricingLine(plan) {
 }
 
 function describePlan(plan) {
-    return `${plan.name} is good for ${plan.bestFor}.\n\nPrice: ${plan.price}.\nIncludes: ${plan.includes.slice(0, 4).join(", ")}.\n\nChoose it only if these features match your problem.`;
+    return `${plan.name}: ${plan.shortPrice}.\nBest for ${plan.bestFor}.\nIncludes ${plan.includes.slice(0, 3).join(", ")}.`;
 }
 
 function recommendPlan(input) {
@@ -5061,16 +5168,16 @@ function chatRequirementSignals(input) {
 function expertRecommendationText(plan, rawInput, count = "") {
     const signals = chatRequirementSignals(rawInput.toLowerCase());
     const signalText = signals.length ? signals.join(", ") : "daily tank checking";
-    const deviceText = count ? ` You mentioned ${count}; we can confirm the final count on call.` : "";
+    const deviceText = count ? ` You mentioned ${count} device(s).` : "";
     return (
-        `I suggest ${plan.name}.\n\n` +
-        `Why: it matches ${signalText}. It is made for ${plan.bestFor}.${deviceText}\n\n` +
-        `Price: ${plan.price}. Includes: ${plan.includes.slice(0, 4).join(", ")}.`
+        `I suggest ${plan.name}: ${plan.shortPrice}.\n` +
+        `It matches ${signalText} and fits ${plan.bestFor}.${deviceText}\n` +
+        `Best next step: book a quick setup check.`
     );
 }
 
 function friendlyNextStepText(plan) {
-    return `Next step: check tank count, pump location, internet/Wi-Fi, and city.`;
+    return `Next: confirm tank count, pump location, Wi-Fi/internet, and city.`;
 }
 
 function isChatBookingIntent(input) {
@@ -5105,7 +5212,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsBooking) {
         return {
-            text: `Sure. I can book a demo.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nI will ask the details one by one.`,
+            text: `Sure. I can book a demo.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
             ],
@@ -5113,11 +5220,10 @@ function getChatbotResponse(rawInput) {
     }
 
     if (wantsCompare || wantsPrice) {
-        const pricingLines = chatPlanCatalog.map(planPricingLine).join("\n");
-        const recommendation = recommendedPlan ? `\n\nMy shortlist for your case: ${recommendedPlan.name}. Reason: ${recommendedPlan.bestFor}.` : "";
-        const addOnText = wantsPrice ? `\n\nCommon add-ons:\n${chatAddOns.join("\n")}` : "";
+        const homePlans = chatPlanCatalog.slice(0, 3).map(planPricingLine).join(" | ");
+        const commercialPlans = chatPlanCatalog.slice(3, 5).map(planPricingLine).join(" | ");
         return {
-            text: `Pricing:\n${pricingLines}${recommendation}${addOnText}\n\nTip: compare this with motor repair cost, water waste, tanker cost, and staff time.`,
+            text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Open comparison", href: `${pricingPageUrl}#comparison` },
@@ -5127,7 +5233,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsPump && wantsOverflow) {
         return {
-            text: `Overflow and motor safety are linked.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nLive level shows full or low water. Pump control helps you act fast. Choose AI only for leak or usage details.`,
+            text: `Overflow and motor safety need live level plus pump control.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Setup check", href: "#setup-check" },
@@ -5137,7 +5243,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsPump) {
         return {
-            text: `For pump control, avoid local-only plans.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nIf someone switches the pump manually today, remote control will help.`,
+            text: `For phone pump control, choose a cloud plan, not local-only.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "View pump plans", href: selectedPlanUrl(recommendedPlan.name, recommendedPlan.segment) },
@@ -5147,7 +5253,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsOverflow) {
         return {
-            text: `Overflow happens when people cannot see or act in time.\n\n${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nBasic monitoring gives alerts. AI helps for leak or unusual usage.`,
+            text: `Overflow usually happens because no one sees the tank in time.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Check overflow setup", href: "#setup-check" },
@@ -5157,7 +5263,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `Installation needs:\n1. Property type and city\n2. Tank count and type\n3. Pump location\n4. Wi-Fi/internet access\n5. Need for pump control, alerts, or AI\n\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation is simple after a site check.\nWe need property type, city, tank count, pump location, and Wi-Fi/internet.\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",
@@ -5174,7 +5280,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsSupport) {
         return {
-            text: "You can contact SaleWell at support@salewell.co.in or +91-8299812878.\n\nFor a faster answer, share property type, tank count, city, and pump-control need.",
+            text: "Contact SaleWell: support@salewell.co.in or +91-8299812878.\nFor a faster quote, share city, property type, tank count, and pump-control need.",
             actions: [
                 { label: "Email sales", href: "mailto:support@salewell.co.in" },
                 { label: "Call sales", href: "tel:+918299812878" },
@@ -5184,7 +5290,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsCoverage) {
         return {
-            text: `SaleWell serves Delhi NCR, including Delhi, Noida and Gurgaon/Gurugram.\n\nTiming depends on tank count, site access, and pump-panel access.`,
+            text: `SaleWell serves Delhi NCR, including Delhi, Noida, Gurgaon/Gurugram, Faridabad and Ghaziabad.\nShare city and tank count for the fastest availability check.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Book local call", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
@@ -5194,7 +5300,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsDashboard) {
         return {
-            text: "After installation, customers can see tank level, pump status, and alerts on the phone.\n\nHomes get easier daily checking. Apartments and commercial sites get clearer shared status.",
+            text: "The app shows tank level, pump status, alerts, and usage insights.\nFor homes it saves daily checking; for apartments it improves shared visibility.",
             actions: [
                 { label: "Book dashboard demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
                 { label: "Download app", href: "{{ url_for('android_app_download') }}" },
@@ -5204,7 +5310,7 @@ function getChatbotResponse(rawInput) {
 
     if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"]) || wantsGreeting) {
         return {
-            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\n\nTo make it exact, tell me tank count, property type, and whether pump control or AI leak detection is needed.`,
+            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\nTell me tank count and city for a sharper quote.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
@@ -5213,7 +5319,7 @@ function getChatbotResponse(rawInput) {
     }
 
     return {
-        text: "I can help with plans, price, pump control, overflow, leak detection, installation, app access, support, and Delhi NCR availability.\n\nTry: 'home with 1 tank', 'RWA with 10 tanks', 'price of Home Smart', or 'installation for underground tank'.",
+        text: "I can help with plans, price, pump control, overflow, leakage, installation, app access, and NCR availability.\nTry: 'home 1 tank', 'RWA 10 tanks', or 'price of Home Smart'.",
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
