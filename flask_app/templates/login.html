@@ -2543,6 +2543,10 @@ gap:14px;
 padding:16px;
 background:linear-gradient(135deg,rgba(126,87,194,.18),rgba(255,174,66,.18));
 border-bottom:1px solid rgba(126,87,194,.2);
+position:sticky;
+top:0;
+z-index:2;
+flex:0 0 auto;
 }
 .chatbot-title{
 display:flex;
@@ -3156,14 +3160,14 @@ padding:12px;
 }
 .site-chatbot{
 right:10px;
-bottom:10px;
+bottom:var(--chatbot-mobile-bottom,10px);
 left:10px;
 justify-items:stretch;
 }
 .chatbot-panel{
 width:100%;
-height:min(560px,calc(100dvh - 28px));
-max-height:calc(100dvh - 28px);
+height:min(560px,var(--chatbot-mobile-max-height,calc(100dvh - 28px)));
+max-height:var(--chatbot-mobile-max-height,calc(100dvh - 28px));
 border-radius:20px;
 }
 .chatbot-header{
@@ -4446,7 +4450,7 @@ min-width:0;
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
         </div>
         <form class="chatbot-form" id="chatbotForm">
-            <input id="chatbotInput" type="text" autocomplete="off" placeholder="Plan, pump, overflow, install">
+            <input id="chatbotInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="text" placeholder="Plan, pump, overflow, install">
             <button type="submit">Ask</button>
         </form>
     </section>
@@ -4661,12 +4665,22 @@ const chatbotInput = document.getElementById("chatbotInput");
 const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
 
+function updateChatbotViewport() {
+    if (!window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const keyboardInset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
+    const mobileMaxHeight = Math.max(320, Math.floor(viewport.height - 20));
+    document.documentElement.style.setProperty("--chatbot-mobile-bottom", `${Math.max(10, keyboardInset + 8)}px`);
+    document.documentElement.style.setProperty("--chatbot-mobile-max-height", `${mobileMaxHeight}px`);
+}
+
 function setChatbotOpen(isOpen) {
     if (!chatbot || !chatbotPanel || !chatbotLauncher) return;
     chatbot.classList.toggle("is-open", isOpen);
     chatbotPanel.hidden = !isOpen;
     chatbotLauncher.setAttribute("aria-expanded", isOpen ? "true" : "false");
     if (isOpen) {
+        updateChatbotViewport();
         window.setTimeout(() => chatbotInput?.focus(), 40);
         scrollChatToBottom();
     }
@@ -5010,7 +5024,7 @@ function handleChatBookingAnswer(answer) {
         resumeChatBooking();
         return true;
     }
-    if (field.key !== "note" && chatLooksLikeQuestion(normalizedAnswer)) {
+    if (field.key !== "note" && field.key !== "city" && chatLooksLikeQuestion(normalizedAnswer)) {
         appendChatMessage(shortBookingInterruptAnswer(answer), "bot");
         appendChatMessage(field.question, "bot");
         return true;
@@ -5366,6 +5380,13 @@ if (chatbotForm) {
         submitChatbotPrompt(chatbotInput?.value || "");
         if (chatbotInput) chatbotInput.value = "";
     });
+}
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", updateChatbotViewport);
+    window.visualViewport.addEventListener("scroll", updateChatbotViewport);
+    window.addEventListener("orientationchange", () => window.setTimeout(updateChatbotViewport, 120));
+    updateChatbotViewport();
 }
 
 chatbotChips.forEach((chip) => {
