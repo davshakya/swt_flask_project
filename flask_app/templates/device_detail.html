@@ -466,12 +466,23 @@ function formatInfoDateTime(value){return infoValue(formatLocaleDateTime(value,"
 function escapeHtml(value){
   return String(value??"").replace(/[&<>"']/g,(char)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
 }
+const ESP8266_HEAP_REFERENCE_BYTES=81920;
 function formatBytes(value){
   const number=Number(value);
   if(!Number.isFinite(number))return"--";
   if(Math.abs(number)>=1048576)return`${(number/1048576).toFixed(1)} MB`;
   if(Math.abs(number)>=1024)return`${(number/1024).toFixed(1)} KB`;
   return`${Math.round(number)} B`;
+}
+function formatHeapPercent(value){
+  const number=Number(value);
+  if(!Number.isFinite(number)||number<0)return"--";
+  return`${Math.max(0,Math.min(100,(number/ESP8266_HEAP_REFERENCE_BYTES)*100)).toFixed(1)}%`;
+}
+function formatHeapValue(value,fallback="Heap not reported"){
+  const number=Number(value);
+  if(!Number.isFinite(number)||number<=0)return fallback;
+  return`${formatBytes(number)} free (${formatHeapPercent(number)})`;
 }
 function memoryRole(row,snapshot,serviceConfig){
   const role=String(row?.node_role||row?.device_type||"").trim().toLowerCase();
@@ -510,8 +521,8 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
   const peerFresh=Number.isFinite(peerAge)&&peerAge>=0&&peerAge<=30;
   const peerDetail=peerFresh?`Peer packet ${Math.round(peerAge)}s ago`:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for accepted slave packet");
   const slaveWaitingText=peerFresh?"Upgrade slave/master firmware for health fields":peerDetail;
-  const slaveStat=usesSlave?`<div class="info-item"><span class="info-label">Slave Heap</span><strong class="info-value">${escapeHtml(infoValue(snapshot?.slave_free_heap_label,slaveWaitingText))}</strong></div>`:"";
-  const statsHtml=`<div id="memoryStats" class="memory-stats"><div class="info-item"><span class="info-label">Master Heap</span><strong class="info-value">${escapeHtml(infoValue(snapshot?.free_heap_label,"Heap not reported"))}</strong></div>${slaveStat}</div>`;
+  const slaveStat=usesSlave?`<div class="info-item"><span class="info-label">Slave Heap</span><strong class="info-value">${escapeHtml(formatHeapValue(snapshot?.slave_free_heap,slaveWaitingText))}</strong></div>`:"";
+  const statsHtml=`<div id="memoryStats" class="memory-stats"><div class="info-item"><span class="info-label">Master Heap</span><strong class="info-value">${escapeHtml(formatHeapValue(snapshot?.free_heap,"Heap not reported"))}</strong></div>${slaveStat}</div>`;
   function renderTrendChart({title,unit,series,formatter,threshold=null,maxFixed=null,emptyText}){
     const rows=[...series.master,...series.slave].filter((entry)=>Number.isFinite(entry.value));
     const slaveLegend=usesSlave?`<span class="chart-series-pill"><span class="memory-swatch slave"></span>Slave</span>`:"";
@@ -537,7 +548,7 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
     const x=(index)=>margin.left+(index/maxIndex)*innerWidth;
     const y=(value)=>margin.top+((maxValue-value)/(maxValue-minValue))*innerHeight;
     const pathFor=(points)=>points.map((entry,pointIndex)=>`${pointIndex?"L":"M"}${x(entry.index).toFixed(1)},${y(entry.value).toFixed(1)}`).join(" ");
-    const dotsFor=(role)=>series[role].map((entry)=>`<circle class="memory-dot-${role}" cx="${x(entry.index).toFixed(1)}" cy="${y(entry.value).toFixed(1)}" r="3"><title>${role==="slave"?"Slave":"Master"} ${formatter(entry.value)} at ${escapeHtml(formatLocaleDateTime(entry.row.time))}</title></circle>`).join("");
+    const dotsFor=(role)=>series[role].map((entry)=>`<circle class="memory-dot-${role}" cx="${x(entry.index).toFixed(1)}" cy="${y(entry.value).toFixed(1)}" r="3"><title>${role==="slave"?"Slave":"Master"} ${formatHeapValue(entry.value)} at ${escapeHtml(formatLocaleDateTime(entry.row.time))}</title></circle>`).join("");
     const gridValues=[minValue,(minValue+maxValue)/2,maxValue];
     const grid=gridValues.map((value)=>`<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"></line><text x="10" y="${(y(value)+4).toFixed(1)}">${escapeHtml(formatter(value))}</text>`).join("");
     const thresholdLine=threshold===null?"":`<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y(threshold).toFixed(1)}" y2="${y(threshold).toFixed(1)}" stroke-dasharray="5 5"></line><text x="${width-margin.right-104}" y="${(y(threshold)-6).toFixed(1)}">Low line</text>`;
@@ -552,7 +563,7 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
     legend.innerHTML=(usesSlave?["master","slave"]:["master"]).map((role)=>{
       const heapLatest=heapSeries[role][heapSeries[role].length-1];
       if(!heapLatest)return"";
-      const heapText=heapLatest?formatBytes(heapLatest.value):"--";
+      const heapText=heapLatest?formatHeapValue(heapLatest.value):"--";
       return`<span class="memory-chip"><span class="memory-swatch ${role==="slave"?"slave":""}"></span>${role==="slave"?"Slave":"Master"} ${escapeHtml(heapText)}</span>`;
     }).join("");
   }
@@ -638,8 +649,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Buzzer",value:yesNo(snapshot.buzzer_service),show:Boolean(serviceConfig.buzzer_enabled)||isPositiveServiceValue(snapshot.buzzer_service)},
     {label:"LED Display",value:yesNo(snapshot.led_display_service),show:Boolean(serviceConfig.led_display_enabled)||isPositiveServiceValue(snapshot.led_display_service)},
     {label:"Local Firmware Upload",value:yesNo(snapshot.local_firmware_upload_service),show:Boolean(serviceConfig.local_firmware_upload_enabled)||isPositiveServiceValue(snapshot.local_firmware_upload_service)},
-    {label:"Master Memory",value:infoValue(snapshot.free_heap_label,"Heap not reported")},
-    {label:"Slave Memory",value:infoValue(snapshot.slave_free_heap_label,"Slave heap not reported"),show:usesSlave},
+    {label:"Master Memory",value:formatHeapValue(snapshot.free_heap,"Heap not reported")},
+    {label:"Slave Memory",value:formatHeapValue(snapshot.slave_free_heap,"Slave heap not reported"),show:usesSlave},
     {label:"Slave Uptime",value:infoValue(snapshot.slave_uptime_label,"Slave uptime not reported"),show:usesSlave},
     {label:"Uptime",value:infoValue(snapshot.uptime_label,"Uptime not reported")},
     {label:"Reset Reason",value:infoValue(snapshot.reset_reason,"Reset reason not reported")},
