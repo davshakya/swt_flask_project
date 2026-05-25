@@ -2547,6 +2547,7 @@ position:sticky;
 top:0;
 z-index:2;
 flex:0 0 auto;
+flex-shrink:0;
 }
 .chatbot-title{
 display:flex;
@@ -2607,6 +2608,7 @@ display:grid;
 align-content:start;
 gap:10px;
 flex:1;
+min-height:0;
 overflow:auto;
 padding:16px;
 background:
@@ -2663,6 +2665,7 @@ background:rgba(255,244,226,.92);
 }
 .chatbot-suggestions{
 display:flex;
+flex:0 0 auto;
 gap:8px;
 overflow:auto;
 padding:12px 16px 0;
@@ -2687,6 +2690,7 @@ color:#5b3aa0;
 }
 .chatbot-form{
 display:grid;
+flex:0 0 auto;
 grid-template-columns:minmax(0,1fr) auto;
 gap:8px;
 padding:10px 12px 12px;
@@ -3162,12 +3166,18 @@ padding:12px;
 right:10px;
 bottom:var(--chatbot-mobile-bottom,10px);
 left:10px;
+top:auto;
 justify-items:stretch;
+}
+.site-chatbot.is-open{
+top:var(--chatbot-mobile-top,10px);
+bottom:var(--chatbot-mobile-bottom,10px);
+height:auto;
 }
 .chatbot-panel{
 width:100%;
-height:min(560px,var(--chatbot-mobile-max-height,calc(100dvh - 28px)));
-max-height:var(--chatbot-mobile-max-height,calc(100dvh - 28px));
+height:100%;
+max-height:none;
 border-radius:20px;
 }
 .chatbot-header{
@@ -3207,8 +3217,7 @@ line-height:1.38;
 border-radius:14px;
 }
 .chatbot-suggestions{
-gap:6px;
-padding:8px 10px 0;
+display:none;
 }
 .chatbot-chip{
 min-height:30px;
@@ -3266,10 +3275,6 @@ border-radius:20px;
 }
 }
 @media (max-width:420px){
-.chatbot-panel{
-height:min(520px,calc(100dvh - 22px));
-max-height:calc(100dvh - 22px);
-}
 .chatbot-launcher{
 min-height:46px;
 padding:7px 10px 7px 7px;
@@ -3283,7 +3288,7 @@ font-size:18px;
 font-size:13px;
 }
 .chatbot-suggestions{
-max-height:39px;
+display:none;
 }
 .chatbot-form input{
 min-width:0;
@@ -4450,7 +4455,7 @@ min-width:0;
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
         </div>
         <form class="chatbot-form" id="chatbotForm">
-            <input id="chatbotInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="text" placeholder="Plan, pump, overflow, install">
+            <input id="chatbotInput" type="search" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="search" enterkeyhint="send" aria-autocomplete="none" data-lpignore="true" data-form-type="other" placeholder="Plan, pump, overflow, install">
             <button type="submit">Ask</button>
         </form>
     </section>
@@ -4669,9 +4674,10 @@ function updateChatbotViewport() {
     if (!window.visualViewport) return;
     const viewport = window.visualViewport;
     const keyboardInset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop);
-    const mobileMaxHeight = Math.max(320, Math.floor(viewport.height - 20));
-    document.documentElement.style.setProperty("--chatbot-mobile-bottom", `${Math.max(10, keyboardInset + 8)}px`);
-    document.documentElement.style.setProperty("--chatbot-mobile-max-height", `${mobileMaxHeight}px`);
+    const mobileTop = Math.max(8, Math.floor(viewport.offsetTop + 8));
+    const mobileBottom = Math.max(8, Math.floor(keyboardInset + 6));
+    document.documentElement.style.setProperty("--chatbot-mobile-bottom", `${mobileBottom}px`);
+    document.documentElement.style.setProperty("--chatbot-mobile-top", `${mobileTop}px`);
 }
 
 function setChatbotOpen(isOpen) {
