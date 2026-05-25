@@ -412,6 +412,17 @@ border:none;
 background:var(--button-secondary);
 color:#1e2b31;
 }
+.button.is-primary-cta,
+.button-secondary.is-primary-cta{
+min-height:52px;
+padding:14px 20px;
+border-radius:18px;
+font-size:15px;
+box-shadow:0 18px 34px rgba(13,147,168,.24);
+}
+.button-secondary.is-primary-cta{
+box-shadow:0 18px 34px rgba(239,155,65,.24);
+}
 .ghost-link{
 border:1px solid var(--line-strong);
 background:rgba(255,255,255,.45);
@@ -2455,6 +2466,33 @@ font-size:13px;
 line-height:1.6;
 color:var(--muted);
 }
+.final-cta{
+grid-column:1 / -1;
+display:grid;
+grid-template-columns:minmax(0,1fr) auto;
+gap:16px;
+align-items:center;
+padding:18px;
+border-radius:22px;
+background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(239,155,65,.12));
+border:1px solid var(--line);
+}
+.final-cta strong{
+display:block;
+font-size:22px;
+line-height:1.08;
+letter-spacing:-.04em;
+}
+.final-cta p{
+margin:6px 0 0;
+line-height:1.55;
+}
+.final-cta-actions{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+justify-content:flex-end;
+}
 .site-chatbot{
 position:fixed;
 right:24px;
@@ -3047,6 +3085,12 @@ left:0;
 .footer{
 grid-template-columns:1fr;
 }
+.final-cta{
+grid-template-columns:1fr;
+}
+.final-cta-actions{
+justify-content:flex-start;
+}
 }
 @media (max-width:720px){
 .page{
@@ -3369,30 +3413,29 @@ min-width:0;
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
             <div class="eyebrow">SaleWell Smart Tank</div>
-            <p class="hero-kicker">Be ready for summer water shortages before complaints and overflow callouts begin.</p>
+            <p class="hero-kicker">Avoid overflow, dry-run damage and empty-tank surprises before they become urgent calls.</p>
             <h1 class="hero-title">Stop Water Overflow &amp; Motor Damage &mdash; Automatically</h1>
-            <p class="hero-text">Monitor tank levels, prevent dry-run, detect leaks, and control pumps from your phone.</p>
+            <p class="hero-text">A smart tank controller that shows live water level, pump status and alerts on your phone.</p>
 
             <div class="hero-bullet-grid" aria-label="Hero product benefits">
-                <div class="hero-bullet">&#10003; Prevent dry-run damage<span>Reduce motor stress and extend motor life with earlier warnings.</span></div>
-                <div class="hero-bullet">&#10003; Detect hidden leaks early<span>AI-powered monitoring helps catch unusual water loss before it becomes expensive.</span></div>
-                <div class="hero-bullet">&#10003; Control pumps remotely<span>Check tank status and respond without climbing tanks or waiting for complaints.</span></div>
-                <div class="hero-bullet">&#10003; Avoid emergency refills<span>Respond sooner when water runs low and avoid unexpected tanker situations.</span></div>
+                <div class="hero-bullet">&#10003; Protect the pump<span>Avoid dry-run damage that can cost &#8377;5,000 to &#8377;15,000.</span></div>
+                <div class="hero-bullet">&#10003; Stop overflow waste<span>Get alerts before water spills from the overhead tank.</span></div>
+                <div class="hero-bullet">&#10003; Control from phone<span>Check level and pump state without climbing to the roof.</span></div>
+                <div class="hero-bullet">&#10003; Catch leaks early<span>Spot unusual water loss before it becomes a repair bill.</span></div>
             </div>
 
             <div class="hero-actions">
-                <a class="button" href="#enquiry">See Your Tank Live in 24 Hours</a>
-                <a class="button-secondary" href="#setup-check">Check Your Tank Setup</a>
+                <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button-secondary" href="#setup-check">Check Tank Setup</a>
                 <a class="ghost-link" href="{{ url_for('pricing_page') }}">View Pricing</a>
             </div>
             <div class="pricing-signal" aria-label="Pricing and urgency signals">
-                <a class="pricing-chip" href="{{ url_for('pricing_page') }}">Compare pricing with the cost of one motor repair</a>
-                <div class="pricing-chip is-alert">One dry-run repair can cost &#8377;5,000 to &#8377;15,000</div>
-                <div class="pricing-chip is-alert">Overflow waste and emergency refills add cost fast</div>
+                <a class="pricing-chip" href="{{ url_for('pricing_page') }}">Compare plan cost vs one motor repair</a>
+                <div class="pricing-chip is-alert">Avoid 2 AM empty-tank surprises</div>
+                <div class="pricing-chip is-alert">Reduce overflow waste and rushed tanker calls</div>
             </div>
             <div class="hero-trust-line" aria-label="Hero trust line">
                 <span>&#10003; No climbing tanks</span>
-                <span>&#10003; No more manual pump operation</span>
                 <span>&#10003; Control your pump from anywhere</span>
                 <span>&#10003; Real-time alerts</span>
                 <span>&#10003; Easy installation</span>
@@ -3405,42 +3448,40 @@ min-width:0;
                 <div class="preview-overlay preview-overlay--top">
                     <span>Live tank status</span>
                     <strong>72% full</strong>
-                    <p>Save water. Save electricity. Save effort every single day.
-                        Reduce water waste and electricity bills automatically.
-                    </p>
+                    <p>See the tank level, alert state and pump status before problems become complaints.</p>
                 </div>
                 <div class="preview-overlay preview-overlay--bottom">
                     <span>Pump protection</span>
                     <strong>Auto protected</strong>
-                    <p>Combine tank level, pump status and overflow awareness in one clean view.</p>
+                    <p>Use one clean view for level, pump and overflow decisions.</p>
                 </div>
             </div>
             <div class="preview-body">
             <div class="eyebrow">Dashboard Preview</div>
-            <h2>What you actually get after installation.</h2>
-            <p>Monitor your tank, sensor, and pump in real time so you can act faster, prevent overflow, and never run out of water.</p>
+            <h2>What you see after installation.</h2>
+            <p>Live tank level, sensor health, pump state and alerts in one simple screen.</p>
 
                 <div class="preview-grid" aria-label="Product proof metrics">
                     <article class="mini-proof">
                         <span>24/7 live visibility</span>
-                        <strong>Tank status updates continuously with no manual checking or guesswork.</strong>
+                        <strong>Tank status without manual checking.</strong>
                     </article>
                     <article class="mini-proof">
                         <span>Tank level + pump status</span>
-                        <strong>See available water and pump activity together in one simple screen.</strong>
+                        <strong>Water and pump status together.</strong>
                     </article>
                     <article class="mini-proof">
                         <span>Access for the right people</span>
-                        <strong>Customers stay informed while admins and maintenance teams manage operations.</strong>
+                        <strong>Customer and admin views stay separate.</strong>
                     </article>
                     <article class="mini-proof">
                         <span>Real, measurable savings</span>
-                        <strong>Reduce water waste, avoid electricity overuse and protect pumps from damage.</strong>
+                        <strong>Less waste, fewer emergency visits.</strong>
                     </article>
                 </div>
 
                 <div class="hero-preview-actions">
-                    <a class="button" href="#enquiry">Get Your First Alert This Week</a>
+                    <a class="button" href="#enquiry">Book Free Demo</a>
                     <a class="ghost-link" href="#how-it-works">How It Works</a>
                 </div>
             </div>
@@ -3459,27 +3500,27 @@ min-width:0;
             <article class="social-stat">
                 <span>&#9733; Delhi NCR Reach</span>
                 <strong>150+ sites</strong>
-                <p>Installed across homes, societies and managed properties in Gurgaon, Noida and nearby NCR areas.</p>
+                <p>Installed across homes, societies and managed properties in Gurgaon, Noida and nearby NCR.</p>
             </article>
             <article class="social-stat">
                 <span>&#9733; Households Supported</span>
                 <strong>500+ households</strong>
-                <p>Used where daily tank visibility matters for residents, RWAs and maintenance teams.</p>
+                <p>Used where residents, RWAs and maintenance teams need daily tank visibility.</p>
             </article>
             <article class="social-stat">
                 <span>&#9733; Daily Monitoring</span>
                 <strong>10,000+ KL/day</strong>
-                <p>Monitoring large daily water volume with fewer manual checks and faster response decisions.</p>
+                <p>Large-volume monitoring with fewer manual checks and faster response.</p>
             </article>
             <article class="social-quote">
                 <div class="social-quote-label">
                     <div class="eyebrow">Live Proof</div>
                     <strong>Buyers trust what they can see working.</strong>
-                    <p>The best sales proof is a walkthrough of installed hardware, current tank status and the exact screens customers will use after handover.</p>
+                    <p>A short walkthrough of hardware, live status and alerts makes the value obvious.</p>
                 </div>
                 <div>
                     <blockquote>
-                        "Show the tank sensor, dashboard and alert flow in one walkthrough, and the value becomes obvious much faster."
+                        "Show the sensor, dashboard and alert flow once, and people understand the value."
                         <cite>&mdash; Useful for RWAs, builders and facility teams across Gurgaon, Noida and Delhi NCR</cite>
                     </blockquote>
                 </div>
@@ -3499,7 +3540,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Overflow</div>
                 <h3>Stop overflow before water spills from the overhead tank</h3>
-                <p>Buyers immediately understand the value when they see how full-tank alerts prevent waste and complaints.</p>
+                <p>Full-tank alerts help prevent water waste and complaints.</p>
                 <ul>
                     <li>Know when the tank is nearing full capacity</li>
                     <li>Reduce visible water waste</li>
@@ -3509,7 +3550,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Motor Safety</div>
                 <h3>Keep the motor protected when water runs too low</h3>
-                <p>Dry-run protection is easier to explain when buyers can see how the tank and pump status stay linked.</p>
+                <p>Tank and pump status stay linked, so dry-run risk is easier to catch.</p>
                 <ul>
                     <li>Reduce dry-run risk before damage happens</li>
                     <li>Lower motor stress during low-water conditions</li>
@@ -3519,7 +3560,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Leak Alerts</div>
                 <h3>Get alert before unusual water loss turns into a bigger leak</h3>
-                <p>Patterns that are hard to notice manually become visible much earlier with continuous monitoring.</p>
+                <p>Continuous monitoring catches patterns manual checks miss.</p>
                 <ul>
                     <li>Spot unusual loss earlier than manual checking</li>
                     <li>Reduce hidden waste and surprise repair bills</li>
@@ -3529,7 +3570,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Remote Check</div>
                 <h3>Check tank status without climbing to the roof</h3>
-                <p>The phone view replaces manual inspection with a faster daily workflow for both customers and site teams.</p>
+                <p>The phone view replaces routine roof checks.</p>
                 <ul>
                     <li>No climbing tanks for routine status checks</li>
                     <li>Real-time alerts stay visible on the dashboard</li>
@@ -3540,7 +3581,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Low Water</div>
                 <h3>Know shortage risk before residents start calling</h3>
-                <p>Low-water visibility gives teams more time to refill, plan and avoid last-minute emergency work.</p>
+                <p>Low-water visibility gives teams more time to refill and plan.</p>
                 <ul>
                     <li>Plan refills earlier with better visibility</li>
                     <li>Avoid tanker emergencies and rushed decisions</li>
@@ -3553,7 +3594,7 @@ min-width:0;
             <div class="urgency-pill">Cost Of Waiting</div>
             <div class="urgency-copy">
                 <strong>One repair or one month of overflow waste can cost more than buyers expect.</strong>
-                <p>Use the system before dry-run damage, refill delays and overflow waste turn into emergency expense, resident complaints and avoidable site visits.</p>
+                <p>Protect against dry-run damage, refill delays, overflow waste and avoidable site visits.</p>
             </div>
         </div>
     </section>
@@ -3570,7 +3611,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Before Installation</div>
                 <h3>Manual checking, overflow risk and rushed decisions</h3>
-                <p>Without a live dashboard, daily water management stays reactive and problems are usually noticed late.</p>
+                <p>Without live status, problems are usually noticed late.</p>
                 <ul>
                     <li>Someone still checks the tank manually</li>
                     <li>Overflow may continue until a complaint arrives</li>
@@ -3581,7 +3622,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">After Installation</div>
                 <h3>Live visibility, earlier alerts and faster action</h3>
-                <p>The installed system gives customers and service teams one place to monitor, verify and respond.</p>
+                <p>Customers and service teams get one place to monitor and respond.</p>
                 <ul>
                     <li>Tank level, pump status and alerts in one view</li>
                     <li>Overflow and shortage risk become visible earlier</li>
@@ -3592,7 +3633,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Cost Of Doing Nothing</div>
                 <h3>One motor repair can cost &#8377;5,000 to &#8377;15,000</h3>
-                <p>Even one preventable dry-run incident or repeated overflow can turn into avoidable monthly operating cost.</p>
+                <p>One preventable dry-run or repeated overflow can become an avoidable bill.</p>
                 <ul>
                     <li>Dry-run or pump damage creates repair bills fast</li>
                     <li>Overflow waste quietly adds to the water bill</li>
@@ -3603,7 +3644,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Rollout Confidence</div>
                 <h3>See the system, the setup and the handover before rollout</h3>
-                <p>Buyers can understand installation scope, dashboard usage and support flow before committing.</p>
+                <p>Understand installation, dashboard usage and support before committing.</p>
                 <ul>
                     <li>Clear site-fit discussion before pricing</li>
                     <li>Dashboard walkthrough for customers and admins</li>
@@ -4034,12 +4075,12 @@ min-width:0;
                         </div>
                     </article>
 
-                    <article class="demo-scene" data-demo-scene data-demo-title="See Your Tank Live In 24 Hours" aria-hidden="true">
+                    <article class="demo-scene" data-demo-scene data-demo-title="Book Free Demo" aria-hidden="true">
                         <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated product specialist showing the smart water tank system during a live demo." loading="lazy">
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 10 &bull; Call To Action</span>
-                            <strong>See Your Tank Live In 24 Hours</strong>
-                            <p>Finish with a fast, practical next step so the story ends with action, not just a feature list.</p>
+                            <strong>Book Free Demo</strong>
+                            <p>Finish with a clear next step: review the tank setup, pricing and installation plan.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Live dashboard walkthrough</span>
                                 <span>Site-fit advice</span>
@@ -4135,8 +4176,8 @@ min-width:0;
                     <span class="demo-step-number">10</span>
                     <span class="demo-step-body">
                         <span class="demo-step-label">CTA</span>
-                        <strong>See Your Tank Live In 24 Hours</strong>
-                        <p>End with a practical demo request and a fast next step.</p>
+                        <strong>Book Free Demo</strong>
+                        <p>End with a practical setup check and pricing next step.</p>
                     </span>
                 </button>
             </div>
@@ -4273,26 +4314,26 @@ min-width:0;
             <div class="support-panel">
                 <div class="eyebrow">Free Setup Check</div>
                 <h3>Get the right hardware recommendation before you spend.</h3>
-                <p class="section-copy">Share a few site details and we can suggest the right device plan before pricing, installation and rollout decisions start locking in.</p>
+                <p class="section-copy">Share tank, pump and property details. We will suggest the right plan before you buy.</p>
 
                 <div class="support-checks">
                     <div class="support-check">
                         <strong>Tank height and capacity</strong>
-                        <p>We can help match the right setup for rooftop or underground tank monitoring.</p>
+                        <p>Match the right sensor setup for rooftop or underground tanks.</p>
                     </div>
                     <div class="support-check">
                         <strong>Pump and dry-run concerns</strong>
-                        <p>Tell us where overflow, motor damage or shortage response is creating the most friction today.</p>
+                        <p>Tell us where overflow, motor damage or shortage creates daily stress.</p>
                     </div>
                     <div class="support-check">
                         <strong>Property type and device count</strong>
-                        <p>We can guide homes, apartments, hotels, institutions, dealers and commercial projects.</p>
+                        <p>Plan homes, apartments, hotels, institutions, dealers and commercial sites.</p>
                     </div>
                 </div>
 
                 <div class="contact-card">
                     <strong>Talk To SaleWell IoT</strong>
-                    <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> to compare pricing, request a live walkthrough, or review your site-fit installation plan.</p>
+                    <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> for pricing, demo or installation planning.</p>
                 </div>
             </div>
 
@@ -4300,7 +4341,7 @@ min-width:0;
                 <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." loading="lazy">
                 <figcaption class="visual-copy">
                     <strong>Less explanation, more clarity</strong>
-                    <p>Visitors can instantly understand the pain point, the hardware setup and the phone-based monitoring outcome.</p>
+                    <p>Visitors quickly see the pain point, hardware and phone dashboard outcome.</p>
                 </figcaption>
             </figure>
         </div>
@@ -4311,36 +4352,36 @@ min-width:0;
             <div class="enquiry-intro">
                 <div>
                     <div class="eyebrow">Book a Demo</div>
-                    <h2>Book a free installation call or pricing demo.</h2>
+                    <h2>Book your free demo and tank setup check.</h2>
                 </div>
 
                 <div class="form-speed-note">Takes less than 30 seconds &bull; No spam &bull; No commitment</div>
                 <div class="form-urgency" aria-label="Form urgency signals">
                     <span>&#9888; Be ready for summer water shortages</span>
-                    <span>&#9888; Prevent &#8377;10,000+ motor repair costs</span>
-                    <span>&#9888; Limited installation slots available this month</span>
+                    <span>&#9888; Avoid motor repair surprises</span>
+                    <span>&#9888; Get a clear site-fit recommendation</span>
                 </div>
 
                 <div class="what-you-get-grid">
                     <article class="card">
                         <div class="card-tag">Site Planning</div>
                         <h3>Recommended device setup</h3>
-                        <p>We help you choose the right approach for homes, apartments, institutions and commercial sites.</p>
+                        <p>Know the right setup for your tank and pump.</p>
                     </article>
                     <article class="card">
                         <div class="card-tag">Sales Follow-Up</div>
                         <h3>Demo and pricing follow-up</h3>
-                        <p>Use one enquiry to move into a live discussion instead of waiting on unclear next steps.</p>
+                        <p>Get pricing and demo next steps in one call.</p>
                     </article>
                     <article class="card">
                         <div class="card-tag">Installation Support</div>
                         <h3>Installation planning support</h3>
-                        <p>We can talk through tank count, site type, pump issues and support expectations before rollout.</p>
+                        <p>Review tank count, site type and pump issues.</p>
                     </article>
                     <article class="card">
                         <div class="card-tag">Customer Handover</div>
                         <h3>Cleaner handover for customers</h3>
-                        <p>Customer login plus admin support access makes the post-installation story easier to manage.</p>
+                        <p>Customer and admin access are ready after installation.</p>
                     </article>
                 </div>
             </div>
@@ -4396,16 +4437,16 @@ min-width:0;
                     <textarea id="lead_message" name="message" placeholder="Tell us about the site, tank count, overflow issues, dry-run risk, or preferred installation timeline.">{{ sales_form.get('message', '') }}</textarea>
                 </div>
                 <div class="form-actions">
-                    <button class="button-secondary" type="submit">Book Installation Call</button>
+                    <button class="button-secondary is-primary-cta" type="submit">Book Free Demo</button>
                 </div>
-                <div class="form-note">Send this form for a pricing discussion, demo scheduling, or a quick tank setup recommendation.</div>
+                <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
             </form>
 
             <div class="promo-card">
                 <div class="promo-copy">
                     <div class="eyebrow">Demo Walkthrough</div>
-                    <h3>See how the complete system comes together in real life — from installation to daily use.</h3>
-                    <p>A short walkthrough can show the installer, controller and customer dashboard together so buyers understand the full system quickly. Continue pricing and installation planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
+                    <h3>See installation, controller and dashboard in one walkthrough.</h3>
+                    <p>Understand the full system quickly, then continue pricing and planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
                     <div class="proof-pills" aria-label="Demo highlights">
                         <span>Installer-friendly setup</span>
                         <span>Customer phone access</span>
@@ -4420,8 +4461,18 @@ min-width:0;
     </section>
 
     <footer class="footer surface">
+        <div class="final-cta">
+            <div>
+                <strong>Ready to stop overflow and protect your pump?</strong>
+                <p>Book a free demo. We will review your tank setup, pump risk and best plan.</p>
+            </div>
+            <div class="final-cta-actions">
+                <a class="button-secondary is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="ghost-link" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
+            </div>
+        </div>
         <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
-        <div>Support and product enquiries: <a href="mailto:support@salewell.co.in">support@salewell.co.in | +91-8299812878</a></div>
+        <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918299812878">+91-8299812878</a></div>
         <div><a href="{{ url_for('android_app_download') }}">Download Android App</a></div>
         <div class="footer-note">&copy; SaleWell IoT Solutions Pvt. Ltd. All rights reserved.</div>
     </footer>
