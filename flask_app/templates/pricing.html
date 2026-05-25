@@ -273,13 +273,13 @@ margin-top:20px;
 padding:26px;
 border-radius:34px;
 display:grid;
-grid-template-columns:minmax(0,1.08fr) minmax(320px,.92fr);
-gap:20px;
+grid-template-columns:minmax(0,1.14fr) minmax(320px,.86fr);
+gap:24px;
 overflow:hidden;
 }
 .hero-copy{
 display:grid;
-gap:18px;
+gap:16px;
 align-content:start;
 }
 .hero h1{
@@ -298,12 +298,10 @@ color:var(--muted);
 max-width:62ch;
 }
 .trust-line{
-padding:16px 18px;
-border-radius:22px;
-background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(255,255,255,.8));
-border:1px solid rgba(13,147,168,.16);
+max-width:64ch;
 font-weight:800;
 line-height:1.6;
+color:var(--brand-deep);
 }
 .cta-row{
 display:flex;
@@ -316,18 +314,19 @@ gap:12px;
 align-content:start;
 }
 .hero-panel{
-padding:20px;
+padding:22px;
 border-radius:28px;
 background:linear-gradient(180deg,rgba(8,31,39,.96),rgba(12,55,66,.92));
 border:1px solid rgba(150,207,218,.12);
 color:#eefcff;
 display:grid;
-gap:16px;
+gap:18px;
 box-shadow:0 30px 64px rgba(0,0,0,.18);
+align-content:center;
 }
 .hero-panel h2{
 margin:0;
-font-size:1.8rem;
+font-size:1.65rem;
 line-height:1.05;
 letter-spacing:-.04em;
 }
@@ -338,16 +337,45 @@ line-height:1.62;
 }
 .tier-grid{
 display:grid;
-grid-template-columns:repeat(2,minmax(0,1fr));
-gap:12px;
+grid-template-columns:1fr;
+gap:10px;
+position:relative;
 }
 .tier-card{
-padding:16px;
-border-radius:22px;
-background:rgba(255,255,255,.06);
+position:relative;
+padding:15px 16px 15px 54px;
+border-radius:20px;
+background:rgba(255,255,255,.07);
 border:1px solid rgba(255,255,255,.1);
 display:grid;
-gap:8px;
+gap:5px;
+min-height:76px;
+}
+.tier-card::before{
+content:attr(data-step);
+position:absolute;
+left:15px;
+top:50%;
+width:26px;
+height:26px;
+border-radius:999px;
+display:grid;
+place-items:center;
+transform:translateY(-50%);
+background:linear-gradient(135deg,#7fe5f2,#ef9b41);
+color:#08212a;
+font-weight:900;
+font-size:12px;
+box-shadow:0 10px 24px rgba(0,0,0,.18);
+}
+.tier-card:not(:last-child)::after{
+content:"";
+position:absolute;
+left:27px;
+top:calc(50% + 18px);
+bottom:-18px;
+width:2px;
+background:rgba(127,229,242,.26);
 }
 .tier-card span{
 font-size:11px;
@@ -357,12 +385,12 @@ text-transform:uppercase;
 color:#7fe5f2;
 }
 .tier-card strong{
-font-size:1.28rem;
+font-size:1.16rem;
 line-height:1.08;
 letter-spacing:-.03em;
 }
 .tier-card p{
-font-size:13px;
+font-size:12px;
 line-height:1.52;
 color:#d2e9ee;
 }
@@ -400,6 +428,33 @@ grid-template-columns:repeat(3,minmax(0,1fr));
 gap:16px;
 margin-top:18px;
 }
+.plan-group{
+margin-top:20px;
+}
+.plan-group:first-of-type{
+margin-top:0;
+}
+.plan-group-head{
+display:flex;
+align-items:end;
+justify-content:space-between;
+gap:14px;
+padding:2px 2px 0;
+}
+.plan-group-head h3{
+margin:0;
+font-family:"Georgia","Times New Roman",serif;
+font-size:clamp(1.6rem,2.6vw,2.35rem);
+line-height:1;
+letter-spacing:-.045em;
+}
+.plan-group-head p{
+margin:0;
+max-width:54ch;
+line-height:1.6;
+color:var(--muted);
+font-weight:700;
+}
 .plan-card{
 padding:20px;
 border-radius:26px;
@@ -419,9 +474,30 @@ border-color:rgba(13,147,168,.28);
 box-shadow:0 28px 56px rgba(12,56,66,.16),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .plan-card.is-featured{
-background:linear-gradient(180deg,rgba(13,147,168,.1),rgba(255,255,255,.96));
-border-color:rgba(13,147,168,.2);
-box-shadow:0 24px 46px rgba(12,56,66,.1),inset 0 1px 0 rgba(255,255,255,.56);
+position:relative;
+transform:translateY(-4px);
+background:
+    linear-gradient(180deg,rgba(255,255,255,.98),rgba(235,250,250,.96)),
+    radial-gradient(circle at 100% 0,rgba(239,155,65,.18),transparent 34%);
+border-color:rgba(239,155,65,.48);
+box-shadow:0 34px 70px rgba(12,56,66,.18),0 0 0 3px rgba(239,155,65,.12),inset 0 1px 0 rgba(255,255,255,.68);
+z-index:1;
+}
+.plan-card.is-featured:hover{
+transform:translateY(-7px);
+box-shadow:0 40px 80px rgba(12,56,66,.22),0 0 0 3px rgba(239,155,65,.16),inset 0 1px 0 rgba(255,255,255,.72);
+}
+@media (prefers-color-scheme: dark){
+.plan-card.is-featured{
+background:
+    linear-gradient(180deg,rgba(13,43,51,.98),rgba(8,31,39,.96)),
+    radial-gradient(circle at 100% 0,rgba(255,187,97,.18),transparent 34%);
+border-color:rgba(255,187,97,.48);
+box-shadow:0 34px 70px rgba(0,0,0,.34),0 0 0 3px rgba(255,187,97,.12),inset 0 1px 0 rgba(255,255,255,.08);
+}
+.plan-card.is-featured:hover{
+box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 3px rgba(255,187,97,.16),inset 0 1px 0 rgba(255,255,255,.1);
+}
 }
 .plan-top{
 display:grid;
@@ -446,8 +522,15 @@ letter-spacing:.14em;
 text-transform:uppercase;
 }
 .plan-badge.is-accent{
-background:var(--accent-soft);
-color:#8a5715;
+background:linear-gradient(135deg,#ffd38d,#ef9b41);
+color:#1d2d31;
+box-shadow:0 10px 20px rgba(239,155,65,.18);
+}
+.plan-badge.is-recommended{
+padding:8px 12px;
+background:linear-gradient(135deg,#ffcb77,#ef9b41);
+color:#172d33;
+box-shadow:0 12px 24px rgba(239,155,65,.26);
 }
 .plan-card h3{
 margin:0;
@@ -494,6 +577,9 @@ line-height:1;
 font-size:14px;
 font-weight:800;
 color:var(--muted);
+}
+.price-note.is-outcome{
+color:var(--brand-deep);
 }
 .feature-list,
 .fit-list,
@@ -826,6 +912,9 @@ color:var(--muted);
 .cta-panel{
 grid-template-columns:1fr;
 }
+.plan-group-head{
+display:grid;
+}
 .plans-grid{
 grid-template-columns:repeat(2,minmax(0,1fr));
 }
@@ -916,38 +1005,36 @@ max-width:none;
     <section class="hero surface">
         <div class="hero-copy">
             <h1>Simple pricing for every type of property</h1>
-            <p>Choose local monitoring, internet pump control, or full AI-based analytics based on your needs.</p>
-            <div class="trust-line">Small monthly subscription. Big savings in water loss, tanker dependency, and motor repair costs.</div>
+            <p>Choose a plan based on how much control, prevention and reporting your tank setup needs.</p>
+            <div class="trust-line">Small subscription where needed, with practical savings from fewer overflows, dry-run issues, tanker calls and rushed motor repairs.</div>
             <div class="cta-row">
                 <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
-                <a class="ghost-link" href="#contact">Talk to Sales</a>
             </div>
         </div>
 
         <aside class="hero-panel" aria-label="Pricing strategy summary">
-            <h2>Start with Basic, move to Smart, scale with AI Pro.</h2>
-            <p>Use local-only monitoring for simple homes, Smart for internet and pump control, AI Pro for advanced analytics, and Enterprise for custom rollouts.</p>
+            <h2>Pick the level of control you need.</h2>
             <div class="tier-grid">
-                <article class="tier-card">
+                <article class="tier-card" data-step="1">
                     <span>Basic</span>
-                    <strong>Local monitoring only</strong>
-                    <p>Best for homes that want simple monitoring inside property Wi-Fi.</p>
+                    <strong>Local monitoring</strong>
+                    <p>For simple visibility inside property Wi-Fi.</p>
                 </article>
-                <article class="tier-card">
+                <article class="tier-card" data-step="2">
                     <span>Smart</span>
                     <strong>Internet plus pump control</strong>
-                    <p>Ideal for homeowners who want remote access and action from anywhere.</p>
+                    <p>For remote access and pump action from anywhere.</p>
                 </article>
-                <article class="tier-card">
-                    <span>AI Pro</span>
-                    <strong>Analytics, leaks and source logic</strong>
-                    <p>Designed for premium homes and commercial sites that want prevention and insights.</p>
+                <article class="tier-card" data-step="3">
+                    <span>AI</span>
+                    <strong>Analytics and prevention</strong>
+                    <p>For leak insight, usage patterns and early warnings.</p>
                 </article>
-                <article class="tier-card">
+                <article class="tier-card" data-step="4">
                     <span>Enterprise</span>
-                    <strong>Custom deployment and integrations</strong>
-                    <p>Built for builders, township projects and large commercial groups.</p>
+                    <strong>Custom rollout</strong>
+                    <p>For builders, townships and large commercial sites.</p>
                 </article>
             </div>
         </aside>
@@ -960,7 +1047,12 @@ max-width:none;
             </div>
         </div>
 
-        <div class="plans-grid">
+        <div class="plan-group">
+            <div class="plan-group-head">
+                <h3>Home Plans</h3>
+                <p>For individual homes, villas and small buildings that need clearer tank visibility and easier pump control.</p>
+            </div>
+            <div class="plans-grid">
             <article class="plan-card" data-plan-segment="home">
                 <div class="plan-top">
                     <div class="plan-badges">
@@ -973,6 +1065,7 @@ max-width:none;
                     <div class="price-main">&#8377;4,999</div>
                     <div class="price-note">One-time setup</div>
                     <div class="price-note">No monthly subscription</div>
+                    <div class="price-note is-outcome">Simple local visibility without recurring cost.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -998,7 +1091,7 @@ max-width:none;
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Smart</span>
-                        <span class="plan-badge is-accent">Most Popular</span>
+                        <span class="plan-badge is-recommended">Most Popular</span>
                     </div>
                     <h3>For homes that want internet access and pump control</h3>
                     <p>Best for homeowners and villas that want access from anywhere, not just inside the property network.</p>
@@ -1007,6 +1100,7 @@ max-width:none;
                     <div class="price-main">&#8377;6,999</div>
                     <div class="price-note">One-time setup</div>
                     <div class="price-note">&#8377;149/month</div>
+                    <div class="price-note is-outcome">Best for avoiding overflow and dry-run surprises remotely.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1041,6 +1135,7 @@ max-width:none;
                     <div class="price-main">&#8377;8,999</div>
                     <div class="price-note">One-time setup</div>
                     <div class="price-note">&#8377;249/month</div>
+                    <div class="price-note is-outcome">Adds leak insight, usage trends and water-saving alerts.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1062,7 +1157,15 @@ max-width:none;
                     <span>Use this when prevention and usage insight matter.</span>
                 </div>
             </article>
+            </div>
+        </div>
 
+        <div class="plan-group">
+            <div class="plan-group-head">
+                <h3>Commercial Plans</h3>
+                <p>For apartments, hotels, schools, institutions and managed sites with shared tanks or multi-tank logic.</p>
+            </div>
+            <div class="plans-grid">
             <article class="plan-card" data-plan-segment="commercial">
                 <div class="plan-top">
                     <div class="plan-badges">
@@ -1075,6 +1178,7 @@ max-width:none;
                     <div class="price-main">&#8377;9,999</div>
                     <div class="price-note">Per tank / setup</div>
                     <div class="price-note">&#8377;399/month</div>
+                    <div class="price-note is-outcome">For admin visibility across shared tank operations.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1110,6 +1214,7 @@ max-width:none;
                     <div class="price-main">&#8377;12,999</div>
                     <div class="price-note">Per setup</div>
                     <div class="price-note">&#8377;699/month</div>
+                    <div class="price-note is-outcome">For leak detection, multi-tank reports and source logic.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1146,6 +1251,7 @@ max-width:none;
                     <div class="price-main">Custom</div>
                     <div class="price-note">Pricing by scope</div>
                     <div class="price-note">Deployment-led planning</div>
+                    <div class="price-note is-outcome">Quoted around site count, roles and integrations.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1167,6 +1273,7 @@ max-width:none;
                     <span>Use this for custom rollout planning and integrations.</span>
                 </div>
             </article>
+            </div>
         </div>
     </section>
 
@@ -1303,8 +1410,8 @@ max-width:none;
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
-                <h2>Book the right pricing conversation, not a generic call.</h2>
-                <p>Use a quick setup review when the buyer is unsure about tank count or pump logic. Use a live demo when the buyer wants to see the real dashboard before deciding.</p>
+                <h2>Unsure which plan fits your tank setup?</h2>
+                <p>Get a 10-minute recommendation before choosing. We will review tank count, pump logic, source tank needs and the plan that fits without overselling the setup.</p>
                 <div class="cta-row">
                     <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
