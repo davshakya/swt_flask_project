@@ -1004,9 +1004,9 @@ max-width:none;
 
     <section class="hero surface">
         <div class="hero-copy">
-            <h1>Simple pricing for every type of property</h1>
-            <p>Choose a plan based on how much control, prevention and reporting your tank setup needs.</p>
-            <div class="trust-line">Small subscription where needed, with practical savings from fewer overflows, dry-run issues, tanker calls and rushed motor repairs.</div>
+            <h1>Modular pricing for every water tank setup</h1>
+            <p>Start with the device you need, then add pump control, cloud access, source tank monitoring, AI reports or multi-site support.</p>
+            <div class="trust-line">Wi-Fi is required for every SaleWell device. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
                 <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
@@ -1014,27 +1014,27 @@ max-width:none;
         </div>
 
         <aside class="hero-panel" aria-label="Pricing strategy summary">
-            <h2>Pick the level of control you need.</h2>
+            <h2>Build the setup around your customer type.</h2>
             <div class="tier-grid">
                 <article class="tier-card" data-step="1">
-                    <span>Basic</span>
-                    <strong>Local monitoring</strong>
-                    <p>For simple visibility inside property Wi-Fi.</p>
+                    <span>Start</span>
+                    <strong>Tank visibility</strong>
+                    <p>For homes and small shops that need level monitoring first.</p>
                 </article>
                 <article class="tier-card" data-step="2">
-                    <span>Smart</span>
-                    <strong>Internet plus pump control</strong>
-                    <p>For remote access and pump action from anywhere.</p>
+                    <span>Control</span>
+                    <strong>Pump automation</strong>
+                    <p>Add relay control, alerts and remote pump action when needed.</p>
                 </article>
                 <article class="tier-card" data-step="3">
-                    <span>AI</span>
-                    <strong>Analytics and prevention</strong>
-                    <p>For leak insight, usage patterns and early warnings.</p>
+                    <span>Expand</span>
+                    <strong>Multi-tank logic</strong>
+                    <p>Add source tanks, extra tanks and managed property dashboards.</p>
                 </article>
                 <article class="tier-card" data-step="4">
-                    <span>Enterprise</span>
-                    <strong>Custom rollout</strong>
-                    <p>For builders, townships and large commercial sites.</p>
+                    <span>Customize</span>
+                    <strong>AI, reports and rollout</strong>
+                    <p>For hotels, RWAs, builders, dealers and commercial sites.</p>
                 </article>
             </div>
         </aside>
@@ -1043,118 +1043,121 @@ max-width:none;
     <section class="section surface" id="plans">
         <div class="section-head">
             <div>
-                <h2>Pricing built around real customer types.</h2>
+                <h2>Choose a base plan, then customize with add-ons.</h2>
             </div>
         </div>
 
         <div class="plan-group">
             <div class="plan-group-head">
-                <h3>Home Plans</h3>
-                <p>For individual homes, villas and small buildings that need clearer tank visibility and easier pump control.</p>
+                <h3>Home, Villa and Small Shop Plans</h3>
+                <p>For single-tank customers who need affordable monitoring first, then optional pump control or cloud access.</p>
             </div>
             <div class="plans-grid">
             <article class="plan-card" data-plan-segment="home">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Home Basic</span>
+                        <span class="plan-badge">Starter Wi-Fi</span>
                     </div>
-                    <h3>For homes that need simple local monitoring</h3>
-                    <p>Best for individual homes and small buildings that only want monitoring inside property Wi-Fi.</p>
+                    <h3>For customers who only need tank level visibility</h3>
+                    <p>Best entry plan for homes, shops and small buildings with existing Wi-Fi near the tank/controller.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;4,999</div>
-                    <div class="price-note">One-time setup</div>
+                    <div class="price-main">&#8377;3,999</div>
+                    <div class="price-note">One-time device price</div>
                     <div class="price-note">No monthly subscription</div>
-                    <div class="price-note is-outcome">Simple local visibility without recurring cost.</div>
+                    <div class="price-note is-outcome">Wi-Fi required. Best for monitoring only.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Local network access only</li>
+                    <li>Wi-Fi based tank level device</li>
                     <li>Water level monitoring</li>
-                    <li>Pump status view</li>
+                    <li>Local dashboard on same Wi-Fi</li>
                     <li>Basic alerts</li>
                     <li>Single tank support</li>
+                    <li>No pump control included</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
                     <li>Individual homes</li>
+                    <li>Small shops</li>
                     <li>Small buildings</li>
-                    <li>Property Wi-Fi only use</li>
+                    <li>Budget customers</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book Home Basic</a>
-                    <span>Good when you only need local tank visibility.</span>
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Starter Wi-Fi', segment='Home / Villa') }}#enquiry" data-plan="Starter Wi-Fi" data-segment="Home / Villa">Book Starter Wi-Fi</a>
+                    <span>Start low, then add pump control or cloud later.</span>
                 </div>
             </article>
 
             <article class="plan-card is-featured" data-plan-segment="home">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Home Smart</span>
+                        <span class="plan-badge">Home Control</span>
                         <span class="plan-badge is-recommended">Most Popular</span>
                     </div>
-                    <h3>For homes that want internet access and pump control</h3>
-                    <p>Best for homeowners and villas that want access from anywhere, not just inside the property network.</p>
+                    <h3>For homes that want motor control and safer daily use</h3>
+                    <p>Best for homeowners who want tank visibility plus pump relay control, alerts and simple automation.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;6,999</div>
-                    <div class="price-note">One-time setup</div>
-                    <div class="price-note">&#8377;149/month</div>
-                    <div class="price-note is-outcome">Best for avoiding overflow and dry-run surprises remotely.</div>
+                    <div class="price-main">&#8377;5,999</div>
+                    <div class="price-note">One-time device price</div>
+                    <div class="price-note">Optional cloud: &#8377;99/month</div>
+                    <div class="price-note is-outcome">Wi-Fi required. Adds pump control.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Everything in Home Basic</li>
-                    <li>Remote access over Internet</li>
-                    <li>Pump control from mobile</li>
+                    <li>Everything in Starter Wi-Fi</li>
+                    <li>Pump relay control</li>
+                    <li>Auto cut-off support</li>
                     <li>Alert notifications</li>
-                    <li>Basic usage history</li>
+                    <li>Mobile dashboard on Wi-Fi</li>
+                    <li>Cloud access add-on available</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
                     <li>Homeowners</li>
                     <li>Villas</li>
-                    <li>Users who want control from anywhere</li>
+                    <li>Customers worried about overflow or dry-run</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Smart', segment='Home / Villa') }}#enquiry" data-plan="Home Smart" data-segment="Home / Villa">Book Home Smart</a>
-                    <span>Best first choice for remote access and pump control.</span>
+                    <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book Home Control</a>
+                    <span>Most practical first upgrade for motor safety.</span>
                 </div>
             </article>
 
             <article class="plan-card" data-plan-segment="home">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Home AI</span>
-                        <span class="plan-badge is-accent">Smart Savings</span>
+                        <span class="plan-badge">Home Cloud Pro</span>
+                        <span class="plan-badge is-accent">Remote Access</span>
                     </div>
-                    <h3>For homes that want full smart monitoring</h3>
-                    <p>Best for premium homes and smart-home users who want prevention, savings and deeper water insight.</p>
+                    <h3>For families that want control from anywhere</h3>
+                    <p>Best for premium homes, rented properties and owners who travel or manage the pump remotely.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;8,999</div>
-                    <div class="price-note">One-time setup</div>
-                    <div class="price-note">&#8377;249/month</div>
-                    <div class="price-note is-outcome">Adds leak insight, usage trends and water-saving alerts.</div>
+                    <div class="price-main">&#8377;7,499</div>
+                    <div class="price-note">One-time device price</div>
+                    <div class="price-note">&#8377;149/month cloud service</div>
+                    <div class="price-note is-outcome">Wi-Fi required. Remote dashboard included.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Everything in Home Smart</li>
-                    <li>AI analytics</li>
-                    <li>Leak detection insights</li>
+                    <li>Everything in Home Control</li>
+                    <li>Remote access over Internet</li>
+                    <li>Cloud alerts and history</li>
                     <li>Water usage trends</li>
-                    <li>Overflow and dry-run intelligence</li>
-                    <li>Priority support</li>
+                    <li>Family/customer login</li>
+                    <li>Basic monthly report</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
                     <li>Premium homes</li>
-                    <li>Smart home users</li>
-                    <li>Customers who want savings plus prevention</li>
+                    <li>Rental homes</li>
+                    <li>Users who want remote control</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home AI', segment='Home / Villa') }}#enquiry" data-plan="Home AI" data-segment="Home / Villa">Book Home AI</a>
-                    <span>Use this when prevention and usage insight matter.</span>
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book Home Cloud Pro</a>
+                    <span>Choose this when phone control from anywhere matters.</span>
                 </div>
             </article>
             </div>
@@ -1162,23 +1165,23 @@ max-width:none;
 
         <div class="plan-group">
             <div class="plan-group-head">
-                <h3>Commercial Plans</h3>
-                <p>For apartments, hotels, schools, institutions and managed sites with shared tanks or multi-tank logic.</p>
+                <h3>Apartment, RWA and Commercial Plans</h3>
+                <p>For managed sites that need shared tank visibility, multiple users, reports, source tank logic and support handover.</p>
             </div>
             <div class="plans-grid">
             <article class="plan-card" data-plan-segment="commercial">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Commercial Standard</span>
+                        <span class="plan-badge">RWA Standard</span>
                     </div>
-                    <h3>For apartments, schools, hotels and commercial sites</h3>
-                    <p>Best for managed properties that need reliable remote monitoring and admin visibility across overhead and underground tanks.</p>
+                    <h3>For apartments, societies and shared buildings</h3>
+                    <p>Best for RWAs and small managed sites that need remote monitoring, admin access and pump visibility.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;9,999</div>
                     <div class="price-note">Per tank / setup</div>
-                    <div class="price-note">&#8377;399/month</div>
-                    <div class="price-note is-outcome">For admin visibility across shared tank operations.</div>
+                    <div class="price-note">&#8377;299/month cloud service</div>
+                    <div class="price-note is-outcome">Wi-Fi required at device locations.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1196,7 +1199,7 @@ max-width:none;
                     <li>Schools and commercial buildings</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Commercial Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="Commercial Standard" data-segment="Apartment / Hostel">Book Commercial Standard</a>
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book RWA Standard</a>
                     <span>Built for shared tanks and managed properties.</span>
                 </div>
             </article>
@@ -1207,18 +1210,18 @@ max-width:none;
                         <span class="plan-badge">Commercial AI Pro</span>
                         <span class="plan-badge is-accent">Advanced</span>
                     </div>
-                    <h3>For multi-tank and advanced commercial usage</h3>
-                    <p>Best for large apartments, hotels, factories and institutions that want leak detection, analytics and source-to-destination logic.</p>
+                    <h3>For hotels, schools, factories and multi-tank sites</h3>
+                    <p>Best where usage reports, leak insight, source-to-destination logic and multiple tank views matter.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;12,999</div>
+                    <div class="price-main">&#8377;14,999</div>
                     <div class="price-note">Per setup</div>
-                    <div class="price-note">&#8377;699/month</div>
-                    <div class="price-note is-outcome">For leak detection, multi-tank reports and source logic.</div>
+                    <div class="price-note">&#8377;599/month cloud + reports</div>
+                    <div class="price-note is-outcome">Wi-Fi required. Built for reporting and prevention.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Everything in Commercial Standard</li>
+                    <li>Everything in RWA Standard</li>
                     <li>AI analytics</li>
                     <li>Leak detection</li>
                     <li>Multi-tank dashboard</li>
@@ -1238,39 +1241,83 @@ max-width:none;
                 </div>
             </article>
 
-            <article class="plan-card" data-plan-segment="enterprise">
+            <article class="plan-card" data-plan-segment="dealer">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Enterprise</span>
-                        <span class="plan-badge is-accent">Custom Pricing</span>
+                        <span class="plan-badge">Dealer / Installer Kit</span>
+                        <span class="plan-badge is-accent">Partner</span>
                     </div>
-                    <h3>For large projects and custom needs</h3>
-                    <p>Best for builders, township projects, industrial clients and large commercial groups that need custom rollout support.</p>
+                    <h3>For plumbers, electricians and local installers</h3>
+                    <p>Best for partners who want a demo-ready kit, customer onboarding flow and modular add-on pricing.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">Custom</div>
-                    <div class="price-note">Pricing by scope</div>
-                    <div class="price-note">Deployment-led planning</div>
-                    <div class="price-note is-outcome">Quoted around site count, roles and integrations.</div>
+                    <div class="price-main">&#8377;11,999</div>
+                    <div class="price-note">Starter partner kit</div>
+                    <div class="price-note">Reseller pricing by volume</div>
+                    <div class="price-note is-outcome">Wi-Fi required during demos and installs.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Multi-site deployment</li>
-                    <li>Custom dashboard</li>
-                    <li>Multiple users and roles</li>
-                    <li>API and custom integrations</li>
-                    <li>Dedicated support</li>
-                    <li>Custom AI reports</li>
+                    <li>Demo device package</li>
+                    <li>Installer checklist</li>
+                    <li>Customer setup support</li>
+                    <li>Plan and add-on menu</li>
+                    <li>Partner follow-up support</li>
+                    <li>Bulk pricing discussion</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
-                    <li>Builders</li>
-                    <li>Township projects</li>
-                    <li>Industrial and large commercial groups</li>
+                    <li>Dealers</li>
+                    <li>Installers</li>
+                    <li>Local service partners</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Enterprise', segment='Commercial Site') }}#enquiry" data-plan="Enterprise" data-segment="Commercial Site">Book Enterprise Call</a>
-                    <span>Use this for custom rollout planning and integrations.</span>
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book Partner Kit</a>
+                    <span>Use this to sell modular devices locally.</span>
+                </div>
+            </article>
+            </div>
+        </div>
+
+        <div class="plan-group">
+            <div class="plan-group-head">
+                <h3>Enterprise and Custom Rollout</h3>
+                <p>For builders, townships, institutions and industrial clients where device count, roles and integrations define the quote.</p>
+            </div>
+            <div class="plans-grid">
+            <article class="plan-card is-featured" data-plan-segment="enterprise">
+                <div class="plan-top">
+                    <div class="plan-badges">
+                        <span class="plan-badge">Enterprise Modular</span>
+                        <span class="plan-badge is-accent">Custom Quote</span>
+                    </div>
+                    <h3>For large projects that need a customized device mix</h3>
+                    <p>Best for builders, townships, industrial sites and large commercial groups with many tanks or sites.</p>
+                </div>
+                <div class="price-stack">
+                    <div class="price-main">Custom</div>
+                    <div class="price-note">Usually starts from &#8377;24,999</div>
+                    <div class="price-note">Monthly service by scope</div>
+                    <div class="price-note is-outcome">Quoted after site map, Wi-Fi check and device count.</div>
+                </div>
+                <div class="list-title">Can Include</div>
+                <ul class="feature-list">
+                    <li>Multiple device roles and dashboards</li>
+                    <li>Multi-site deployment</li>
+                    <li>API and custom integrations</li>
+                    <li>Custom reports and user roles</li>
+                    <li>Dedicated rollout support</li>
+                    <li>Bulk device pricing</li>
+                </ul>
+                <div class="list-title">Best For</div>
+                <ul class="fit-list">
+                    <li>Builders and townships</li>
+                    <li>Industrial sites</li>
+                    <li>Large commercial groups</li>
+                </ul>
+                <div class="plan-action">
+                    <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book Custom Call</a>
+                    <span>Use this when standard packages are too small.</span>
                 </div>
             </article>
             </div>
@@ -1290,7 +1337,7 @@ max-width:none;
                     <tr>
                         <th>Plan</th>
                         <th>Best For</th>
-                        <th>Internet</th>
+                        <th>Wi-Fi</th>
                         <th>Pump Control</th>
                         <th>AI Analytics</th>
                         <th>Source Tank</th>
@@ -1300,64 +1347,74 @@ max-width:none;
                 </thead>
                 <tbody>
                     <tr data-plan-row="home">
-                        <td><strong>Home Basic</strong><span>Local network only</span></td>
-                        <td><span>Home</span></td>
+                        <td><strong>Starter Wi-Fi</strong><span>Tank level only</span></td>
+                        <td><span>Home / shop</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><span class="no">No</span></td>
-                        <td><strong>&#8377;4,999</strong><span>No monthly fee</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book</a></td>
+                        <td><strong>&#8377;3,999</strong><span>No monthly fee</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Starter Wi-Fi', segment='Home / Villa') }}#enquiry" data-plan="Starter Wi-Fi" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
-                        <td><strong>Home Smart</strong><span>Internet plus control</span></td>
+                        <td><strong>Home Control</strong><span>Pump relay control</span></td>
                         <td><span>Home</span></td>
-                        <td><span class="yes">Yes</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;6,999</strong><span>+ &#8377;149/mo</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Smart', segment='Home / Villa') }}#enquiry" data-plan="Home Smart" data-segment="Home / Villa">Book</a></td>
+                        <td><strong>&#8377;5,999</strong><span>Cloud optional + &#8377;99/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
-                        <td><strong>Home AI</strong><span>Premium smart monitoring</span></td>
+                        <td><strong>Home Cloud Pro</strong><span>Remote dashboard</span></td>
                         <td><span>Home</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><span class="yes">Yes</span></td>
-                        <td><span class="yes">Yes</span></td>
+                        <td><span class="no">Add-on</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;8,999</strong><span>+ &#8377;249/mo</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home AI', segment='Home / Villa') }}#enquiry" data-plan="Home AI" data-segment="Home / Villa">Book</a></td>
+                        <td><strong>&#8377;7,499</strong><span>+ &#8377;149/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
-                        <td><strong>Commercial Standard</strong><span>Managed property monitoring</span></td>
-                        <td><span>Commercial</span></td>
-                        <td><span class="yes">Yes</span></td>
+                        <td><strong>RWA Standard</strong><span>Managed shared tank</span></td>
+                        <td><span>Apartment / RWA</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;9,999</strong><span>+ &#8377;399/mo</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="Commercial Standard" data-segment="Apartment / Hostel">Book</a></td>
+                        <td><strong>&#8377;9,999</strong><span>+ &#8377;299/mo</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
                         <td><strong>Commercial AI Pro</strong><span>Advanced multi-tank insight</span></td>
-                        <td><span>Commercial</span></td>
+                        <td><span>Hotel / institution</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;12,999</strong><span>+ &#8377;699/mo</span></td>
+                        <td><strong>&#8377;14,999</strong><span>+ &#8377;599/mo</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
+                    <tr data-plan-row="dealer">
+                        <td><strong>Dealer / Installer Kit</strong><span>Partner demo kit</span></td>
+                        <td><span>Dealer / installer</span></td>
+                        <td><span class="yes">Required</span></td>
+                        <td><span class="yes">Demo</span></td>
+                        <td><span class="no">Optional</span></td>
+                        <td><span class="no">Optional</span></td>
+                        <td><strong>&#8377;11,999</strong><span>Volume pricing available</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book</a></td>
+                    </tr>
                     <tr data-plan-row="enterprise">
-                        <td><strong>Enterprise</strong><span>Custom scope</span></td>
+                        <td><strong>Enterprise Modular</strong><span>Custom device mix</span></td>
                         <td><span>Large projects</span></td>
+                        <td><span class="yes">Required</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
-                        <td><span class="yes">Custom</span></td>
-                        <td><strong>Custom Pricing</strong><span>By project scope</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise', segment='Commercial Site') }}#enquiry" data-plan="Enterprise" data-segment="Commercial Site">Book</a></td>
+                        <td><strong>Custom</strong><span>Usually from &#8377;24,999</span></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book</a></td>
                     </tr>
                 </tbody>
             </table>
@@ -1367,51 +1424,61 @@ max-width:none;
     <section class="section surface" id="addons">
         <div class="section-head">
             <div>
-                <h2>Optional upgrades for specific site needs.</h2>
+                <h2>Add-ons make every device setup customizable.</h2>
             </div>
         </div>
 
         <div class="addons-grid">
             <article class="addon-card">
-                <strong>Pump control over Internet</strong>
-                <div class="addon-price">+ &#8377;1,500</div>
-                <p>Setup add-on for customers who want remote pump action without moving into a larger package immediately.</p>
+                <strong>Pump relay control module</strong>
+                <div class="addon-price">+ &#8377;1,500 to &#8377;2,500</div>
+                <p>Add motor start/stop control, auto cut-off support and safer daily pump operation.</p>
             </article>
             <article class="addon-card">
-                <strong>AI analytics</strong>
-                <div class="addon-price">+ &#8377;99 to &#8377;199/mo</div>
-                <p>Add AI analytics for leak insight, usage patterns and earlier warning signals where monitoring alone is not enough.</p>
+                <strong>Cloud dashboard and remote access</strong>
+                <div class="addon-price">+ &#8377;99 to &#8377;299/mo</div>
+                <p>Use mobile/web access from anywhere, cloud history, alerts and customer login. Wi-Fi and internet are required.</p>
+            </article>
+            <article class="addon-card">
+                <strong>AI analytics and leak insight</strong>
+                <div class="addon-price">+ &#8377;149 to &#8377;499/mo</div>
+                <p>Add usage trends, leak warning, unusual consumption alerts and monthly water reports.</p>
             </article>
             <article class="addon-card">
                 <strong>Source tank monitoring</strong>
-                <div class="addon-price">+ &#8377;2,000</div>
-                <p>Useful where source and destination visibility matters for transfer logic, refill planning and locked pump starts.</p>
+                <div class="addon-price">+ &#8377;2,000 to &#8377;3,500</div>
+                <p>Add underground/source tank visibility for transfer logic, refill planning and pump lock protection.</p>
             </article>
             <article class="addon-card">
-                <strong>Extra tank connection</strong>
-                <div class="addon-price">+ &#8377;1,500 to &#8377;3,000</div>
-                <p>Expand single-tank deployments into dual or multi-tank setups without redesigning the whole pricing conversation.</p>
+                <strong>Extra tank or extra sensor node</strong>
+                <div class="addon-price">+ &#8377;2,500 to &#8377;4,500</div>
+                <p>Expand from one tank to overhead, underground, source, destination or multi-floor tank setups.</p>
             </article>
             <article class="addon-card">
-                <strong>Installation visit</strong>
+                <strong>Installation and site survey</strong>
                 <div class="addon-price">By city</div>
-                <p>Installation can be quoted separately or included depending on city, travel and project size.</p>
+                <p>Quoted by city, tank access, wiring/power readiness, Wi-Fi coverage and number of devices.</p>
             </article>
             <article class="addon-card">
-                <strong>Custom reporting</strong>
+                <strong>Custom reporting and user roles</strong>
                 <div class="addon-price">Quote-based</div>
-                <p>For advanced commercial users who want custom exports, reporting views or role-specific operational summaries.</p>
+                <p>For RWAs and commercial users who need resident reports, admin roles, exports or custom summaries.</p>
+            </article>
+            <article class="addon-card">
+                <strong>Dealer branding and bulk kit</strong>
+                <div class="addon-price">Quote-based</div>
+                <p>For partners who need demo units, installer material, local support process and volume pricing.</p>
             </article>
         </div>
 
-        <div class="install-note">Installation visit can be separate or included by city. Final rollout pricing can change with tank count, source tank requirements and site access conditions.</div>
+        <div class="install-note">Wi-Fi is mandatory for all devices. Installation can be separate or included by city. Final rollout pricing can change with tank count, source tank requirements, pump panel readiness, power access and site access conditions.</div>
     </section>
 
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
-                <h2>Unsure which plan fits your tank setup?</h2>
-                <p>Get a 10-minute recommendation before choosing. We will review tank count, pump logic, source tank needs and the plan that fits without overselling the setup.</p>
+                <h2>Unsure which modular setup fits your customer?</h2>
+                <p>Get a 10-minute recommendation before choosing. We will review tank count, Wi-Fi coverage, pump logic, source tank needs, add-ons and the plan that fits without overselling the setup.</p>
                 <div class="cta-row">
                     <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
@@ -1422,20 +1489,21 @@ max-width:none;
                     <span>Apartments</span>
                     <span>Hotels</span>
                     <span>Institutions</span>
+                    <span>Dealers</span>
                     <span>Commercial Sites</span>
                 </div>
             </div>
 
             <div class="contact-card surface">
                 <strong>Need a custom quote?</strong>
-                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> to discuss device count, source tank monitoring, installation scope and rollout planning.</p>
-                <p>Best for builders, township projects, institutions and larger managed properties with multiple tanks or custom dashboard requirements.</p>
+                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> to discuss device count, Wi-Fi readiness, source tank monitoring, installation scope and rollout planning.</p>
+                <p>Best for homes, RWAs, dealers, builders, township projects, institutions and managed properties with multiple tanks or custom dashboard requirements.</p>
             </div>
         </div>
     </section>
 
     <footer class="footer surface">
-        <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers local monitoring, internet pump control and AI-driven water analytics in plans that fit both homes and managed properties.</div>
+        <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers modular Wi-Fi based water monitoring, pump control, source tank logic and AI-driven water analytics for homes, dealers and managed properties.</div>
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918299812878">+91-8299812878</a></div>
     </footer>
 </div>
@@ -1487,6 +1555,8 @@ max-width:none;
                         <option value="Apartment / Hostel">Apartment / Hostel</option>
                         <option value="Hotel / Institution">Hotel / Institution</option>
                         <option value="Dealer / Installer">Dealer / Installer</option>
+                        <option value="Small Shop / Office">Small Shop / Office</option>
+                        <option value="Builder / Township">Builder / Township</option>
                         <option value="Commercial Site">Commercial Site</option>
                     </select>
                 </div>
@@ -1499,7 +1569,7 @@ max-width:none;
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_message">Project Notes</label>
-                    <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
+                    <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, Wi-Fi coverage, pump location, add-ons needed, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
                 </div>
             </div>
 
