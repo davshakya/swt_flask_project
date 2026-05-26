@@ -2211,7 +2211,8 @@ align-items:stretch;
 grid-template-columns:minmax(420px,.96fr) minmax(0,1.04fr);
 }
 .support-layout{
-grid-template-columns:minmax(0,.84fr) minmax(500px,1.16fr);
+grid-template-columns:minmax(0,1.08fr) minmax(300px,.72fr);
+align-items:center;
 }
 .enquiry-layout{
 grid-template-columns:minmax(0,1fr) minmax(440px,.92fr);
@@ -2257,6 +2258,11 @@ margin:0;
 font-size:12px;
 line-height:1.42;
 color:#d7ecf0;
+}
+#setup-check .visual{
+width:min(100%,520px);
+justify-self:end;
+aspect-ratio:16 / 10;
 }
 .steps{
 display:grid;
@@ -3163,6 +3169,10 @@ grid-template-columns:1fr;
 .support-layout,
 .enquiry-layout{
 grid-template-columns:1fr;
+}
+#setup-check .visual{
+justify-self:center;
+width:min(100%,620px);
 }
 .before-after-compare{
 grid-template-columns:1fr;
