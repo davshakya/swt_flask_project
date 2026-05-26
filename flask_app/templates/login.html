@@ -609,7 +609,7 @@ margin-top:14px;
 padding:16px 18px;
 border-radius:24px;
 display:grid;
-grid-template-columns:repeat(4,minmax(0,1fr));
+grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
 gap:12px;
 background:rgba(255,255,255,.74);
 border:1px solid var(--line);
@@ -1123,14 +1123,39 @@ box-shadow:0 0 0 4px var(--section-tint-strong);
 align-self:center;
 display:grid;
 place-items:center;
+position:relative;
 width:54px;
 height:54px;
 border-radius:999px;
 background:linear-gradient(135deg,var(--section-accent),var(--accent));
 color:#fff;
-font-size:28px;
-font-weight:900;
+font-size:0;
+line-height:1;
 box-shadow:0 20px 42px var(--section-glow);
+}
+.compare-arrow::before{
+content:"";
+position:absolute;
+left:15px;
+top:50%;
+width:24px;
+height:4px;
+border-radius:999px;
+background:currentColor;
+transform:translateY(-50%);
+}
+.compare-arrow::after{
+content:"";
+position:absolute;
+left:29px;
+top:50%;
+width:13px;
+height:13px;
+border-top:4px solid currentColor;
+border-right:4px solid currentColor;
+border-radius:2px;
+transform:translateY(-50%) rotate(45deg);
+transform-origin:center;
 }
 .compare-cost-strip{
 grid-column:1 / -1;
@@ -2210,9 +2235,24 @@ align-items:stretch;
 .media-split{
 grid-template-columns:minmax(420px,.96fr) minmax(0,1.04fr);
 }
+#how-it-works .media-split{
+gap:34px;
+grid-template-columns:minmax(360px,.86fr) minmax(0,1.14fr);
+}
+#how-it-works .visual{
+width:100%;
+max-width:640px;
+justify-self:start;
+}
 .support-layout{
-grid-template-columns:minmax(0,1.08fr) minmax(300px,.72fr);
-align-items:center;
+grid-template-columns:minmax(0,1fr) minmax(380px,.9fr);
+align-items:start;
+}
+.support-media-stack{
+display:grid;
+gap:14px;
+justify-items:end;
+align-content:start;
 }
 .enquiry-layout{
 grid-template-columns:minmax(0,1fr) minmax(440px,.92fr);
@@ -2221,6 +2261,7 @@ align-items:start;
 }
 .visual{
 position:relative;
+margin:0;
 overflow:hidden;
 border-radius:28px;
 aspect-ratio:4 / 3;
@@ -2260,14 +2301,20 @@ line-height:1.42;
 color:#d7ecf0;
 }
 #setup-check .visual{
-width:min(100%,520px);
+width:min(100%,640px);
 justify-self:end;
-aspect-ratio:16 / 10;
+aspect-ratio:4 / 3;
+}
+#setup-check .support-media-stack .contact-card{
+width:min(100%,640px);
 }
 .steps{
 display:grid;
 gap:14px;
 align-items:stretch;
+}
+#how-it-works .steps{
+padding-left:4px;
 }
 .step{
 padding:18px;
@@ -3174,6 +3221,23 @@ grid-template-columns:1fr;
 justify-self:center;
 width:min(100%,620px);
 }
+#how-it-works .media-split{
+gap:18px;
+grid-template-columns:1fr;
+}
+#how-it-works .visual{
+max-width:none;
+width:100%;
+}
+#how-it-works .steps{
+padding-left:0;
+}
+#setup-check .support-media-stack{
+justify-items:center;
+}
+#setup-check .support-media-stack .contact-card{
+width:min(100%,620px);
+}
 .before-after-compare{
 grid-template-columns:1fr;
 }
@@ -3682,6 +3746,8 @@ min-width:0;
         <span>Installation in Delhi NCR</span>
         <span>Motor protection</span>
         <span>Tank monitoring</span>
+        <span>AI analysis</span>
+        <span>Wireless connectivity</span>
         <span>Mobile alerts</span>
     </div>
 
@@ -3717,13 +3783,13 @@ min-width:0;
                 </div>
                 <div>
                     <blockquote>
-                        "Show the sensor, dashboard and alert flow once, and people understand the value."
+                        "Once people see the sensor, dashboard and alerts working together, the value is clear."
                         <cite>&mdash; Useful for RWAs, builders and facility teams across Gurgaon, Noida and Delhi NCR</cite>
                     </blockquote>
                 </div>
             </article>
         </div>
-        <div class="social-proof-note">Deployment figures are SaleWell operational estimates and should be updated as rollout data changes.</div>
+        <div class="social-proof-note">Deployment figures are SaleWell operational estimates based on active rollout planning.</div>
     </section>
 
     <section id="benefits" class="section surface">
@@ -3853,7 +3919,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 01 &bull; Problem</span>
                             <strong>Stop Water Overflow Automatically</strong>
-                            <p>Water overflow and motor damage can cost you thousands. Open with the pain point buyers already understand before introducing the solution.</p>
+                            <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Real-time monitoring</span>
                                 <span>AI leak detection</span>
@@ -3867,7 +3933,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 02 &bull; Setup</span>
                             <strong>Easy Installation</strong>
-                            <p>With a simple sensor setup, the tank becomes smart in minutes. Show the sensor on the tank and controller linked to the pump.</p>
+                            <p>With a simple sensor setup, the tank becomes smart in minutes. The tank sensor and pump controller stay connected over Wi-Fi.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Sensor mounted on tank</span>
                                 <span>Controller to pump</span>
@@ -3946,7 +4012,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 03 &bull; Dashboard</span>
                             <strong>Live Dashboard View</strong>
-                            <p>Show the real tank view, sync status and summary cards so buyers can understand the product in one glance.</p>
+                            <p>See live tank levels, sync status and key summary cards in one clear dashboard view.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Main + source tank view</span>
                                 <span>Live sync cards</span>
@@ -4001,7 +4067,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 04 &bull; Analytics</span>
                             <strong>Usage Charts That Tell A Story</strong>
-                            <p>Use chart views to show tank trends, daily usage, 24-hour patterns and pump activity in a format RWAs and maintenance teams understand.</p>
+                            <p>Track tank trends, daily usage, 24-hour patterns and pump activity in a format RWAs and maintenance teams can act on.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Tank trend history</span>
                                 <span>Daily water use</span>
@@ -4036,14 +4102,14 @@ min-width:0;
                                             <strong>59.5%</strong>
                                         </div>
                                     </div>
-                                    <p>Weekly summaries turn raw telemetry into something buyers can immediately relate to: average usage, peak day, and how full the tank usually stays.</p>
+                                    <p>Weekly summaries turn raw tank data into clear usage, peak day and average level insights.</p>
                                 </div>
                             </div>
                         </div>
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 05 &bull; Weekly Insight</span>
                             <strong>Last 7 Days At A Glance</strong>
-                            <p>Show average use, peak demand and tank level patterns so buyers see how the system supports planning, not just monitoring.</p>
+                            <p>Understand average use, peak demand and tank level patterns so planning becomes easier.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Weekly usage summary</span>
                                 <span>Peak day visibility</span>
@@ -4092,7 +4158,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 06 &bull; AI Forecast</span>
                             <strong>AI Forecasts And Usage Trends</strong>
-                            <p>Use AI insights to show expected water use, forecast time to empty and unusual consumption patterns before they become costly surprises.</p>
+                            <p>AI insights highlight expected water use, forecast time to empty and unusual consumption patterns before they become costly surprises.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Tomorrow estimate</span>
                                 <span>Time-to-empty forecast</span>
@@ -4146,7 +4212,7 @@ min-width:0;
                         <div class="demo-scene-copy">
                             <span class="demo-scene-kicker">Scene 07 &bull; Alerts</span>
                             <strong>Alerts, Health And Next Steps</strong>
-                            <p>Show recent events, health details and suggested next steps so buyers see the system as a practical decision tool, not just a sensor.</p>
+                            <p>Recent events, health details and suggested next steps help teams make faster water decisions.</p>
                             <div class="demo-feature-list" aria-label="Scene highlights">
                                 <span>Sensor and leak alerts</span>
                                 <span>Health detail cards</span>
@@ -4214,7 +4280,7 @@ min-width:0;
                                 </div>
                                 <div class="demo-mobile-sidecopy">
                                     <strong>Mobile control brings the full tank view into the field.</strong>
-                                    <p>Show direct pump actions, tank readings and health cards in a single mobile screen so onsite teams and homeowners can act immediately.</p>
+                                    <p>Direct pump actions, tank readings and health cards sit in one mobile screen so onsite teams and homeowners can act immediately.</p>
                                     <ul>
                                         <li>&#10003; Pump ON/OFF control</li>
                                         <li>&#10003; Main and source tank status</li>
@@ -4295,7 +4361,7 @@ min-width:0;
                     <span class="demo-step-body">
                         <span class="demo-step-label">Dashboard</span>
                         <strong>Home Water Dashboard</strong>
-                        <p>Show live tank cards, sync status and the main dashboard view.</p>
+                        <p>Live tank cards, sync status and the main dashboard stay easy to read.</p>
                     </span>
                 </button>
                 <button class="demo-step" type="button" data-demo-step="3" aria-pressed="false">
@@ -4311,7 +4377,7 @@ min-width:0;
                     <span class="demo-step-body">
                         <span class="demo-step-label">Weekly Insight</span>
                         <strong>Weekly Water Summary</strong>
-                        <p>Show peak usage, average demand and tank-level patterns at a glance.</p>
+                        <p>Peak usage, average demand and tank-level patterns are visible at a glance.</p>
                     </span>
                 </button>
                 <button class="demo-step" type="button" data-demo-step="5" aria-pressed="false">
@@ -4327,7 +4393,7 @@ min-width:0;
                     <span class="demo-step-body">
                         <span class="demo-step-label">Events</span>
                         <strong>Alerts, Health And Next Steps</strong>
-                        <p>Show recent events, health details and clear actions in one screen.</p>
+                        <p>Recent events, health details and clear actions stay in one screen.</p>
                     </span>
                 </button>
                 <button class="demo-step" type="button" data-demo-step="7" aria-pressed="false">
@@ -4371,7 +4437,7 @@ min-width:0;
                 <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." loading="lazy">
                 <figcaption class="visual-copy">
                     <strong>Install once and see everything from your phone.</strong>
-                    <p>The tank sensor, main controller and live dashboard work together over Wi-Fi, so buyers can understand what gets installed and why no long signal wire is needed from the tank to the pump device.</p>
+                    <p>The tank sensor, main controller and live dashboard work together over Wi-Fi, so you can see what gets installed and avoid long signal wiring from the tank to the pump device.</p>
                 </figcaption>
             </figure>
 
@@ -4445,7 +4511,7 @@ min-width:0;
         <div class="section-header">
             <div>
                 <div class="eyebrow">Why Buyers Trust It</div>
-                <h2>What buyers can verify before they commit.</h2>
+                <h2>Check the system before you commit.</h2>
             </div>
         </div>
 
@@ -4453,7 +4519,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Real Hardware</div>
                 <h3>Inspect the installed sensor and controller before you buy</h3>
-                <p>Show where the hardware sits, what gets installed and how the setup connects to the tank and pump.</p>
+                <p>See where the hardware sits, what gets installed and how the setup connects to the tank and pump.</p>
                 <ul>
                     <li>Tank, sensor and controller shown together</li>
                     <li>Easier to explain in dealer and RWA conversations</li>
@@ -4462,7 +4528,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Actual Dashboard</div>
                 <h3>Review the same dashboard layout customers use every day</h3>
-                <p>The dashboard view makes the product easier to trust because buyers can inspect tank status, pump visibility and access roles before rollout.</p>
+                <p>The dashboard view makes the product easier to trust because you can inspect tank status, pump visibility and access roles before rollout.</p>
                 <ul>
                     <li>Tank level and pump status in one screen</li>
                     <li>Alert and action flow shown in context</li>
@@ -4471,7 +4537,7 @@ min-width:0;
             <article class="card">
                 <div class="card-tag">Alert Confidence</div>
                 <h3>Check the alert flow and next actions before rollout</h3>
-                <p>Buyers move faster when they can see what happens during overflow risk, shortage risk or service attention alerts.</p>
+                <p>See what happens during overflow risk, shortage risk or service attention alerts.</p>
                 <ul>
                     <li>Overflow and low-water alerts feel concrete</li>
                     <li>Builds trust before installation starts</li>
@@ -4505,20 +4571,21 @@ min-width:0;
                         <p>Plan homes, apartments, hotels, institutions, dealers and commercial sites.</p>
                     </div>
                 </div>
+            </div>
 
+            <div class="support-media-stack">
+                <figure class="visual" aria-label="Smart water tank lifestyle illustration">
+                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." loading="lazy">
+                    <figcaption class="visual-copy">
+                        <strong>Clear tank visibility from day one</strong>
+                        <p>See the hardware, phone dashboard and alerts before choosing your setup.</p>
+                    </figcaption>
+                </figure>
                 <div class="contact-card">
                     <strong>Talk To SaleWell IoT</strong>
                     <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> for pricing, demo or installation planning.</p>
                 </div>
             </div>
-
-            <figure class="visual" aria-label="Smart water tank lifestyle illustration">
-                <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." loading="lazy">
-                <figcaption class="visual-copy">
-                    <strong>Less explanation, more clarity</strong>
-                    <p>Visitors quickly see the pain point, hardware and phone dashboard outcome.</p>
-                </figcaption>
-            </figure>
         </div>
     </section>
 
