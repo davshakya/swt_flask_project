@@ -429,10 +429,26 @@ gap:16px;
 margin-top:18px;
 }
 .plan-group{
-margin-top:20px;
+position:relative;
+margin-top:34px;
+padding-top:30px;
+}
+.plan-group::before{
+content:"";
+position:absolute;
+left:0;
+right:0;
+top:0;
+height:1px;
+background:linear-gradient(90deg,transparent,rgba(13,147,168,.32),rgba(239,155,65,.34),rgba(13,147,168,.32),transparent);
+box-shadow:0 1px 0 rgba(255,255,255,.58);
 }
 .plan-group:first-of-type{
 margin-top:0;
+padding-top:0;
+}
+.plan-group:first-of-type::before{
+display:none;
 }
 .plan-group-head{
 display:flex;
