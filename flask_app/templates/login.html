@@ -4286,7 +4286,7 @@ min-width:0;
                 <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." loading="lazy">
                 <figcaption class="visual-copy">
                     <strong>Install once and see everything from your phone.</strong>
-                    <p>The sensor, controller and live dashboard work together as one practical system, so buyers can understand what gets installed and what they will use every day.</p>
+                    <p>The tank sensor, main controller and live dashboard work together over Wi-Fi, so buyers can understand what gets installed and why no long signal wire is needed from the tank to the pump device.</p>
                 </figcaption>
             </figure>
 
@@ -4294,29 +4294,29 @@ min-width:0;
                 <article class="step">
                     <div class="step-number">1</div>
                     <div>
-                        <strong>Sensor installed in the tank</strong>
-                        <p>A compact smart sensor is placed inside your water tank to measure water levels accurately.</p>
+                        <strong>Wireless sensor installed in the tank</strong>
+                        <p>A compact smart sensor is placed at the overhead/main tank. It needs power, but no long signal wire is pulled from the tank to the main controller.</p>
                     </div>
                 </article>
                 <article class="step">
                     <div class="step-number">2</div>
                     <div>
-                        <strong>Data sent instantly</strong>
-                        <p>Water level readings are transmitted in real time so the system always has the latest tank status.</p>
+                        <strong>Tank data travels over Wi-Fi</strong>
+                        <p>Water level readings are sent wirelessly to the main pump/controller device through the site Wi-Fi network.</p>
                     </div>
                 </article>
                 <article class="step">
                     <div class="step-number">3</div>
                     <div>
-                        <strong>Live dashboard on your phone</strong>
-                        <p>Open the app to check tank levels, pump status and alerts any time without climbing up to inspect the tank.</p>
+                        <strong>Main controller handles pump safety</strong>
+                        <p>The main device stays near the pump/control area, receives tank readings wirelessly, and manages alerts, relay control and dashboard updates.</p>
                     </div>
                 </article>
                 <article class="step">
                     <div class="step-number">4</div>
                     <div>
-                        <strong>Alerts plus remote action</strong>
-                        <p>Get notified before overflow or shortage becomes a problem, and control the pump when action is needed.</p>
+                        <strong>Live dashboard on your phone</strong>
+                        <p>Open the app or web dashboard to check tank level, pump status, alerts and remote actions without climbing up to inspect the tank.</p>
                     </div>
                 </article>
             </div>
@@ -4412,6 +4412,10 @@ min-width:0;
                         <p>Tell us where overflow, motor damage or shortage creates daily stress.</p>
                     </div>
                     <div class="support-check">
+                        <strong>Wi-Fi coverage near tank and pump</strong>
+                        <p>We check whether the tank sensor and main controller can both connect reliably, so no long tank-to-controller signal wiring is needed.</p>
+                    </div>
+                    <div class="support-check">
                         <strong>Property type and device count</strong>
                         <p>Plan homes, apartments, hotels, institutions, dealers and commercial sites.</p>
                     </div>
@@ -4461,8 +4465,8 @@ min-width:0;
                     </article>
                     <article class="card">
                         <div class="card-tag">Installation Support</div>
-                        <h3>Installation planning support</h3>
-                        <p>Review tank count, site type and pump issues.</p>
+                        <h3>Wireless installation planning</h3>
+                        <p>Review tank count, Wi-Fi coverage, pump location and where each device should be powered.</p>
                     </article>
                     <article class="card">
                         <div class="card-tag">Customer Handover</div>
@@ -5089,7 +5093,7 @@ function shortBookingInterruptAnswer(rawInput) {
         return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
     }
     if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
-        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, and city.`;
+        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, and wireless coverage between the tank sensor and main controller. No long signal wire is needed from the water tank to the main device.`;
     }
     if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
         return `For apartments or managed sites, start with Commercial Standard. Choose AI Pro for reports, leak insight, or many tanks.`;
@@ -5422,7 +5426,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `Installation is simple after a site check.\nWe need property type, city, tank count, pump location, and Wi-Fi/internet.\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation is simple after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet, and wireless coverage between the tank sensor and main controller. No long signal wire is needed from the water tank to the main device.\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",
