@@ -135,14 +135,14 @@ from{transform:rotate(0deg)}
 to{transform:rotate(360deg)}
 }
 a{color:inherit}
-a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link){
+a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.dashboard-brand-link):not(.whatsapp-float){
 color:var(--link-blue);
 text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);
 text-underline-offset:3px;
 font-weight:800;
 transition:color .18s ease,text-decoration-color .18s ease;
 }
-a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.pricing-chip):not(.dashboard-brand-link):hover{
+a:not(.button):not(.button-secondary):not(.ghost-link):not(.brand):not(.nav-button):not(.dashboard-brand-link):not(.whatsapp-float):hover{
 color:var(--link-blue-hover);
 text-decoration-color:currentColor;
 }
@@ -604,42 +604,38 @@ gap:12px;
 flex-wrap:wrap;
 margin-top:24px;
 }
-.pricing-signal{
-display:flex;
-gap:10px;
-flex-wrap:wrap;
+.hero-value-strip{
 margin-top:14px;
-align-items:center;
-}
-.pricing-chip{
-padding:10px 13px;
-border-radius:999px;
-border:1px solid var(--line);
-background:rgba(255,255,255,.6);
-font-size:13px;
-font-weight:800;
-line-height:1.35;
-text-decoration:none;
-}
-.pricing-chip.is-alert{
-background:rgba(239,155,65,.14);
-border-color:rgba(239,155,65,.28);
-color:var(--warning-text);
-}
-.hero-trust-line{
-display:flex;
+padding:16px 18px;
+border-radius:24px;
+display:grid;
+grid-template-columns:repeat(4,minmax(0,1fr));
 gap:12px;
-flex-wrap:wrap;
-margin-top:12px;
-font-size:13px;
-line-height:1.45;
-color:var(--muted);
-font-weight:800;
+background:rgba(255,255,255,.74);
+border:1px solid var(--line);
+box-shadow:0 20px 44px rgba(12,56,66,.1),inset 0 1px 0 rgba(255,255,255,.58);
 }
-.hero-trust-line span{
-display:inline-flex;
+.hero-value-strip span{
+display:flex;
 align-items:center;
-gap:6px;
+gap:8px;
+font-size:14px;
+font-weight:900;
+line-height:1.35;
+color:var(--text);
+}
+.hero-value-strip span::before{
+content:"\2713";
+display:grid;
+place-items:center;
+width:22px;
+height:22px;
+border-radius:999px;
+background:linear-gradient(135deg,var(--brand),var(--brand-deep));
+color:#fff;
+font-size:13px;
+line-height:1;
+flex:0 0 auto;
 }
 .proof-pills{
 display:flex;
@@ -748,12 +744,6 @@ margin-top:8px;
 font-size:16px;
 line-height:1.32;
 letter-spacing:-.02em;
-}
-.hero-preview-actions{
-display:flex;
-gap:12px;
-flex-wrap:wrap;
-margin-top:20px;
 }
 .social-proof-section{
 padding-top:24px;
@@ -2595,6 +2585,47 @@ gap:10px;
 flex-wrap:wrap;
 justify-content:flex-end;
 }
+.whatsapp-float{
+position:fixed;
+left:24px;
+bottom:24px;
+z-index:39;
+display:inline-flex;
+align-items:center;
+gap:10px;
+min-height:54px;
+padding:10px 16px;
+border-radius:999px;
+background:linear-gradient(135deg,#22c55e,#128c7e);
+color:#fff;
+font-weight:900;
+text-decoration:none;
+box-shadow:0 20px 44px rgba(18,140,126,.28);
+border:1px solid rgba(255,255,255,.28);
+}
+.whatsapp-float::before{
+content:"WA";
+display:grid;
+place-items:center;
+width:34px;
+height:34px;
+border-radius:999px;
+background:rgba(255,255,255,.18);
+font-size:12px;
+letter-spacing:.08em;
+}
+.whatsapp-float span{
+display:block;
+font-size:13px;
+line-height:1.2;
+}
+.whatsapp-float small{
+display:block;
+font-size:11px;
+line-height:1.2;
+font-weight:800;
+opacity:.86;
+}
 .site-chatbot{
 position:fixed;
 right:24px;
@@ -3219,6 +3250,7 @@ padding-left:18px;
 padding-right:18px;
 }
 .hero-bullet-grid,
+.hero-value-strip,
 .impact-strip,
 .preview-grid,
 .social-proof-grid,
@@ -3250,7 +3282,6 @@ grid-template-columns:1fr;
 max-width:none;
 }
 .hero-actions,
-.hero-preview-actions,
 .form-actions,
 .nav-actions{
 display:grid;
@@ -3266,13 +3297,11 @@ position:static;
 margin-top:8px;
 min-width:0;
 }
-.pricing-signal,
 .form-urgency{
 display:grid;
 grid-template-columns:1fr;
 }
 .hero-actions > *,
-.hero-preview-actions > *,
 .form-actions > *,
 .nav-actions > *{
 width:100%;
@@ -3280,11 +3309,6 @@ width:100%;
 .proof-pills{
 display:grid;
 grid-template-columns:1fr;
-}
-.hero-trust-line{
-display:grid;
-grid-template-columns:1fr;
-gap:8px;
 }
 .urgency-banner{
 grid-template-columns:1fr;
@@ -3325,6 +3349,12 @@ bottom:var(--chatbot-mobile-bottom,10px);
 left:10px;
 top:auto;
 justify-items:stretch;
+}
+.whatsapp-float{
+left:10px;
+right:10px;
+bottom:82px;
+justify-content:center;
 }
 .site-chatbot.is-open{
 top:var(--chatbot-mobile-top,10px);
@@ -3541,17 +3571,6 @@ min-width:0;
                 <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
                 <a class="button is-secondary-cta" href="#demo">See Dashboard</a>
             </div>
-            <div class="pricing-signal" aria-label="Pricing and urgency signals">
-                <a class="pricing-chip" href="{{ url_for('pricing_page') }}">Compare plan cost vs one motor repair</a>
-                <div class="pricing-chip is-alert">Avoid 2 AM empty-tank surprises</div>
-                <div class="pricing-chip is-alert">Reduce overflow waste and rushed tanker calls</div>
-            </div>
-            <div class="hero-trust-line" aria-label="Hero trust line">
-                <span>&#10003; No climbing tanks</span>
-                <span>&#10003; Control your pump from anywhere</span>
-                <span>&#10003; Real-time alerts</span>
-                <span>&#10003; Easy installation</span>
-            </div>
         </div>
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
@@ -3592,13 +3611,16 @@ min-width:0;
                     </article>
                 </div>
 
-                <div class="hero-preview-actions">
-                    <a class="button" href="#demo">See Dashboard</a>
-                    <a class="ghost-link" href="#how-it-works">How It Works</a>
-                </div>
             </div>
         </aside>
     </section>
+
+    <div class="hero-value-strip surface" aria-label="Fast product highlights">
+        <span>Installation in Delhi NCR</span>
+        <span>Motor protection</span>
+        <span>Tank monitoring</span>
+        <span>Mobile alerts</span>
+    </div>
 
     <section class="section surface social-proof-section" id="social-proof">
         <div class="section-header">
@@ -4554,11 +4576,10 @@ min-width:0;
         <div class="final-cta">
             <div>
                 <strong>Protect your water system before the next overflow.</strong>
-                <p>Free installation assessment. Takes 10 minutes, with tank setup, pump risk and best plan reviewed.</p>
+                <p>Free site assessment &bull; 10 minutes. Tank setup, pump risk and best plan reviewed.</p>
             </div>
             <div class="final-cta-actions">
                 <a class="button-secondary is-primary-cta" href="#enquiry">Book Free Demo</a>
-                <a class="ghost-link" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
             </div>
         </div>
         <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
@@ -4567,6 +4588,10 @@ min-width:0;
         <div class="footer-note">&copy; SaleWell IoT Solutions Pvt. Ltd. All rights reserved.</div>
     </footer>
 </div>
+
+<a class="whatsapp-float" href="https://wa.me/918299812878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" aria-label="Talk to SaleWell installation expert on WhatsApp">
+    <span>Talk to Installation Expert<small>WhatsApp support</small></span>
+</a>
 
 <div class="site-chatbot" id="siteChatbot">
     <section class="chatbot-panel" id="chatbotPanel" aria-label="SaleWell visitor assistant" hidden>

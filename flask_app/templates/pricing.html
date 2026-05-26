@@ -637,11 +637,19 @@ border-bottom:1px solid var(--line);
 vertical-align:top;
 }
 th{
-font-size:11px;
+font-size:12px;
 letter-spacing:.14em;
 text-transform:uppercase;
-color:var(--muted);
-background:rgba(255,255,255,.42);
+color:var(--brand-deep);
+background:linear-gradient(180deg,rgba(13,147,168,.13),rgba(255,255,255,.72));
+border-bottom:1px solid var(--line-strong);
+}
+tbody tr.is-recommended-row{
+background:linear-gradient(90deg,rgba(239,155,65,.16),rgba(13,147,168,.08),transparent);
+box-shadow:inset 4px 0 0 var(--accent);
+}
+tbody tr.is-recommended-row td{
+border-bottom-color:rgba(239,155,65,.28);
 }
 td strong{
 display:block;
@@ -661,6 +669,26 @@ font-weight:900;
 .no{
 color:var(--muted);
 font-weight:900;
+}
+.yes,
+.no{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+width:max-content;
+min-height:26px;
+padding:4px 9px;
+border-radius:999px;
+font-size:12px;
+line-height:1;
+}
+.yes{
+background:rgba(28,138,97,.12);
+box-shadow:inset 0 0 0 1px rgba(28,138,97,.22);
+}
+.no{
+background:rgba(92,116,121,.1);
+box-shadow:inset 0 0 0 1px rgba(92,116,121,.16);
 }
 .table-book-link{
 display:inline-flex;
@@ -1013,8 +1041,8 @@ max-width:none;
 
     <section class="hero surface">
         <div class="hero-copy">
-            <h1>Modular pricing for every water tank setup</h1>
-            <p>Start with the device you need, then add pump control, cloud access, source tank monitoring, AI reports or multi-site support.</p>
+            <h1>Start simple. Add automation and AI when needed.</h1>
+            <p>Pay only for the monitoring and control you need today, then expand with pump control, cloud access, source tank monitoring, AI insights or multi-site support.</p>
             <div class="trust-line">Wi-Fi is required for every SaleWell device. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
                 <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
@@ -1027,7 +1055,7 @@ max-width:none;
             <div class="tier-grid">
                 <article class="tier-card" data-step="1">
                     <span>Start</span>
-                    <strong>Tank visibility</strong>
+                    <strong>Tank monitoring</strong>
                     <p>For homes and small shops that need level monitoring first.</p>
                 </article>
                 <article class="tier-card" data-step="2">
@@ -1042,7 +1070,7 @@ max-width:none;
                 </article>
                 <article class="tier-card" data-step="4">
                     <span>Customize</span>
-                    <strong>AI, reports and rollout</strong>
+                    <strong>AI insights and reporting</strong>
                     <p>For hotels, RWAs, builders, dealers and commercial sites.</p>
                 </article>
             </div>
@@ -1052,7 +1080,7 @@ max-width:none;
     <section class="section surface" id="plans">
         <div class="section-head">
             <div>
-                <h2>Choose a base plan, then customize with add-ons.</h2>
+                <h2>Choose a base plan and expand it with add-ons.</h2>
             </div>
         </div>
 
@@ -1141,7 +1169,7 @@ max-width:none;
                         <span class="plan-badge is-accent">Remote Access</span>
                     </div>
                     <h3>For families that want control from anywhere</h3>
-                    <p>Best for premium homes, rented properties and owners who travel or manage the pump remotely.</p>
+                    <p>Best for premium homes, rental properties and owners who need remote access, family sharing, history and reports.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;7,499</div>
@@ -1152,11 +1180,11 @@ max-width:none;
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
                     <li>Everything in Home Control</li>
-                    <li>Remote access over Internet</li>
-                    <li>Cloud alerts and history</li>
-                    <li>Water usage trends</li>
-                    <li>Family/customer login</li>
-                    <li>Basic monthly report</li>
+                    <li>Remote access from anywhere</li>
+                    <li>Family sharing and customer login</li>
+                    <li>Cloud history and usage trends</li>
+                    <li>AI insights preview</li>
+                    <li>Monthly water report</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
@@ -1374,7 +1402,7 @@ max-width:none;
                         <td><strong>&#8377;3,999</strong><span>No monthly fee</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Starter Wi-Fi', segment='Home / Villa') }}#enquiry" data-plan="Starter Wi-Fi" data-segment="Home / Villa">Book</a></td>
                     </tr>
-                    <tr data-plan-row="home">
+                    <tr class="is-recommended-row" data-plan-row="home">
                         <td><strong>Home Control</strong><span>Pump relay control</span></td>
                         <td><span>Home</span></td>
                         <td><span class="yes">Required</span></td>
@@ -1495,8 +1523,8 @@ max-width:none;
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
-                <h2>Unsure which modular setup fits your customer?</h2>
-                <p>Get a 10-minute recommendation before choosing. We will review tank count, Wi-Fi coverage, pump logic, source tank needs, add-ons and the plan that fits without overselling the setup.</p>
+                <h2>Still not sure which setup fits your tank?</h2>
+                <p>Get a free 10-minute recommendation and site assessment. We will review tank count, Wi-Fi coverage, pump logic, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
                     <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
@@ -1549,7 +1577,7 @@ max-width:none;
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_phone">Phone / WhatsApp</label>
-                    <input id="pricing_lead_phone" name="phone" type="tel" placeholder="+91 98765 43210" required>
+                    <input id="pricing_lead_phone" name="phone" type="tel" placeholder="+91 **********" required>
                 </div>
             </div>
 
