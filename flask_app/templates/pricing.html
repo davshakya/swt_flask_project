@@ -475,28 +475,28 @@ box-shadow:0 28px 56px rgba(12,56,66,.16),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .plan-card.is-featured{
 position:relative;
-transform:translateY(-4px);
+transform:translateY(-8px);
 background:
     linear-gradient(180deg,rgba(255,255,255,.98),rgba(235,250,250,.96)),
     radial-gradient(circle at 100% 0,rgba(239,155,65,.18),transparent 34%);
-border-color:rgba(239,155,65,.48);
-box-shadow:0 34px 70px rgba(12,56,66,.18),0 0 0 3px rgba(239,155,65,.12),inset 0 1px 0 rgba(255,255,255,.68);
+border:2px solid rgba(239,155,65,.68);
+box-shadow:0 42px 86px rgba(12,56,66,.22),0 0 0 4px rgba(239,155,65,.18),inset 0 1px 0 rgba(255,255,255,.72);
 z-index:1;
 }
 .plan-card.is-featured:hover{
-transform:translateY(-7px);
-box-shadow:0 40px 80px rgba(12,56,66,.22),0 0 0 3px rgba(239,155,65,.16),inset 0 1px 0 rgba(255,255,255,.72);
+transform:translateY(-11px);
+box-shadow:0 50px 96px rgba(12,56,66,.26),0 0 0 4px rgba(239,155,65,.22),inset 0 1px 0 rgba(255,255,255,.76);
 }
 @media (prefers-color-scheme: dark){
 .plan-card.is-featured{
 background:
     linear-gradient(180deg,rgba(13,43,51,.98),rgba(8,31,39,.96)),
     radial-gradient(circle at 100% 0,rgba(255,187,97,.18),transparent 34%);
-border-color:rgba(255,187,97,.48);
-box-shadow:0 34px 70px rgba(0,0,0,.34),0 0 0 3px rgba(255,187,97,.12),inset 0 1px 0 rgba(255,255,255,.08);
+border-color:rgba(255,187,97,.68);
+box-shadow:0 42px 86px rgba(0,0,0,.4),0 0 0 4px rgba(255,187,97,.16),inset 0 1px 0 rgba(255,255,255,.1);
 }
 .plan-card.is-featured:hover{
-box-shadow:0 40px 80px rgba(0,0,0,.4),0 0 0 3px rgba(255,187,97,.16),inset 0 1px 0 rgba(255,255,255,.1);
+box-shadow:0 50px 96px rgba(0,0,0,.46),0 0 0 4px rgba(255,187,97,.2),inset 0 1px 0 rgba(255,255,255,.12);
 }
 }
 .plan-top{
@@ -527,10 +527,11 @@ color:#1d2d31;
 box-shadow:0 10px 20px rgba(239,155,65,.18);
 }
 .plan-badge.is-recommended{
-padding:8px 12px;
+padding:9px 14px;
 background:linear-gradient(135deg,#ffcb77,#ef9b41);
 color:#172d33;
 box-shadow:0 12px 24px rgba(239,155,65,.26);
+font-size:12px;
 }
 .plan-card h3{
 margin:0;
@@ -891,8 +892,16 @@ gap:10px;
 align-items:center;
 flex-wrap:wrap;
 }
-.booking-actions .button{
+.booking-actions .button,
+.booking-actions .button-secondary{
 min-width:190px;
+}
+.booking-note{
+margin-top:-4px;
+font-size:12px;
+line-height:1.55;
+color:var(--muted);
+font-weight:800;
 }
 .footer{
 margin-top:18px;
@@ -963,7 +972,7 @@ grid-template-columns:1fr;
 display:grid;
 }
 .booking-actions .button,
-.booking-actions .ghost-link{
+.booking-actions .button-secondary{
 width:100%;
 }
 .hero{
@@ -1137,8 +1146,8 @@ max-width:none;
                 <div class="price-stack">
                     <div class="price-main">&#8377;7,499</div>
                     <div class="price-note">One-time device price</div>
-                    <div class="price-note">&#8377;149/month cloud service</div>
-                    <div class="price-note is-outcome">Wi-Fi required. Remote dashboard included.</div>
+                    <div class="price-note">+ &#8377;149/month</div>
+                    <div class="price-note is-outcome">Cloud dashboard, alerts and remote access. Wi-Fi required.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
@@ -1214,7 +1223,7 @@ max-width:none;
                     <p>Best where usage reports, leak insight, source-to-destination logic and multiple tank views matter.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;14,999</div>
+                    <div class="price-main">&#8377;12,999</div>
                     <div class="price-note">Per setup</div>
                     <div class="price-note">&#8377;599/month cloud + reports</div>
                     <div class="price-note is-outcome">Wi-Fi required. Built for reporting and prevention.</div>
@@ -1241,7 +1250,16 @@ max-width:none;
                 </div>
             </article>
 
-            <article class="plan-card" data-plan-segment="dealer">
+            </div>
+        </div>
+
+        <div class="plan-group">
+            <div class="plan-group-head">
+                <h3>Partner Program</h3>
+                <p>For dealers, plumbers, electricians and installers who need a demo kit, setup support and bulk pricing separate from end-customer plans.</p>
+            </div>
+            <div class="plans-grid">
+            <article class="plan-card" data-plan-segment="partner">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Dealer / Installer Kit</span>
@@ -1373,7 +1391,7 @@ max-width:none;
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">Add-on</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;7,499</strong><span>+ &#8377;149/mo</span></td>
+                        <td><strong>&#8377;7,499</strong><span>+ &#8377;149/mo cloud, alerts and remote access</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
@@ -1393,10 +1411,10 @@ max-width:none;
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;14,999</strong><span>+ &#8377;599/mo</span></td>
+                        <td><strong>&#8377;12,999</strong><span>+ &#8377;599/mo</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
-                    <tr data-plan-row="dealer">
+                    <tr data-plan-row="partner">
                         <td><strong>Dealer / Installer Kit</strong><span>Partner demo kit</span></td>
                         <td><span>Dealer / installer</span></td>
                         <td><span class="yes">Required</span></td>
@@ -1518,9 +1536,9 @@ max-width:none;
             <button class="booking-close" type="button" data-close-booking aria-label="Close booking form">&times;</button>
         </div>
 
-        <div class="booking-selected-plan" id="pricingBookingPlan">Selected plan: Home Smart</div>
+        <div class="booking-selected-plan" id="pricingBookingPlan">Selected plan: Home Control</div>
 
-        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}">
+        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="landing_mode" value="customer">
 
@@ -1537,12 +1555,12 @@ max-width:none;
 
             <div class="booking-grid">
                 <div class="booking-group">
-                    <label for="pricing_lead_email">Email</label>
-                    <input id="pricing_lead_email" name="email" type="email" placeholder="you@example.com" required>
-                </div>
-                <div class="booking-group">
                     <label for="pricing_lead_city">City</label>
                     <input id="pricing_lead_city" name="city" type="text" placeholder="City or service area" required>
+                </div>
+                <div class="booking-group">
+                    <label for="pricing_lead_email">Email</label>
+                    <input id="pricing_lead_email" name="email" type="email" placeholder="you@example.com" required>
                 </div>
             </div>
 
@@ -1560,23 +1578,21 @@ max-width:none;
                         <option value="Commercial Site">Commercial Site</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_device_count">Estimated Devices Needed</label>
                     <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="1" placeholder="Example: 12" required>
                 </div>
-                <div class="booking-group">
-                    <label for="pricing_lead_message">Project Notes</label>
-                    <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, Wi-Fi coverage, pump location, add-ons needed, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
-                </div>
+            </div>
+
+            <div class="booking-group">
+                <label for="pricing_lead_message">Project Notes</label>
+                <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, Wi-Fi coverage, pump location, add-ons needed, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
             </div>
 
             <div class="booking-actions">
-                <button class="button" type="submit">Submit Booking Request</button>
-                <a class="ghost-link" href="mailto:support@salewell.co.in">Prefer email instead</a>
+                <button class="button-secondary" type="submit">Book Free Demo</button>
             </div>
+            <div class="booking-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
     </div>
 </div>
