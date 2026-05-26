@@ -841,16 +841,17 @@ justify-content:center;
 padding:18px;
 background:rgba(7,31,40,.56);
 backdrop-filter:blur(8px);
+overflow:hidden;
 }
 .booking-modal.is-open{
 display:flex;
 }
 .booking-dialog{
-width:min(720px,calc(100vw - 24px));
-max-height:min(88vh,820px);
-overflow:auto;
-padding:22px;
-border-radius:28px;
+width:min(560px,calc(100vw - 24px));
+max-height:calc(100dvh - 32px);
+overflow:hidden;
+padding:14px;
+border-radius:18px;
 background:linear-gradient(180deg,var(--surface-strong),var(--surface));
 border:1px solid var(--line-strong);
 box-shadow:0 34px 80px rgba(7,31,40,.28);
@@ -860,56 +861,58 @@ display:flex;
 justify-content:space-between;
 gap:14px;
 align-items:flex-start;
-margin-bottom:16px;
+margin-bottom:8px;
 }
 .booking-head h2{
 margin:0;
 font-family:"Georgia","Times New Roman",serif;
-font-size:clamp(1.8rem,3vw,2.5rem);
+font-size:clamp(1.18rem,2vw,1.45rem);
 line-height:1;
 letter-spacing:-.05em;
 }
 .booking-head p{
-margin:8px 0 0;
+display:none;
+margin:0;
 color:var(--muted);
 line-height:1.55;
 }
 .booking-close{
-min-width:42px;
-min-height:42px;
+min-width:32px;
+min-height:32px;
 padding:0;
-border-radius:14px;
+border-radius:12px;
 border:1px solid var(--line);
 background:rgba(255,255,255,.58);
 color:var(--text);
-font-size:24px;
+font-size:20px;
 line-height:1;
 cursor:pointer;
 }
 .booking-selected-plan{
-margin-bottom:14px;
-padding:13px 15px;
-border-radius:18px;
+margin-bottom:8px;
+padding:8px 10px;
+border-radius:12px;
 background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(239,155,65,.12));
 border:1px solid rgba(13,147,168,.18);
 font-weight:900;
 color:var(--brand-deep);
+font-size:13px;
 }
 .booking-form{
 display:grid;
-gap:13px;
+gap:8px;
 }
 .booking-grid{
 display:grid;
 grid-template-columns:repeat(2,minmax(0,1fr));
-gap:12px;
+gap:7px;
 }
 .booking-group{
 display:grid;
-gap:7px;
+gap:3px;
 }
 .booking-group label{
-font-size:11px;
+font-size:8px;
 letter-spacing:.14em;
 text-transform:uppercase;
 font-weight:900;
@@ -919,16 +922,18 @@ color:var(--muted);
 .booking-group select,
 .booking-group textarea{
 width:100%;
-padding:12px 13px;
-border-radius:14px;
+min-height:38px;
+padding:8px 10px;
+border-radius:11px;
 border:1px solid var(--line);
 background:rgba(255,255,255,.72);
 color:var(--text);
 font:inherit;
+line-height:1.2;
 }
 .booking-group textarea{
-min-height:112px;
-resize:vertical;
+min-height:50px;
+resize:none;
 }
 .booking-actions{
 display:flex;
@@ -938,9 +943,12 @@ flex-wrap:wrap;
 }
 .booking-actions .button,
 .booking-actions .button-secondary{
-min-width:190px;
+min-width:170px;
+min-height:40px;
+padding:9px 14px;
 }
 .booking-note{
+display:none;
 margin-top:-4px;
 font-size:12px;
 line-height:1.55;
@@ -1051,7 +1059,7 @@ max-width:none;
         </nav>
         <div class="nav-actions">
             <a class="ghost-link" href="{{ url_for('dashboard') }}">Homepage</a>
-            <a class="button-secondary" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
+            <a class="button-secondary js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
         </div>
     </header>
 
@@ -1061,7 +1069,7 @@ max-width:none;
             <p>Pay only for the monitoring and control you need today, then expand with pump control, cloud access, source tank monitoring, AI insights or multi-site support.</p>
             <div class="trust-line">Wi-Fi is required for every SaleWell device. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
-                <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
+                <a class="button js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
             </div>
         </div>
@@ -1542,7 +1550,7 @@ max-width:none;
                 <h2>Still not sure which setup fits your tank?</h2>
                 <p>Get a free 10-minute recommendation and site assessment. We will review tank count, Wi-Fi coverage, pump logic, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
-                    <a class="button" href="{{ url_for('dashboard') }}#enquiry">Book Free Demo</a>
+                    <a class="button js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
                     <a class="ghost-link" href="mailto:support@salewell.co.in">Talk to Sales</a>
                 </div>
@@ -1677,8 +1685,17 @@ function closePricingBooking() {
 bookingButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
+        event.stopPropagation();
         openPricingBooking(button.dataset.plan, button.dataset.segment);
     });
+});
+
+document.addEventListener("click", (event) => {
+    if (event.defaultPrevented) return;
+    const bookingLink = event.target.closest?.('a[href*="#enquiry"]');
+    if (!bookingLink) return;
+    event.preventDefault();
+    openPricingBooking(bookingLink.dataset.plan, bookingLink.dataset.segment);
 });
 
 bookingCloseButtons.forEach((button) => {
