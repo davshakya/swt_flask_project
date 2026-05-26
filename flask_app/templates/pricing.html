@@ -1067,7 +1067,7 @@ max-width:none;
         </div>
 
         <aside class="hero-panel" aria-label="Pricing strategy summary">
-            <h2>Build the setup around your customer type.</h2>
+            <h2>Build the setup around your property type.</h2>
             <div class="tier-grid">
                 <article class="tier-card" data-step="1">
                     <span>Start</span>
@@ -1300,7 +1300,7 @@ max-width:none;
         <div class="plan-group">
             <div class="plan-group-head">
                 <h3>Partner Program</h3>
-                <p>For dealers, plumbers, electricians and installers who need a demo kit, setup support and bulk pricing separate from end-customer plans.</p>
+                <p>For dealers, plumbers, electricians and installers who need field setup support, installation material and volume pricing.</p>
             </div>
             <div class="plans-grid">
             <article class="plan-card" data-plan-segment="partner">
@@ -1310,17 +1310,17 @@ max-width:none;
                         <span class="plan-badge is-accent">Partner</span>
                     </div>
                     <h3>For plumbers, electricians and local installers</h3>
-                    <p>Best for partners who want a demo-ready kit, customer onboarding flow and modular add-on pricing.</p>
+                    <p>Best for partners who want a working starter kit, customer setup flow and modular add-on pricing.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;11,999</div>
                     <div class="price-note">Starter partner kit</div>
                     <div class="price-note">Reseller pricing by volume</div>
-                    <div class="price-note is-outcome">Wi-Fi required during demos and installs.</div>
+                    <div class="price-note is-outcome">Wi-Fi required during setup and installs.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Demo device package</li>
+                    <li>Working device package</li>
                     <li>Installer checklist</li>
                     <li>Customer setup support</li>
                     <li>Plan and add-on menu</li>
@@ -1389,7 +1389,7 @@ max-width:none;
     <section class="section surface" id="comparison">
         <div class="section-head">
             <div>
-                <h2>Compare the plans buyers usually shortlist.</h2>
+                <h2>Compare the plans most sites shortlist.</h2>
             </div>
         </div>
 
@@ -1459,7 +1459,7 @@ max-width:none;
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
                     <tr data-plan-row="partner">
-                        <td><strong>Dealer / Installer Kit</strong><span>Partner demo kit</span></td>
+                        <td><strong>Dealer / Installer Kit</strong><span>Partner starter kit</span></td>
                         <td><span>Dealer / installer</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Demo</span></td>
@@ -1574,13 +1574,13 @@ max-width:none;
     <div class="booking-dialog" role="dialog" aria-modal="true" aria-labelledby="pricingBookingTitle">
         <div class="booking-head">
             <div>
-                <h2 id="pricingBookingTitle">Book this plan</h2>
+                <h2 id="pricingBookingTitle">Request plan pricing</h2>
                 <p>Share basic site details and the SaleWell team will follow up with pricing, setup scope and installation planning.</p>
             </div>
             <button class="booking-close" type="button" data-close-booking aria-label="Close booking form">&times;</button>
         </div>
 
-        <div class="booking-selected-plan" id="pricingBookingPlan">Selected plan: Home Control</div>
+        <div class="booking-selected-plan" id="pricingBookingPlan">Plan will appear after selection.</div>
 
         <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -1589,22 +1589,22 @@ max-width:none;
             <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_name">Name</label>
-                    <input id="pricing_lead_name" name="name" type="text" placeholder="Your full name" required>
+                    <input id="pricing_lead_name" name="name" type="text" required>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_phone">Phone / WhatsApp</label>
-                    <input id="pricing_lead_phone" name="phone" type="tel" placeholder="+91 **********" required>
+                    <input id="pricing_lead_phone" name="phone" type="tel" required>
                 </div>
             </div>
 
             <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_city">City</label>
-                    <input id="pricing_lead_city" name="city" type="text" placeholder="City or service area" required>
+                    <input id="pricing_lead_city" name="city" type="text" required>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_email">Email</label>
-                    <input id="pricing_lead_email" name="email" type="email" placeholder="you@example.com" required>
+                    <input id="pricing_lead_email" name="email" type="email" required>
                 </div>
             </div>
 
@@ -1612,7 +1612,6 @@ max-width:none;
                 <div class="booking-group">
                     <label for="pricing_lead_segment">Project Type</label>
                     <select id="pricing_lead_segment" name="segment" required>
-                        <option value="">Select one</option>
                         <option value="Home / Villa">Home / Villa</option>
                         <option value="Apartment / Hostel">Apartment / Hostel</option>
                         <option value="Hotel / Institution">Hotel / Institution</option>
@@ -1624,13 +1623,13 @@ max-width:none;
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_device_count">Estimated Devices Needed</label>
-                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="1" placeholder="Example: 12" required>
+                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="1" required>
                 </div>
             </div>
 
             <div class="booking-group">
                 <label for="pricing_lead_message">Project Notes</label>
-                <textarea id="pricing_lead_message" name="message" placeholder="Tell us about tank count, Wi-Fi coverage, pump location, add-ons needed, overflow issues, dry-run risk, or preferred installation timeline."></textarea>
+                <textarea id="pricing_lead_message" name="message"></textarea>
             </div>
 
             <div class="booking-actions">
@@ -1652,7 +1651,7 @@ const bookingButtons = document.querySelectorAll(".js-book-plan");
 const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
 
 function openPricingBooking(plan, segment) {
-    const selectedPlan = plan || "Selected plan";
+    const selectedPlan = plan || "Plan";
     const selectedSegment = segment || "";
     const planLine = `Selected pricing plan: ${selectedPlan}`;
 

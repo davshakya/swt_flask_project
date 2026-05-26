@@ -2592,7 +2592,6 @@ background:rgba(8,24,31,.96);
 color:#effbfd;
 border-color:rgba(153,209,220,.14);
 }
-.portal-form input::placeholder{color:#88a5ad}
 textarea{
 min-height:112px;
 resize:vertical;
@@ -3646,7 +3645,7 @@ min-width:0;
             <a href="#benefits">Benefits</a>
             <a href="#how-it-works">How It Works</a>
             <a href="#solutions">Property Types</a>
-            <a href="#proof">Why Buyers Trust It</a>
+            <a href="#proof">Setup Check</a>
             <a href="{{ url_for('pricing_page') }}">Pricing</a>
             <a href="#enquiry">Contact Sales</a>
         </nav>
@@ -3797,19 +3796,19 @@ min-width:0;
             </article>
             <article class="social-quote">
                 <div class="social-quote-label">
-                    <div class="eyebrow">Live Proof</div>
-                    <strong>Buyers trust what they can see working.</strong>
-                    <p>A short walkthrough of hardware, live status and alerts makes the value obvious.</p>
+                    <div class="eyebrow">See It Working</div>
+                    <strong>Check the tank, pump and alerts before installation.</strong>
+                    <p>The demo shows the sensor hardware, live dashboard and mobile alerts in one practical flow.</p>
                 </div>
                 <div>
                     <blockquote>
-                        "Once people see the sensor, dashboard and alerts working together, the value is clear."
-                        <cite>&mdash; Useful for RWAs, builders and facility teams across Gurgaon, Noida and Delhi NCR</cite>
+                        "Review the setup on a real tank, confirm the dashboard view, and decide what your site actually needs."
+                        <cite>&mdash; Suitable for homes, RWAs, builders and facility teams across Gurgaon, Noida and Delhi NCR</cite>
                     </blockquote>
                 </div>
             </article>
         </div>
-        <div class="social-proof-note">Deployment figures are SaleWell operational estimates based on active rollout planning.</div>
+        <div class="social-proof-note">Site coverage and monitoring volume depend on project size, tank count and installation scope.</div>
     </section>
 
     <section id="benefits" class="section surface">
@@ -3871,7 +3870,7 @@ min-width:0;
         <div class="urgency-banner">
             <div class="urgency-pill">Cost Of Waiting</div>
             <div class="urgency-copy">
-                <strong>One repair or one month of overflow waste can cost more than buyers expect.</strong>
+                <strong>One repair or one month of overflow waste can cost more than the setup.</strong>
                 <p>Protect against dry-run damage, refill delays, overflow waste and avoidable site visits.</p>
             </div>
         </div>
@@ -3908,7 +3907,7 @@ min-width:0;
             <div class="compare-cost-strip">
                 <div>
                     <strong>One motor repair can cost &#8377;5,000 to &#8377;15,000.</strong>
-                    <p>A quick demo helps buyers compare that risk with the cost of early alerts and pump protection.</p>
+                    <p>A quick demo helps you compare that risk with the cost of early alerts and pump protection.</p>
                 </div>
                 <a class="button-secondary" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
             </div>
@@ -3918,15 +3917,15 @@ min-width:0;
     <section id="demo" class="section surface">
         <div class="section-header">
             <div>
-                <div class="eyebrow">30-Second Demo</div>
+                <div class="eyebrow">System Walkthrough</div>
             </div>
         </div>                                                  
 
         <div class="demo-layout">
-            <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="30000" aria-label="30-second animated product walkthrough">
+            <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="30000" aria-label="Animated product walkthrough">
                 <div class="demo-storyboard-head">
-                    <div class="demo-badge"><span class="demo-play">&#9654;</span>Storyboard</div>
-                    <div class="demo-runtime">10 Scenes &bull; 30 Seconds</div>
+                    <div class="demo-badge"><span class="demo-play">&#9654;</span>Live System View</div>
+                    <div class="demo-runtime">System Walkthrough</div>
                 </div>
 
                 <div class="demo-progress-track" aria-hidden="true">
@@ -3937,10 +3936,9 @@ min-width:0;
                     <article class="demo-scene is-active" data-demo-scene data-demo-title="Stop Water Overflow Automatically" aria-hidden="false">
                         <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated smart water tank monitoring view showing a protected rooftop tank with phone alerts." loading="lazy">
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 01 &bull; Problem</span>
                             <strong>Stop Water Overflow Automatically</strong>
                             <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Real-time monitoring</span>
                                 <span>AI leak detection</span>
                                 <span>Mobile + Web dashboard</span>
@@ -3951,10 +3949,9 @@ min-width:0;
                     <article class="demo-scene" data-demo-scene data-demo-title="Easy Installation" aria-hidden="true">
                         <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller and tank sensor hardware prepared for installation." loading="lazy">
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 02 &bull; Setup</span>
                             <strong>Easy Installation</strong>
                             <p>With a simple sensor setup, the tank becomes smart in minutes. The tank sensor and pump controller stay connected over Wi-Fi.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Sensor mounted on tank</span>
                                 <span>Controller to pump</span>
                                 <span>Ready in minutes</span>
@@ -3994,7 +3991,7 @@ min-width:0;
                                             <div class="demo-brand-coin"><img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt=""></div>
                                             <div>
                                                 <h3>Home Water Dashboard</h3>
-                                                <p>Hello, Shakya. Your tank summary is organized around what needs attention first.</p>
+                                                <p>Your tank summary is organized around what needs attention first.</p>
                                             </div>
                                             <div class="demo-sync-card">
                                                 <strong>Sync</strong>
@@ -4030,10 +4027,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 03 &bull; Dashboard</span>
                             <strong>Live Dashboard View</strong>
                             <p>See live tank levels, sync status and key summary cards in one clear dashboard view.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Main + source tank view</span>
                                 <span>Live sync cards</span>
                                 <span>Desktop dashboard access</span>
@@ -4085,10 +4081,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 04 &bull; Analytics</span>
                             <strong>Usage Charts That Tell A Story</strong>
                             <p>Track tank trends, daily usage, 24-hour patterns and pump activity in a format RWAs and maintenance teams can act on.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Tank trend history</span>
                                 <span>Daily water use</span>
                                 <span>Pump activity timeline</span>
@@ -4127,10 +4122,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 05 &bull; Weekly Insight</span>
                             <strong>Last 7 Days At A Glance</strong>
                             <p>Understand average use, peak demand and tank level patterns so planning becomes easier.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Weekly usage summary</span>
                                 <span>Peak day visibility</span>
                                 <span>Average tank level</span>
@@ -4176,10 +4170,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 06 &bull; AI Forecast</span>
                             <strong>AI Forecasts And Usage Trends</strong>
                             <p>AI insights highlight expected water use, forecast time to empty and unusual consumption patterns before they become costly surprises.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Tomorrow estimate</span>
                                 <span>Time-to-empty forecast</span>
                                 <span>AI consumption rate</span>
@@ -4230,10 +4223,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 07 &bull; Alerts</span>
                             <strong>Alerts, Health And Next Steps</strong>
                             <p>Recent events, health details and suggested next steps help teams make faster water decisions.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Sensor and leak alerts</span>
                                 <span>Health detail cards</span>
                                 <span>Helpful next steps</span>
@@ -4255,7 +4247,7 @@ min-width:0;
                                             <div class="demo-mobile-pill">Logout</div>
                                         </div>
                                         <div class="demo-mobile-copy">
-                                            <strong>Device ID: swt-000-000-000-001</strong>
+                                            <strong>Connected tank controller</strong>
                                             <span>Source: Local Wi-Fi</span>
                                             Tank is 55.0% full and Pump OFF. Auto paused because the sensor needs attention, and direct control stays visible here.
                                         </div>
@@ -4310,10 +4302,9 @@ min-width:0;
                             </div>
                         </div>
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 08 &bull; Mobile Control</span>
                             <strong>Control Pumps From Your Phone</strong>
                             <p>Bring pump actions, tank levels and direct control into one mobile view that is easy to use on-site.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Mobile pump control</span>
                                 <span>Main + source tank status</span>
                                 <span>Field-ready dashboard</span>
@@ -4324,10 +4315,9 @@ min-width:0;
                     <article class="demo-scene" data-demo-scene data-demo-title="Instant Alerts And Leak Detection" aria-hidden="true">
                         <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated service dashboard spotting unusual water usage, alerts and leak activity." loading="lazy">
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 09 &bull; Intelligence</span>
                             <strong>Instant Alerts And AI Leak Detection</strong>
                             <p>AI spots unusual water patterns, highlights possible leaks and helps the team act before overflow, dry-run or waste becomes expensive.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Detect unusual usage</span>
                                 <span>Identify hidden leaks</span>
                                 <span>Save water and repair cost</span>
@@ -4335,13 +4325,12 @@ min-width:0;
                         </div>
                     </article>
 
-                    <article class="demo-scene" data-demo-scene data-demo-title="Book Free Demo" aria-hidden="true">
+                    <article class="demo-scene" data-demo-scene data-demo-title="Book Setup Check" aria-hidden="true">
                         <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated product specialist showing the smart water tank system during a live demo." loading="lazy">
                         <div class="demo-scene-copy">
-                            <span class="demo-scene-kicker">Scene 10 &bull; Call To Action</span>
-                            <strong>Book Free Demo</strong>
+                            <strong>Book Setup Check</strong>
                             <p>Finish with a clear next step: review the tank setup, pricing and installation plan.</p>
-                            <div class="demo-feature-list" aria-label="Scene highlights">
+                            <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Live dashboard walkthrough</span>
                                 <span>Site-fit advice</span>
                                 <span>Fast next step</span>
@@ -4351,7 +4340,7 @@ min-width:0;
                 </div>
 
                 <div class="demo-controls">
-                    <div class="demo-status-line" id="demoStatusLine">Scene 01 of 10 &bull; Stop Water Overflow Automatically</div>
+                    <div class="demo-status-line" id="demoStatusLine">Stop Water Overflow Automatically</div>
                     <div class="demo-control-actions">
                         <div class="demo-transport-actions" aria-label="Demo playback controls">
                             <button class="demo-control-button" id="demoPrevButton" type="button" aria-label="Previous demo scene">Back</button>
@@ -4368,7 +4357,6 @@ min-width:0;
                 <button class="demo-step is-active" type="button" data-demo-step="0" aria-pressed="true">
                     <span class="demo-step-number">1</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Problem</span>
                         <strong>Stop Water Overflow Automatically</strong>
                         <p>Water overflow and motor damage can cost you thousands.</p>
                     </span>
@@ -4376,7 +4364,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="1" aria-pressed="false">
                     <span class="demo-step-number">2</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Setup</span>
                         <strong>Easy Installation</strong>
                         <p>A simple sensor setup turns the tank smart in minutes.</p>
                     </span>
@@ -4384,7 +4371,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="2" aria-pressed="false">
                     <span class="demo-step-number">3</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Dashboard</span>
                         <strong>Home Water Dashboard</strong>
                         <p>Live tank cards, sync status and the main dashboard stay easy to read.</p>
                     </span>
@@ -4392,7 +4378,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="3" aria-pressed="false">
                     <span class="demo-step-number">4</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Analytics</span>
                         <strong>Analytics Charts</strong>
                         <p>Use tank trend, daily use and pump activity charts to tell the story.</p>
                     </span>
@@ -4400,7 +4385,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="4" aria-pressed="false">
                     <span class="demo-step-number">5</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Weekly Insight</span>
                         <strong>Weekly Water Summary</strong>
                         <p>Peak usage, average demand and tank-level patterns are visible at a glance.</p>
                     </span>
@@ -4408,7 +4392,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="5" aria-pressed="false">
                     <span class="demo-step-number">6</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">AI Forecast</span>
                         <strong>Forecast And Usage Trends</strong>
                         <p>AI surfaces tomorrow usage, time-to-empty and unusual consumption.</p>
                     </span>
@@ -4416,7 +4399,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="6" aria-pressed="false">
                     <span class="demo-step-number">7</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Events</span>
                         <strong>Alerts, Health And Next Steps</strong>
                         <p>Recent events, health details and clear actions stay in one screen.</p>
                     </span>
@@ -4424,7 +4406,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="7" aria-pressed="false">
                     <span class="demo-step-number">8</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">Mobile</span>
                         <strong>Mobile Pump Control</strong>
                         <p>Bring tank visibility and pump actions into a single phone view.</p>
                     </span>
@@ -4432,7 +4413,6 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="8" aria-pressed="false">
                     <span class="demo-step-number">9</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">AI Alerting</span>
                         <strong>Instant Alerts And Leak Detection</strong>
                         <p>AI alerts help catch hidden leaks and abnormal use earlier.</p>
                     </span>
@@ -4440,8 +4420,7 @@ min-width:0;
                 <button class="demo-step" type="button" data-demo-step="9" aria-pressed="false">
                     <span class="demo-step-number">10</span>
                     <span class="demo-step-body">
-                        <span class="demo-step-label">CTA</span>
-                        <strong>Book Free Demo</strong>
+                        <strong>Book Setup Check</strong>
                         <p>End with a practical setup check and pricing next step.</p>
                     </span>
                 </button>
@@ -4535,7 +4514,7 @@ min-width:0;
     <section id="proof" class="section surface">
         <div class="section-header">
             <div>
-                <div class="eyebrow">Why Buyers Trust It</div>
+                <div class="eyebrow">Setup Check</div>
                 <h2>Check the system before you commit.</h2>
             </div>
         </div>
@@ -4622,7 +4601,7 @@ min-width:0;
                     <h2>Book your free demo and tank setup check.</h2>
                 </div>
 
-                <div class="form-speed-note">Takes less than 30 seconds &bull; No spam &bull; No commitment</div>
+                <div class="form-speed-note">Quick site-fit check before pricing and installation planning</div>
                 <div class="form-urgency" aria-label="Form urgency signals">
                     <span>&#9888; Be ready for summer water shortages</span>
                     <span>&#9888; Avoid motor repair surprises</span>
@@ -4637,8 +4616,8 @@ min-width:0;
                     </article>
                     <article class="card">
                         <div class="card-tag">Sales Follow-Up</div>
-                        <h3>Demo and pricing follow-up</h3>
-                        <p>Get pricing and demo next steps in one call.</p>
+                        <h3>Pricing follow-up</h3>
+                        <p>Get pricing and setup next steps in one call.</p>
                     </article>
                     <article class="card">
                         <div class="card-tag">Installation Support</div>
@@ -4665,28 +4644,27 @@ min-width:0;
                 <div class="row-2">
                     <div class="group">
                         <label for="lead_name">Name</label>
-                        <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" placeholder="Your full name" required>
+                        <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" required>
                     </div>
                     <div class="group">
                         <label for="lead_phone">Phone / WhatsApp</label>
-                        <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" placeholder="+91 **********" required>
+                        <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" required>
                     </div>
                 </div>
                 <div class="row-2">
                     <div class="group">
                         <label for="lead_city">City</label>
-                        <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" placeholder="City or service area" required>
+                        <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" required>
                     </div>
                     <div class="group">
                         <label for="lead_email">Email</label>
-                        <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" placeholder="you@example.com" required>
+                        <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" required>
                     </div>
                 </div>
                 <div class="row-2">
                     <div class="group">
                         <label for="lead_segment">Project Type</label>
                         <select id="lead_segment" name="segment" required>
-                            <option value="">Select one</option>
                             <option value="Home / Villa" {% if sales_form.get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
                             <option value="Apartment / Hostel" {% if sales_form.get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
                             <option value="Hotel / Institution" {% if sales_form.get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
@@ -4696,12 +4674,12 @@ min-width:0;
                     </div>
                     <div class="group">
                         <label for="lead_device_count">Estimated Devices Needed</label>
-                        <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" placeholder="Example: 12" required>
+                        <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" required>
                     </div>
                 </div>
                 <div class="group">
                     <label for="lead_message">Project Notes</label>
-                    <textarea id="lead_message" name="message" placeholder="Tell us about the site, tank count, overflow issues, dry-run risk, or preferred installation timeline.">{{ sales_form.get('message', '') }}</textarea>
+                    <textarea id="lead_message" name="message">{{ sales_form.get('message', '') }}</textarea>
                 </div>
                 <div class="form-actions">
                     <button class="button-secondary is-primary-cta" type="submit">Book Free Demo</button>
@@ -4711,7 +4689,7 @@ min-width:0;
 
             <div class="promo-card">
                 <div class="promo-copy">
-                    <div class="eyebrow">Demo Walkthrough</div>
+                    <div class="eyebrow">System Walkthrough</div>
                     <h3>See installation, controller and dashboard in one walkthrough.</h3>
                     <p>Understand the full system quickly, then continue pricing and planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
                     <div class="proof-pills" aria-label="Demo highlights">
@@ -4786,7 +4764,7 @@ min-width:0;
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
         </div>
         <form class="chatbot-form" id="chatbotForm">
-            <input id="chatbotInput" type="search" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="search" enterkeyhint="send" aria-autocomplete="none" data-lpignore="true" data-form-type="other" placeholder="Plan, pump, overflow, install">
+            <input id="chatbotInput" type="search" autocomplete="off" autocorrect="off" autocapitalize="sentences" spellcheck="false" inputmode="search" enterkeyhint="send" aria-autocomplete="none" data-lpignore="true" data-form-type="other" aria-label="Ask about plan, pump, overflow or installation">
             <button type="submit">Ask</button>
         </form>
     </section>
@@ -4841,16 +4819,16 @@ min-width:0;
         <section class="login-pane {% if login_mode != 'admin' %}is-active{% endif %}" data-login-pane="customer">
             <h3>Customer Login</h3>
             <p>Use your registered tank credentials.</p>
-            <div class="login-help">Use <code>device_id</code> as the username. Example: <code>swt-000-000-000-001</code>.</div>
+            <div class="login-help">Use your assigned device ID as the username.</div>
             <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
                     <label for="customer_username">Device ID</label>
-                    <input id="customer_username" name="username" type="text" autocomplete="username" value="{% if login_mode != 'admin' %}{{ request.form.get('username', '') }}{% endif %}" placeholder="swt-000-000-000-001" required>
+                    <input id="customer_username" name="username" type="text" autocomplete="username" value="{% if login_mode != 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
                 </div>
                 <div class="group">
                     <label for="customer_password">Password</label>
-                    <input id="customer_password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                    <input id="customer_password" name="password" type="password" autocomplete="current-password" required>
                 </div>
                 <button class="button" type="submit">Open Customer Dashboard</button>
             </form>
@@ -4865,11 +4843,11 @@ min-width:0;
                 <input type="hidden" name="next" value="{{ next_url }}">
                 <div class="group">
                     <label for="admin_username">Username</label>
-                    <input id="admin_username" name="username" type="text" autocomplete="username" value="{% if login_mode == 'admin' %}{{ request.form.get('username', '') }}{% endif %}" placeholder="Admin username" required>
+                    <input id="admin_username" name="username" type="text" autocomplete="username" value="{% if login_mode == 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
                 </div>
                 <div class="group">
                     <label for="admin_password">Password</label>
-                    <input id="admin_password" name="password" type="password" autocomplete="current-password" placeholder="Enter password" required>
+                    <input id="admin_password" name="password" type="password" autocomplete="current-password" required>
                 </div>
                 <button class="button" type="submit">Open Admin Dashboard</button>
             </form>
@@ -5187,7 +5165,7 @@ const chatBookingFields = [
         question: "What email should we send the confirmation to?",
         normalize: (value) => value.trim().toLowerCase(),
         validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
-        error: "Please enter a valid email address, for example name@example.com.",
+        error: "Please enter a valid email address.",
     },
     {
         key: "city",
@@ -5789,7 +5767,6 @@ if (demoStoryboard && demoScenes.length) {
     const demoSceneCount = demoScenes.length;
     const demoStepMs = Number(demoStoryboard.dataset.stepMs) || 4286;
     const demoTotalMs = Number(demoStoryboard.dataset.totalMs) || 30000;
-    const demoSceneTotalLabel = String(demoSceneCount).padStart(2, "0");
     const supportsFullscreen = Boolean(
         demoStoryboard.requestFullscreen ||
         demoStoryboard.webkitRequestFullscreen ||
@@ -5828,21 +5805,20 @@ if (demoStoryboard && demoScenes.length) {
 
     function setDemoStatus(index, mode = "auto") {
         if (!demoStatusLine) return;
-        const activeTitle = demoScenes[index]?.dataset.demoTitle || `Scene ${index + 1}`;
-        const sceneLabel = `Scene ${String(index + 1).padStart(2, "0")} of ${demoSceneTotalLabel}`;
+        const activeTitle = demoScenes[index]?.dataset.demoTitle || "System walkthrough";
         if (mode === "paused") {
-            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Paused`;
+            demoStatusLine.textContent = `${activeTitle} | Paused`;
             return;
         }
         if (mode === "manual") {
-            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Manual preview`;
+            demoStatusLine.textContent = activeTitle;
             return;
         }
         if (mode === "reduced") {
-            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Reduced motion preview`;
+            demoStatusLine.textContent = activeTitle;
             return;
         }
-        demoStatusLine.textContent = `${sceneLabel} | ${activeTitle}`;
+        demoStatusLine.textContent = activeTitle;
     }
 
     function updatePlayPauseButton() {
