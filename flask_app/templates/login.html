@@ -3015,7 +3015,7 @@ display:none;
 align-items:center;
 justify-content:center;
 padding:14px;
-z-index:30;
+z-index:70;
 }
 .modal.is-open{display:flex}
 .modal-backdrop{
@@ -3035,6 +3035,16 @@ background:linear-gradient(180deg,var(--surface-dark),rgba(10,31,39,.98));
 border:1px solid rgba(150,207,218,.12);
 box-shadow:0 32px 80px rgba(0,0,0,.32);
 color:#eefcff;
+}
+.enquiry-modal .modal-panel{
+width:min(760px,100%);
+max-height:min(88vh,760px);
+}
+.enquiry-modal .enquiry-form{
+margin-top:14px;
+}
+.enquiry-modal .modal-header p{
+max-width:52ch;
 }
 .modal-close{
 position:absolute;
@@ -4593,118 +4603,6 @@ min-width:0;
         </div>
     </section>
 
-    <section id="enquiry" class="section surface">
-        <div class="enquiry-layout">
-            <div class="enquiry-intro">
-                <div>
-                    <div class="eyebrow">Book a Demo</div>
-                    <h2>Book your free demo and tank setup check.</h2>
-                </div>
-
-                <div class="form-speed-note">Quick site-fit check before pricing and installation planning</div>
-                <div class="form-urgency" aria-label="Form urgency signals">
-                    <span>&#9888; Be ready for summer water shortages</span>
-                    <span>&#9888; Avoid motor repair surprises</span>
-                    <span>&#9888; Get a clear site-fit recommendation</span>
-                </div>
-
-                <div class="what-you-get-grid">
-                    <article class="card">
-                        <div class="card-tag">Site Planning</div>
-                        <h3>Recommended device setup</h3>
-                        <p>Know the right setup for your tank and pump.</p>
-                    </article>
-                    <article class="card">
-                        <div class="card-tag">Sales Follow-Up</div>
-                        <h3>Pricing follow-up</h3>
-                        <p>Get pricing and setup next steps in one call.</p>
-                    </article>
-                    <article class="card">
-                        <div class="card-tag">Installation Support</div>
-                        <h3>Wireless installation planning</h3>
-                        <p>Review tank count, Wi-Fi coverage, pump location and where each device should be powered.</p>
-                    </article>
-                    <article class="card">
-                        <div class="card-tag">Customer Handover</div>
-                        <h3>Cleaner handover for customers</h3>
-                        <p>Customer and admin access are ready after installation.</p>
-                    </article>
-                </div>
-            </div>
-
-            <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
-                {% if sales_success %}
-                <div class="banner success">{{ sales_success }}</div>
-                {% endif %}
-                {% if sales_error %}
-                <div class="banner error">{{ sales_error }}</div>
-                {% endif %}
-                <div class="row-2">
-                    <div class="group">
-                        <label for="lead_name">Name</label>
-                        <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" required>
-                    </div>
-                    <div class="group">
-                        <label for="lead_phone">Phone / WhatsApp</label>
-                        <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" required>
-                    </div>
-                </div>
-                <div class="row-2">
-                    <div class="group">
-                        <label for="lead_city">City</label>
-                        <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" required>
-                    </div>
-                    <div class="group">
-                        <label for="lead_email">Email</label>
-                        <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" required>
-                    </div>
-                </div>
-                <div class="row-2">
-                    <div class="group">
-                        <label for="lead_segment">Project Type</label>
-                        <select id="lead_segment" name="segment" required>
-                            <option value="Home / Villa" {% if sales_form.get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
-                            <option value="Apartment / Hostel" {% if sales_form.get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
-                            <option value="Hotel / Institution" {% if sales_form.get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
-                            <option value="Dealer / Installer" {% if sales_form.get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
-                            <option value="Commercial Site" {% if sales_form.get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
-                        </select>
-                    </div>
-                    <div class="group">
-                        <label for="lead_device_count">Estimated Devices Needed</label>
-                        <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" required>
-                    </div>
-                </div>
-                <div class="group">
-                    <label for="lead_message">Project Notes</label>
-                    <textarea id="lead_message" name="message">{{ sales_form.get('message', '') }}</textarea>
-                </div>
-                <div class="form-actions">
-                    <button class="button-secondary is-primary-cta" type="submit">Book Free Demo</button>
-                </div>
-                <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
-            </form>
-
-            <div class="promo-card">
-                <div class="promo-copy">
-                    <div class="eyebrow">System Walkthrough</div>
-                    <h3>See installation, controller and dashboard in one walkthrough.</h3>
-                    <p>Understand the full system quickly, then continue pricing and planning at <a href="mailto:support@salewell.co.in">support@salewell.co.in</a>.</p>
-                    <div class="proof-pills" aria-label="Demo highlights">
-                        <span>Installer-friendly setup</span>
-                        <span>Customer phone access</span>
-                        <span>Admin service workflow</span>
-                    </div>
-                </div>
-                <figure class="promo-media" aria-label="Smart water tank service demo illustration">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated installer showing a smart water tank controller and phone dashboard to a customer." loading="lazy">
-                </figure>
-            </div>
-        </div>
-    </section>
-
     <footer class="footer surface">
         <div class="final-cta">
             <div>
@@ -4775,6 +4673,78 @@ min-width:0;
             <small>Plan, price, installation</small>
         </span>
     </button>
+</div>
+
+<div
+    class="modal enquiry-modal"
+    id="enquiryModal"
+    aria-hidden="true"
+>
+    <div class="modal-backdrop" data-close-enquiry></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="enquiryModalTitle" aria-describedby="enquiryModalDescription">
+        <button class="modal-close" type="button" aria-label="Close booking form" data-close-enquiry>&times;</button>
+
+        <div class="modal-header">
+            <div class="eyebrow">Book Free Demo</div>
+            <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
+            <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
+        </div>
+
+        <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
+            {% if sales_success %}
+            <div class="banner success">{{ sales_success }}</div>
+            {% endif %}
+            {% if sales_error %}
+            <div class="banner error">{{ sales_error }}</div>
+            {% endif %}
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_name">Name</label>
+                    <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" required>
+                </div>
+                <div class="group">
+                    <label for="lead_phone">Phone / WhatsApp</label>
+                    <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" required>
+                </div>
+            </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_city">City</label>
+                    <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" required>
+                </div>
+                <div class="group">
+                    <label for="lead_email">Email</label>
+                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" required>
+                </div>
+            </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_segment">Project Type</label>
+                    <select id="lead_segment" name="segment" required>
+                        <option value="Home / Villa" {% if sales_form.get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
+                        <option value="Apartment / Hostel" {% if sales_form.get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
+                        <option value="Hotel / Institution" {% if sales_form.get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
+                        <option value="Dealer / Installer" {% if sales_form.get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
+                        <option value="Commercial Site" {% if sales_form.get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
+                    </select>
+                </div>
+                <div class="group">
+                    <label for="lead_device_count">Estimated Devices Needed</label>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" required>
+                </div>
+            </div>
+            <div class="group">
+                <label for="lead_message">Project Notes</label>
+                <textarea id="lead_message" name="message">{{ sales_form.get('message', '') }}</textarea>
+            </div>
+            <div class="form-actions">
+                <button class="button-secondary is-primary-cta" type="submit">Book Free Demo</button>
+            </div>
+            <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
+        </form>
+    </div>
 </div>
 
 <div
@@ -4858,9 +4828,11 @@ min-width:0;
 <script>
 const landingHomeUrl = "{{ url_for('dashboard') }}";
 const loginModal = document.getElementById("loginModal");
+const enquiryModal = document.getElementById("enquiryModal");
 const loginTitle = document.getElementById("loginModalTitle");
 const loginDescription = document.getElementById("loginModalDescription");
 const closeButtons = document.querySelectorAll("[data-close-modal]");
+const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
 const toggleButtons = document.querySelectorAll("[data-login-role]");
 const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
@@ -4869,6 +4841,7 @@ const landingModeInput = document.getElementById("landingModeInput");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
 const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
 const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
+const shouldAutoOpenEnquiry = {{ "true" if sales_success or sales_error else "false" }};
 const roleContent = {
     customer: {
         title: "Customer Login",
@@ -4920,6 +4893,21 @@ function closeLoginModal() {
     document.body.classList.remove("modal-open");
 }
 
+function openEnquiryModal() {
+    if (!enquiryModal) return;
+    enquiryModal.classList.add("is-open");
+    enquiryModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(() => document.getElementById("lead_name")?.focus(), 30);
+}
+
+function closeEnquiryModal() {
+    if (!enquiryModal) return;
+    enquiryModal.classList.remove("is-open");
+    enquiryModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
+}
+
 toggleButtons.forEach((button) => {
     button.addEventListener("click", () => setLoginRole(button.dataset.loginRole));
 });
@@ -4938,9 +4926,22 @@ closeButtons.forEach((button) => {
     button.addEventListener("click", closeLoginModal);
 });
 
+closeEnquiryButtons.forEach((button) => {
+    button.addEventListener("click", closeEnquiryModal);
+});
+
+document.addEventListener("click", (event) => {
+    const enquiryLink = event.target.closest?.('a[href="#enquiry"]');
+    if (!enquiryLink) return;
+    event.preventDefault();
+    openEnquiryModal();
+});
+
 document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && loginModal.classList.contains("is-open")) {
         closeLoginModal();
+    } else if (event.key === "Escape" && enquiryModal?.classList.contains("is-open")) {
+        closeEnquiryModal();
     }
 });
 
@@ -4948,6 +4949,10 @@ if (shouldAutoOpenLogin) {
     openLoginModal(bodyDefaultRole);
 } else {
     setLoginRole(bodyDefaultRole);
+}
+
+if (shouldAutoOpenEnquiry || window.location.hash === "#enquiry") {
+    openEnquiryModal();
 }
 
 const selectedPricingPlan = new URLSearchParams(window.location.search).get("plan");
@@ -4967,6 +4972,7 @@ if (selectedPricingPlan) {
     if (leadMessage && !leadMessage.value.includes(planLine)) {
         leadMessage.value = leadMessage.value.trim() ? `${planLine}\n\n${leadMessage.value.trim()}` : planLine;
     }
+    openEnquiryModal();
 }
 
 const chatbot = document.getElementById("siteChatbot");
@@ -5066,7 +5072,7 @@ function applyChatRecommendation(fill = {}) {
     if (fill.segment) setLeadValue("lead_segment", fill.segment, true);
     if (fill.devices) setLeadValue("lead_device_count", fill.devices, true);
     if (fill.note) addLeadNote(fill.note);
-    document.getElementById("enquiry")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    openEnquiryModal();
 }
 
 const chatPlanCatalog = [
@@ -5431,8 +5437,8 @@ async function submitCompletedEnquiry() {
         );
     } catch (error) {
         console.warn("Chatbot enquiry submit failed", error);
-        appendChatMessage("Network issue while submitting. Please try again, or use the form below.", "bot", [
-            { label: "Review form", href: "#enquiry" },
+        appendChatMessage("Network issue while submitting. Please try again, or open the booking form.", "bot", [
+            { label: "Open booking form", href: "#enquiry" },
         ]);
     } finally {
         chatEnquirySubmitting = false;
@@ -5745,7 +5751,12 @@ if (chatbotMessages) {
 }
 
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && chatbot?.classList.contains("is-open") && !loginModal.classList.contains("is-open")) {
+    if (
+        event.key === "Escape" &&
+        chatbot?.classList.contains("is-open") &&
+        !loginModal.classList.contains("is-open") &&
+        !enquiryModal?.classList.contains("is-open")
+    ) {
         setChatbotOpen(false);
     }
 });
