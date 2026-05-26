@@ -2086,6 +2086,12 @@ align-items:center;
 gap:8px;
 flex-wrap:wrap;
 }
+.demo-transport-actions{
+display:flex;
+align-items:center;
+gap:8px;
+flex-wrap:wrap;
+}
 .demo-status-line{
 font-size:12px;
 line-height:1.5;
@@ -2110,6 +2116,15 @@ transition:transform .18s ease,background .18s ease,border-color .18s ease;
 transform:translateY(-1px);
 background:rgba(255,255,255,.14);
 border-color:rgba(255,255,255,.22);
+}
+.demo-control-button.is-primary{
+background:linear-gradient(135deg,#74ddea,#2c98ad);
+border-color:rgba(127,229,242,.42);
+color:#062832;
+box-shadow:0 12px 26px rgba(26,163,184,.22);
+}
+.demo-control-button.is-primary:hover{
+background:linear-gradient(135deg,#88e8f3,#36a9bd);
 }
 .demo-control-button:disabled{
 opacity:.6;
@@ -3434,6 +3449,11 @@ display:grid;
 grid-template-columns:1fr;
 width:100%;
 }
+.demo-transport-actions{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+width:100%;
+}
 .demo-control-button{
 width:100%;
 }
@@ -4333,6 +4353,11 @@ min-width:0;
                 <div class="demo-controls">
                     <div class="demo-status-line" id="demoStatusLine">Scene 01 of 10 &bull; Stop Water Overflow Automatically</div>
                     <div class="demo-control-actions">
+                        <div class="demo-transport-actions" aria-label="Demo playback controls">
+                            <button class="demo-control-button" id="demoPrevButton" type="button" aria-label="Previous demo scene">Back</button>
+                            <button class="demo-control-button is-primary" id="demoPlayPauseButton" type="button" aria-pressed="true">Pause</button>
+                            <button class="demo-control-button" id="demoNextButton" type="button" aria-label="Next demo scene">Next</button>
+                        </div>
                         <button class="demo-control-button demo-fullscreen" id="demoFullscreenButton" type="button" aria-pressed="false">Full Screen</button>
                         <button class="demo-control-button demo-replay" id="demoReplayButton" type="button">Replay Demo</button>
                     </div>
@@ -5753,6 +5778,9 @@ const demoProgressBar = document.getElementById("demoProgressBar");
 const demoStatusLine = document.getElementById("demoStatusLine");
 const demoFullscreenButton = document.getElementById("demoFullscreenButton");
 const demoReplayButton = document.getElementById("demoReplayButton");
+const demoPlayPauseButton = document.getElementById("demoPlayPauseButton");
+const demoPrevButton = document.getElementById("demoPrevButton");
+const demoNextButton = document.getElementById("demoNextButton");
 const demoScenes = demoStoryboard ? Array.from(demoStoryboard.querySelectorAll("[data-demo-scene]")) : [];
 const demoStepButtons = demoSection ? Array.from(demoSection.querySelectorAll("[data-demo-step]")) : [];
 const reducedMotionQuery = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
@@ -5771,6 +5799,7 @@ if (demoStoryboard && demoScenes.length) {
     const demoState = {
         animationFrame: 0,
         autoPlaying: false,
+        elapsed: 0,
         index: 0,
         startedAt: 0,
     };
@@ -5801,6 +5830,10 @@ if (demoStoryboard && demoScenes.length) {
         if (!demoStatusLine) return;
         const activeTitle = demoScenes[index]?.dataset.demoTitle || `Scene ${index + 1}`;
         const sceneLabel = `Scene ${String(index + 1).padStart(2, "0")} of ${demoSceneTotalLabel}`;
+        if (mode === "paused") {
+            demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Paused`;
+            return;
+        }
         if (mode === "manual") {
             demoStatusLine.textContent = `${sceneLabel} | ${activeTitle} | Manual preview`;
             return;
@@ -5810,6 +5843,13 @@ if (demoStoryboard && demoScenes.length) {
             return;
         }
         demoStatusLine.textContent = `${sceneLabel} | ${activeTitle}`;
+    }
+
+    function updatePlayPauseButton() {
+        if (!demoPlayPauseButton) return;
+        const isPlaying = demoState.autoPlaying;
+        demoPlayPauseButton.textContent = isPlaying ? "Pause" : "Play";
+        demoPlayPauseButton.setAttribute("aria-pressed", isPlaying ? "true" : "false");
     }
 
     function renderDemo(index) {
@@ -5832,11 +5872,13 @@ if (demoStoryboard && demoScenes.length) {
         }
         demoState.animationFrame = 0;
         demoState.autoPlaying = false;
+        updatePlayPauseButton();
     }
 
     function tickDemo(now) {
         if (!demoState.autoPlaying) return;
         const elapsed = (now - demoState.startedAt) % demoTotalMs;
+        demoState.elapsed = elapsed;
         const sceneIndex = Math.min(Math.floor(elapsed / demoStepMs), demoSceneCount - 1);
         if (sceneIndex !== demoState.index) {
             renderDemo(sceneIndex);
@@ -5846,14 +5888,16 @@ if (demoStoryboard && demoScenes.length) {
         demoState.animationFrame = window.requestAnimationFrame(tickDemo);
     }
 
-    function startDemo(index = 0) {
+    function startDemo(index = 0, elapsed = index * demoStepMs) {
         stopDemo();
         demoState.autoPlaying = true;
-        demoState.startedAt = performance.now() - (index * demoStepMs);
+        demoState.elapsed = Math.max(0, Math.min(elapsed, demoTotalMs - 1));
+        demoState.startedAt = performance.now() - demoState.elapsed;
         renderDemo(index);
         setDemoStatus(index);
-        updateDemoProgress((index * demoStepMs) / demoTotalMs);
+        updateDemoProgress(demoState.elapsed / demoTotalMs);
         if (demoReplayButton) demoReplayButton.textContent = "Replay Demo";
+        updatePlayPauseButton();
         demoState.animationFrame = window.requestAnimationFrame(tickDemo);
     }
 
@@ -5861,9 +5905,35 @@ if (demoStoryboard && demoScenes.length) {
         stopDemo();
         renderDemo(index);
         setDemoStatus(index, mode);
-        const fallbackProgress = demoSceneCount > 1 ? index / (demoSceneCount - 1) : 1;
-        updateDemoProgress(fallbackProgress);
+        demoState.elapsed = Math.min(index * demoStepMs, demoTotalMs - 1);
+        updateDemoProgress(demoState.elapsed / demoTotalMs);
         if (demoReplayButton) demoReplayButton.textContent = mode === "manual" ? "Resume Demo" : "Play Demo";
+        updatePlayPauseButton();
+    }
+
+    function pauseDemo() {
+        if (!demoState.autoPlaying) return;
+        stopDemo();
+        setDemoStatus(demoState.index, "paused");
+        if (demoReplayButton) demoReplayButton.textContent = "Resume Demo";
+        updatePlayPauseButton();
+    }
+
+    function toggleDemoPlayback() {
+        if (demoState.autoPlaying) {
+            pauseDemo();
+            return;
+        }
+        startDemo(demoState.index, demoState.elapsed || demoState.index * demoStepMs);
+    }
+
+    function stepDemo(direction) {
+        const nextIndex = (demoState.index + direction + demoSceneCount) % demoSceneCount;
+        if (demoState.autoPlaying) {
+            startDemo(nextIndex);
+            return;
+        }
+        showDemoFrame(nextIndex);
     }
 
     demoStepButtons.forEach((button, index) => {
@@ -5872,10 +5942,17 @@ if (demoStoryboard && demoScenes.length) {
         });
     });
 
+    if (demoPlayPauseButton) demoPlayPauseButton.addEventListener("click", toggleDemoPlayback);
+    if (demoPrevButton) demoPrevButton.addEventListener("click", () => stepDemo(-1));
+    if (demoNextButton) demoNextButton.addEventListener("click", () => stepDemo(1));
+
     if (demoReplayButton) {
         demoReplayButton.addEventListener("click", () => {
-            const resumeIndex = demoState.autoPlaying ? 0 : demoState.index;
-            startDemo(resumeIndex);
+            if (demoState.autoPlaying) {
+                startDemo(0);
+                return;
+            }
+            startDemo(demoState.index, demoState.elapsed || demoState.index * demoStepMs);
         });
     }
 
