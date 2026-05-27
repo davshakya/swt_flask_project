@@ -558,6 +558,21 @@ SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL", "").strip()
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 WHATSAPP_WEBHOOK_URL = os.environ.get("WHATSAPP_WEBHOOK_URL", "").strip()
+WHATSAPP_TEAM_PHONE = os.environ.get("WHATSAPP_TEAM_PHONE", "918796452878").strip()
+WHATSAPP_WEBHOOK_SECRET = os.environ.get("WHATSAPP_WEBHOOK_SECRET", "").strip()
+WHATSAPP_PROVIDER = os.environ.get("WHATSAPP_PROVIDER", "meta").strip().lower()
+WHATSAPP_META_GRAPH_VERSION = os.environ.get("WHATSAPP_META_GRAPH_VERSION", "v24.0").strip()
+WHATSAPP_META_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_META_PHONE_NUMBER_ID", "").strip()
+WHATSAPP_META_ACCESS_TOKEN = os.environ.get("WHATSAPP_META_ACCESS_TOKEN", "").strip()
+WHATSAPP_META_CONFIRMATION_TEMPLATE = os.environ.get(
+    "WHATSAPP_META_CONFIRMATION_TEMPLATE",
+    "salewell_demo_confirmation",
+).strip()
+WHATSAPP_META_TEAM_TEMPLATE = os.environ.get(
+    "WHATSAPP_META_TEAM_TEMPLATE",
+    "salewell_team_new_enquiry",
+).strip()
+WHATSAPP_META_TEMPLATE_LANGUAGE = os.environ.get("WHATSAPP_META_TEMPLATE_LANGUAGE", "en").strip()
 MQTT_ENABLED = os.environ.get("MQTT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
 MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER_HOST", "").strip()
 MQTT_BROKER_PORT = env_int("MQTT_BROKER_PORT", 1883)
@@ -1956,11 +1971,20 @@ def send_sales_enquiry_email(cleaned, lead_details):
     return sent_any
 
 
-def append_sales_enquiry_backup(cleaned, lead_details, support_email_sent=False, confirmation_email_sent=False):
+def append_sales_enquiry_backup(
+    cleaned,
+    lead_details,
+    support_email_sent=False,
+    confirmation_email_sent=False,
+    whatsapp_team_sent=False,
+    whatsapp_customer_sent=False,
+):
     record = {
         "saved_at": datetime.now(timezone.utc).astimezone(IST_TIMEZONE).isoformat(),
         "support_email_sent": bool(support_email_sent),
         "confirmation_email_sent": bool(confirmation_email_sent),
+        "whatsapp_team_sent": bool(whatsapp_team_sent),
+        "whatsapp_customer_sent": bool(whatsapp_customer_sent),
         "support_recipients": sales_enquiry_recipients(),
         "lead": {
             "name": cleaned.get("name") or "",
@@ -2027,6 +2051,191 @@ def send_sales_enquiry_confirmation_email(cleaned):
     except Exception as exc:
         logger.warning("Sales enquiry confirmation email failed for %s: %s", cleaned.get("email"), exc)
         return False
+
+
+def normalize_whatsapp_phone(value):
+    digits = re.sub(r"\D", "", str(value or ""))
+    if len(digits) == 10:
+        return f"91{digits}"
+    return digits
+
+
+def whatsapp_template_text_values(payload):
+    lead = payload.get("lead") if isinstance(payload.get("lead"), dict) else {}
+    if payload.get("recipient_type") == "team":
+        return [
+            lead.get("name") or "--",
+            lead.get("phone") or payload.get("to") or "--",
+            lead.get("city") or "--",
+            lead.get("segment") or "--",
+            lead.get("device_count") or "--",
+            lead.get("selected_plan") or "--",
+        ]
+    return [
+        lead.get("name") or "there",
+        lead.get("selected_plan") or "SaleWell Smart Tank",
+        "pricing, setup scope and installation planning",
+    ]
+
+
+def build_meta_whatsapp_template_payload(payload):
+    template_name = (
+        WHATSAPP_META_TEAM_TEMPLATE
+        if payload.get("recipient_type") == "team"
+        else WHATSAPP_META_CONFIRMATION_TEMPLATE
+    )
+    parameters = [
+        {"type": "text", "text": str(value)[:1024]}
+        for value in whatsapp_template_text_values(payload)
+    ]
+    return {
+        "messaging_product": "whatsapp",
+        "to": normalize_whatsapp_phone(payload.get("to")),
+        "type": "template",
+        "template": {
+            "name": template_name,
+            "language": {"code": WHATSAPP_META_TEMPLATE_LANGUAGE},
+            "components": [
+                {
+                    "type": "body",
+                    "parameters": parameters,
+                }
+            ],
+        },
+    }
+
+
+def build_meta_whatsapp_text_payload(payload):
+    return {
+        "messaging_product": "whatsapp",
+        "to": normalize_whatsapp_phone(payload.get("to")),
+        "type": "text",
+        "text": {
+            "preview_url": False,
+            "body": str(payload.get("message") or payload.get("title") or "")[:4096],
+        },
+    }
+
+
+def send_meta_whatsapp_payload(payload):
+    if WHATSAPP_PROVIDER != "meta":
+        return False, "unsupported_provider", 400
+    if not WHATSAPP_META_PHONE_NUMBER_ID or not WHATSAPP_META_ACCESS_TOKEN:
+        return False, "missing_meta_credentials", 503
+    recipient = normalize_whatsapp_phone(payload.get("to"))
+    if not recipient:
+        return False, "missing_recipient", 400
+
+    use_text_message = payload.get("message_mode") == "text"
+    meta_payload = build_meta_whatsapp_text_payload(payload) if use_text_message else build_meta_whatsapp_template_payload(payload)
+    url = f"https://graph.facebook.com/{WHATSAPP_META_GRAPH_VERSION}/{WHATSAPP_META_PHONE_NUMBER_ID}/messages"
+    try:
+        response = requests.post(
+            url,
+            headers={
+                "Authorization": f"Bearer {WHATSAPP_META_ACCESS_TOKEN}",
+                "Content-Type": "application/json",
+            },
+            json=meta_payload,
+            timeout=(3, 12),
+        )
+    except requests.RequestException as exc:
+        logger.warning("Meta WhatsApp send failed before response: %s", exc)
+        return False, "meta_request_failed", 502
+
+    if response.status_code >= 400:
+        logger.warning("Meta WhatsApp send failed with HTTP %s: %s", response.status_code, response.text[:500])
+        return False, "meta_rejected_message", response.status_code
+    return True, "sent", response.status_code
+
+
+def build_sales_enquiry_whatsapp_messages(cleaned, lead_details):
+    selected_plan = selected_pricing_plan_from_notes(cleaned.get("message"))
+    plan_line = f"\nPlan: {selected_plan}" if selected_plan else ""
+    customer_phone = normalize_whatsapp_phone(cleaned.get("phone"))
+    submitted_at = datetime.now(timezone.utc).astimezone(IST_TIMEZONE).strftime("%Y-%m-%d %H:%M:%S %Z")
+    team_message = (
+        "New SaleWell Smart Tank demo/enquiry\n"
+        f"Time: {submitted_at}\n"
+        f"Name: {cleaned.get('name') or '--'}\n"
+        f"Phone: {cleaned.get('phone') or '--'}\n"
+        f"Email: {cleaned.get('email') or '--'}\n"
+        f"City: {cleaned.get('city') or '--'}\n"
+        f"Project: {cleaned.get('segment') or '--'}\n"
+        f"Devices: {cleaned.get('device_count') or '--'}"
+        f"{plan_line}\n"
+        f"Notes: {cleaned.get('message') or '--'}"
+    )
+    customer_message = (
+        f"Hi {cleaned.get('name') or 'there'}, thanks for booking a SaleWell Smart Tank demo/enquiry. "
+        "We received your details and our team will contact you soon on this WhatsApp number for pricing, setup scope and installation planning."
+    )
+    return {
+        "team": {
+            "channel": "whatsapp",
+            "kind": "sales_enquiry",
+            "recipient_type": "team",
+            "to": normalize_whatsapp_phone(WHATSAPP_TEAM_PHONE),
+            "title": "New SaleWell Smart Tank demo/enquiry",
+            "message": team_message,
+            "lead": {
+                "name": cleaned.get("name") or "",
+                "phone": cleaned.get("phone") or "",
+                "whatsapp_phone": customer_phone,
+                "email": cleaned.get("email") or "",
+                "city": cleaned.get("city") or "",
+                "segment": cleaned.get("segment") or "",
+                "device_count": cleaned.get("device_count") or "",
+                "selected_plan": selected_plan,
+            },
+            "metadata": {
+                "landing_mode": lead_details.get("landing_mode") or "",
+                "remote_addr": lead_details.get("remote_addr") or "",
+            },
+        },
+        "customer": {
+            "channel": "whatsapp",
+            "kind": "sales_enquiry_confirmation",
+            "recipient_type": "customer",
+            "to": customer_phone,
+            "title": "SaleWell Smart Tank booking received",
+            "message": customer_message,
+            "lead": {
+                "name": cleaned.get("name") or "",
+                "phone": cleaned.get("phone") or "",
+                "whatsapp_phone": customer_phone,
+                "selected_plan": selected_plan,
+            },
+        },
+    }
+
+
+def post_whatsapp_webhook(payload, log_label):
+    if not WHATSAPP_WEBHOOK_URL:
+        return False
+    try:
+        headers = {}
+        if WHATSAPP_WEBHOOK_SECRET:
+            headers["X-SaleWell-Webhook-Secret"] = WHATSAPP_WEBHOOK_SECRET
+        response = requests.post(WHATSAPP_WEBHOOK_URL, json=payload, headers=headers, timeout=(3, 8))
+        if response.status_code >= 400:
+            logger.warning("%s WhatsApp webhook returned HTTP %s.", log_label, response.status_code)
+            return False
+        return True
+    except requests.RequestException as exc:
+        logger.warning("%s WhatsApp webhook failed: %s", log_label, exc)
+        return False
+
+
+def send_sales_enquiry_whatsapp_messages(cleaned, lead_details):
+    if not WHATSAPP_WEBHOOK_URL:
+        return False, False
+    payloads = build_sales_enquiry_whatsapp_messages(cleaned, lead_details)
+    team_sent = post_whatsapp_webhook(payloads["team"], "Sales enquiry team")
+    customer_sent = False
+    if payloads["customer"].get("to"):
+        customer_sent = post_whatsapp_webhook(payloads["customer"], "Sales enquiry customer confirmation")
+    return team_sent, customer_sent
 
 
 def handle_role_login(mode):
@@ -10432,6 +10641,23 @@ def pricing_page():
     return render_template("pricing.html")
 
 
+@app.route("/integrations/whatsapp/send", methods=["POST"])
+def whatsapp_send_integration():
+    if not WHATSAPP_WEBHOOK_SECRET:
+        return jsonify({"ok": False, "error": "webhook_secret_not_configured"}), 503
+    supplied_secret = request.headers.get("X-SaleWell-Webhook-Secret", "")
+    if not hmac.compare_digest(supplied_secret, WHATSAPP_WEBHOOK_SECRET):
+        return jsonify({"ok": False, "error": "forbidden"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    if payload.get("channel") != "whatsapp":
+        return jsonify({"ok": False, "error": "invalid_channel"}), 400
+
+    sent, status, http_status = send_meta_whatsapp_payload(payload)
+    response_status = 200 if sent else http_status
+    return jsonify({"ok": sent, "status": status, "provider": WHATSAPP_PROVIDER}), response_status
+
+
 @app.route("/sales/enquiry", methods=["POST"])
 @csrf_protect
 def sales_enquiry():
@@ -10459,18 +10685,23 @@ def sales_enquiry():
     )
     support_email_sent = send_sales_enquiry_email(cleaned, lead_details)
     confirmation_email_sent = send_sales_enquiry_confirmation_email(cleaned)
+    whatsapp_team_sent, whatsapp_customer_sent = send_sales_enquiry_whatsapp_messages(cleaned, lead_details)
     append_sales_enquiry_backup(
         cleaned,
         lead_details,
         support_email_sent=support_email_sent,
         confirmation_email_sent=confirmation_email_sent,
+        whatsapp_team_sent=whatsapp_team_sent,
+        whatsapp_customer_sent=whatsapp_customer_sent,
     )
     logger.info(
-        "Sales enquiry submitted for %s (%s). support_email_sent=%s confirmation_email_sent=%s backup=%s",
+        "Sales enquiry submitted for %s (%s). support_email_sent=%s confirmation_email_sent=%s whatsapp_team_sent=%s whatsapp_customer_sent=%s backup=%s",
         cleaned["name"],
         cleaned["phone"],
         support_email_sent,
         confirmation_email_sent,
+        whatsapp_team_sent,
+        whatsapp_customer_sent,
         SALES_ENQUIRY_BACKUP_PATH,
     )
     enquiry_status = "success" if support_email_sent else "saved_email_pending"

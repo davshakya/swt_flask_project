@@ -2853,18 +2853,38 @@ line-height:1.35;
 color:var(--muted);
 font-weight:800;
 }
+.chatbot-header-actions{
+display:flex;
+align-items:center;
+gap:8px;
+flex:0 0 auto;
+}
+.chatbot-skip,
 .chatbot-close{
 display:grid;
 place-items:center;
-width:34px;
-height:34px;
 border-radius:12px;
 border:1px solid var(--line);
 background:rgba(255,255,255,.58);
 color:var(--text);
 cursor:pointer;
+}
+.chatbot-skip{
+min-height:34px;
+padding:7px 10px;
+font-size:12px;
+font-weight:1000;
+}
+.chatbot-close{
+width:34px;
+height:34px;
 font-size:22px;
 line-height:1;
+}
+.chatbot-skip:hover,
+.chatbot-close:hover{
+background:rgba(246,239,255,.95);
+color:#5b3aa0;
 }
 .chatbot-messages{
 display:grid;
@@ -4696,7 +4716,10 @@ min-width:0;
                     <span>Answers plan, pump, installation and pricing questions.</span>
                 </div>
             </div>
-            <button class="chatbot-close" id="chatbotClose" type="button" aria-label="Close chat">&times;</button>
+            <div class="chatbot-header-actions">
+                <button class="chatbot-skip" id="chatbotSkip" type="button">Skip</button>
+                <button class="chatbot-close" id="chatbotClose" type="button" aria-label="Close chat">&times;</button>
+            </div>
         </div>
         <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
             <div class="chatbot-message is-bot">Hi, I can suggest the right SaleWell plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
@@ -4708,6 +4731,7 @@ min-width:0;
             <button class="chatbot-chip" type="button" data-chat-prompt="How does it prevent overflow and motor damage?">Motor safety</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="I manage an apartment or RWA">Apartment/RWA</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="What is the pricing?">Pricing</button>
+            <button class="chatbot-chip" type="button" data-chat-prompt="Give complete product information with price and installation types">Product info</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="What details are needed for installation?">Installation</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
         </div>
@@ -5029,11 +5053,13 @@ const chatbot = document.getElementById("siteChatbot");
 const chatbotPanel = document.getElementById("chatbotPanel");
 const chatbotLauncher = document.getElementById("chatbotLauncher");
 const chatbotClose = document.getElementById("chatbotClose");
+const chatbotSkip = document.getElementById("chatbotSkip");
 const chatbotMessages = document.getElementById("chatbotMessages");
 const chatbotForm = document.getElementById("chatbotForm");
 const chatbotInput = document.getElementById("chatbotInput");
 const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
+let chatbotSessionCount = 1;
 
 function updateChatbotViewport() {
     if (!window.visualViewport) return;
@@ -5091,6 +5117,28 @@ function appendChatMessage(text, sender = "bot", actions = []) {
     scrollChatToBottom();
 }
 
+function resetChatbotDiscussion(message) {
+    chatBookingState = null;
+    chatCompletedBooking = null;
+    chatEnquirySubmitting = false;
+    chatbotSessionCount += 1;
+    if (chatbotMessages) chatbotMessages.replaceChildren();
+    appendChatMessage(
+        message || "No problem. We can leave that topic here and start fresh. What would you like to check next?",
+        "bot",
+        [
+            { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
+            { label: "Product info", action: "ask-prompt", fill: { prompt: "Give complete product information with price and installation types" } },
+            { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendPlan("home control"), "New chat session") },
+        ],
+    );
+    chatbotPanel?.setAttribute("data-chat-session", String(chatbotSessionCount));
+    if (chatbotInput) {
+        chatbotInput.value = "";
+        window.setTimeout(() => chatbotInput.focus(), 40);
+    }
+}
+
 function selectedPlanUrl(plan, segment) {
     const url = new URL(pricingPageUrl, window.location.origin);
     if (plan) url.searchParams.set("plan", plan);
@@ -5127,80 +5175,111 @@ function applyChatRecommendation(fill = {}) {
 
 const chatPlanCatalog = [
     {
-        name: "Home Basic",
+        name: "Starter Wi-Fi",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 4,999 one-time setup, no monthly subscription",
-        shortPrice: "Rs. 4,999",
-        bestFor: "individual homes and small buildings that only need local Wi-Fi monitoring",
-        includes: ["local network access", "water level monitoring", "pump status view", "basic alerts", "single tank support"],
+        price: "Rs. 3,999 one-time device price, no monthly subscription",
+        shortPrice: "Rs. 3,999",
+        bestFor: "homes, shops and small buildings that need tank level visibility first",
+        includes: ["Wi-Fi based tank level device", "water level monitoring", "local dashboard on same Wi-Fi", "basic alerts", "single tank support", "no pump control included"],
         strengths: ["lowest entry cost", "simple local tank visibility", "no monthly fee"],
-        keywords: ["home basic", "basic", "local", "no monthly", "without internet", "wifi only"],
+        keywords: ["starter wi-fi", "starter wifi", "home basic", "basic", "local", "no monthly", "without internet", "wifi only", "monitoring only"],
     },
     {
-        name: "Home Smart",
+        name: "Home Control",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 6,999 one-time setup + Rs. 149/month",
-        shortPrice: "Rs. 6,999 + Rs. 149/mo",
-        bestFor: "homes and villas that need internet access, mobile alerts and pump control",
-        includes: ["everything in Home Basic", "remote access over Internet", "pump control from mobile", "alert notifications", "basic usage history"],
-        strengths: ["most popular for homes", "remote pump control", "best first choice for daily use"],
-        keywords: ["home smart", "smart", "internet", "remote", "pump control", "mobile control"],
+        price: "Rs. 5,999 one-time device price, optional cloud Rs. 99/month",
+        shortPrice: "Rs. 5,999 + optional Rs. 99/mo cloud",
+        bestFor: "homes and villas that need pump relay control, alerts and safer daily use",
+        includes: ["everything in Starter Wi-Fi", "pump relay control", "auto cut-off support", "alert notifications", "mobile dashboard on Wi-Fi", "cloud access add-on available"],
+        strengths: ["most practical home upgrade", "pump relay control", "overflow and dry-run support"],
+        keywords: ["home control", "home smart", "smart", "pump control", "motor control", "relay", "auto cut", "mobile control"],
     },
     {
-        name: "Home AI",
+        name: "Home Cloud Pro",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 8,999 one-time setup + Rs. 249/month",
-        shortPrice: "Rs. 8,999 + Rs. 249/mo",
-        bestFor: "premium homes that want prevention, leak insight and deeper usage trends",
-        includes: ["everything in Home Smart", "AI analytics", "leak detection insights", "water usage trends", "overflow and dry-run intelligence", "priority support"],
-        strengths: ["strongest home prevention plan", "AI leak insight", "usage trend visibility"],
-        keywords: ["home ai", "ai home", "premium", "leak", "analytics", "usage trend", "smart home"],
+        price: "Rs. 7,499 one-time device price + Rs. 149/month",
+        shortPrice: "Rs. 7,499 + Rs. 149/mo",
+        bestFor: "premium homes, rental properties and families that need remote access, sharing, history and reports",
+        includes: ["everything in Home Control", "remote access from anywhere", "family sharing and customer login", "cloud history and usage trends", "AI insights preview", "monthly water report"],
+        strengths: ["remote access from anywhere", "family sharing", "history and report visibility"],
+        keywords: ["home cloud pro", "cloud pro", "home ai", "ai home", "premium", "remote", "internet", "family sharing", "history", "report", "usage trend", "smart home"],
     },
     {
-        name: "Commercial Standard",
+        name: "RWA Standard",
         segment: "Apartment / Hostel",
         devices: "6",
-        price: "Rs. 9,999 per tank/setup + Rs. 399/month",
-        shortPrice: "Rs. 9,999 + Rs. 399/mo",
-        bestFor: "apartments, RWAs, schools, hotels and managed properties with shared tanks",
+        price: "Rs. 9,999 per tank/setup + Rs. 299/month cloud service",
+        shortPrice: "Rs. 9,999 + Rs. 299/mo",
+        bestFor: "apartments, RWAs, small hotels, schools and shared buildings",
         includes: ["remote monitoring over Internet", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
         strengths: ["built for shared tanks", "admin visibility", "good RWA starting plan"],
-        keywords: ["commercial standard", "apartment", "rwa", "society", "hostel", "school", "small hotel", "managed"],
+        keywords: ["rwa standard", "commercial standard", "apartment", "rwa", "society", "hostel", "school", "small hotel", "managed", "shared building"],
     },
     {
         name: "Commercial AI Pro",
         segment: "Commercial Site",
         devices: "10",
-        price: "Rs. 12,999 per setup + Rs. 699/month",
-        shortPrice: "Rs. 12,999 + Rs. 699/mo",
+        price: "Rs. 12,999 per setup + Rs. 599/month cloud and reports",
+        shortPrice: "Rs. 12,999 + Rs. 599/mo",
         bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
-        includes: ["everything in Commercial Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
+        includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
         strengths: ["best for multi-tank sites", "advanced reporting", "source-to-destination logic"],
         keywords: ["commercial ai pro", "ai pro", "large apartment", "factory", "institution", "hotel", "multi tank", "advanced report"],
     },
     {
-        name: "Enterprise",
+        name: "Dealer / Installer Kit",
+        segment: "Dealer / Installer",
+        devices: "1",
+        price: "Rs. 11,999 starter partner kit, reseller pricing by volume",
+        shortPrice: "Rs. 11,999 partner kit",
+        bestFor: "dealers, plumbers, electricians and local installers who need a working starter kit",
+        includes: ["working device package", "installer checklist", "customer setup support", "plan and add-on menu", "partner follow-up support", "bulk pricing discussion"],
+        strengths: ["partner-ready kit", "installer setup flow", "volume pricing discussion"],
+        keywords: ["dealer", "installer", "partner", "plumber", "electrician", "reseller", "partner kit", "dealer installer kit"],
+    },
+    {
+        name: "Enterprise Modular",
         segment: "Commercial Site",
         devices: "25",
-        price: "custom pricing by project scope",
-        shortPrice: "Custom",
+        price: "custom pricing, usually starts from Rs. 24,999",
+        shortPrice: "Custom, usually from Rs. 24,999",
         bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
-        includes: ["multi-site deployment", "custom dashboard", "multiple users and roles", "API integrations", "dedicated support", "custom AI reports"],
+        includes: ["multiple device roles and dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],
         strengths: ["custom rollout planning", "multi-site support", "API and role-based access"],
-        keywords: ["enterprise", "builder", "township", "industrial", "api", "custom", "multi site", "large project"],
+        keywords: ["enterprise modular", "enterprise", "builder", "township", "industrial", "api", "custom", "multi site", "large project", "bulk"],
     },
 ];
 
 const chatAddOns = [
-    "Pump control over Internet: Rs. 1,500 setup add-on",
-    "AI analytics: Rs. 99 to Rs. 199/month",
-    "Source tank monitoring: Rs. 2,000",
-    "Extra tank connection: Rs. 1,500 to Rs. 3,000",
-    "Installation visit: quoted by city and project size",
+    "Pump relay control module: Rs. 1,500 to Rs. 2,500",
+    "Cloud dashboard and remote access: Rs. 99 to Rs. 299/month",
+    "AI analytics and leak insight: Rs. 149 to Rs. 499/month",
+    "Source tank monitoring: Rs. 2,000 to Rs. 3,500",
+    "Extra tank or extra sensor node: Rs. 2,500 to Rs. 4,500",
+    "Installation and site survey: quoted by city and project size",
     "Custom reporting: quote-based",
+    "Dealer branding and bulk kit: quote-based",
+];
+
+const chatInstallationTypes = [
+    {
+        name: "Single Controller Kit",
+        range: "under 10 m tank-to-motor route",
+        fit: "small homes and simple installations with a short practical JSN-SR04T wire run",
+    },
+    {
+        name: "Shielded Wire or Dual Node",
+        range: "10-20 m route",
+        fit: "sites where shielded sensor extension passes testing, with dual-node upgrade when reliability matters",
+    },
+    {
+        name: "Dual ESP32 Wireless Kit",
+        range: "20 m+ or multi-floor route",
+        fit: "customer-ready tall-building installs where the tank node reads level near the tank and the control node stays near pump/relay/contactor",
+    },
 ];
 
 const chatBookingFields = [
@@ -5317,10 +5396,10 @@ function shortBookingInterruptAnswer(rawInput) {
         return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
     }
     if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
-        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, and wireless coverage between the tank sensor and main controller. No long signal wire is needed from the water tank to the main device.`;
+        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, cable route and whether the site needs Single Controller, Shielded Wire/Dual Node, or Dual ESP32 Wireless.`;
     }
     if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
-        return `For apartments or managed sites, start with Commercial Standard. Choose AI Pro for reports, leak insight, or many tanks.`;
+        return `For apartments or managed sites, start with RWA Standard. Choose Commercial AI Pro for reports, leak insight, or many tanks.`;
     }
     return `${plan.name} looks like the best starting point. It should solve the need without overbuying.`;
 }
@@ -5524,6 +5603,21 @@ function describePlan(plan) {
     return `${plan.name}: ${plan.shortPrice}.\nBest for ${plan.bestFor}.\nIncludes ${plan.includes.slice(0, 3).join(", ")}.`;
 }
 
+function describeInstallationTypes() {
+    return chatInstallationTypes
+        .map((type) => `${type.name} (${type.range}): ${type.fit}`)
+        .join("\n");
+}
+
+function productInfoText() {
+    return (
+        "SaleWell Smart Tank is a modular Wi-Fi water monitoring and pump-control system for homes, RWAs, hotels, institutions, dealers and commercial sites.\n" +
+        "Core capabilities: tank level monitoring, local/mobile dashboard, alerts, pump relay control, auto cut-off support, cloud access, source tank logic, multi-tank dashboard, AI usage/leak insights and reports depending on plan/add-ons.\n" +
+        `Installation types:\n${describeInstallationTypes()}\n` +
+        `Common add-ons: ${chatAddOns.join("; ")}.`
+    );
+}
+
 function recommendPlan(input) {
     const count = Number(extractRequirementCount(input) || 0);
     const wantsAI = chatHasAny(input, ["ai", "analytics", "leak", "usage", "trend", "report", "saving", "intelligence"]);
@@ -5532,13 +5626,13 @@ function recommendPlan(input) {
     const commercial = chatHasAny(input, ["apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "office", "hospital", "builder", "township", "industrial", "managed", "source tank", "underground tank", "multiple tanks"]) || count >= 3;
     const enterprise = chatHasAny(input, ["enterprise", "builder", "township", "multi site", "multi-site", "api", "custom dashboard", "industrial"]) || count >= 25;
 
-    if (enterprise) return chatPlanCatalog.find((plan) => plan.name === "Enterprise");
+    if (enterprise) return chatPlanCatalog.find((plan) => plan.name === "Enterprise Modular");
     if (commercial && (wantsAI || count >= 10)) return chatPlanCatalog.find((plan) => plan.name === "Commercial AI Pro");
-    if (commercial) return chatPlanCatalog.find((plan) => plan.name === "Commercial Standard");
-    if (wantsAI) return chatPlanCatalog.find((plan) => plan.name === "Home AI");
-    if (wantsPump) return chatPlanCatalog.find((plan) => plan.name === "Home Smart");
-    if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Home Basic");
-    return chatPlanCatalog.find((plan) => plan.name === "Home Smart");
+    if (commercial) return chatPlanCatalog.find((plan) => plan.name === "RWA Standard");
+    if (wantsAI) return chatPlanCatalog.find((plan) => plan.name === "Home Cloud Pro");
+    if (wantsPump) return chatPlanCatalog.find((plan) => plan.name === "Home Control");
+    if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Starter Wi-Fi");
+    return chatPlanCatalog.find((plan) => plan.name === "Home Control");
 }
 
 function chatRequirementSignals(input) {
@@ -5564,7 +5658,7 @@ function expertRecommendationText(plan, rawInput, count = "") {
 }
 
 function friendlyNextStepText(plan) {
-    return `Next: confirm tank count, pump location, Wi-Fi/internet, and city.`;
+    return `Next: confirm tank count, pump location, Wi-Fi/internet, city, cable route and installation type.`;
 }
 
 function isChatBookingIntent(input) {
@@ -5585,6 +5679,7 @@ function getChatbotResponse(rawInput) {
     const wantsSupport = chatHasAny(input, ["support", "phone", "email", "whatsapp", "number", "service"]);
     const wantsCoverage = chatHasAny(input, ["delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "area", "available", "location"]);
     const wantsDashboard = chatHasAny(input, ["app", "dashboard", "login", "mobile", "notification", "alert"]);
+    const wantsProductInfo = chatHasAny(input, ["product", "complete information", "full information", "details", "features", "included", "include", "add-on", "addon", "module", "hardware", "kit"]);
     const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
 
     if (mentionedPlan && !wantsCompare) {
@@ -5609,11 +5704,24 @@ function getChatbotResponse(rawInput) {
     if (wantsCompare || wantsPrice) {
         const homePlans = chatPlanCatalog.slice(0, 3).map(planPricingLine).join(" | ");
         const commercialPlans = chatPlanCatalog.slice(3, 5).map(planPricingLine).join(" | ");
+        const extraInfo = wantsProductInfo
+            ? `\n${productInfoText()}`
+            : `\nInstallation types depend on measured route: Single Controller under 10 m, Shielded Wire/Dual Node for 10-20 m, and Dual ESP32 Wireless for 20 m+ or multi-floor sites.`;
         return {
-            text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.`,
+            text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.${extraInfo}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Open comparison", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsProductInfo) {
+        return {
+            text: `${productInfoText()}\nFor your case, I suggest ${recommendedPlan.name}: ${recommendedPlan.shortPrice}.`,
+            actions: [
+                bookPlanAction(recommendedPlan, rawInput, count),
+                { label: "Open pricing", href: selectedPlanUrl(recommendedPlan.name, recommendedPlan.segment) },
             ],
         };
     }
@@ -5650,7 +5758,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `Installation is simple after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet, and wireless coverage between the tank sensor and main controller. No long signal wire is needed from the water tank to the main device.\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation is selected after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet, measured tank-to-motor route, power access and electrician approval for relay/contactor wiring.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",
@@ -5706,7 +5814,7 @@ function getChatbotResponse(rawInput) {
     }
 
     return {
-        text: "I can help with plans, price, pump control, overflow, leakage, installation, app access, and NCR availability.\nTry: 'home 1 tank', 'RWA 10 tanks', or 'price of Home Smart'.",
+        text: "I can help with complete product information, plans, price, pump control, overflow, leakage, installation type, app access, and NCR availability.\nTry: 'home 1 tank', 'RWA 10 tanks', or 'price of Home Control'.",
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
@@ -5719,6 +5827,10 @@ function submitChatbotPrompt(prompt) {
     const trimmed = prompt.trim();
     if (!trimmed) return;
     setChatbotOpen(true);
+    if (trimmed.toLowerCase() === "skip") {
+        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
+        return;
+    }
     appendChatMessage(trimmed, "user");
     if (handleChatBookingAnswer(trimmed)) {
         if (chatbotInput) chatbotInput.value = "";
@@ -5743,6 +5855,13 @@ if (chatbotLauncher) {
 
 if (chatbotClose) {
     chatbotClose.addEventListener("click", () => setChatbotOpen(false));
+}
+
+if (chatbotSkip) {
+    chatbotSkip.addEventListener("click", () => {
+        setChatbotOpen(true);
+        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
+    });
 }
 
 if (chatbotForm) {
@@ -5786,7 +5905,7 @@ if (chatbotMessages) {
             }
             if (actionButton.dataset.chatAction === "cancel-booking") {
                 chatBookingState = null;
-                appendChatMessage("Booking collection is cancelled. You can continue asking questions here.", "bot");
+                resetChatbotDiscussion("No worries. I have stopped that booking discussion and started a fresh chat for you.");
                 return;
             }
             if (actionButton.dataset.chatAction === "ask-prompt") {

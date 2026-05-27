@@ -186,6 +186,19 @@ SMTP_USERNAME=support@salewell.co.in
 SMTP_PASSWORD=replace-with-support-mailbox-password
 SMTP_USE_TLS=false
 SMTP_USE_SSL=true
+WHATSAPP_TEAM_PHONE=918796452878
+# Set this only after deploying a real provider/proxy endpoint.
+# Example if you host the proxy on your SaleWell domain:
+# WHATSAPP_WEBHOOK_URL=https://salewell.co.in/integrations/whatsapp/send
+WHATSAPP_WEBHOOK_URL=
+WHATSAPP_WEBHOOK_SECRET=replace-with-long-random-webhook-secret
+WHATSAPP_PROVIDER=meta
+WHATSAPP_META_GRAPH_VERSION=v24.0
+WHATSAPP_META_PHONE_NUMBER_ID=replace-with-meta-phone-number-id
+WHATSAPP_META_ACCESS_TOKEN=replace-with-meta-access-token
+WHATSAPP_META_CONFIRMATION_TEMPLATE=salewell_demo_confirmation
+WHATSAPP_META_TEAM_TEMPLATE=salewell_team_new_enquiry
+WHATSAPP_META_TEMPLATE_LANGUAGE=en
 SESSION_COOKIE_SECURE=true
 SESSION_COOKIE_SAMESITE=Lax
 RELAY_STATUS_URLS=
@@ -196,8 +209,31 @@ Notes:
 
 - create the MySQL database and assign the MySQL user in cPanel before restarting the app
 - create or verify the cPanel mailbox `support@salewell.co.in`; `SMTP_PASSWORD` must be that mailbox password for customer forgot-password emails
+- `WHATSAPP_TEAM_PHONE=918796452878` sends internal demo/enquiry notifications to the SaleWell team number
+- `WHATSAPP_WEBHOOK_URL` must point to a real WhatsApp Business provider/proxy endpoint; use `https://salewell.co.in/integrations/whatsapp/send` only if you deploy that route on `salewell.co.in` and it forwards to Meta WhatsApp Cloud API, Twilio, WATI, Interakt, AiSensy, or another provider
+- for the built-in Meta Cloud API route, set `WHATSAPP_WEBHOOK_SECRET`, `WHATSAPP_META_PHONE_NUMBER_ID`, `WHATSAPP_META_ACCESS_TOKEN`, and create approved Meta templates named `salewell_demo_confirmation` and `salewell_team_new_enquiry`
 - leave `RELAY_STATUS_URLS` and `RELAY_COMMAND_URLS` blank when `salewell.co.in` is the main backend
 - blank relay settings avoid accidental forwarding to another server or back into the same app
+
+Meta template examples:
+
+`salewell_demo_confirmation` body with 3 variables:
+
+```text
+Hi {{1}}, thanks for booking a SaleWell Smart Tank demo/enquiry. We received your request for {{2}}. Our team will contact you soon on WhatsApp for {{3}}.
+```
+
+`salewell_team_new_enquiry` body with 6 variables:
+
+```text
+New SaleWell Smart Tank enquiry.
+Name: {{1}}
+Phone: {{2}}
+City: {{3}}
+Project: {{4}}
+Devices: {{5}}
+Plan: {{6}}
+```
 
 ### Recommended `device.env` values
 
@@ -223,6 +259,16 @@ SMTP_PASSWORD=replace-with-support-mailbox-password
 SMTP_USE_TLS=false
 SMTP_USE_SSL=true
 SMTP_TIMEOUT_SECONDS=10
+WHATSAPP_TEAM_PHONE=918796452878
+WHATSAPP_WEBHOOK_URL=
+WHATSAPP_WEBHOOK_SECRET=replace-with-long-random-webhook-secret
+WHATSAPP_PROVIDER=meta
+WHATSAPP_META_GRAPH_VERSION=v24.0
+WHATSAPP_META_PHONE_NUMBER_ID=replace-with-meta-phone-number-id
+WHATSAPP_META_ACCESS_TOKEN=replace-with-meta-access-token
+WHATSAPP_META_CONFIRMATION_TEMPLATE=salewell_demo_confirmation
+WHATSAPP_META_TEAM_TEMPLATE=salewell_team_new_enquiry
+WHATSAPP_META_TEMPLATE_LANGUAGE=en
 ```
 
 If you will manage multiple devices, use `SWT_DEVICE_KEYS` in `device.env` for already-known devices. For new devices after deployment, register the device ID and API key from the admin customer page; Flask stores the key hash in the database and no server restart is needed.
