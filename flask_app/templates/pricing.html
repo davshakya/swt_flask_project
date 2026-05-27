@@ -1683,7 +1683,7 @@ max-width:none;
 
         <div class="booking-selected-plan" id="pricingBookingPlan">Plan will appear after selection.</div>
 
-        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
+        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="landing_mode" value="customer">
             <input type="hidden" name="return_to" value="pricing">
@@ -1738,11 +1738,11 @@ max-width:none;
 
             <div class="booking-group">
                 <label for="pricing_lead_message">Project Notes</label>
-                <textarea id="pricing_lead_message" name="message">{{ (sales_form|default({})).get('message', '') }}</textarea>
+                <textarea id="pricing_lead_message" name="message" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
             </div>
 
             <div class="booking-actions">
-                <button class="button-secondary" type="submit">Book Free Demo</button>
+                <button class="button-secondary" id="pricingBookingSubmit" type="submit" disabled>Book Free Demo</button>
             </div>
             <div class="booking-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
@@ -1756,6 +1756,8 @@ const pricingLeadSegment = document.getElementById("pricing_lead_segment");
 const pricingLeadDeviceCount = document.getElementById("pricing_lead_device_count");
 const pricingLeadMessage = document.getElementById("pricing_lead_message");
 const pricingLeadName = document.getElementById("pricing_lead_name");
+const pricingBookingForm = document.querySelector(".booking-form");
+const pricingBookingSubmit = document.getElementById("pricingBookingSubmit");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
 const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
 const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
@@ -1774,6 +1776,7 @@ function openPricingBooking(plan, segment) {
 
 function showPricingBooking() {
     if (pricingBookingModal) {
+        updatePricingBookingSubmitState();
         pricingBookingModal.classList.add("is-open");
         pricingBookingModal.setAttribute("aria-hidden", "false");
         document.body.style.overflow = "hidden";
@@ -1786,6 +1789,13 @@ function closePricingBooking() {
     pricingBookingModal.classList.remove("is-open");
     pricingBookingModal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
+}
+
+function updatePricingBookingSubmitState() {
+    if (!pricingBookingForm || !pricingBookingSubmit) return;
+    const requiredFields = Array.from(pricingBookingForm.querySelectorAll("[required]"));
+    const allFilled = requiredFields.every((field) => String(field.value || "").trim().length > 0);
+    pricingBookingSubmit.disabled = !allFilled;
 }
 
 bookingButtons.forEach((button) => {
@@ -1807,6 +1817,19 @@ document.addEventListener("click", (event) => {
 bookingCloseButtons.forEach((button) => {
     button.addEventListener("click", closePricingBooking);
 });
+
+if (pricingBookingForm) {
+    pricingBookingForm.addEventListener("input", updatePricingBookingSubmitState);
+    pricingBookingForm.addEventListener("change", updatePricingBookingSubmitState);
+    pricingBookingForm.addEventListener("submit", (event) => {
+        updatePricingBookingSubmitState();
+        if (!pricingBookingForm.checkValidity()) {
+            event.preventDefault();
+            pricingBookingForm.reportValidity();
+        }
+    });
+    updatePricingBookingSubmitState();
+}
 
 if (pricingBookingModal) {
     pricingBookingModal.addEventListener("click", (event) => {

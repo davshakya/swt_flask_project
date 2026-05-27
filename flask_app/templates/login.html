@@ -4764,7 +4764,7 @@ min-width:0;
             <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
         </div>
 
-        <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
+        <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
             <input type="hidden" name="return_to" value="homepage">
@@ -4812,10 +4812,10 @@ min-width:0;
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
-                <textarea id="lead_message" name="message">{{ sales_form.get('message', '') }}</textarea>
+                <textarea id="lead_message" name="message" required>{{ sales_form.get('message', '') }}</textarea>
             </div>
             <div class="form-actions">
-                <button class="button-secondary is-primary-cta" type="submit">Book Free Demo</button>
+                <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
             </div>
             <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
@@ -4913,6 +4913,8 @@ const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
 const userLoginMenus = document.querySelectorAll(".user-login-menu");
 const landingModeInput = document.getElementById("landingModeInput");
+const enquiryForm = document.getElementById("enquiryForm");
+const enquirySubmitButton = document.getElementById("enquirySubmitButton");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
 const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
 const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
@@ -4943,6 +4945,26 @@ function setLoginRole(role) {
     if (landingModeInput) landingModeInput.value = activeRole;
 }
 
+function updateEnquirySubmitState() {
+    if (!enquiryForm || !enquirySubmitButton) return;
+    const requiredFields = Array.from(enquiryForm.querySelectorAll("[required]"));
+    const allFilled = requiredFields.every((field) => String(field.value || "").trim().length > 0);
+    enquirySubmitButton.disabled = !allFilled;
+}
+
+if (enquiryForm) {
+    enquiryForm.addEventListener("input", updateEnquirySubmitState);
+    enquiryForm.addEventListener("change", updateEnquirySubmitState);
+    enquiryForm.addEventListener("submit", (event) => {
+        updateEnquirySubmitState();
+        if (!enquiryForm.checkValidity()) {
+            event.preventDefault();
+            enquiryForm.reportValidity();
+        }
+    });
+    updateEnquirySubmitState();
+}
+
 function focusActiveLoginField(role) {
     const inputId = role === "admin" ? "admin_username" : "customer_username";
     const target = document.getElementById(inputId);
@@ -4970,6 +4992,7 @@ function closeLoginModal() {
 
 function openEnquiryModal() {
     if (!enquiryModal) return;
+    updateEnquirySubmitState();
     enquiryModal.classList.add("is-open");
     enquiryModal.setAttribute("aria-hidden", "false");
     document.body.classList.add("modal-open");

@@ -1900,7 +1900,9 @@ def validate_sales_enquiry_payload(form):
             else:
                 cleaned["device_count"] = str(device_count)
 
-    if len(cleaned["message"]) > 800:
+    if not cleaned["message"]:
+        errors.append("Please enter project notes.")
+    elif len(cleaned["message"]) > 800:
         errors.append("Project notes must stay under 800 characters.")
 
     return cleaned, errors
@@ -10677,15 +10679,18 @@ def whatsapp_send_integration():
     return jsonify({"ok": sent, "status": status, "provider": WHATSAPP_PROVIDER}), response_status
 
 
-@app.route("/sales/enquiry", methods=["POST"])
+@app.route("/sales/enquiry", methods=["GET", "POST"])
 @csrf_protect
 def sales_enquiry():
+    if request.method == "GET":
+        return redirect(url_for("pricing_page"))
+
     landing_mode = "admin" if request.form.get("landing_mode") == "admin" else "customer"
     next_url = resolve_next_url(dashboard_home_url("customer"))
     return_to = str(request.form.get("return_to") or "").strip().lower()
     if return_to not in {"pricing", "homepage"}:
         referrer_path = urlparse(request.referrer or "").path
-        return_to = "pricing" if referrer_path == url_for("pricing_page") else "homepage"
+        return_to = "homepage" if referrer_path in {url_for("dashboard"), url_for("homepage")} else "pricing"
     cleaned, errors = validate_sales_enquiry_payload(request.form)
 
     if errors:
