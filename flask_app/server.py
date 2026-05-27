@@ -10680,10 +10680,17 @@ def whatsapp_send_integration():
 
 
 @app.route("/sales/enquiry", methods=["GET", "POST"])
+@app.route("/sales/enquiry/", methods=["GET", "POST"])
 @csrf_protect
 def sales_enquiry():
     if request.method == "GET":
-        return redirect(url_for("pricing_page"))
+        return render_template(
+            "pricing.html",
+            sales_success=None,
+            sales_error=None,
+            sales_form=sales_form_from_pricing_query(),
+            open_booking_modal=True,
+        )
 
     landing_mode = "admin" if request.form.get("landing_mode") == "admin" else "customer"
     next_url = resolve_next_url(dashboard_home_url("customer"))

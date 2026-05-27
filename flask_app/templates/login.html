@@ -4919,6 +4919,7 @@ const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "ad
 const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
 const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
 const shouldAutoOpenEnquiry = {{ "true" if sales_success or sales_error else "false" }};
+const publicSalesEnquiryPath = "{{ url_for('sales_enquiry') }}";
 const roleContent = {
     customer: {
         title: "Customer Login",
@@ -4929,6 +4930,10 @@ const roleContent = {
         description: "Sign in with your admin username and password.",
     },
 };
+
+if (window.location.pathname.replace(/\/+$/, "") === publicSalesEnquiryPath.replace(/\/+$/, "")) {
+    window.location.replace("{{ url_for('pricing_page') }}");
+}
 
 function setLoginRole(role) {
     const activeRole = role === "admin" ? "admin" : "customer";
