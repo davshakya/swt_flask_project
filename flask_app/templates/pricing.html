@@ -732,6 +732,51 @@ grid-template-columns:repeat(3,minmax(0,1fr));
 gap:16px;
 margin-top:18px;
 }
+.module-grid{
+display:grid;
+grid-template-columns:repeat(3,minmax(0,1fr));
+gap:16px;
+margin-top:18px;
+}
+.module-card{
+padding:18px;
+border-radius:24px;
+background:var(--surface-strong);
+border:1px solid var(--line);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+display:grid;
+gap:10px;
+align-content:start;
+}
+.module-card.is-recommended{
+background:linear-gradient(180deg,rgba(13,147,168,.1),rgba(255,255,255,.96));
+border-color:rgba(13,147,168,.22);
+}
+.module-card strong{
+font-size:1.24rem;
+line-height:1.14;
+letter-spacing:-.03em;
+}
+.module-card p{
+margin:0;
+line-height:1.58;
+color:var(--muted);
+}
+.module-range{
+display:inline-flex;
+align-items:center;
+justify-content:center;
+justify-self:start;
+min-height:36px;
+padding:8px 11px;
+border-radius:999px;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-size:12px;
+font-weight:900;
+letter-spacing:.12em;
+text-transform:uppercase;
+}
 .addon-card{
 padding:18px;
 border-radius:24px;
@@ -979,6 +1024,7 @@ display:grid;
 .plans-grid{
 grid-template-columns:repeat(2,minmax(0,1fr));
 }
+.module-grid,
 .addons-grid{
 grid-template-columns:repeat(2,minmax(0,1fr));
 }
@@ -996,6 +1042,7 @@ justify-content:flex-start;
 }
 .tier-grid,
 .plans-grid,
+.module-grid,
 .addons-grid{
 grid-template-columns:1fr;
 }
@@ -1053,6 +1100,7 @@ max-width:none;
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
             <a href="#plans">Plans</a>
+            <a href="#modules">Modules</a>
             <a href="#comparison">Comparison</a>
             <a href="#addons">Add-Ons</a>
             <a href="#contact">Talk to Sales</a>
@@ -1099,6 +1147,51 @@ max-width:none;
                 </article>
             </div>
         </aside>
+    </section>
+
+    <section class="section surface" id="modules">
+        <div class="section-head">
+            <div>
+                <div class="eyebrow">Modular Hardware</div>
+                <h2>Sell the right kit for the building height.</h2>
+            </div>
+            <p>Use the measured tank-to-motor cable route during site survey. This keeps the product flexible for budget homes while still giving tall buildings a professional dual-node setup.</p>
+        </div>
+
+        <div class="module-grid">
+            <article class="module-card">
+                <span class="module-range">Under 10 m</span>
+                <strong>Single Controller Kit</strong>
+                <p>JSN-SR04T and controller stay within a short practical wire run. Best for small homes and simple installations.</p>
+                <ul class="feature-list">
+                    <li>Lowest hardware cost</li>
+                    <li>Fast installation</li>
+                    <li>Good for short vertical distance</li>
+                </ul>
+            </article>
+            <article class="module-card">
+                <span class="module-range">10-20 m</span>
+                <strong>Shielded Wire or Dual Node</strong>
+                <p>Use shielded sensor extension only after site testing. Recommend dual ESP32 when reliability matters.</p>
+                <ul class="feature-list">
+                    <li>Site-tested wiring option</li>
+                    <li>Avoids random readings</li>
+                    <li>Upgrade path to wireless nodes</li>
+                </ul>
+            </article>
+            <article class="module-card is-recommended">
+                <span class="module-range">20 m+ / multi-floor</span>
+                <strong>Dual ESP32 Wireless Kit</strong>
+                <p>Tank node reads the JSN-SR04T near the tank. Control node stays near the pump, relay and contactor.</p>
+                <ul class="feature-list">
+                    <li>No long ultrasonic wires</li>
+                    <li>Fail-safe motor OFF on stale data</li>
+                    <li>Best for customer-ready products</li>
+                </ul>
+            </article>
+        </div>
+
+        <div class="install-note">Final module selection should be based on measured cable route, Wi-Fi signal, pump-panel location and electrician approval for contactor wiring.</div>
     </section>
 
     <section class="section surface" id="plans">
@@ -1566,7 +1659,7 @@ max-width:none;
 
             <div class="contact-card surface">
                 <strong>Need a custom quote?</strong>
-                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918299812878">+91-8299812878</a> to discuss device count, Wi-Fi readiness, source tank monitoring, installation scope and rollout planning.</p>
+                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918796452878">+91-8796452878</a> to discuss device count, Wi-Fi readiness, source tank monitoring, installation scope and rollout planning.</p>
                 <p>Best for homes, RWAs, dealers, builders, township projects, institutions and managed properties with multiple tanks or custom dashboard requirements.</p>
             </div>
         </div>
@@ -1574,7 +1667,7 @@ max-width:none;
 
     <footer class="footer surface">
         <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers modular Wi-Fi based water monitoring, pump control, source tank logic and AI-driven water analytics for homes, dealers and managed properties.</div>
-        <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918299812878">+91-8299812878</a></div>
+        <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
     </footer>
 </div>
 
