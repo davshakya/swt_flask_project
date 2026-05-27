@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-05-23`
+Last refreshed: `2026-05-27`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
@@ -21,6 +21,9 @@ Within the wider workspace:
 - Device command delivery through `/device/command` and `/device/command/ack`
 - Admin and customer login flows with separate scopes
 - Browser dashboard, customer dashboard, and per-device detail pages
+- PWA manifest, service worker, install prompt, mobile-friendly public pages, and customer-facing homepage
+- Pricing/comparison page for Starter Wi-Fi, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
+- Sales/demo enquiry form with backup logging, support email, customer confirmation email, and optional WhatsApp webhook delivery
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
 - Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
@@ -29,6 +32,15 @@ Within the wider workspace:
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifest at `/static/version.json`
 - MySQL/MariaDB schema initialization for local and hosted deployment
+
+## Customer and Sales Features
+
+- public marketing homepage with product explanations, plan guidance, Android download link, and enquiry entry points
+- guided product chatbot content for pricing, pump control, overflow, leakage, installation type, app access, and service coverage questions
+- customer dashboard for tank level, pump state, alert status, events, analytics, and local sync
+- admin dashboard for device registration, customer mapping, customer password reset, service flags, firmware artifacts, Android releases, reboot commands, and data-source mode
+- operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
+- optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
 
 ## Repository Layout
 

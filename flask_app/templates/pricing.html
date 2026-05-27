@@ -1686,26 +1686,34 @@ max-width:none;
         <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}" novalidate>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="landing_mode" value="customer">
+            <input type="hidden" name="return_to" value="pricing">
+
+            {% if sales_success %}
+            <div class="booking-note">{{ sales_success }}</div>
+            {% endif %}
+            {% if sales_error %}
+            <div class="booking-note">{{ sales_error }}</div>
+            {% endif %}
 
             <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_name">Name</label>
-                    <input id="pricing_lead_name" name="name" type="text" required>
+                    <input id="pricing_lead_name" name="name" type="text" value="{{ (sales_form|default({})).get('name', '') }}" required>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_phone">Phone / WhatsApp</label>
-                    <input id="pricing_lead_phone" name="phone" type="tel" required>
+                    <input id="pricing_lead_phone" name="phone" type="tel" value="{{ (sales_form|default({})).get('phone', '') }}" required>
                 </div>
             </div>
 
             <div class="booking-grid">
                 <div class="booking-group">
                     <label for="pricing_lead_city">City</label>
-                    <input id="pricing_lead_city" name="city" type="text" required>
+                    <input id="pricing_lead_city" name="city" type="text" value="{{ (sales_form|default({})).get('city', '') }}" required>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_email">Email</label>
-                    <input id="pricing_lead_email" name="email" type="email" required>
+                    <input id="pricing_lead_email" name="email" type="email" value="{{ (sales_form|default({})).get('email', '') }}" required>
                 </div>
             </div>
 
@@ -1713,24 +1721,24 @@ max-width:none;
                 <div class="booking-group">
                     <label for="pricing_lead_segment">Project Type</label>
                     <select id="pricing_lead_segment" name="segment" required>
-                        <option value="Home / Villa">Home / Villa</option>
-                        <option value="Apartment / Hostel">Apartment / Hostel</option>
-                        <option value="Hotel / Institution">Hotel / Institution</option>
-                        <option value="Dealer / Installer">Dealer / Installer</option>
-                        <option value="Small Shop / Office">Small Shop / Office</option>
-                        <option value="Builder / Township">Builder / Township</option>
-                        <option value="Commercial Site">Commercial Site</option>
+                        <option value="Home / Villa" {% if (sales_form|default({})).get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
+                        <option value="Apartment / Hostel" {% if (sales_form|default({})).get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
+                        <option value="Hotel / Institution" {% if (sales_form|default({})).get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
+                        <option value="Dealer / Installer" {% if (sales_form|default({})).get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
+                        <option value="Small Shop / Office" {% if (sales_form|default({})).get('segment') == 'Small Shop / Office' %}selected{% endif %}>Small Shop / Office</option>
+                        <option value="Builder / Township" {% if (sales_form|default({})).get('segment') == 'Builder / Township' %}selected{% endif %}>Builder / Township</option>
+                        <option value="Commercial Site" {% if (sales_form|default({})).get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
                     </select>
                 </div>
                 <div class="booking-group">
                     <label for="pricing_lead_device_count">Estimated Devices Needed</label>
-                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="1" required>
+                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ (sales_form|default({})).get('device_count', '1') }}" required>
                 </div>
             </div>
 
             <div class="booking-group">
                 <label for="pricing_lead_message">Project Notes</label>
-                <textarea id="pricing_lead_message" name="message"></textarea>
+                <textarea id="pricing_lead_message" name="message">{{ (sales_form|default({})).get('message', '') }}</textarea>
             </div>
 
             <div class="booking-actions">
@@ -1750,6 +1758,7 @@ const pricingLeadMessage = document.getElementById("pricing_lead_message");
 const pricingLeadName = document.getElementById("pricing_lead_name");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
 const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
+const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
 
 function openPricingBooking(plan, segment) {
     const selectedPlan = plan || "Plan";
@@ -1760,6 +1769,10 @@ function openPricingBooking(plan, segment) {
     if (pricingLeadSegment && selectedSegment) pricingLeadSegment.value = selectedSegment;
     if (pricingLeadDeviceCount && !pricingLeadDeviceCount.value) pricingLeadDeviceCount.value = "1";
     if (pricingLeadMessage) pricingLeadMessage.value = planLine;
+    showPricingBooking();
+}
+
+function showPricingBooking() {
     if (pricingBookingModal) {
         pricingBookingModal.classList.add("is-open");
         pricingBookingModal.setAttribute("aria-hidden", "false");
@@ -1806,6 +1819,10 @@ document.addEventListener("keydown", (event) => {
         closePricingBooking();
     }
 });
+
+if (shouldOpenPricingBooking) {
+    window.setTimeout(showPricingBooking, 30);
+}
 </script>
 </body>
 </html>

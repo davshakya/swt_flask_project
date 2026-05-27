@@ -1804,7 +1804,15 @@ def sales_form_from_pricing_query():
     }
 
 
-def render_login_page(mode="customer", error=None, next_url="/", sales_error=None, sales_success=None, sales_form=None):
+def render_login_page(
+    mode="customer",
+    error=None,
+    next_url="/",
+    sales_error=None,
+    sales_success=None,
+    sales_form=None,
+    show_login_modal=None,
+):
     is_admin_mode = mode == "admin"
     is_landing_page = request.endpoint in {"dashboard", "homepage"}
     login_action = url_for("admin_login" if is_admin_mode else "customer_login")
@@ -1842,7 +1850,7 @@ def render_login_page(mode="customer", error=None, next_url="/", sales_error=Non
         homepage_user=homepage_login_status(),
         homepage_auth=homepage_auth_status(),
         on_dedicated_login_route=not is_landing_page,
-        show_login_modal=bool(error) or not is_landing_page,
+        show_login_modal=(bool(error) or not is_landing_page) if show_login_modal is None else bool(show_login_modal),
     )
 
 
@@ -10638,7 +10646,18 @@ def customer_reset_password(token):
 
 @app.route("/pricing")
 def pricing_page():
-    return render_template("pricing.html")
+    sales_success = None
+    if request.args.get("enquiry") == "success":
+        sales_success = "Thanks for your enquiry. Our team will follow up with pricing, installation guidance, or a demo."
+    elif request.args.get("enquiry") == "saved_email_pending":
+        sales_success = "Thanks for your enquiry. Your request was saved, but support email delivery needs SMTP checking."
+    return render_template(
+        "pricing.html",
+        sales_success=sales_success,
+        sales_error=None,
+        sales_form=sales_form_from_pricing_query(),
+        open_booking_modal=bool(sales_success),
+    )
 
 
 @app.route("/integrations/whatsapp/send", methods=["POST"])
@@ -10663,14 +10682,28 @@ def whatsapp_send_integration():
 def sales_enquiry():
     landing_mode = "admin" if request.form.get("landing_mode") == "admin" else "customer"
     next_url = resolve_next_url(dashboard_home_url("customer"))
+    return_to = str(request.form.get("return_to") or "").strip().lower()
+    if return_to not in {"pricing", "homepage"}:
+        referrer_path = urlparse(request.referrer or "").path
+        return_to = "pricing" if referrer_path == url_for("pricing_page") else "homepage"
     cleaned, errors = validate_sales_enquiry_payload(request.form)
 
     if errors:
+        sales_error = " ".join(errors)
+        if return_to == "pricing":
+            return render_template(
+                "pricing.html",
+                sales_success=None,
+                sales_error=sales_error,
+                sales_form=cleaned,
+                open_booking_modal=True,
+            ), 400
         return render_login_page(
             mode=landing_mode,
             next_url=next_url,
-            sales_error=" ".join(errors),
+            sales_error=sales_error,
             sales_form=cleaned,
+            show_login_modal=False,
         ), 400
 
     lead_details = dict(cleaned)
@@ -10705,6 +10738,8 @@ def sales_enquiry():
         SALES_ENQUIRY_BACKUP_PATH,
     )
     enquiry_status = "success" if support_email_sent else "saved_email_pending"
+    if return_to == "pricing":
+        return redirect(url_for("pricing_page", enquiry=enquiry_status))
     return redirect(url_for("dashboard", enquiry=enquiry_status))
 
 
