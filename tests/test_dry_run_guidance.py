@@ -36,6 +36,42 @@ def test_shared_guidance_prioritizes_dry_run_as_critical_pump_protection():
     assert "Check source water" in guidance["action_title"]
 
 
+def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_leak():
+    guidance = server.build_shared_guidance_payload(
+        {
+            "level": 75.9,
+            "motor": "OFF",
+            "pipe_leak": "NO",
+            "slow_leak": "NO",
+            "drip": "NO",
+            "sensor": "OK",
+            "telemetry_status": "online",
+        },
+        {
+            "insights": {
+                "empty_prediction": 1.3,
+                "consumption_rate": 58.0,
+            },
+            "analysis": {
+                "quality": {"score": 78},
+                "forecast_confidence": 78,
+                "leakage": {
+                    "status": "possible_leak",
+                    "score": 54,
+                    "reasons": ["Tank level dropped repeatedly while the pump was off."],
+                },
+            },
+            "comparison": {},
+            "events_analysis": {},
+            "levels": {"values": [78.0, 75.9]},
+        },
+    )
+
+    assert guidance["title"] == "AI found a possible leakage pattern"
+    assert guidance["time_to_empty_hours"] is None
+    assert "1.3" not in guidance["summary"]
+
+
 def test_evaluate_snapshot_alerts_maps_dry_run_to_active_alert(monkeypatch):
     calls = []
 

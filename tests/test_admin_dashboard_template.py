@@ -12,6 +12,28 @@ def test_admin_customer_page_renders_one_popup_status_message_slot():
     assert "data-auto-open-panel" not in template
 
 
+def test_landing_page_uses_compressed_responsive_marketing_images():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'rel="preload" as="image" type="image/webp"' in template
+    assert "smart-water-tank-hero-ai-1280.webp" in template
+    assert template.count("<source type=\"image/webp\"") >= 7
+    assert template.count('decoding="async"') >= 7
+    assert template.count('width="1536" height="1024"') >= 7
+
+
+def test_flask_static_assets_have_cache_and_compression_support():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    service_worker = (PROJECT_ROOT / "flask_app" / "static" / "service-worker.js").read_text(encoding="utf-8")
+
+    assert 'app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)' in server_source
+    assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
+    assert "def should_gzip_response(response):" in server_source
+    assert "gzip.compress(payload, compresslevel=6)" in server_source
+    assert 'const CACHE_NAME = "swt-pwa-v5";' in service_worker
+    assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
+
+
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 

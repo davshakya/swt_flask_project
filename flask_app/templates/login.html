@@ -7,6 +7,7 @@
 <meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.">
 <title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
 {% include '_pwa_head.html' %}
+<link rel="preload" as="image" type="image/webp" href="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }}" imagesrcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" imagesizes="(max-width: 900px) 100vw, 48vw" fetchpriority="high">
 <style>
 :root{
 color-scheme:light dark;
@@ -148,6 +149,10 @@ text-decoration-color:currentColor;
 }
 button,input,select,textarea{font:inherit}
 img{display:block;max-width:100%}
+picture{display:block}
+.preview-visual picture,
+.demo-scene picture,
+.visual picture{display:contents}
 .page{
 position:relative;
 z-index:1;
@@ -3801,7 +3806,10 @@ min-width:0;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual">
-                <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated rooftop smart water tank with sensor hardware and mobile dashboard preview." loading="eager">
+                <picture>
+                    <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated rooftop smart water tank with sensor hardware and mobile dashboard preview." width="1536" height="1024" loading="eager" decoding="async" fetchpriority="high">
+                </picture>
                 <div class="preview-overlay preview-overlay--top">
                     <span>Live tank status</span>
                     <strong>72% full</strong>
@@ -4014,7 +4022,10 @@ min-width:0;
 
                 <div class="demo-stage" aria-label="Animated smart water tank demo scenes">
                     <article class="demo-scene is-active" data-demo-scene data-demo-title="Stop Water Overflow Automatically" aria-hidden="false">
-                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated smart water tank monitoring view showing a protected rooftop tank with phone alerts." loading="lazy">
+                        <picture>
+                            <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                            <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated smart water tank monitoring view showing a protected rooftop tank with phone alerts." width="1536" height="1024" loading="lazy" decoding="async">
+                        </picture>
                         <div class="demo-scene-copy">
                             <strong>Stop Water Overflow Automatically</strong>
                             <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
@@ -4027,7 +4038,10 @@ min-width:0;
                     </article>
 
                     <article class="demo-scene" data-demo-scene data-demo-title="Easy Installation" aria-hidden="true">
-                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller and tank sensor hardware prepared for installation." loading="lazy">
+                        <picture>
+                            <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-controls-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                            <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller and tank sensor hardware prepared for installation." width="1536" height="1024" loading="lazy" decoding="async">
+                        </picture>
                         <div class="demo-scene-copy">
                             <strong>Easy Installation</strong>
                             <p>With a simple sensor setup, the tank becomes smart in minutes. The tank sensor and pump controller stay connected over Wi-Fi.</p>
@@ -4393,7 +4407,10 @@ min-width:0;
                     </article>
 
                     <article class="demo-scene" data-demo-scene data-demo-title="Instant Alerts And Leak Detection" aria-hidden="true">
-                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated service dashboard spotting unusual water usage, alerts and leak activity." loading="lazy">
+                        <picture>
+                            <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-service-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-service-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                            <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated service dashboard spotting unusual water usage, alerts and leak activity." width="1536" height="1024" loading="lazy" decoding="async">
+                        </picture>
                         <div class="demo-scene-copy">
                             <strong>Instant Alerts And AI Leak Detection</strong>
                             <p>AI spots unusual water patterns, highlights possible leaks and helps the team act before overflow, dry-run or waste becomes expensive.</p>
@@ -4406,7 +4423,10 @@ min-width:0;
                     </article>
 
                     <article class="demo-scene" data-demo-scene data-demo-title="Book Setup Check" aria-hidden="true">
-                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated product specialist showing the smart water tank system during a live demo." loading="lazy">
+                        <picture>
+                            <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-service-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-service-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                            <img src="{{ url_for('static', filename='marketing/smart-water-tank-service-ai.png') }}" alt="AI-generated product specialist showing the smart water tank system during a live demo." width="1536" height="1024" loading="lazy" decoding="async">
+                        </picture>
                         <div class="demo-scene-copy">
                             <strong>Book Setup Check</strong>
                             <p>Finish with a clear next step: review the tank setup, pricing and installation plan.</p>
@@ -4518,7 +4538,10 @@ min-width:0;
 
         <div class="media-split">
             <figure class="visual" aria-label="Smart water tank controls illustration">
-                <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." loading="lazy">
+                <picture>
+                    <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-controls-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
+                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." width="1536" height="1024" loading="lazy" decoding="async">
+                </picture>
                 <figcaption class="visual-copy">
                     <strong>Install once and see everything from your phone.</strong>
                     <p>The tank sensor, main controller and live dashboard work together over Wi-Fi, so you can see what gets installed and avoid long signal wiring from the tank to the pump device.</p>
@@ -4659,7 +4682,10 @@ min-width:0;
 
             <div class="support-media-stack">
                 <figure class="visual" aria-label="Smart water tank lifestyle illustration">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." loading="lazy">
+                    <picture>
+                        <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 34vw">
+                        <img src="{{ url_for('static', filename='marketing/smart-water-tank-lifestyle-ai.png') }}" alt="AI-generated homeowner checking smart water tank status on a phone beside a monitored rooftop tank." width="1536" height="1024" loading="lazy" decoding="async">
+                    </picture>
                     <figcaption class="visual-copy">
                         <strong>Clear tank visibility from day one</strong>
                         <p>See the hardware, phone dashboard and alerts before choosing your setup.</p>

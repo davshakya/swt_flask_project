@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 import base64
 import csv
+import gzip
 import hashlib
 import hmac
 import ipaddress
@@ -295,13 +296,26 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
 ).lower() not in {"0", "false", "no"}
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)
+
+
+COMPRESSIBLE_RESPONSE_MIMETYPES = {
+    "application/javascript",
+    "application/json",
+    "application/manifest+json",
+    "image/svg+xml",
+    "text/css",
+    "text/html",
+    "text/javascript",
+    "text/plain",
+}
 
 
 @app.route("/manifest.webmanifest")
 def web_manifest():
     response = send_from_directory(str(STATIC_DIR), "manifest.webmanifest")
     response.headers["Content-Type"] = "application/manifest+json"
-    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["Cache-Control"] = "public, max-age=86400"
     return response
 
 
@@ -318,9 +332,51 @@ def apply_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.method == "GET" and request.path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
     if request.method == "GET" and not request.path.startswith("/static/"):
         response.headers.setdefault("Cache-Control", "no-store")
+    if should_gzip_response(response):
+        gzip_response(response)
     return response
+
+
+def should_gzip_response(response):
+    if request.method != "GET":
+        return False
+    if "gzip" not in request.headers.get("Accept-Encoding", "").lower():
+        return False
+    if response.status_code < 200 or response.status_code >= 300:
+        return False
+    if response.direct_passthrough:
+        return False
+    if response.headers.get("Content-Encoding"):
+        return False
+    if response.mimetype not in COMPRESSIBLE_RESPONSE_MIMETYPES:
+        return False
+    content_length = response.calculate_content_length()
+    return content_length is None or content_length >= 1024
+
+
+def gzip_response(response):
+    payload = response.get_data()
+    if len(payload) < 1024:
+        return response
+    compressed_payload = gzip.compress(payload, compresslevel=6)
+    if len(compressed_payload) >= len(payload):
+        return response
+    response.set_data(compressed_payload)
+    response.headers["Content-Encoding"] = "gzip"
+    response.headers["Content-Length"] = str(len(compressed_payload))
+    response.headers["Vary"] = append_vary_header(response.headers.get("Vary"), "Accept-Encoding")
+    return response
+
+
+def append_vary_header(current_value, header_name):
+    values = [value.strip() for value in str(current_value or "").split(",") if value.strip()]
+    if header_name.lower() not in {value.lower() for value in values}:
+        values.append(header_name)
+    return ", ".join(values)
 
 
 def detect_git_short_commit():
@@ -6355,6 +6411,7 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     insights = (analytics_payload or {}).get("insights") or {}
     analysis = (analytics_payload or {}).get("analysis") or {}
     quality = analysis.get("quality") or {}
+    leakage_model = analysis.get("leakage") or {}
     forecast = insights.get("empty_prediction")
     if forecast in (None, "", "null"):
         return None
@@ -6369,6 +6426,8 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     consumption_rate = safe_float(insights.get("consumption_rate"), 0)
     confidence = safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 0))
     leak_signal = any(bool_flag((snapshot or {}).get(key)) for key in ("pipe_leak", "slow_leak", "drip", "abnormal"))
+    ai_leak_status = str(leakage_model.get("status") or "").lower()
+    ai_leak_score = safe_float(leakage_model.get("score"), 0)
     # A short extrapolated empty-time from noisy history should not override a
     # clearly full live tank. Keep the forecast actionable only near the working
     # range or when current consumption is extremely high.
@@ -6376,6 +6435,9 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
         return None
     if level >= 75 and forecast_hours < 6 and consumption_rate < 12:
         return None
+    if level >= 70 and forecast_hours < 6 and not leak_signal:
+        if ai_leak_status != "likely_leak" or ai_leak_score < 70 or confidence < 90:
+            return None
     if level >= 70 and forecast_hours < 4 and confidence < 75 and not leak_signal:
         return None
     return round(forecast_hours, 2)
@@ -6814,9 +6876,13 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     elif ai_leak_active:
         severity = "critical" if ai_leak_status == "likely_leak" else "warning"
         tone = "bad" if severity == "critical" else "warn"
-        title = "AI found a leakage pattern"
+        if ai_leak_status == "likely_leak":
+            title = "AI found a leakage pattern"
+            action_title = "Inspect pipes and taps"
+        else:
+            title = "AI found a possible leakage pattern"
+            action_title = "Check pipes and taps"
         summary = f"Telemetry leakage score is {safe_float(leakage_model.get('score'), 0):.0f}%."
-        action_title = "Inspect pipes and taps"
         action_note = "Check outlets, flush lines, valves, overflow, and hidden damp areas, then compare the next trend."
         observations.extend((leakage_model.get("reasons") or [])[:2])
         actions.append("Inspect pipes, taps, valves, overflow, and pump line for continuous water loss.")

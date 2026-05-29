@@ -1,12 +1,21 @@
-const CACHE_NAME = "swt-pwa-v4";
+const CACHE_NAME = "swt-pwa-v5";
 const APP_SHELL = [
   "/manifest.webmanifest",
+  "/static/js/locale-datetime.js",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
   "/static/pwa/icon-maskable-512.png",
   "/static/pwa/apple-touch-icon.png",
   "/static/pwa/tab-favicon.svg",
-  "/static/pwa/brand-logo.svg"
+  "/static/pwa/brand-logo.svg",
+  "/static/marketing/smart-water-tank-hero-ai-960.webp",
+  "/static/marketing/smart-water-tank-hero-ai-1280.webp",
+  "/static/marketing/smart-water-tank-controls-ai-960.webp",
+  "/static/marketing/smart-water-tank-controls-ai-1280.webp",
+  "/static/marketing/smart-water-tank-service-ai-960.webp",
+  "/static/marketing/smart-water-tank-service-ai-1280.webp",
+  "/static/marketing/smart-water-tank-lifestyle-ai-960.webp",
+  "/static/marketing/smart-water-tank-lifestyle-ai-1280.webp"
 ];
 
 self.addEventListener("install", (event) => {
