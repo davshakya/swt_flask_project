@@ -1911,6 +1911,13 @@ def render_login_page(
 
 
 def validate_sales_enquiry_payload(form):
+    valid_segments = {
+        "Home / Villa",
+        "Apartment / Hostel",
+        "Hotel / Institution",
+        "Dealer / Installer",
+        "Commercial Site",
+    }
     cleaned = {
         "name": str(form.get("name", "")).strip(),
         "phone": str(form.get("phone", "")).strip(),
@@ -1924,9 +1931,13 @@ def validate_sales_enquiry_payload(form):
 
     if len(cleaned["name"]) < 2:
         errors.append("Please enter your name.")
+    elif len(cleaned["name"]) > 80 or not re.fullmatch(r"[A-Za-z][A-Za-z .'-]*", cleaned["name"]):
+        errors.append("Name can use letters, spaces, dot, apostrophe or hyphen only.")
 
     if not cleaned["email"]:
         errors.append("Please enter your email address.")
+    elif len(cleaned["email"]) > 120:
+        errors.append("Email address must stay under 120 characters.")
     else:
         try:
             cleaned["email"] = normalize_customer_email(cleaned["email"])
@@ -1934,14 +1945,20 @@ def validate_sales_enquiry_payload(form):
             errors.append("Please enter a valid email address.")
 
     phone_digits = re.sub(r"\D", "", cleaned["phone"])
-    if len(phone_digits) < 10:
+    if not cleaned["phone"]:
+        errors.append("Please enter a valid phone or WhatsApp number.")
+    elif not re.fullmatch(r"\+?[0-9][0-9 ()-]*[0-9]", cleaned["phone"]) or len(phone_digits) < 10 or len(phone_digits) > 15:
         errors.append("Please enter a valid phone or WhatsApp number.")
 
-    if not cleaned["city"]:
+    if len(cleaned["city"]) < 2:
         errors.append("Please enter your city or service area.")
+    elif len(cleaned["city"]) > 80 or not re.fullmatch(r"[A-Za-z][A-Za-z .'-]*", cleaned["city"]):
+        errors.append("Please enter a valid city or service area.")
 
     if not cleaned["segment"]:
         errors.append("Please choose the project type.")
+    elif cleaned["segment"] not in valid_segments:
+        errors.append("Please choose a valid project type.")
 
     if not cleaned["device_count"]:
         errors.append("Please estimate how many devices you need.")
@@ -1958,6 +1975,8 @@ def validate_sales_enquiry_payload(form):
 
     if not cleaned["message"]:
         errors.append("Please enter project notes.")
+    elif len(cleaned["message"]) < 10:
+        errors.append("Project notes must be at least 10 characters.")
     elif len(cleaned["message"]) > 800:
         errors.append("Project notes must stay under 800 characters.")
 

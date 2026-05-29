@@ -2592,6 +2592,28 @@ outline:none;
 border-color:rgba(13,147,168,.44);
 box-shadow:0 0 0 4px rgba(13,147,168,.1);
 }
+.enquiry-form input.is-invalid,
+.enquiry-form select.is-invalid,
+.enquiry-form textarea.is-invalid{
+border-color:rgba(218,79,99,.72);
+box-shadow:0 0 0 4px rgba(218,79,99,.1);
+}
+.enquiry-form input.is-valid,
+.enquiry-form select.is-valid,
+.enquiry-form textarea.is-valid{
+border-color:rgba(31,157,104,.54);
+}
+.field-warning{
+display:none;
+min-height:16px;
+font-size:11px;
+line-height:1.35;
+font-weight:800;
+color:var(--error-text);
+}
+.field-warning.is-visible{
+display:block;
+}
 .portal-form input{
 background:rgba(8,24,31,.96);
 color:#effbfd;
@@ -4803,42 +4825,49 @@ min-width:0;
             <div class="row-2">
                 <div class="group">
                     <label for="lead_name">Name</label>
-                    <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" required>
+                    <input id="lead_name" name="name" type="text" value="{{ sales_form.get('name', '') }}" autocomplete="name" minlength="2" maxlength="80" pattern="[A-Za-z][A-Za-z .'\-]{1,79}" aria-describedby="lead_name_warning" required>
+                    <div class="field-warning" id="lead_name_warning" aria-live="polite"></div>
                 </div>
                 <div class="group">
                     <label for="lead_phone">Phone / WhatsApp</label>
-                    <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" required>
+                    <input id="lead_phone" name="phone" type="tel" value="{{ sales_form.get('phone', '') }}" autocomplete="tel" inputmode="tel" minlength="10" maxlength="20" pattern="\+?[0-9][0-9 ()\-]{8,18}[0-9]" aria-describedby="lead_phone_warning" required>
+                    <div class="field-warning" id="lead_phone_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="row-2">
                 <div class="group">
                     <label for="lead_city">City</label>
-                    <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" required>
+                    <input id="lead_city" name="city" type="text" value="{{ sales_form.get('city', '') }}" autocomplete="address-level2" minlength="2" maxlength="80" pattern="[A-Za-z][A-Za-z .'\-]{1,79}" aria-describedby="lead_city_warning" required>
+                    <div class="field-warning" id="lead_city_warning" aria-live="polite"></div>
                 </div>
                 <div class="group">
                     <label for="lead_email">Email</label>
-                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" required>
+                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning" required>
+                    <div class="field-warning" id="lead_email_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="row-2">
                 <div class="group">
                     <label for="lead_segment">Project Type</label>
-                    <select id="lead_segment" name="segment" required>
+                    <select id="lead_segment" name="segment" aria-describedby="lead_segment_warning" required>
                         <option value="Home / Villa" {% if sales_form.get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
                         <option value="Apartment / Hostel" {% if sales_form.get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
                         <option value="Hotel / Institution" {% if sales_form.get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
                         <option value="Dealer / Installer" {% if sales_form.get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
                         <option value="Commercial Site" {% if sales_form.get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
                     </select>
+                    <div class="field-warning" id="lead_segment_warning" aria-live="polite"></div>
                 </div>
                 <div class="group">
                     <label for="lead_device_count">Estimated Devices Needed</label>
-                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ sales_form.get('device_count', '') }}" required>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
+                    <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
-                <textarea id="lead_message" name="message" required>{{ sales_form.get('message', '') }}</textarea>
+                <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ sales_form.get('message', '') }}</textarea>
+                <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
                 <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
@@ -4976,21 +5005,148 @@ function setLoginRole(role) {
     if (landingModeInput) landingModeInput.value = activeRole;
 }
 
-function updateEnquirySubmitState() {
-    if (!enquiryForm || !enquirySubmitButton) return;
-    const requiredFields = Array.from(enquiryForm.querySelectorAll("[required]"));
-    const allFilled = requiredFields.every((field) => String(field.value || "").trim().length > 0);
-    enquirySubmitButton.disabled = !allFilled;
+const enquiryFieldRules = {
+    lead_name: {
+        label: "Name",
+        validate(value) {
+            const text = value.trim();
+            if (!text) return "Name is required.";
+            if (text.length < 2) return "Name must be at least 2 characters.";
+            if (text.length > 80) return "Name must stay under 80 characters.";
+            if (!/^[A-Za-z][A-Za-z .'-]*$/.test(text)) return "Use letters, spaces, dot, apostrophe or hyphen only.";
+            return "";
+        },
+    },
+    lead_phone: {
+        label: "Phone / WhatsApp",
+        validate(value) {
+            const text = value.trim();
+            const digits = text.replace(/\D/g, "");
+            if (!text) return "Phone or WhatsApp number is required.";
+            if (!/^\+?[0-9][0-9 ()-]*[0-9]$/.test(text)) return "Use a valid phone number, for example +91 8796452878.";
+            if (digits.length < 10 || digits.length > 15) return "Phone number must contain 10 to 15 digits.";
+            return "";
+        },
+    },
+    lead_city: {
+        label: "City",
+        validate(value) {
+            const text = value.trim();
+            if (!text) return "City is required.";
+            if (text.length < 2) return "City must be at least 2 characters.";
+            if (text.length > 80) return "City must stay under 80 characters.";
+            if (!/^[A-Za-z][A-Za-z .'-]*$/.test(text)) return "Use a valid city or service area name.";
+            return "";
+        },
+    },
+    lead_email: {
+        label: "Email",
+        validate(value, field) {
+            const text = value.trim();
+            if (!text) return "Email address is required.";
+            if (text.length > 120) return "Email must stay under 120 characters.";
+            if (field.validity.typeMismatch || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(text)) return "Enter a valid email address.";
+            return "";
+        },
+    },
+    lead_segment: {
+        label: "Project type",
+        validate(value, field) {
+            const allowedValues = Array.from(field.options).map((option) => option.value);
+            if (!value) return "Choose a project type.";
+            if (!allowedValues.includes(value)) return "Choose a valid project type.";
+            return "";
+        },
+    },
+    lead_device_count: {
+        label: "Estimated devices",
+        validate(value) {
+            const text = value.trim();
+            if (!text) return "Estimated device count is required.";
+            if (!/^\d+$/.test(text)) return "Device count must be a whole number.";
+            const count = Number(text);
+            if (count < 1 || count > 10000) return "Device count must be between 1 and 10000.";
+            return "";
+        },
+    },
+    lead_message: {
+        label: "Project notes",
+        validate(value) {
+            const text = value.trim();
+            if (!text) return "Project notes are required.";
+            if (text.length < 10) return "Project notes must be at least 10 characters.";
+            if (text.length > 800) return "Project notes must stay under 800 characters.";
+            return "";
+        },
+    },
+};
+
+function enquiryFields() {
+    if (!enquiryForm) return [];
+    return Object.keys(enquiryFieldRules)
+        .map((id) => document.getElementById(id))
+        .filter(Boolean);
+}
+
+function showEnquiryFieldState(field, message, forceVisible = false) {
+    const warning = document.getElementById(`${field.id}_warning`);
+    const hasValue = String(field.value || "").trim().length > 0;
+    const showWarning = Boolean(message) && (forceVisible || field.dataset.touched === "true" || hasValue);
+    field.classList.toggle("is-invalid", showWarning);
+    field.classList.toggle("is-valid", !message && hasValue);
+    field.setAttribute("aria-invalid", message ? "true" : "false");
+    field.setCustomValidity(message);
+    if (warning) {
+        warning.textContent = showWarning ? message : "";
+        warning.classList.toggle("is-visible", showWarning);
+    }
+}
+
+function validateEnquiryField(field, forceVisible = false) {
+    const rule = enquiryFieldRules[field.id];
+    if (!rule) return true;
+    const message = rule.validate(String(field.value || ""), field);
+    showEnquiryFieldState(field, message, forceVisible);
+    return !message;
+}
+
+function updateEnquirySubmitState(forceVisible = false) {
+    if (!enquiryForm || !enquirySubmitButton) return false;
+    const validFields = enquiryFields().map((field) => validateEnquiryField(field, forceVisible));
+    const isReady = validFields.length > 0 && validFields.every(Boolean);
+    enquirySubmitButton.disabled = !isReady;
+    enquirySubmitButton.setAttribute("aria-disabled", isReady ? "false" : "true");
+    return isReady;
 }
 
 if (enquiryForm) {
-    enquiryForm.addEventListener("input", updateEnquirySubmitState);
-    enquiryForm.addEventListener("change", updateEnquirySubmitState);
-    enquiryForm.addEventListener("submit", (event) => {
+    enquiryFields().forEach((field) => {
+        field.addEventListener("blur", () => {
+            field.dataset.touched = "true";
+            validateEnquiryField(field, true);
+            updateEnquirySubmitState();
+        });
+    });
+    enquiryForm.addEventListener("input", (event) => {
+        const fieldId = event.target && event.target.id;
+        if (fieldId && Object.prototype.hasOwnProperty.call(enquiryFieldRules, fieldId)) {
+            event.target.dataset.touched = "true";
+        }
         updateEnquirySubmitState();
-        if (!enquiryForm.checkValidity()) {
+    });
+    enquiryForm.addEventListener("change", (event) => {
+        const fieldId = event.target && event.target.id;
+        if (fieldId && Object.prototype.hasOwnProperty.call(enquiryFieldRules, fieldId)) {
+            event.target.dataset.touched = "true";
+        }
+        updateEnquirySubmitState();
+    });
+    enquiryForm.addEventListener("submit", (event) => {
+        const isReady = updateEnquirySubmitState(true);
+        if (!isReady) {
             event.preventDefault();
-            enquiryForm.reportValidity();
+            const firstInvalid = enquiryFields().find((field) => !validateEnquiryField(field, true));
+            firstInvalid?.focus();
         }
     });
     updateEnquirySubmitState();

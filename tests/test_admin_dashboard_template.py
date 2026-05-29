@@ -22,6 +22,21 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
     assert template.count('width="1536" height="1024"') >= 7
 
 
+def test_booking_form_requires_typed_client_side_validation():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert "const enquiryFieldRules = {" in template
+    assert 'pattern="[A-Za-z][A-Za-z .\'\\-]{1,79}"' in template
+    assert 'pattern="\\+?[0-9][0-9 ()\\-]{8,18}[0-9]"' in template
+    assert 'id="lead_email" name="email" type="email"' in template
+    assert 'autocomplete="email" maxlength="120"' in template
+    assert 'id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric"' in template
+    assert 'textarea id="lead_message" name="message" minlength="10" maxlength="800"' in template
+    assert "field.setCustomValidity(message)" in template
+    assert "enquirySubmitButton.disabled = !isReady" in template
+    assert 'class="field-warning" id="lead_phone_warning"' in template
+
+
 def test_flask_static_assets_have_cache_and_compression_support():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     service_worker = (PROJECT_ROOT / "flask_app" / "static" / "service-worker.js").read_text(encoding="utf-8")
@@ -32,6 +47,18 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v5";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
+
+
+def test_sales_enquiry_server_validation_matches_booking_form_rules():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'valid_segments = {' in server_source
+    assert 're.fullmatch(r"[A-Za-z][A-Za-z .\'-]*", cleaned["name"])' in server_source
+    assert 'len(cleaned["email"]) > 120' in server_source
+    assert 're.fullmatch(r"\\+?[0-9][0-9 ()-]*[0-9]", cleaned["phone"])' in server_source
+    assert 'len(phone_digits) > 15' in server_source
+    assert 'cleaned["segment"] not in valid_segments' in server_source
+    assert 'len(cleaned["message"]) < 10' in server_source
 
 
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
