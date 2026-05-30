@@ -876,129 +876,224 @@ color:var(--muted);
 font-weight:900;
 text-decoration:none;
 }
-.booking-modal{
+.modal{
 position:fixed;
 inset:0;
-z-index:80;
 display:none;
 align-items:center;
 justify-content:center;
-padding:18px;
-background:rgba(7,31,40,.56);
-backdrop-filter:blur(8px);
-overflow:hidden;
-}
-.booking-modal.is-open{
-display:flex;
-}
-.booking-dialog{
-width:min(560px,calc(100vw - 24px));
-max-height:calc(100dvh - 32px);
-overflow:hidden;
 padding:14px;
-border-radius:18px;
-background:linear-gradient(180deg,var(--surface-strong),var(--surface));
-border:1px solid var(--line-strong);
-box-shadow:0 34px 80px rgba(7,31,40,.28);
+z-index:90;
 }
-.booking-head{
-display:flex;
-justify-content:space-between;
-gap:14px;
-align-items:flex-start;
-margin-bottom:8px;
+.modal.is-open{display:flex}
+.modal-backdrop{
+position:absolute;
+inset:0;
+background:rgba(5,14,18,.56);
+backdrop-filter:blur(6px);
 }
-.booking-head h2{
-margin:0;
-font-family:"Georgia","Times New Roman",serif;
-font-size:clamp(1.18rem,2vw,1.45rem);
-line-height:1;
-letter-spacing:-.05em;
+.modal-panel{
+position:relative;
+width:min(500px,100%);
+max-height:min(82vh,620px);
+overflow:auto;
+padding:14px 14px 12px;
+border-radius:20px;
+background:linear-gradient(180deg,var(--surface-dark),rgba(10,31,39,.98));
+border:1px solid rgba(150,207,218,.12);
+box-shadow:0 32px 80px rgba(0,0,0,.32);
+color:#eefcff;
 }
-.booking-head p{
-display:none;
-margin:0;
-color:var(--muted);
-line-height:1.55;
+.enquiry-modal .modal-panel{
+width:min(620px,calc(100% - 28px));
+max-height:none;
+overflow:visible;
+padding:12px;
 }
-.booking-close{
-min-width:32px;
-min-height:32px;
-padding:0;
-border-radius:12px;
-border:1px solid var(--line);
-background:rgba(255,255,255,.58);
-color:var(--text);
+.modal-close{
+position:absolute;
+top:10px;
+right:10px;
+width:34px;
+height:34px;
+border-radius:10px;
+border:1px solid rgba(150,207,218,.18);
+background:rgba(255,255,255,.06);
+color:#eefcff;
+cursor:pointer;
 font-size:20px;
 line-height:1;
-cursor:pointer;
+z-index:2;
 }
-.booking-selected-plan{
-margin-bottom:8px;
-padding:8px 10px;
-border-radius:12px;
-background:linear-gradient(135deg,rgba(13,147,168,.12),rgba(239,155,65,.12));
-border:1px solid rgba(13,147,168,.18);
+.modal-panel .eyebrow{
+padding:6px 10px;
+font-size:10px;
+letter-spacing:.16em;
+text-transform:uppercase;
+border-radius:999px;
+background:rgba(13,147,168,.12);
+color:var(--brand);
 font-weight:900;
-color:var(--brand-deep);
-font-size:13px;
+width:max-content;
 }
-.booking-form{
+.modal-header h2{
+margin:10px 0 0;
+font-size:clamp(1.65rem,3vw,2.25rem);
+line-height:1.05;
+letter-spacing:-.05em;
+}
+.modal-header p{
+margin:8px 0 0;
+color:#cfe4e8;
+line-height:1.55;
+}
+.enquiry-modal .modal-header p{
+display:none;
+}
+.enquiry-modal .modal-header h2{
+font-size:clamp(1.25rem,1.8vw,1.55rem);
+line-height:1.12;
+max-width:18ch;
+}
+.enquiry-modal .modal-panel .eyebrow{
+padding:5px 9px;
+}
+.enquiry-form{
 display:grid;
-gap:8px;
+gap:12px;
+position:relative;
+margin-top:14px;
+padding:18px;
+border-radius:24px;
+background:rgba(255,255,255,.9);
+color:var(--text);
 }
-.booking-grid{
+.enquiry-modal .enquiry-form{
+margin-top:10px;
+padding:14px 16px;
+border-radius:20px;
+gap:9px;
+box-shadow:0 16px 38px rgba(7,31,40,.12),inset 0 1px 0 rgba(255,255,255,.54);
+}
+.row-2{
 display:grid;
 grid-template-columns:repeat(2,minmax(0,1fr));
-gap:7px;
+gap:12px;
 }
-.booking-group{
+.enquiry-modal .row-2{
+gap:8px;
+}
+.group{
 display:grid;
-gap:3px;
+gap:6px;
 }
-.booking-group label{
-font-size:8px;
+.enquiry-modal .group{
+gap:4px;
+}
+.group label{
+font-size:10px;
 letter-spacing:.14em;
 text-transform:uppercase;
 font-weight:900;
 color:var(--muted);
 }
-.booking-group input,
-.booking-group select,
-.booking-group textarea{
+.enquiry-modal .group label{
+font-size:9px;
+}
+.enquiry-form input,
+.enquiry-form select,
+.enquiry-form textarea{
 width:100%;
-min-height:38px;
-padding:8px 10px;
-border-radius:11px;
+padding:12px 13px;
+border-radius:14px;
 border:1px solid var(--line);
 background:rgba(255,255,255,.72);
 color:var(--text);
 font:inherit;
-line-height:1.2;
 }
-.booking-group textarea{
-min-height:50px;
-resize:none;
+.enquiry-modal .enquiry-form input,
+.enquiry-modal .enquiry-form select,
+.enquiry-modal .enquiry-form textarea{
+padding:9px 11px;
+border-radius:12px;
+font-size:14px;
 }
-.booking-actions{
+.enquiry-form textarea{
+min-height:112px;
+resize:vertical;
+}
+.enquiry-modal .enquiry-form textarea{
+min-height:64px;
+}
+.enquiry-form input:focus,
+.enquiry-form select:focus,
+.enquiry-form textarea:focus{
+outline:none;
+border-color:rgba(13,147,168,.44);
+box-shadow:0 0 0 4px rgba(13,147,168,.1);
+}
+.enquiry-form input.is-invalid,
+.enquiry-form select.is-invalid,
+.enquiry-form textarea.is-invalid{
+border-color:rgba(218,79,99,.72);
+box-shadow:0 0 0 4px rgba(218,79,99,.1);
+}
+.enquiry-form input.is-valid,
+.enquiry-form select.is-valid,
+.enquiry-form textarea.is-valid{
+border-color:rgba(31,157,104,.54);
+}
+.field-warning{
+display:none;
+min-height:16px;
+font-size:11px;
+line-height:1.35;
+font-weight:800;
+color:#a9334a;
+}
+.field-warning.is-visible{
+display:block;
+}
+.banner{
+padding:11px 13px;
+border-radius:14px;
+font-size:13px;
+font-weight:800;
+line-height:1.45;
+}
+.banner.success{
+background:rgba(31,157,104,.12);
+border:1px solid rgba(31,157,104,.18);
+color:#1f9d68;
+}
+.banner.error{
+background:rgba(218,79,99,.12);
+border:1px solid rgba(218,79,99,.18);
+color:#a9334a;
+}
+.form-actions{
 display:flex;
 gap:10px;
-align-items:center;
 flex-wrap:wrap;
+align-items:center;
 }
-.booking-actions .button,
-.booking-actions .button-secondary{
-min-width:170px;
-min-height:40px;
-padding:9px 14px;
+.form-actions .button-secondary{
+min-width:190px;
 }
-.booking-note{
-display:none;
-margin-top:-4px;
-font-size:12px;
-line-height:1.55;
+.enquiry-modal .form-actions .button-secondary{
+min-height:42px;
+padding:10px 18px;
+}
+.form-note{
+font-size:13px;
+line-height:1.62;
 color:var(--muted);
-font-weight:800;
+}
+.enquiry-modal .form-note{
+display:none;
+}
+body.modal-open{
+overflow:hidden;
 }
 .footer{
 margin-top:18px;
@@ -1065,13 +1160,13 @@ padding-right:18px;
 .nav-actions > *{
 width:100%;
 }
-.booking-grid,
-.booking-actions{
+.row-2,
+.form-actions{
 grid-template-columns:1fr;
 display:grid;
 }
-.booking-actions .button,
-.booking-actions .button-secondary{
+.form-actions .button,
+.form-actions .button-secondary{
 width:100%;
 }
 .hero{
@@ -1093,12 +1188,12 @@ body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 .nav-links a:nth-child(5){color:#b85c16}
 @media (prefers-color-scheme: dark){
 :root{--muted:#bfd3d8}
-.surface,.section,.plan-card,.price-stack,.module-card,.addon-card,.comparison-row,.booking-form,.footer,.ghost-link{
+.surface,.section,.plan-card,.price-stack,.module-card,.addon-card,.comparison-row,.enquiry-form,.footer,.ghost-link{
 background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
 border-color:rgba(166,224,235,.18);
 color:var(--text);
 }
-.section-head p,.plan-card p,.plan-action span,.price-note,.fit-list li,.feature-list li,.addon-list li,.comparison-note,.booking-note,.footer{
+.section-head p,.plan-card p,.plan-action span,.price-note,.fit-list li,.feature-list li,.addon-list li,.comparison-note,.form-note,.footer{
 color:var(--muted);
 }
 .nav-links a:nth-child(1){color:#8feeff}
@@ -1117,7 +1212,7 @@ body{font-size:16px}
 .nav,.hero,.section,.footer{border-radius:24px;padding-left:20px;padding-right:20px}
 .hero h1{font-size:clamp(2.45rem,11vw,3.45rem);line-height:1}
 .section-head h2{font-size:clamp(2.1rem,9vw,3rem);line-height:1.05}
-.hero-copy p,.trust-line,.section-head p,.plan-card p,.feature-list li,.fit-list li,.addon-list li,.booking-note{font-size:16px;line-height:1.62}
+.hero-copy p,.trust-line,.section-head p,.plan-card p,.feature-list li,.fit-list li,.addon-list li,.form-note{font-size:16px;line-height:1.62}
 .button,.button-secondary,.ghost-link,input,select,textarea{min-height:52px;font-size:16px}
 }
 </style>
@@ -1143,7 +1238,7 @@ body{font-size:16px}
         </nav>
         <div class="nav-actions">
             <a class="ghost-link" href="{{ url_for('dashboard') }}">Homepage</a>
-            <a class="button-secondary js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+            <a class="button-secondary js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
         </div>
     </header>
 
@@ -1153,7 +1248,7 @@ body{font-size:16px}
             <p>Pay only for the monitoring and control you need today, then expand with pump control, cloud access, source tank monitoring, AI insights or multi-site support.</p>
             <div class="trust-line">Wi-Fi is required for every SaleWell device. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
-                <a class="button js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+                <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
             </div>
         </div>
@@ -1679,7 +1774,7 @@ body{font-size:16px}
                 <h2>Still not sure which setup fits your tank?</h2>
                 <p>Get a free 10-minute recommendation and site assessment. We will review tank count, Wi-Fi coverage, pump logic, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
-                    <a class="button js-book-plan" href="#pricingBookingModal" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+                    <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
                     <a class="ghost-link" href="mailto:support@salewell.co.in">Talk to Sales</a>
                 </div>
@@ -1707,139 +1802,159 @@ body{font-size:16px}
     </footer>
 </div>
 
-<div class="booking-modal" id="pricingBookingModal" aria-hidden="true">
-    <div class="booking-dialog" role="dialog" aria-modal="true" aria-labelledby="pricingBookingTitle">
-        <div class="booking-head">
-            <div>
-                <h2 id="pricingBookingTitle">Request plan pricing</h2>
-                <p>Share basic site details and the SaleWell team will follow up with pricing, setup scope and installation planning.</p>
-            </div>
-            <button class="booking-close" type="button" data-close-booking aria-label="Close booking form">&times;</button>
+<div
+    class="modal enquiry-modal"
+    id="enquiryModal"
+    aria-hidden="true"
+>
+    <div class="modal-backdrop" data-close-enquiry></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="enquiryModalTitle" aria-describedby="enquiryModalDescription">
+        <button class="modal-close" type="button" aria-label="Close booking form" data-close-enquiry>&times;</button>
+
+        <div class="modal-header">
+            <div class="eyebrow">Book Free Demo</div>
+            <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
+            <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
         </div>
 
-        <div class="booking-selected-plan" id="pricingBookingPlan">Plan will appear after selection.</div>
-
-        <form class="booking-form" method="post" action="{{ url_for('sales_enquiry') }}">
+        <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="landing_mode" value="customer">
+            <input type="hidden" id="landingModeInput" name="landing_mode" value="customer">
             <input type="hidden" name="return_to" value="pricing">
-
             {% if sales_success %}
-            <div class="booking-note">{{ sales_success }}</div>
+            <div class="banner success">{{ sales_success }}</div>
             {% endif %}
             {% if sales_error %}
-            <div class="booking-note">{{ sales_error }}</div>
+            <div class="banner error">{{ sales_error }}</div>
             {% endif %}
-
-            <div class="booking-grid">
-                <div class="booking-group">
-                    <label for="pricing_lead_name">Name</label>
-                    <input id="pricing_lead_name" name="name" type="text" value="{{ (sales_form|default({})).get('name', '') }}" required>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_name">Name</label>
+                    <input id="lead_name" name="name" type="text" value="{{ (sales_form|default({})).get('name', '') }}" autocomplete="name" minlength="2" maxlength="80" pattern="[A-Za-z][A-Za-z .'\-]{1,79}" aria-describedby="lead_name_warning" required>
+                    <div class="field-warning" id="lead_name_warning" aria-live="polite"></div>
                 </div>
-                <div class="booking-group">
-                    <label for="pricing_lead_phone">Phone / WhatsApp</label>
-                    <input id="pricing_lead_phone" name="phone" type="tel" value="{{ (sales_form|default({})).get('phone', '') }}" required>
-                </div>
-            </div>
-
-            <div class="booking-grid">
-                <div class="booking-group">
-                    <label for="pricing_lead_city">City</label>
-                    <input id="pricing_lead_city" name="city" type="text" value="{{ (sales_form|default({})).get('city', '') }}" required>
-                </div>
-                <div class="booking-group">
-                    <label for="pricing_lead_email">Email</label>
-                    <input id="pricing_lead_email" name="email" type="email" value="{{ (sales_form|default({})).get('email', '') }}" required>
+                <div class="group">
+                    <label for="lead_phone">Phone / WhatsApp</label>
+                    <input id="lead_phone" name="phone" type="tel" value="{{ (sales_form|default({})).get('phone', '') }}" autocomplete="tel" inputmode="tel" minlength="10" maxlength="20" pattern="\+?[0-9][0-9 ()\-]{8,18}[0-9]" aria-describedby="lead_phone_warning" required>
+                    <div class="field-warning" id="lead_phone_warning" aria-live="polite"></div>
                 </div>
             </div>
-
-            <div class="booking-grid">
-                <div class="booking-group">
-                    <label for="pricing_lead_segment">Project Type</label>
-                    <select id="pricing_lead_segment" name="segment" required>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_city">City</label>
+                    <input id="lead_city" name="city" type="text" value="{{ (sales_form|default({})).get('city', '') }}" autocomplete="address-level2" minlength="2" maxlength="80" pattern="[A-Za-z][A-Za-z .'\-]{1,79}" aria-describedby="lead_city_warning" required>
+                    <div class="field-warning" id="lead_city_warning" aria-live="polite"></div>
+                </div>
+                <div class="group">
+                    <label for="lead_email">Email</label>
+                    <input id="lead_email" name="email" type="email" value="{{ (sales_form|default({})).get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning" required>
+                    <div class="field-warning" id="lead_email_warning" aria-live="polite"></div>
+                </div>
+            </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_segment">Project Type</label>
+                    <select id="lead_segment" name="segment" aria-describedby="lead_segment_warning" required>
                         <option value="Home / Villa" {% if (sales_form|default({})).get('segment') == 'Home / Villa' %}selected{% endif %}>Home / Villa</option>
                         <option value="Apartment / Hostel" {% if (sales_form|default({})).get('segment') == 'Apartment / Hostel' %}selected{% endif %}>Apartment / Hostel</option>
                         <option value="Hotel / Institution" {% if (sales_form|default({})).get('segment') == 'Hotel / Institution' %}selected{% endif %}>Hotel / Institution</option>
                         <option value="Dealer / Installer" {% if (sales_form|default({})).get('segment') == 'Dealer / Installer' %}selected{% endif %}>Dealer / Installer</option>
-                        <option value="Small Shop / Office" {% if (sales_form|default({})).get('segment') == 'Small Shop / Office' %}selected{% endif %}>Small Shop / Office</option>
-                        <option value="Builder / Township" {% if (sales_form|default({})).get('segment') == 'Builder / Township' %}selected{% endif %}>Builder / Township</option>
                         <option value="Commercial Site" {% if (sales_form|default({})).get('segment') == 'Commercial Site' %}selected{% endif %}>Commercial Site</option>
                     </select>
+                    <div class="field-warning" id="lead_segment_warning" aria-live="polite"></div>
                 </div>
-                <div class="booking-group">
-                    <label for="pricing_lead_device_count">Estimated Devices Needed</label>
-                    <input id="pricing_lead_device_count" name="device_count" type="number" min="1" max="10000" value="{{ (sales_form|default({})).get('device_count', '1') }}" required>
+                <div class="group">
+                    <label for="lead_device_count">Estimated Devices Needed</label>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
+                    <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
-
-            <div class="booking-group">
-                <label for="pricing_lead_message">Project Notes</label>
-                <textarea id="pricing_lead_message" name="message" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
+            <div class="group">
+                <label for="lead_message">Project Notes</label>
+                <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
+                <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
-
-            <div class="booking-actions">
-                <button class="button-secondary" id="pricingBookingSubmit" type="submit" disabled>Book Free Demo</button>
+            <div class="form-actions">
+                <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
             </div>
-            <div class="booking-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
+            <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
     </div>
 </div>
 
 <script>
 (() => {
-const pricingBookingModal = document.getElementById("pricingBookingModal");
-const pricingBookingPlan = document.getElementById("pricingBookingPlan");
-const pricingLeadSegment = document.getElementById("pricing_lead_segment");
-const pricingLeadDeviceCount = document.getElementById("pricing_lead_device_count");
-const pricingLeadMessage = document.getElementById("pricing_lead_message");
-const pricingLeadName = document.getElementById("pricing_lead_name");
-const pricingBookingForm = document.querySelector(".booking-form");
-const pricingBookingSubmit = document.getElementById("pricingBookingSubmit");
+const enquiryModal = document.getElementById("enquiryModal");
+const enquiryForm = document.getElementById("enquiryForm");
+const enquirySubmitButton = document.getElementById("enquirySubmitButton");
+const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
-const bookingCloseButtons = document.querySelectorAll("[data-close-booking]");
 const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
 
-function openPricingBooking(plan, segment) {
-    const selectedPlan = plan || "Plan";
-    const selectedSegment = segment || "";
-    const planLine = `Selected pricing plan: ${selectedPlan}`;
-
-    if (pricingBookingPlan) pricingBookingPlan.textContent = planLine;
-    if (pricingLeadSegment && selectedSegment) pricingLeadSegment.value = selectedSegment;
-    if (pricingLeadDeviceCount && !pricingLeadDeviceCount.value) pricingLeadDeviceCount.value = "1";
-    if (pricingLeadMessage) pricingLeadMessage.value = planLine;
-    showPricingBooking();
+function setLeadValue(id, value, overwrite = false) {
+    const field = document.getElementById(id);
+    if (!field || value === undefined || value === null || value === "") return;
+    if (!overwrite && String(field.value || "").trim()) return;
+    field.value = value;
 }
 
-function showPricingBooking() {
-    if (pricingBookingModal) {
-        updatePricingBookingSubmitState();
-        pricingBookingModal.classList.add("is-open");
-        pricingBookingModal.setAttribute("aria-hidden", "false");
-        document.body.style.overflow = "hidden";
-        window.setTimeout(() => pricingLeadName?.focus(), 30);
+function addLeadNote(note) {
+    const field = document.getElementById("lead_message");
+    if (!field || !note) return;
+    const current = field.value.trim();
+    if (current.includes(note)) return;
+    field.value = current ? `${note}\n\n${current}` : note;
+}
+
+function validateField(field, showMessage = true) {
+    const warning = field.getAttribute("aria-describedby")
+        ? document.getElementById(field.getAttribute("aria-describedby"))
+        : null;
+    const isValid = field.checkValidity();
+    field.classList.toggle("is-invalid", showMessage && !isValid);
+    field.classList.toggle("is-valid", isValid && String(field.value || "").trim().length > 0);
+    if (warning) {
+        warning.textContent = isValid ? "" : (field.validationMessage || "This field is required.");
+        warning.classList.toggle("is-visible", showMessage && !isValid);
     }
+    return isValid;
 }
 
-function closePricingBooking() {
-    if (!pricingBookingModal) return;
-    pricingBookingModal.classList.remove("is-open");
-    pricingBookingModal.setAttribute("aria-hidden", "true");
-    document.body.style.overflow = "";
+function updateEnquirySubmitState() {
+    if (!enquiryForm || !enquirySubmitButton) return;
+    const fields = Array.from(enquiryForm.querySelectorAll("[required]"));
+    const valid = fields.every((field) => validateField(field, false));
+    enquirySubmitButton.disabled = !valid;
 }
 
-function updatePricingBookingSubmitState() {
-    if (!pricingBookingForm || !pricingBookingSubmit) return;
-    const requiredFields = Array.from(pricingBookingForm.querySelectorAll("[required]"));
-    const allFilled = requiredFields.every((field) => String(field.value || "").trim().length > 0);
-    pricingBookingSubmit.disabled = !allFilled;
+function openEnquiryModal(fill = {}) {
+    if (!enquiryModal) return;
+    if (fill.plan) addLeadNote(`Selected pricing plan: ${fill.plan}`);
+    if (fill.segment) setLeadValue("lead_segment", fill.segment, true);
+    if (!String(document.getElementById("lead_device_count")?.value || "").trim()) {
+        setLeadValue("lead_device_count", fill.devices || "1", true);
+    }
+    updateEnquirySubmitState();
+    enquiryModal.classList.add("is-open");
+    enquiryModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(() => {
+        try { document.getElementById("lead_name")?.focus({ preventScroll: true }); } catch (error) {}
+    }, 30);
+}
+
+function closeEnquiryModal() {
+    if (!enquiryModal) return;
+    enquiryModal.classList.remove("is-open");
+    enquiryModal.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("modal-open");
 }
 
 bookingButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openPricingBooking(button.dataset.plan, button.dataset.segment);
+        openEnquiryModal({ plan: button.dataset.plan, segment: button.dataset.segment });
     });
 });
 
@@ -1848,40 +1963,45 @@ document.addEventListener("click", (event) => {
     const bookingLink = event.target.closest?.('a[href*="#enquiry"]');
     if (!bookingLink) return;
     event.preventDefault();
-    openPricingBooking(bookingLink.dataset.plan, bookingLink.dataset.segment);
+    openEnquiryModal({ plan: bookingLink.dataset.plan, segment: bookingLink.dataset.segment });
 });
 
-bookingCloseButtons.forEach((button) => {
-    button.addEventListener("click", closePricingBooking);
+closeEnquiryButtons.forEach((button) => {
+    button.addEventListener("click", closeEnquiryModal);
 });
 
-if (pricingBookingForm) {
-    pricingBookingForm.addEventListener("input", updatePricingBookingSubmitState);
-    pricingBookingForm.addEventListener("change", updatePricingBookingSubmitState);
-    pricingBookingForm.addEventListener("submit", (event) => {
-        updatePricingBookingSubmitState();
-        if (!pricingBookingForm.checkValidity()) {
+if (enquiryForm) {
+    enquiryForm.addEventListener("input", (event) => {
+        if (event.target.matches("input,select,textarea")) validateField(event.target, false);
+        updateEnquirySubmitState();
+    });
+    enquiryForm.addEventListener("change", updateEnquirySubmitState);
+    enquiryForm.addEventListener("submit", (event) => {
+        const fields = Array.from(enquiryForm.querySelectorAll("[required]"));
+        const valid = fields.every((field) => validateField(field, true));
+        updateEnquirySubmitState();
+        if (!valid) {
             event.preventDefault();
-            pricingBookingForm.reportValidity();
+            fields.find((field) => !field.checkValidity())?.focus();
         }
     });
-    updatePricingBookingSubmitState();
+    updateEnquirySubmitState();
 }
 
-if (pricingBookingModal) {
-    pricingBookingModal.addEventListener("click", (event) => {
-        if (event.target === pricingBookingModal) closePricingBooking();
+if (enquiryModal) {
+    enquiryModal.addEventListener("click", (event) => {
+        if (event.target === enquiryModal || event.target.hasAttribute("data-close-enquiry")) closeEnquiryModal();
     });
 }
 
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && pricingBookingModal?.classList.contains("is-open")) {
-        closePricingBooking();
+    if (event.key === "Escape" && enquiryModal?.classList.contains("is-open")) {
+        closeEnquiryModal();
     }
 });
 
 if (shouldOpenPricingBooking) {
-    window.setTimeout(showPricingBooking, 30);
+    window.setTimeout(() => openEnquiryModal(), 30);
 }
 })();
 </script>
