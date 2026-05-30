@@ -323,6 +323,8 @@ const DEVICE_ID={{ device_id|tojson }};
 const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const localeTools=window.swtLocale||{};
+let deviceRefreshInFlight=false;
+let deviceRefreshTimer=0;
 function syncRuntimeConfigurationOptions(){
   const slaveDevice=document.getElementById("slaveDeviceOption");
   const slaveUpper=document.getElementById("slaveUpperSensorOption");
@@ -342,6 +344,18 @@ function syncRuntimeConfigurationOptions(){
   }
 }
 document.addEventListener("DOMContentLoaded",()=>{
+  function preserveViewport(callback){
+    const x=window.scrollX||0;
+    const y=window.scrollY||0;
+    const active=document.activeElement;
+    callback();
+    window.requestAnimationFrame(()=>{
+      window.scrollTo(x,y);
+      if(active&&typeof active.focus==="function"&&document.contains(active)){
+        try{active.focus({preventScroll:true});}catch(error){}
+      }
+    });
+  }
   function closeResultModal(){
     document.querySelector("[data-result-modal]")?.remove();
   }
@@ -396,6 +410,41 @@ document.addEventListener("DOMContentLoaded",()=>{
         }
       });
       request.send(new FormData(form));
+    });
+  });
+  document.querySelectorAll(".admin-grid form:not([data-firmware-upload-form])").forEach((form)=>{
+    if((form.action||"").includes("/delete"))return;
+    form.addEventListener("submit",async(event)=>{
+      if(event.defaultPrevented)return;
+      if(!window.fetch||!window.FormData)return;
+      event.preventDefault();
+      const button=form.querySelector('button[type="submit"]');
+      const originalLabel=button?.textContent||"Submit";
+      const scrollX=window.scrollX||0;
+      const scrollY=window.scrollY||0;
+      if(button){
+        button.disabled=true;
+        button.textContent="Saving...";
+      }
+      try{
+        const response=await fetch(form.action,{method:"POST",body:new FormData(form),credentials:"same-origin",redirect:"follow",headers:{"X-Requested-With":"XMLHttpRequest"}});
+        const finalUrl=new URL(response.url||window.location.href,window.location.href);
+        const message=finalUrl.searchParams.get("config_message");
+        const error=finalUrl.searchParams.get("config_error");
+        showResultModal(error?"Action failed":"Action saved",error||message||"Request completed. Live device details will update without reloading the page.",Boolean(error)||!response.ok);
+        if(response.ok&&!error){
+          preserveViewport(()=>{loadDevice({silent:true});});
+          if(form.querySelector('input[type="password"]'))form.reset();
+        }
+      }catch(error){
+        showResultModal("Action failed","Network error while sending the request.",true);
+      }finally{
+        if(button){
+          button.disabled=false;
+          button.textContent=originalLabel;
+        }
+        window.requestAnimationFrame(()=>window.scrollTo(scrollX,scrollY));
+      }
     });
   });
   syncRuntimeConfigurationOptions();
@@ -711,7 +760,13 @@ function renderList(id,items,emptyText,formatter){
     root.appendChild(li);
   });
 }
-async function loadDevice(){
+async function loadDevice({silent=false}={}){
+  if(deviceRefreshInFlight)return;
+  deviceRefreshInFlight=true;
+  const scrollX=window.scrollX||0;
+  const scrollY=window.scrollY||0;
+  const active=document.activeElement;
+  try{
   const response=await fetch(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,{cache:"no-store"});
   const data=await response.json();
   if(!response.ok){
@@ -759,9 +814,21 @@ async function loadDevice(){
 
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
   setClassName("connection",connectionClass);
+  }finally{
+    deviceRefreshInFlight=false;
+    if(silent){
+      window.requestAnimationFrame(()=>{
+        window.scrollTo(scrollX,scrollY);
+        if(active&&typeof active.focus==="function"&&document.contains(active)){
+          try{active.focus({preventScroll:true});}catch(error){}
+        }
+      });
+    }
+  }
 }
 loadDevice();
-setInterval(loadDevice,10000);
+deviceRefreshTimer=setInterval(()=>loadDevice({silent:true}),10000);
+window.swtPageTeardown=()=>{if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);};
 })();
 </script>
 {% include '_pwa_install.html' %}

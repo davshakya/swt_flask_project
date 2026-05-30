@@ -1037,8 +1037,60 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         autoRefreshStatus.className = `pill pill-${tone}`;
     }
 
+    function rowKey(row) {
+        return row ? (row.dataset.deviceId || row.querySelector(".device-link")?.textContent || "").trim() : "";
+    }
+
+    function replaceDeviceRowsSmoothly(nextRows) {
+        if (!tableBody) return;
+        const windowScroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
+        const tableShell = tableBody.closest(".table-shell");
+        const tableScroll = tableShell ? { x: tableShell.scrollLeft, y: tableShell.scrollTop } : null;
+        const active = document.activeElement;
+        const activeId = active?.id || "";
+        const activeName = active?.getAttribute?.("name") || "";
+        const currentRows = new Map(Array.from(tableBody.querySelectorAll(".device-table-row")).map((row) => [rowKey(row), row]));
+        const orderedRows = [];
+
+        nextRows.forEach((nextRow) => {
+            const key = rowKey(nextRow);
+            const currentRow = currentRows.get(key);
+            if (currentRow) {
+                if (currentRow.outerHTML !== nextRow.outerHTML) {
+                    currentRow.replaceWith(nextRow);
+                    orderedRows.push(nextRow);
+                } else {
+                    orderedRows.push(currentRow);
+                }
+                currentRows.delete(key);
+            } else {
+                orderedRows.push(nextRow);
+            }
+        });
+        currentRows.forEach((row) => row.remove());
+        orderedRows.forEach((row) => tableBody.appendChild(row));
+
+        window.requestAnimationFrame(() => {
+            if (tableScroll && tableShell) {
+                tableShell.scrollLeft = tableScroll.x;
+                tableShell.scrollTop = tableScroll.y;
+            }
+            window.scrollTo(windowScroll.x, windowScroll.y);
+            const focusTarget = active && document.contains(active)
+                ? active
+                : activeId
+                ? document.getElementById(activeId)
+                : activeName
+                    ? Array.from(document.querySelectorAll("[name]")).find((node) => node.getAttribute("name") === activeName)
+                    : null;
+            if (focusTarget && typeof focusTarget.focus === "function") {
+                try { focusTarget.focus({ preventScroll: true }); } catch (error) {}
+            }
+        });
+    }
+
     async function refreshDeviceTable() {
-        if (!tableBody || refreshInFlight || document.hidden) return;
+        if (!tableBody || refreshInFlight || document.hidden || document.body.classList.contains("modal-open")) return;
         refreshInFlight = true;
         setAutoRefreshStatus("Refreshing...", "info");
         try {
@@ -1054,7 +1106,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             const doc = new DOMParser().parseFromString(html, "text/html");
             const nextTableBody = doc.getElementById("device_table_body");
             if (!nextTableBody) throw new Error("refresh response missing device table");
-            tableBody.innerHTML = nextTableBody.innerHTML;
+            replaceDeviceRowsSmoothly(Array.from(nextTableBody.querySelectorAll(".device-table-row")));
             applyLocaleDateTime(tableBody);
             refreshDeviceRows();
             applySort();
@@ -1076,6 +1128,21 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             applyFilter();
         });
     }
+    document.getElementById("device_search_button")?.closest("form")?.addEventListener("submit", (event) => {
+        event.preventDefault();
+        applyFilter();
+        if (input) {
+            try { input.focus({ preventScroll: true }); } catch (error) { input.focus(); }
+        }
+    });
+    document.getElementById("device_search_clear")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (input) input.value = "";
+        applyFilter();
+        if (input) {
+            try { input.focus({ preventScroll: true }); } catch (error) { input.focus(); }
+        }
+    });
     sortButtons.forEach((button) => {
         button.addEventListener("click", () => {
             const nextKey = button.dataset.deviceSort || "device_id";
@@ -1087,12 +1154,12 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         });
     });
 
-    document.querySelectorAll("[data-open-details]").forEach((node) => {
-        node.addEventListener("click", () => {
-            const details = document.getElementById(node.getAttribute("data-open-details"));
-            if (!details || details.tagName !== "DETAILS") return;
-            details.open = true;
-        });
+    document.addEventListener("click", (event) => {
+        const node = event.target.closest?.("[data-open-details]");
+        if (!node) return;
+        const details = document.getElementById(node.getAttribute("data-open-details"));
+        if (!details || details.tagName !== "DETAILS") return;
+        details.open = true;
     });
     if (window.location.hash) {
         const hashTarget = document.querySelector(window.location.hash);
@@ -1127,7 +1194,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         if (toggle) toggle.setAttribute("aria-expanded", open ? "true" : "false");
         if (open) {
             const inputNode = panel.querySelector('input:not([type="hidden"]), button, select, textarea, a[href]');
-            if (inputNode) inputNode.focus();
+            if (inputNode) {
+                try { inputNode.focus({ preventScroll: true }); } catch (error) { inputNode.focus(); }
+            }
         }
         updateBodyModalState();
     }
@@ -1164,7 +1233,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             if (panel && panel.dataset.busy === "true") return;
             setPanelState(panel, false);
             const toggle = panel ? panelToggleFor(panel) : null;
-            if (toggle) toggle.focus();
+            if (toggle) {
+                try { toggle.focus({ preventScroll: true }); } catch (error) { toggle.focus(); }
+            }
         });
     });
     document.addEventListener("keydown", (event) => {
@@ -1174,7 +1245,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         if (openModal.dataset.busy === "true") return;
         setPanelState(openModal, false);
         const toggle = panelToggleFor(openModal);
-        if (toggle) toggle.focus();
+        if (toggle) {
+            try { toggle.focus({ preventScroll: true }); } catch (error) { toggle.focus(); }
+        }
     });
 
     const androidUploadForm = document.querySelector("[data-android-upload-form]");
@@ -1268,6 +1341,45 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             request.send(new FormData(androidUploadForm));
         });
     }
+
+    document.querySelectorAll(".release-utility-form").forEach((form) => {
+        form.addEventListener("submit", async (event) => {
+            if (event.defaultPrevented || !window.fetch || !window.FormData) return;
+            event.preventDefault();
+            const button = form.querySelector('button[type="submit"]');
+            const originalLabel = button?.textContent || "Submit";
+            const scroll = { x: window.scrollX || 0, y: window.scrollY || 0 };
+            if (button) {
+                button.disabled = true;
+                button.textContent = "Working...";
+            }
+            try {
+                const response = await fetch(form.action, {
+                    method: "POST",
+                    body: new FormData(form),
+                    credentials: "same-origin",
+                    redirect: "follow",
+                    headers: { "X-Requested-With": "XMLHttpRequest" },
+                });
+                const html = await response.text();
+                if (window.swtRenderNavigatedHtml) {
+                    window.swtRenderNavigatedHtml(html, { url: response.url || window.location.href, replace: true, preserveScroll: true });
+                } else {
+                    document.open();
+                    document.write(html);
+                    document.close();
+                }
+                window.requestAnimationFrame(() => window.scrollTo(scroll.x, scroll.y));
+            } catch (error) {
+                console.warn("Release utility action failed", error);
+                setAutoRefreshStatus("Action failed", "warning");
+                if (button) {
+                    button.disabled = false;
+                    button.textContent = originalLabel;
+                }
+            }
+        });
+    });
 
     const registerDeviceForm = document.querySelector("[data-register-device-form]");
     if (registerDeviceForm) {
