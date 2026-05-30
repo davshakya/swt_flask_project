@@ -379,6 +379,44 @@ box-shadow:0 24px 46px rgba(10,58,72,.14);
 --admin-accent-strong:#ffe2ad;
 }
 }
+html{font-size:17px}
+body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+@media (prefers-color-scheme: dark){
+:root{--muted:#bfd3d8}
+.admin-control-room{--admin-text-soft:#bfd3d8}
+.panel,.summary-card,.table-shell,.service-group,.device-detail-item,.inline-panel,.system-status-bar,.hero-pill,.hero-focus-card,.form-helper-card,input,.searchInput{
+background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
+border-color:rgba(166,224,235,.18);
+color:var(--text);
+}
+.device-table-shell .admin-table tbody tr td,
+.device-table-shell .admin-table tbody tr:hover td{
+background:rgba(10,27,37,.88)!important;
+color:var(--text);
+}
+.admin-table thead th,
+.device-table-shell .admin-table thead th{
+background:linear-gradient(180deg,rgba(14,66,82,.96),rgba(9,25,34,.96));
+color:var(--muted);
+}
+.muted,.meta,.cell-sub,.searchMeta,.device-helper,.inline-note,.service-live-note,.empty-state,.hero-lead,.system-status-note,.service-option small{
+color:var(--muted);
+}
+a,.service-preset{border-color:rgba(166,224,235,.2);color:var(--text)}
+}
+@media (max-width:760px){
+body{font-size:16px;padding:12px}
+.admin-control-room{padding:12px}
+.panel{padding:20px;border-radius:24px}
+.hero-title{font-size:clamp(2.35rem,11vw,3.35rem);line-height:1}
+.hero-lead,.muted,.system-status-note,.cell-main,.cell-sub,.service-option,.service-option strong,.service-option small,.inline-note,.device-detail-item strong{font-size:16px;line-height:1.6}
+.eyebrow,.meta,.group label,.inline-form label,.device-detail-item span,.admin-table th,.admin-table td{font-size:12px}
+button,a,input,.searchInput{min-height:52px;font-size:16px}
+.row,.hero-pill-row,.service-toolbar{display:grid;grid-template-columns:1fr}
+.row > *, .hero-pill-row > *, .service-toolbar > *{width:100%}
+.table-shell{border-radius:18px}
+.admin-table{min-width:920px}
+}
 </style>
 </head>
 <body class="admin-control-room">

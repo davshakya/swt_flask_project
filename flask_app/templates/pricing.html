@@ -1084,6 +1084,42 @@ padding-bottom:20px;
 max-width:none;
 }
 }
+html{font-size:17px}
+body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+.nav-links a:nth-child(1){color:#0b7f92}
+.nav-links a:nth-child(2){color:#1f8a5b}
+.nav-links a:nth-child(3){color:#9b640b}
+.nav-links a:nth-child(4){color:#9a4fa4}
+.nav-links a:nth-child(5){color:#b85c16}
+@media (prefers-color-scheme: dark){
+:root{--muted:#bfd3d8}
+.surface,.section,.plan-card,.price-stack,.module-card,.addon-card,.comparison-row,.booking-form,.footer,.ghost-link{
+background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
+border-color:rgba(166,224,235,.18);
+color:var(--text);
+}
+.section-head p,.plan-card p,.plan-action span,.price-note,.fit-list li,.feature-list li,.addon-list li,.comparison-note,.booking-note,.footer{
+color:var(--muted);
+}
+.nav-links a:nth-child(1){color:#8feeff}
+.nav-links a:nth-child(2){color:#8ef2bf}
+.nav-links a:nth-child(3){color:#ffe083}
+.nav-links a:nth-child(4){color:#f0b4ff}
+.nav-links a:nth-child(5){color:#ffc489}
+}
+@media (max-width:920px){
+.nav-links{gap:8px 14px}
+.nav-links a{font-size:15px;line-height:1.35;padding:6px 0}
+}
+@media (max-width:720px){
+body{font-size:16px}
+.page{width:min(100% - 16px,1380px)}
+.nav,.hero,.section,.footer{border-radius:24px;padding-left:20px;padding-right:20px}
+.hero h1{font-size:clamp(2.45rem,11vw,3.45rem);line-height:1}
+.section-head h2{font-size:clamp(2.1rem,9vw,3rem);line-height:1.05}
+.hero-copy p,.trust-line,.section-head p,.plan-card p,.feature-list li,.fit-list li,.addon-list li,.booking-note{font-size:16px;line-height:1.62}
+.button,.button-secondary,.ghost-link,input,select,textarea{min-height:52px;font-size:16px}
+}
 </style>
 </head>
 <body>

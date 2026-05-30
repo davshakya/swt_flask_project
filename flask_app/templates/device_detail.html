@@ -22,6 +22,31 @@
 @media (max-width:1080px){.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config-sections{grid-template-columns:1fr}.config-form{grid-column:1/-1}}
 @media (max-width:820px){.firmware-upload-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.hero-head{align-items:flex-start}.hero-actions{width:100%;justify-content:flex-start}.summary-grid,.admin-grid{grid-template-columns:1fr}.admin-form .btn,.config-form>.btn{width:100%;max-width:none}.info-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+html{font-size:17px}
+body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+@media (prefers-color-scheme: dark){
+:root{--muted:#bfd3d8}
+.panel,.summary-card,.detail-card,.info-item,.admin-form,.config-section,.service-option,.flag-list li,.list li,.memory-chart-wrap,.memory-chip,.result-dialog,.result-close,.form-group input,.form-group select,.form-group input[type=file]{
+background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
+border-color:rgba(166,224,235,.18);
+color:var(--text);
+}
+.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty{
+color:var(--muted);
+}
+.btn{border-color:rgba(166,224,235,.2)}
+}
+@media (max-width:720px){
+body{font-size:16px}
+.shell{width:min(100% - 16px,1200px);padding-top:16px}
+.panel{padding:20px;border-radius:24px}
+.hero-title h1{font-size:clamp(2rem,10vw,2.8rem);line-height:1.05}
+.hero-title p,.helper-text,.list-body,.list-meta,.summary-note,.detail-note,.info-value,.service-option,.flag-list li{font-size:16px;line-height:1.6}
+.summary-label,.detail-label,.info-label,.form-group label,.checkbox-row{font-size:12px}
+.btn,.hero-actions .btn,.admin-form .btn,.config-form>.btn,input,select{min-height:52px;height:auto;font-size:16px}
+.hero-actions form,.hero-actions .btn{width:100%}
+.info-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>

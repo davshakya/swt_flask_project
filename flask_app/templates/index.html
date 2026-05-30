@@ -150,6 +150,34 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .hero-actions{width:100%;align-items:stretch}
 .customer-dashboard .hero-actions form,.customer-dashboard .hero-actions button,.customer-dashboard .hero-actions .action-link{width:100%}
 }
+html{font-size:17px}
+body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+@media (prefers-color-scheme: dark){
+:root{--muted:#bfd3d8;--chart-ticks:#bfd3d8}
+.panel,.mini,.card,.chip,.glance-item,.list li,.setting,.live-panel,.sync-strip,input[type="date"],input[type="number"]{
+background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
+border-color:rgba(166,224,235,.18);
+color:var(--text);
+}
+.sub,.muted,.sync-detail,.brand-status,.card .subvalue,.glance-item .detail,.setting span,time,.alert-meta,.customer-pulse-card p,.customer-pulse-card span,.customer-dashboard .hero-lead,.customer-dashboard .brand-status{
+color:var(--muted);
+}
+.btn-outline,.btn-lite,.action-link{
+border-color:rgba(166,224,235,.2);
+}
+}
+@media (max-width:720px){
+body{font-size:16px}
+.shell{width:min(100% - 16px,1380px);padding-top:16px}
+.panel{padding:20px;border-radius:24px}
+.hero-head h1{font-size:clamp(2.45rem,11vw,3.45rem);line-height:1}
+.hero-lead,.sub,.card .subvalue,.glance-item .detail,.setting span,.list li,.sync-detail{font-size:16px;line-height:1.62}
+.label,.chip strong,.glance-item span,.input-group label{font-size:12px}
+button,.action-link,input[type="date"],input[type="number"]{min-height:52px;font-size:16px}
+.compact-action,.compact-action.action-link{min-height:46px;font-size:15px}
+.status-row{grid-template-columns:1fr}
+canvas{height:260px!important}
+}
 </style>
 </head>
 <body class="{% if is_admin %}admin-dashboard{% else %}customer-dashboard{% endif %}">

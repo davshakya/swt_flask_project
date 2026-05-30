@@ -7,6 +7,19 @@
     <button id="pwaInstallDismiss" type="button" style="border:1px solid rgba(19,78,94,.14);border-radius:999px;padding:12px 16px;background:transparent;color:#12303a;font:800 14px 'Trebuchet MS','Segoe UI',sans-serif;cursor:pointer">Not Now</button>
   </div>
 </div>
+<style>
+@media (prefers-color-scheme: dark){
+#pwaInstallPanel{background:rgba(10,27,37,.96)!important;border-color:rgba(166,224,235,.18)!important;color:#e8f7f8!important}
+#pwaInstallCopy{color:#bfd3d8!important}
+#pwaInstallDismiss{border-color:rgba(166,224,235,.22)!important;color:#e8f7f8!important}
+}
+@media (max-width:720px){
+#pwaInstallPanel{left:12px!important;right:12px!important;bottom:12px!important;max-width:none!important;font-size:16px!important;padding:18px!important}
+#pwaInstallTitle{font-size:20px!important}
+#pwaInstallCopy{line-height:1.6!important}
+#pwaInstallButton,#pwaInstallDismiss{min-height:52px!important;font-size:16px!important;flex:1 1 150px!important}
+}
+</style>
 <script>
 (()=>{
   const panel = document.getElementById("pwaInstallPanel");
