@@ -1321,9 +1321,11 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                 if (request.status >= 200 && request.status < 400) {
                     setRegisterProgress(100, "Registration complete", "Refreshing the admin page.", "complete");
                     window.setTimeout(() => {
-                        document.open();
-                        document.write(request.responseText);
-                        document.close();
+                        if (window.swtRenderNavigatedHtml) {
+                            window.swtRenderNavigatedHtml(request.responseText, { replace: true, preserveScroll: true });
+                            return;
+                        }
+                        window.location.reload();
                     }, 350);
                     return;
                 }

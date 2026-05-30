@@ -1786,6 +1786,7 @@ body{font-size:16px}
 </div>
 
 <script>
+(() => {
 const pricingBookingModal = document.getElementById("pricingBookingModal");
 const pricingBookingPlan = document.getElementById("pricingBookingPlan");
 const pricingLeadSegment = document.getElementById("pricing_lead_segment");
@@ -1882,6 +1883,7 @@ document.addEventListener("keydown", (event) => {
 if (shouldOpenPricingBooking) {
     window.setTimeout(showPricingBooking, 30);
 }
+})();
 </script>
 </body>
 </html>

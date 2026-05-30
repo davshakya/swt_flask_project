@@ -318,6 +318,7 @@ body{font-size:16px}
 </div>
 
 <script>
+(() => {
 const DEVICE_ID={{ device_id|tojson }};
 const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
@@ -761,6 +762,7 @@ async function loadDevice(){
 }
 loadDevice();
 setInterval(loadDevice,10000);
+})();
 </script>
 {% include '_pwa_install.html' %}
 </body>

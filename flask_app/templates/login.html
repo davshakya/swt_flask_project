@@ -5096,6 +5096,7 @@ min-width:0;
 </div>
 
 <script>
+(() => {
 const landingHomeUrl = "{{ url_for('dashboard') }}";
 const loginModal = document.getElementById("loginModal");
 const enquiryModal = document.getElementById("enquiryModal");
@@ -5127,7 +5128,11 @@ const roleContent = {
 };
 
 if (window.location.pathname.replace(/\/+$/, "") === publicSalesEnquiryPath.replace(/\/+$/, "")) {
-    window.location.replace("{{ url_for('pricing_page') }}");
+    if (window.swtNavigate) {
+        window.swtNavigate("{{ url_for('pricing_page') }}", { replace: true });
+    } else {
+        window.location.replace("{{ url_for('pricing_page') }}");
+    }
 }
 
 function setLoginRole(role) {
@@ -5309,7 +5314,11 @@ function openLoginModal(role) {
 
 function closeLoginModal() {
     if (onDedicatedLoginRoute) {
-        window.location.href = landingHomeUrl;
+        if (window.swtNavigate) {
+            window.swtNavigate(landingHomeUrl, { replace: true });
+        } else {
+            window.location.href = landingHomeUrl;
+        }
         return;
     }
     loginModal.classList.remove("is-open");
@@ -6517,6 +6526,7 @@ if (demoStoryboard && demoScenes.length) {
     }
 }
 
+})();
 </script>
 {% include '_pwa_install.html' %}
 </body>

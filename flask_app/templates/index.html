@@ -556,6 +556,7 @@ canvas{height:260px!important}
 </div>
 
 <script>
+(() => {
 const API="";
 const SELECTED_DEVICE_ID={{ selected_device_id|tojson }};
 const CSRF_TOKEN={{ csrf_token|tojson }};
@@ -591,6 +592,7 @@ const state={
     refreshDetailKind:"api",
     analyticsUpdatedAt:0
 };
+const pageTimers=[];
 let chartsAvailable=true;
 const localeTools=window.swtLocale||{};
 
@@ -1615,14 +1617,17 @@ async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.i
 async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||state.inFlight.analytics||(!force&&isPageHidden()))return;state.inFlight.analytics=true;if(state.controllers.analytics)state.controllers.analytics.abort();const controller=new AbortController();state.controllers.analytics=controller;try{const data=await fetchJSON(`${API}/analytics?${query()}`,{signal:controller.signal});if(data.error){banner("commandBanner",data.error,"danger");return;}const changed=syncSection("analytics",data,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Existing charts are still shown.","warn");}finally{if(state.controllers.analytics===controller)state.controllers.analytics=null;state.inFlight.analytics=false;}}
 async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}try{await Promise.all([refreshLive({force}),refreshEvents({force}),loadAnalytics({force})]);}catch(error){console.log("refresh error",error);banner("commandBanner","Dashboard refresh failed. Check the Flask server connection.","danger");}}
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
-function startPolling(){if(customerFeedBlocked())return;setInterval(()=>refreshLive(),FAST_POLL_MS);setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS);setInterval(()=>loadAnalytics(),ANALYTICS_POLL_MS);setInterval(updateRefreshClock,15000);}
+function startPolling(){if(customerFeedBlocked())return;pageTimers.push(setInterval(()=>refreshLive(),FAST_POLL_MS),setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS),setInterval(()=>loadAnalytics(),ANALYTICS_POLL_MS),setInterval(updateRefreshClock,15000));}
 
 function initDates(){const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);updateAnalyticsDownloadLink();}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(Date.now()-state.analyticsUpdatedAt>ANALYTICS_POLL_MS/2)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}
+Object.assign(window,{manualRefresh,sendMotorCommand,sendCalibrateCommand,sendTankConfig,setQuickRange,applyCustomRange,resetFilters,savePreferences});
+window.swtPageTeardown=()=>{pageTimers.forEach((timer)=>clearInterval(timer));if(state.controllers.analytics)state.controllers.analytics.abort();};
 try{initCharts();}catch(error){chartsAvailable=false;console.error("Dashboard chart initialization failed",error);}
 initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked())bootstrapDashboard().finally(()=>loadAnalytics({force:true}));startPolling();
+})();
 </script>
 {% include '_pwa_install.html' %}
 </body>
