@@ -33,7 +33,7 @@ def test_shared_guidance_prioritizes_dry_run_as_critical_pump_protection():
     assert guidance["tone"] == "bad"
     assert guidance["title"] == "Pump stopped to prevent dry run"
     assert "Dry-run protection stopped the pump" in guidance["summary"]
-    assert "Check source water" in guidance["action_title"]
+    assert guidance["action_title"] == "Check the source of water before starting the pump"
 
 
 def test_shared_guidance_names_source_tank_only_when_source_monitoring_is_active():

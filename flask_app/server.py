@@ -6889,10 +6889,10 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         tone = "bad"
         title = "Pump stopped to prevent dry run" if not source_monitoring_active else "Pump locked by source tank safety"
         summary = "Dry-run protection stopped the pump to protect the motor."
-        action_title = "Check source water before starting"
+        action_title = "Check the source of water before starting the pump"
         action_note = "Start the pump only after source water and inlet flow are available."
         observations.append("Dry-run protection is active.")
-        actions.append("Check source water and inlet flow before starting the pump again.")
+        actions.append("Check the source of water before starting the pump.")
     elif pipe_leak:
         severity = "warning"
         tone = "warn"
