@@ -39,6 +39,51 @@ def test_dashboard_session_stores_admin_and_customer_identities_separately():
     assert 'session.get(f"{prefix}_auth_marker")' in source
 
 
+def test_dashboard_login_registers_one_active_browser_session_per_user():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def store_dashboard_identity(authenticated_user):")
+    function_source = source[function_start : source.index("\ndef activate_dashboard_identity", function_start)]
+
+    assert "register_active_platform_session(" in function_source
+    assert "SESSION_PLATFORM_DASHBOARD" in function_source
+    assert 'session[f"{prefix}_platform_session_id"] = platform_session_id' in function_source
+
+
+def test_dashboard_session_validation_rejects_replaced_browser_session():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def is_logged_in():")
+    function_source = source[function_start : source.index("\ndef login_required", function_start)]
+
+    assert "active_platform_session_matches(" in function_source
+    assert "SESSION_PLATFORM_DASHBOARD" in function_source
+    assert "clear_dashboard_identity()" in function_source
+
+
+def test_mobile_tokens_register_and_validate_one_active_android_session_per_user():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    issue_start = source.index("def issue_mobile_token(user):")
+    issue_source = source[issue_start : source.index("\ndef resolve_mobile_user", issue_start)]
+    resolve_start = source.index("def resolve_mobile_user():")
+    resolve_source = source[resolve_start : source.index("\ndef mobile_auth_required", resolve_start)]
+
+    assert "register_active_platform_session(" in issue_source
+    assert "SESSION_PLATFORM_ANDROID" in issue_source
+    assert '"platform_session_id": platform_session_id' in issue_source
+    assert "active_platform_session_matches(" in resolve_source
+    assert "SESSION_PLATFORM_ANDROID" in resolve_source
+    assert 'g.mobile_auth_error = "session_replaced"' in resolve_source
+
+
+def test_replaced_mobile_session_returns_distinct_response_without_auto_refresh():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def mobile_auth_required(view):")
+    function_source = source[function_start : source.index("\ndef current_mobile_scope_device_id", function_start)]
+
+    assert 'getattr(g, "mobile_auth_error", None) == "session_replaced"' in function_source
+    assert '"code": "session_replaced"' in function_source
+    assert "), 409" in function_source
+
+
 def test_dashboard_wrong_role_refresh_redirects_to_active_dashboard():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
 

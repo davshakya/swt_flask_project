@@ -183,6 +183,9 @@ IST_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
+ACTIVE_SESSION_SETTING_PREFIX = "active_session"
+SESSION_PLATFORM_ANDROID = "android"
+SESSION_PLATFORM_DASHBOARD = "dashboard"
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
@@ -1505,34 +1508,101 @@ def dashboard_identity_prefix(role):
     return "admin" if role == "admin" else "customer"
 
 
+def normalize_session_platform(platform):
+    normalized = str(platform or "").strip().lower()
+    return normalized if normalized in {SESSION_PLATFORM_ANDROID, SESSION_PLATFORM_DASHBOARD} else ""
+
+
+def user_session_identity(role, username=None, device_id=None):
+    resolved_role = "admin" if str(role or "").strip() == "admin" else "customer"
+    resolved_identity = normalize_device_id(device_id or username) if resolved_role == "customer" else str(username or LOGIN_USERNAME).strip()
+    if not resolved_identity:
+        return None
+    return f"{resolved_role}:{resolved_identity}"
+
+
+def active_session_setting_key(platform, role, username=None, device_id=None):
+    normalized_platform = normalize_session_platform(platform)
+    identity = user_session_identity(role, username=username, device_id=device_id)
+    if not normalized_platform or not identity:
+        return None
+    identity_hash = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    return f"{ACTIVE_SESSION_SETTING_PREFIX}:{normalized_platform}:{identity_hash}"
+
+
+def new_platform_session_id():
+    return secrets.token_urlsafe(32)
+
+
+def register_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return ""
+    next_session_id = str(session_id or new_platform_session_id()).strip()
+    set_app_setting(setting_key, next_session_id)
+    return next_session_id
+
+
+def active_platform_session_matches(platform, role, username=None, device_id=None, session_id=None):
+    supplied_session_id = str(session_id or "").strip()
+    if not supplied_session_id:
+        return False
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return False
+    active_session_id = str(get_app_setting(setting_key, "") or "").strip()
+    return bool(active_session_id) and secrets.compare_digest(active_session_id, supplied_session_id)
+
+
+def clear_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return
+    supplied_session_id = str(session_id or "").strip()
+    if supplied_session_id:
+        active_session_id = str(get_app_setting(setting_key, "") or "").strip()
+        if active_session_id and not secrets.compare_digest(active_session_id, supplied_session_id):
+            return
+    delete_app_setting(setting_key)
+
+
 def clear_dashboard_identity(role=None):
     prefix = dashboard_identity_prefix(role or session.get("role") or "customer")
-    for key in ("logged_in", "username", "role", "device_id", "auth_marker"):
+    for key in ("logged_in", "username", "role", "device_id", "auth_marker", "platform_session_id"):
         session.pop(key, None)
-    for key in ("logged_in", "username", "device_id", "auth_marker"):
+    for key in ("logged_in", "username", "device_id", "auth_marker", "platform_session_id"):
         session.pop(f"{prefix}_{key}", None)
 
 
-def set_active_dashboard_identity(role, username, device_id=None, auth_marker=None):
+def set_active_dashboard_identity(role, username, device_id=None, auth_marker=None, platform_session_id=None):
     session["logged_in"] = True
     session["username"] = username
     session["role"] = role
     session["device_id"] = device_id
     session["auth_marker"] = auth_marker
+    session["platform_session_id"] = platform_session_id
 
 
 def store_dashboard_identity(authenticated_user):
     role = authenticated_user["role"]
     prefix = dashboard_identity_prefix(role)
+    platform_session_id = register_active_platform_session(
+        SESSION_PLATFORM_DASHBOARD,
+        role,
+        username=authenticated_user["username"],
+        device_id=authenticated_user.get("device_id"),
+    )
     session[f"{prefix}_logged_in"] = True
     session[f"{prefix}_username"] = authenticated_user["username"]
     session[f"{prefix}_device_id"] = authenticated_user.get("device_id")
     session[f"{prefix}_auth_marker"] = authenticated_user.get("auth_marker")
+    session[f"{prefix}_platform_session_id"] = platform_session_id
     set_active_dashboard_identity(
         role,
         authenticated_user["username"],
         authenticated_user.get("device_id"),
         authenticated_user.get("auth_marker"),
+        platform_session_id,
     )
 
 
@@ -1545,6 +1615,7 @@ def activate_dashboard_identity(role):
         session.get(f"{prefix}_username"),
         session.get(f"{prefix}_device_id"),
         session.get(f"{prefix}_auth_marker"),
+        session.get(f"{prefix}_platform_session_id"),
     )
     return is_logged_in()
 
@@ -1700,7 +1771,19 @@ def is_logged_in():
         return False
     stored_auth_marker = str(session.get("auth_marker") or "").strip()
     expected_auth_marker = current_session_auth_marker()
-    if stored_auth_marker and expected_auth_marker and secrets.compare_digest(stored_auth_marker, expected_auth_marker):
+    platform_session_id = str(session.get("platform_session_id") or "").strip()
+    if (
+        stored_auth_marker
+        and expected_auth_marker
+        and secrets.compare_digest(stored_auth_marker, expected_auth_marker)
+        and active_platform_session_matches(
+            SESSION_PLATFORM_DASHBOARD,
+            session.get("role"),
+            username=session.get("username"),
+            device_id=session.get("device_id"),
+            session_id=platform_session_id,
+        )
+    ):
         return True
     clear_dashboard_identity()
     return False
@@ -1798,10 +1881,18 @@ def stored_dashboard_identity_is_valid(role):
     device_id = session.get(f"{prefix}_device_id")
     stored_auth_marker = str(session.get(f"{prefix}_auth_marker") or "").strip()
     expected_auth_marker = current_auth_marker_for_identity(role, username=username, device_id=device_id)
+    platform_session_id = str(session.get(f"{prefix}_platform_session_id") or "").strip()
     return bool(
         stored_auth_marker
         and expected_auth_marker
         and secrets.compare_digest(stored_auth_marker, expected_auth_marker)
+        and active_platform_session_matches(
+            SESSION_PLATFORM_DASHBOARD,
+            role,
+            username=username,
+            device_id=device_id,
+            session_id=platform_session_id,
+        )
     )
 
 
@@ -5634,11 +5725,18 @@ def issue_mobile_token(user):
         )
         or ""
     ).strip()
+    platform_session_id = register_active_platform_session(
+        SESSION_PLATFORM_ANDROID,
+        user.get("role"),
+        username=user.get("username"),
+        device_id=user.get("device_id"),
+    )
     payload = {
         "role": user.get("role"),
         "username": user.get("username"),
         "device_id": normalize_device_id(user.get("device_id")),
         "auth_marker": auth_marker,
+        "platform_session_id": platform_session_id,
     }
     return MOBILE_TOKEN_SERIALIZER.dumps(payload)
 
@@ -5668,14 +5766,28 @@ def resolve_mobile_user():
     username = str(payload.get("username") or "").strip()
     device_id = normalize_device_id(payload.get("device_id"))
     token_auth_marker = str(payload.get("auth_marker") or "").strip()
+    platform_session_id = str(payload.get("platform_session_id") or "").strip()
 
     if not token_auth_marker:
+        g.mobile_user = None
+        return None
+    if not platform_session_id:
+        g.mobile_auth_error = "session_replaced"
         g.mobile_user = None
         return None
 
     if role == "admin" and username == LOGIN_USERNAME:
         current_auth_marker = current_dashboard_auth_marker()
         if not secrets.compare_digest(token_auth_marker, current_auth_marker):
+            g.mobile_user = None
+            return None
+        if not active_platform_session_matches(
+            SESSION_PLATFORM_ANDROID,
+            "admin",
+            username=username,
+            session_id=platform_session_id,
+        ):
+            g.mobile_auth_error = "session_replaced"
             g.mobile_user = None
             return None
         user = {
@@ -5694,6 +5806,16 @@ def resolve_mobile_user():
             return None
         current_auth_marker = current_auth_marker_for_identity("customer", device_id=device_id, account=customer)
         if not current_auth_marker or not secrets.compare_digest(token_auth_marker, current_auth_marker):
+            g.mobile_user = None
+            return None
+        if not active_platform_session_matches(
+            SESSION_PLATFORM_ANDROID,
+            "customer",
+            username=device_id,
+            device_id=device_id,
+            session_id=platform_session_id,
+        ):
+            g.mobile_auth_error = "session_replaced"
             g.mobile_user = None
             return None
         service_config = fetch_device_service_config(device_id, account=customer)
@@ -5721,6 +5843,8 @@ def mobile_auth_required(view):
     def wrapped(*args, **kwargs):
         user = resolve_mobile_user()
         if not user:
+            if getattr(g, "mobile_auth_error", None) == "session_replaced":
+                return jsonify({"error": "This Android session was signed out because the account was used on another Android device.", "code": "session_replaced"}), 409
             return jsonify({"error": "authentication required"}), 401
         return view(*args, **kwargs)
 
@@ -10854,6 +10978,13 @@ def sales_enquiry():
 @login_required
 @csrf_protect
 def logout():
+    clear_active_platform_session(
+        SESSION_PLATFORM_DASHBOARD,
+        session.get("role"),
+        username=session.get("username"),
+        device_id=session.get("device_id"),
+        session_id=session.get("platform_session_id"),
+    )
     session.clear()
     return redirect(url_for("customer_login"))
 
