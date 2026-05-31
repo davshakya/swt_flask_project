@@ -234,6 +234,31 @@ body{font-size:16px}
                 <div class="helper-text">Delete returns to the admin fleet table because the device detail record is removed.</div>
             </div>
 
+            <div class="admin-form">
+                <h3>Tank Setup</h3>
+                <form method="post" action="{{ url_for('admin_device_detail_sensor_configure', device_id=device_id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="admin_tank_capacity_liters">Tank Capacity Liters</label>
+                        <input id="admin_tank_capacity_liters" name="capacity_liters" type="number" min="50" max="50000" step="0.1" inputmode="decimal" placeholder="1000" required>
+                    </div>
+                    <button class="btn btn-admin" type="submit"><span>Save Capacity</span></button>
+                </form>
+                <form method="post" action="{{ url_for('admin_device_detail_sensor_calibrate', device_id=device_id) }}" data-confirm-title="Calibrate upper sensor?" data-confirm-message="Queue upper tank calibration for device {{ device_id }}? The tank sensor should be mounted and the reading should be stable." data-confirm-button="Calibrate Upper Sensor">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="sensor" value="upper">
+                    <button class="btn btn-admin btn-full" type="submit"><span>Calibrate Upper Sensor</span></button>
+                </form>
+                {% if service_config.get("source_tank_monitoring_enabled") %}
+                <form method="post" action="{{ url_for('admin_device_detail_sensor_calibrate', device_id=device_id) }}" data-confirm-title="Calibrate lower sensor?" data-confirm-message="Queue lower/source tank calibration for device {{ device_id }}? The lower sensor should be mounted and stable." data-confirm-button="Calibrate Lower Sensor">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="sensor" value="lower">
+                    <button class="btn btn-admin btn-full" type="submit"><span>Calibrate Lower Sensor</span></button>
+                </form>
+                {% endif %}
+                <div class="helper-text">Save capacity first, then calibrate after the sensor is installed and reporting stable tank data. Upper calibration is sent to the slave when the runtime configuration uses a slave upper sensor.</div>
+            </div>
+
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Reset Password</h3>

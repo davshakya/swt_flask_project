@@ -5584,6 +5584,15 @@ def build_device_service_command(service_config):
     )
 
 
+def paired_slave_device_id(master_device_id):
+    normalized_device_id = normalize_device_id(master_device_id)
+    parts = normalized_device_id.split("-")
+    if len(parts) == 5 and parts[0] == "swt" and parts[1] == "000":
+        parts[1] = "100"
+        return "-".join(parts)
+    return normalized_device_id
+
+
 def authenticate_dashboard_user(username, password):
     normalized_username = str(username or "").strip()
     if normalized_username == LOGIN_USERNAME and verify_dashboard_password(password):
@@ -11830,6 +11839,116 @@ def admin_device_detail_configuration(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Configuration saved. Device changes apply on the next command poll."))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/sensor/calibrate", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_sensor_calibrate(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    service_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
+    sensor = str(request.form.get("sensor") or "upper").strip().lower()
+    lower_requested = sensor in {"lower", "source", "source_tank"}
+    if lower_requested and not bool(service_config.get("source_tank_monitoring_enabled")):
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Lower/source sensor calibration is not available because lower sensor service is disabled.",
+            )
+        )
+
+    command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
+    command_target = scoped_device_id
+    if not lower_requested and bool(service_config.get("slave_device_enabled", True)):
+        command_target = paired_slave_device_id(scoped_device_id)
+
+    result = queue_command(command, target_device=command_target)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error=payload.get("error") or "Unable to queue calibration command.",
+            )
+        )
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_device_calibration",
+        target_type="device",
+        target_id=command_target,
+        device_id=scoped_device_id,
+        details={
+            "command": result.get("command"),
+            "sensor": "lower" if lower_requested else "upper",
+            "command_target": command_target,
+            "queued_at": result.get("queued_at"),
+        },
+    )
+    sensor_label = "lower/source" if lower_requested else "upper"
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"{sensor_label.title()} sensor calibration command queued for {command_target}.",
+        )
+    )
+
+
+@app.route("/devices/<device_id>/sensor/configure", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_sensor_configure(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    capacity_liters = request.values.get("capacity_liters", type=float)
+    if capacity_liters is None:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Tank capacity is required.",
+            )
+        )
+    if capacity_liters < 50 or capacity_liters > 50000:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Tank capacity must be between 50 and 50000 liters.",
+            )
+        )
+
+    command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error=payload.get("error") or "Unable to queue tank capacity command.",
+            )
+        )
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_device_tank_capacity",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "command": result.get("command"),
+            "capacity_liters": round(capacity_liters, 1),
+            "queued_at": result.get("queued_at"),
+        },
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"Tank capacity command queued: {capacity_liters:.1f} L. Calibrate next to learn tank height.",
+        )
+    )
 
 
 @app.route("/admin/customers/<device_id>/simulator", methods=["POST"])

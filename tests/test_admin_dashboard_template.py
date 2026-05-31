@@ -214,6 +214,22 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert "{% if config_message or config_error %}" not in device_template
 
 
+def test_device_detail_exposes_admin_tank_setup_controls():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "Tank Setup" in device_template
+    assert "admin_tank_capacity_liters" in device_template
+    assert "admin_device_detail_sensor_configure" in device_template
+    assert "admin_device_detail_sensor_calibrate" in device_template
+    assert 'name="sensor" value="upper"' in device_template
+    assert 'name="sensor" value="lower"' in device_template
+    assert 'data-confirm-title="Calibrate upper sensor?"' in device_template
+    assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
+    assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
+    assert "command_target = paired_slave_device_id(scoped_device_id)" in server_source
+
+
 def test_device_detail_renders_master_slave_memory_health_graph():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
