@@ -6155,6 +6155,18 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["capacity_liters"] = round(capacity_liters, 1)
     data["tank_capacity_liters"] = round(capacity_liters, 1)
     data["tank_height_cm"] = round(safe_float(data.get("tank_height_cm"), 0), 1)
+    sensor_distance_raw = data.get("sensor_distance_cm")
+    sensor_distance_cm = (
+        round(safe_float(sensor_distance_raw, 0), 1)
+        if sensor_distance_raw not in (None, "", "null") else None
+    )
+    data["sensor_distance_cm"] = sensor_distance_cm
+    if sensor_distance_cm is not None and data["tank_height_cm"] > 0:
+        data["water_depth_cm"] = round(max(0.0, min(data["tank_height_cm"], data["tank_height_cm"] - sensor_distance_cm)), 1)
+        data["water_depth_label"] = f"{data['water_depth_cm']:.1f} cm"
+    else:
+        data["water_depth_cm"] = None
+        data["water_depth_label"] = "--"
     data["remaining_liters"] = liters
     data["water_available_label"] = f"{liters:.1f} L / {capacity_liters:.1f} L"
     lower_level_raw = data.get("lower_tank_level")
@@ -6176,6 +6188,13 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         round(safe_float(lower_distance_raw, 0), 1)
         if lower_distance_raw not in (None, "", "null") else None
     )
+    lower_height_cm = safe_float(data.get("lower_tank_height_cm") or data.get("source_tank_height_cm"), 0)
+    if data["lower_sensor_distance_cm"] is not None and lower_height_cm > 0:
+        data["lower_water_depth_cm"] = round(max(0.0, min(lower_height_cm, lower_height_cm - data["lower_sensor_distance_cm"])), 1)
+        data["lower_water_depth_label"] = f"{data['lower_water_depth_cm']:.1f} cm"
+    else:
+        data["lower_water_depth_cm"] = None
+        data["lower_water_depth_label"] = "--"
     if data["lower_tank_level"] is not None:
         lower_liters = round((data["lower_tank_level"] / 100) * capacity_liters, 1)
         data["lower_water_available_label"] = f"{lower_liters:.1f} L / {capacity_liters:.1f} L"
