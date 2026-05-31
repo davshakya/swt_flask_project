@@ -227,7 +227,7 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'data-confirm-title="Calibrate upper sensor?"' in device_template
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
-    assert "command_target = paired_slave_device_id(scoped_device_id)" in server_source
+    assert "The master will forward upper calibration to the slave MCU" in server_source
 
 
 def test_device_detail_renders_master_slave_memory_health_graph():

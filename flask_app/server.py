@@ -11860,8 +11860,6 @@ def admin_device_detail_sensor_calibrate(device_id):
 
     command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
     command_target = scoped_device_id
-    if not lower_requested and bool(service_config.get("slave_device_enabled", True)):
-        command_target = paired_slave_device_id(scoped_device_id)
 
     result = queue_command(command, target_device=command_target)
     if isinstance(result, tuple):
@@ -11887,11 +11885,12 @@ def admin_device_detail_sensor_calibrate(device_id):
         },
     )
     sensor_label = "lower/source" if lower_requested else "upper"
+    delivery_note = " The master will forward upper calibration to the slave MCU when slave upper sensing is enabled."
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
-            config_message=f"{sensor_label.title()} sensor calibration command queued for {command_target}.",
+            config_message=f"{sensor_label.title()} sensor calibration command queued for {command_target}.{'' if lower_requested else delivery_note}",
         )
     )
 
