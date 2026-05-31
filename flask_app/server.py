@@ -6858,8 +6858,9 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     ai_leak_status = str(leakage_model.get("status") or "").lower()
     ai_leak_active = ai_leak_status in {"likely_leak", "possible_leak"}
     dry_run = bool_flag(snapshot.get("dry_run"))
+    source_monitoring_active = source_service == "ON"
     source_blocked = (
-        source_service == "ON"
+        source_monitoring_active
         and (source_level is None or source_level < 20 or (source_sensor and source_sensor != "OK"))
     )
     main_sensor_bad = bool(sensor and sensor != "OK")
@@ -6886,12 +6887,12 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     elif dry_run:
         severity = "critical"
         tone = "bad"
-        title = "Pump locked by source tank safety"
+        title = "Pump stopped to prevent dry run" if not source_monitoring_active else "Pump locked by source tank safety"
         summary = "Dry-run protection stopped the pump to protect the motor."
         action_title = "Check source water before starting"
-        action_note = "Start the pump only after source water is available."
+        action_note = "Start the pump only after source water and inlet flow are available."
         observations.append("Dry-run protection is active.")
-        actions.append("Check source water before starting the pump again.")
+        actions.append("Check source water and inlet flow before starting the pump again.")
     elif pipe_leak:
         severity = "warning"
         tone = "warn"

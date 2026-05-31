@@ -31,9 +31,34 @@ def test_shared_guidance_prioritizes_dry_run_as_critical_pump_protection():
 
     assert guidance["severity"] == "critical"
     assert guidance["tone"] == "bad"
-    assert guidance["title"] == "Pump locked by source tank safety"
+    assert guidance["title"] == "Pump stopped to prevent dry run"
     assert "Dry-run protection stopped the pump" in guidance["summary"]
     assert "Check source water" in guidance["action_title"]
+
+
+def test_shared_guidance_names_source_tank_only_when_source_monitoring_is_active():
+    guidance = server.build_shared_guidance_payload(
+        {
+            "level": 42,
+            "motor": "OFF",
+            "dry_run": "YES",
+            "sensor": "OK",
+            "lower_tank_service": "ON",
+            "lower_sensor": "OK",
+            "lower_tank_level": 2,
+            "telemetry_status": "online",
+        },
+        {
+            "insights": {},
+            "analysis": {"quality": {"score": 88}},
+            "comparison": {},
+            "events_analysis": {},
+            "levels": {"values": [42]},
+        },
+    )
+
+    assert guidance["title"] == "Pump locked by source tank safety"
+    assert "source water" in guidance["action_note"]
 
 
 def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_leak():

@@ -307,7 +307,7 @@ canvas{height:260px!important}
                         <button id="btn_config" class="btn-lite" onclick="sendTankConfig()">Save Capacity</button>
                         <button id="btn_config_calibrate" class="btn-calibrate" onclick="sendTankConfig({calibrateAfter:true})">Save & Calibrate</button>
                     </div>
-                    <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source tank monitoring is off. Start Pump uses only the main tank state.</div>
+                    <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}Remote control is unavailable for this dashboard right now.{% endif %}</div>
                 </div>
                 <div class="card">
@@ -344,7 +344,7 @@ canvas{height:260px!important}
                     </div>
                     <div id="customerSuggestedAction" class="statuscopy" style="margin-top:14px">Waiting for a recommended next action.</div>
                     <div id="customerSuggestedActionNote" class="subvalue">The dashboard will explain the safest next move here.</div>
-                    <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source tank monitoring is off. Start Pump uses only the main tank state.</div>
+                    <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if viewer_role == "customer" and not cloud_feed_enabled %}Cloud feed is disabled for this customer account.{% elif can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
                     <div id="commandBanner" class="banner info" role="status" aria-live="polite"></div>
                     <div id="warningBanner" class="banner warn" role="status" aria-live="polite"></div>
@@ -683,11 +683,11 @@ function buildSourceTankState(snapshot){
     const level=levelAvailable?Math.max(0,Math.min(Number(lowerLevelRaw),100)):null;
     const sensorHealthy=lowerSensorRaw==="OK";
     const canStart=!monitoringActive||(levelAvailable&&sensorHealthy&&level>=SOURCE_TANK_MIN_RUN_PERCENT);
-    let hintText="Source tank monitoring is OFF. Start Pump uses only the main tank state.";
+    let hintText="Source monitoring is OFF. Start Pump uses the main tank level and automation settings.";
     let hintTone="";
     let visualLevel="OFF";
     let volumeText="Monitoring OFF";
-    let infoText="Source tank interlock is off.";
+    let infoText="Source water is not monitored by this device.";
     let statusText="Off";
     let statusTone="";
     let sensorStatusText="Disabled";
