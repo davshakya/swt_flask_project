@@ -794,10 +794,15 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
   const relay=monitoringSummary.relay||{};
   const capacity=snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
-  const waterDepth=snapshot.water_depth_cm!==undefined&&snapshot.water_depth_cm!==null?`${Number(snapshot.water_depth_cm).toFixed(1)} cm`:"Depth not reported";
+  const heightNumber=Number(snapshot.tank_height_cm);
+  const levelNumber=Number(snapshot.level);
+  const depthNumber=snapshot.water_depth_cm!==undefined&&snapshot.water_depth_cm!==null
+    ?Number(snapshot.water_depth_cm)
+    :(Number.isFinite(heightNumber)&&heightNumber>0&&Number.isFinite(levelNumber)?Math.max(0,Math.min(heightNumber,heightNumber*(levelNumber/100))):NaN);
+  const waterDepth=Number.isFinite(depthNumber)?`${depthNumber.toFixed(1)} cm`:"--";
   const lowerDistance=snapshot.lower_sensor_distance_cm!==undefined&&snapshot.lower_sensor_distance_cm!==null?`${snapshot.lower_sensor_distance_cm} cm`:"Distance not reported";
-  const lowerWaterDepth=snapshot.lower_water_depth_cm!==undefined&&snapshot.lower_water_depth_cm!==null?`${Number(snapshot.lower_water_depth_cm).toFixed(1)} cm`:"Depth not reported";
-  const tankHeight=snapshot.tank_height_cm!==undefined&&snapshot.tank_height_cm!==null?`${Number(snapshot.tank_height_cm).toFixed(1)} cm`:"Not calibrated";
+  const lowerWaterDepth=snapshot.lower_water_depth_cm!==undefined&&snapshot.lower_water_depth_cm!==null?`${Number(snapshot.lower_water_depth_cm).toFixed(1)} cm`:"--";
+  const tankHeight=Number.isFinite(heightNumber)?`${heightNumber.toFixed(1)} cm`:"Not calibrated";
   const usesSlave=Boolean(serviceConfig.slave_device_enabled);
   const sourceMonitoringEnabled=Boolean(serviceConfig.source_tank_monitoring_enabled)||isPositiveServiceValue(snapshot.lower_tank_service);
   const mainSensorEnabled=serviceConfig.main_sensor_enabled!==false;
@@ -807,8 +812,9 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
     {label:"Simulator",value:simulatorStatusText(snapshot,serviceConfig),show:true},
-    {label:"Tank Geometry",value:`${formatLiters(capacity)} capacity / ${waterDepth} water depth`,show:isReportedInfoValue(capacity)||isReportedInfoValue(waterDepth)},
-    {label:"Calibrated Tank Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
+    {label:"Tank Capacity",value:formatLiters(capacity),show:isReportedInfoValue(capacity)},
+    {label:"Calibrated Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
+    {label:"Water Depth",value:waterDepth,show:true},
     {label:"Command Service",value:yesNo(snapshot.command_service)},
     {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
     {label:"OTA Service",value:yesNo(snapshot.ota_service),show:Boolean(serviceConfig.ota_enabled)||isPositiveServiceValue(snapshot.ota_service)},

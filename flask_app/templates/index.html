@@ -1508,7 +1508,12 @@ function renderSnapshot(snapshot){
     applyStatusTone("buzzer_status",serviceTone(snapshot.buzzer_service));
     applyStatusTone("led_display_status",serviceTone(snapshot.led_display_service));
     const waterDepth=Number(snapshot.water_depth_cm);
-    setText("tank_height_cm",Number.isFinite(waterDepth)&&waterDepth>=0?`${waterDepth.toFixed(1)} cm`:"--");
+    const fallbackHeight=Number(snapshot.tank_height_cm);
+    const fallbackLevel=Number(snapshot.level);
+    const resolvedWaterDepth=Number.isFinite(waterDepth)&&waterDepth>=0
+        ?waterDepth
+        :(Number.isFinite(fallbackHeight)&&fallbackHeight>0&&Number.isFinite(fallbackLevel)?Math.max(0,Math.min(fallbackHeight,fallbackHeight*(fallbackLevel/100))):NaN);
+    setText("tank_height_cm",Number.isFinite(resolvedWaterDepth)?`${resolvedWaterDepth.toFixed(1)} cm`:"--");
     setText("motor_cycles",snapshot.motor_cycles??"--");
     setText("leak_events",snapshot.leak_events??"--");
     setText("healthStatus",snapshot.tank_health_status||"--");
