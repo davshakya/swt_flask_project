@@ -350,6 +350,16 @@ const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const localeTools=window.swtLocale||{};
 let deviceRefreshInFlight=false;
 let deviceRefreshTimer=0;
+let latestHistory=[];
+let latestEvents=[];
+let lastHeavyRefreshAt=0;
+const DEVICE_REFRESH_MS=30000;
+const DEVICE_HEAVY_REFRESH_MS=90000;
+function setStableHtml(node,html){
+  if(!node)return;
+  const next=html??"";
+  if(node.innerHTML!==next)node.innerHTML=next;
+}
 function syncRuntimeConfigurationOptions(){
   const slaveDevice=document.getElementById("slaveDeviceOption");
   const slaveUpper=document.getElementById("slaveUpperSensorOption");
@@ -538,9 +548,9 @@ function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",ti
   const raw=String(value??"").trim();
   return raw||fallback;
 }
-function setText(id,value){const node=document.getElementById(id);if(node)node.textContent=value??"--";}
-function setHtml(id,value){const node=document.getElementById(id);if(node)node.innerHTML=value??"--";}
-function setClassName(id,className){const node=document.getElementById(id);if(node)node.className=className;}
+function setText(id,value){const node=document.getElementById(id);const next=value??"--";if(node&&node.textContent!==next)node.textContent=next;}
+function setHtml(id,value){setStableHtml(document.getElementById(id),value??"--");}
+function setClassName(id,className){const node=document.getElementById(id);if(node&&node.className!==className)node.className=className;}
 function formatPercent(value){return value===undefined||value===null?"--":`${Number(value).toFixed(1)}%`;}
 function formatLiters(value){return value===undefined||value===null?"--":`${Number(value).toFixed(1)} L`;}
 function titleCase(value){
@@ -709,14 +719,14 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
     return`<div class="memory-chart-wrap"><div class="chart-title">${escapeHtml(title)}<span>${escapeHtml(unit)}</span></div>${chartLegend}<svg class="memory-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">${grid}${thresholdLine}${lines}${activeRoles.map((role)=>dotsFor(role)).join("")}<text x="${margin.left}" y="${height-10}">${escapeHtml(formatLocaleDateTime(firstTime,"Current point"))}</text><text x="${width-margin.right-122}" y="${height-10}">${escapeHtml(formatLocaleDateTime(latestTime,"Latest point"))}</text></svg></div>`;
   }
   const heapChart=renderTrendChart({title:"Heap Graph",unit:"Master + Slave",series:heapSeries,formatter:formatBytes,threshold:15000,emptyText:"Heap telemetry has not been reported yet."});
-  wrap.innerHTML=`${statsHtml}${heapChart}`;
+  setStableHtml(wrap,`${statsHtml}${heapChart}`);
   if(legend){
-    legend.innerHTML=(usesSlave?["master","slave"]:["master"]).map((role)=>{
+    setStableHtml(legend,(usesSlave?["master","slave"]:["master"]).map((role)=>{
       const heapLatest=heapSeries[role][heapSeries[role].length-1];
       if(!heapLatest)return"";
       const heapText=heapLatest?formatHeapValue(heapLatest.value):"--";
       return`<span class="memory-chip"><span class="memory-swatch ${role==="slave"?"slave":""}"></span>${role==="slave"?"Slave":"Master"} ${escapeHtml(heapText)}</span>`;
-    }).join("");
+    }).join(""));
   }
 }
 function yesNo(value){
@@ -817,7 +827,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
   ].filter((item)=>item.show!==false&&isReportedInfoValue(item.value));
-  root.innerHTML=items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join("");
+  setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
 function uniqueFeedItems(items){
   const seen=new Set();
@@ -831,27 +841,26 @@ function uniqueFeedItems(items){
 function renderList(id,items,emptyText,formatter){
   const root=document.getElementById(id);
   if(!root)return;
-  root.innerHTML="";
   if(!items.length){
-    const li=document.createElement("li");
-    li.innerHTML=`<div class="helper-text">${emptyText}</div>`;
-    root.appendChild(li);
+    setStableHtml(root,`<li><div class="helper-text">${escapeHtml(emptyText)}</div></li>`);
     return;
   }
-  items.forEach((item)=>{
-    const li=document.createElement("li");
-    li.innerHTML=formatter(item);
-    root.appendChild(li);
-  });
+  setStableHtml(root,items.map((item)=>`<li>${formatter(item)}</li>`).join(""));
 }
 async function loadDevice({silent=false}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
-  const scrollX=window.scrollX||0;
-  const scrollY=window.scrollY||0;
-  const active=document.activeElement;
+  const now=Date.now();
+  const includeHeavy=!silent||!latestHistory.length||now-lastHeavyRefreshAt>=DEVICE_HEAVY_REFRESH_MS;
   try{
-  const response=await fetch(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,{cache:"no-store"});
+  const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
+  if(!includeHeavy){
+    statusUrl.searchParams.set("history","0");
+    statusUrl.searchParams.set("events","0");
+    statusUrl.searchParams.set("alerts","0");
+    statusUrl.searchParams.set("audit","0");
+  }
+  const response=await fetch(statusUrl.toString(),{cache:"no-store"});
   const data=await response.json();
   if(!response.ok){
     setText("headline",data.error||"Unable to load device.");
@@ -890,28 +899,28 @@ async function loadDevice({silent=false}={}){
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
-  renderMemoryHealth(data.history||[],snapshot,serviceConfig);
+  if(Array.isArray(data.history)){
+    latestHistory=data.history;
+    lastHeavyRefreshAt=now;
+  }
+  renderMemoryHealth(latestHistory,snapshot,serviceConfig);
   updateSimulatorControls(snapshot,serviceConfig);
 
-  const events=uniqueFeedItems(data.events||[]);
+  if(Array.isArray(data.events))latestEvents=uniqueFeedItems(data.events||[]);
+  const events=latestEvents;
   renderList("events",events,"No recent events for this device.",(entry)=>`<div class="list-item-head"><div class="list-title">${escapeHtml(entry.message||"Event")}</div><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></div><div class="list-meta">${escapeHtml(formatLocaleDateTime(entry.time))}</div>`);
 
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
   setClassName("connection",connectionClass);
   }finally{
     deviceRefreshInFlight=false;
-    if(silent){
-      window.requestAnimationFrame(()=>{
-        window.scrollTo(scrollX,scrollY);
-        if(active&&typeof active.focus==="function"&&document.contains(active)){
-          try{active.focus({preventScroll:true});}catch(error){}
-        }
-      });
-    }
   }
 }
 loadDevice();
-deviceRefreshTimer=setInterval(()=>loadDevice({silent:true}),10000);
+deviceRefreshTimer=setInterval(()=>{
+  if(document.hidden)return;
+  loadDevice({silent:true});
+},DEVICE_REFRESH_MS);
 window.swtPageTeardown=()=>{if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);};
 })();
 </script>

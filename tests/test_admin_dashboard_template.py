@@ -254,7 +254,9 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "Master + Slave" in device_template
     assert "memory-live-wave" not in device_template
     assert "wavePathFor" not in device_template
-    assert "renderMemoryHealth(data.history||[],snapshot,serviceConfig)" in device_template
+    assert "let latestHistory=[]" in device_template
+    assert "renderMemoryHealth(latestHistory,snapshot,serviceConfig)" in device_template
+    assert 'statusUrl.searchParams.set("history","0")' in device_template
     assert "slave_free_heap" in server_source
     assert "slave_cpu_utilization_pct" in server_source
     assert "cpu_utilization_pct REAL" in server_source
