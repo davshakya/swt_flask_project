@@ -6472,6 +6472,88 @@ def compact_motor_series(time_values, value_values):
     return compact_times, compact_values
 
 
+def build_motor_activity_metrics(time_values, value_values):
+    safe_times = list(time_values or [])
+    safe_values = list(value_values or [])
+    size = min(len(safe_times), len(safe_values))
+    if size <= 1:
+        return {
+            "runtime_seconds": 0,
+            "runtime_hours": 0,
+            "observed_hours": 0,
+            "duty_cycle_pct": 0,
+            "completed_runs": 0,
+            "avg_run_seconds": 0,
+            "short_cycle_count": 0,
+            "avg_off_seconds": 0,
+        }
+
+    runtime_seconds = 0.0
+    observed_seconds = 0.0
+    run_durations = []
+    off_durations = []
+    current_run_seconds = 0.0
+    current_off_seconds = 0.0
+    run_active = False
+    off_active = False
+
+    for index in range(size - 1):
+        start_time = parse_timestamp(safe_times[index])
+        end_time = parse_timestamp(safe_times[index + 1])
+        if start_time is None or end_time is None:
+            run_active = False
+            off_active = False
+            current_run_seconds = 0.0
+            current_off_seconds = 0.0
+            continue
+
+        duration_seconds = (end_time - start_time).total_seconds()
+        if duration_seconds <= 0:
+            continue
+
+        raw_value = safe_values[index]
+        if raw_value is None or raw_value == "":
+            run_active = False
+            off_active = False
+            current_run_seconds = 0.0
+            current_off_seconds = 0.0
+            continue
+
+        observed_seconds += duration_seconds
+        is_on = int(raw_value) == 1
+        if is_on:
+            runtime_seconds += duration_seconds
+            current_run_seconds = (current_run_seconds + duration_seconds) if run_active else duration_seconds
+            run_active = True
+            if off_active and current_off_seconds > 0:
+                off_durations.append(current_off_seconds)
+            off_active = False
+            current_off_seconds = 0.0
+        else:
+            current_off_seconds = (current_off_seconds + duration_seconds) if off_active else duration_seconds
+            off_active = True
+            if run_active and current_run_seconds > 0:
+                run_durations.append(current_run_seconds)
+            run_active = False
+            current_run_seconds = 0.0
+
+    completed_runs = len(run_durations)
+    avg_run_seconds = sum(run_durations) / completed_runs if completed_runs else 0.0
+    avg_off_seconds = sum(off_durations) / len(off_durations) if off_durations else 0.0
+    short_cycle_count = sum(1 for seconds in run_durations if seconds < 5 * 60)
+    duty_cycle_pct = (runtime_seconds / observed_seconds) * 100.0 if observed_seconds > 0 else 0.0
+    return {
+        "runtime_seconds": int(round(runtime_seconds)),
+        "runtime_hours": round(runtime_seconds / 3600.0, 3),
+        "observed_hours": round(observed_seconds / 3600.0, 3),
+        "duty_cycle_pct": round(duty_cycle_pct, 2),
+        "completed_runs": completed_runs,
+        "avg_run_seconds": int(round(avg_run_seconds)),
+        "short_cycle_count": short_cycle_count,
+        "avg_off_seconds": int(round(avg_off_seconds)),
+    }
+
+
 def read_cached_analytics(cache_key, now_ts=None):
     if ANALYTICS_CACHE_TTL_SECONDS <= 0:
         return None
@@ -6608,6 +6690,16 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "pump_runs": 0,
             "latest_warning": None,
             "retention_days": DEVICE_EVENT_RETENTION_DAYS,
+        },
+        "pump_activity": {
+            "runtime_seconds": 0,
+            "runtime_hours": 0,
+            "observed_hours": 0,
+            "duty_cycle_pct": 0,
+            "completed_runs": 0,
+            "avg_run_seconds": 0,
+            "short_cycle_count": 0,
+            "avg_off_seconds": 0,
         },
         "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
     }
@@ -6766,7 +6858,9 @@ def build_leakage_ai_model(
     valid_hours,
     valid_drop_count,
     quality,
+    pump_activity_metrics=None,
 ):
+    pump_activity_metrics = pump_activity_metrics or {}
     rates = [float(value) for value in (consumption_rate_segments or []) if value is not None and math.isfinite(float(value)) and value > 0]
     median_rate = percentile_value(rates, 50)
     p90_rate = percentile_value(rates, 90)
@@ -6807,6 +6901,14 @@ def build_leakage_ai_model(
         reasons.append("Daily usage is above the recent baseline.")
     if motor_cycles > 12:
         score += 6.0
+    short_cycle_count = int(safe_float(pump_activity_metrics.get("short_cycle_count"), 0))
+    duty_cycle_pct = safe_float(pump_activity_metrics.get("duty_cycle_pct"), 0)
+    if short_cycle_count >= 4:
+        score += min(8.0, short_cycle_count)
+        reasons.append("Pump activity shows repeated short runs.")
+    if duty_cycle_pct >= 45 and consumption_rate >= 8:
+        score += 4.0
+        reasons.append("Pump duty cycle is high during this range.")
     if refill_events > 0 and leak_events <= 0:
         score = max(0.0, score - min(12.0, refill_events * 3.0))
 
@@ -6859,6 +6961,10 @@ def build_leakage_ai_model(
             "recent_to_baseline_ratio": round(float(rate_ratio), 2),
             "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
             "device_leak_events": int(leak_events or 0),
+            "pump_runtime_hours": round(safe_float(pump_activity_metrics.get("runtime_hours"), 0), 3),
+            "pump_duty_cycle_pct": round(duty_cycle_pct, 2),
+            "pump_short_cycle_count": short_cycle_count,
+            "avg_pump_run_seconds": int(safe_float(pump_activity_metrics.get("avg_run_seconds"), 0)),
         },
         "reasons": reasons[:5] or ["No unusual off-pump water loss pattern was found."],
     }
@@ -6876,9 +6982,11 @@ def build_analysis_payload(
     refill_events,
     event_analysis=None,
     leakage_model=None,
+    pump_activity_metrics=None,
 ):
     event_analysis = event_analysis or {}
     leakage_model = leakage_model or {}
+    pump_activity_metrics = pump_activity_metrics or {}
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
     anomalies = []
@@ -6898,7 +7006,8 @@ def build_analysis_payload(
         anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
     elif usage_change_pct is not None and usage_change_pct >= 25:
         anomalies.append({"kind": "usage_spike", "severity": "warning", "message": "Usage is above the recent baseline."})
-    if motor_cycles > 12 or int(event_counts.get("pump_started", 0) or 0) > 12:
+    telemetry_short_cycles = int(safe_float(pump_activity_metrics.get("short_cycle_count"), 0))
+    if motor_cycles > 12 or int(event_counts.get("pump_started", 0) or 0) > 12 or telemetry_short_cycles >= 4:
         anomalies.append({"kind": "short_cycling", "severity": "warning", "message": "Pump cycling is higher than expected."})
     if int(severity_counts.get("warning", 0) or 0) >= 3:
         anomalies.append({"kind": "event_warning_pattern", "severity": "warning", "message": "Several warning events were recorded in the event history."})
@@ -6923,6 +7032,9 @@ def build_analysis_payload(
         "event_window": {
             "event_count": int(event_analysis.get("event_count", 0) or 0),
             "pump_runtime_seconds": int(event_analysis.get("pump_runtime_seconds", 0) or 0),
+            "telemetry_pump_runtime_seconds": int(safe_float(pump_activity_metrics.get("runtime_seconds"), 0)),
+            "telemetry_pump_duty_cycle_pct": round(safe_float(pump_activity_metrics.get("duty_cycle_pct"), 0), 2),
+            "telemetry_short_cycle_count": telemetry_short_cycles,
             "warning_count": int(severity_counts.get("warning", 0) or 0),
             "danger_count": int(severity_counts.get("danger", 0) or 0),
         },
@@ -6934,6 +7046,8 @@ def build_analysis_payload(
                 "consumption_rate",
                 "daily_baseline",
                 "pump_cycles",
+                "pump_runtime",
+                "pump_duty_cycle",
                 "leak_flags",
                 "ai_leakage_score",
                 "telemetry_quality",
@@ -7014,6 +7128,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     analysis = analytics_payload.get("analysis") or {}
     quality = analysis.get("quality") or {}
     event_analysis = analytics_payload.get("events_analysis") or {}
+    pump_activity = analytics_payload.get("pump_activity") or {}
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
     comparison = analytics_payload.get("comparison") or {}
@@ -7147,7 +7262,8 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
 
     motor_cycles = safe_float(insights.get("motor_cycles"), safe_float(snapshot.get("motor_cycles"), 0))
     event_pump_cycles = safe_float(event_counts.get("pump_started"), 0)
-    if max(motor_cycles, event_pump_cycles) > 12:
+    telemetry_short_cycles = safe_float(pump_activity.get("short_cycle_count"), 0)
+    if max(motor_cycles, event_pump_cycles) > 12 or telemetry_short_cycles >= 4:
         observations.append("Pump cycling is higher than normal.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
     if safe_float(severity_counts.get("warning"), 0) >= 3:
@@ -7610,6 +7726,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
+    pump_activity_metrics = build_motor_activity_metrics(motor_times, motor_values)
     analytics_quality = build_analytics_quality_payload(
         row_count=row_count,
         valid_hours=valid_hours,
@@ -7627,6 +7744,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         valid_hours=valid_hours,
         valid_drop_count=valid_drop_count,
         quality=analytics_quality,
+        pump_activity_metrics=pump_activity_metrics,
     )
     health = calculate_health(
         snapshot=latest_row,
@@ -7646,7 +7764,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         alerts.append("Water consumption is above the usual range.")
     if empty_prediction is not None and empty_prediction < 6:
         alerts.append("Tank may empty within the next 6 hours.")
-    if motor_cycles > 12:
+    if motor_cycles > 12 or int(pump_activity_metrics.get("short_cycle_count", 0) or 0) >= 4:
         alerts.append("Motor is cycling frequently. Check automation thresholds.")
     if latest_row["seconds_since_sync"] > STALE_AFTER_SECONDS:
         alerts.append("Live telemetry looks stale. Check device connectivity.")
@@ -7708,6 +7826,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "time": motor_times,
             "values": [int(value) if value is not None else None for value in motor_values],
         },
+        "pump_activity": pump_activity_metrics,
         "comparison": {
             "latest_day": latest_day,
             "latest_day_usage": round(latest_day_usage, 2),
@@ -7738,6 +7857,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         refill_events=refill_events,
         event_analysis=event_analysis,
         leakage_model=leakage_model,
+        pump_activity_metrics=pump_activity_metrics,
     )
     if normalized_device_id:
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row

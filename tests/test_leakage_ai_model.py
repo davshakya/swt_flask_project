@@ -22,6 +22,12 @@ def test_leakage_ai_model_flags_unusual_off_pump_drop_pattern():
         valid_hours=3.5,
         valid_drop_count=5,
         quality={"score": 88},
+        pump_activity_metrics={
+            "runtime_hours": 0.8,
+            "duty_cycle_pct": 18.0,
+            "short_cycle_count": 1,
+            "avg_run_seconds": 480,
+        },
     )
 
     assert model["status"] in {"likely_leak", "possible_leak"}
@@ -41,11 +47,31 @@ def test_leakage_ai_model_keeps_normal_usage_clear():
         valid_hours=2.0,
         valid_drop_count=1,
         quality={"score": 82},
+        pump_activity_metrics={"duty_cycle_pct": 4.0, "short_cycle_count": 0},
     )
 
     assert model["status"] == "normal"
     assert model["score"] < 30
     assert model["leak_type"] == "none"
+    assert model["features"]["pump_duty_cycle_pct"] == 4.0
+
+
+def test_motor_activity_metrics_use_actual_time_gaps():
+    metrics = server.build_motor_activity_metrics(
+        [
+            "2026-06-01 10:00:00",
+            "2026-06-01 10:10:00",
+            "2026-06-01 10:20:00",
+            "2026-06-01 10:23:00",
+            "2026-06-01 10:30:00",
+        ],
+        [1, 0, 1, 0, 0],
+    )
+
+    assert metrics["runtime_seconds"] == 13 * 60
+    assert metrics["completed_runs"] == 2
+    assert metrics["short_cycle_count"] == 1
+    assert metrics["duty_cycle_pct"] == 43.33
 
 
 def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
@@ -67,7 +93,10 @@ def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
         refill_events=0,
         event_analysis={},
         leakage_model=leakage,
+        pump_activity_metrics={"short_cycle_count": 4, "runtime_seconds": 900, "duty_cycle_pct": 25.0},
     )
 
     assert payload["leakage"] == leakage
     assert any(item["kind"] == "ai_leakage" for item in payload["anomalies"])
+    assert any(item["kind"] == "short_cycling" for item in payload["anomalies"])
+    assert payload["event_window"]["telemetry_short_cycle_count"] == 4
