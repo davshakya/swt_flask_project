@@ -10453,6 +10453,21 @@ def mobile_sensor_calibrate():
     )
 
 
+@app.route("/api/mobile/device/local-auth/reset", methods=["POST"])
+@mobile_auth_required
+def mobile_device_local_auth_reset():
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    data = request.get_json(silent=True) or {}
+    target_device = current_mobile_scope_device_id(data.get("device_id") or request.args.get("device_id", type=str))
+    return mobile_queue_command_response(
+        "WEB_AUTH_RESET",
+        target_device=target_device,
+        message="Local firmware password reset request queued.",
+    )
+
+
 @app.route("/api/mobile/sensor/configure", methods=["POST"])
 @mobile_auth_required
 def mobile_sensor_configure():
