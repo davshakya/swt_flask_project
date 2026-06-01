@@ -4089,6 +4089,22 @@ def ensure_tank_data_mysql_column_types(cursor):
         cursor.execute(f"ALTER TABLE tank_data MODIFY COLUMN {column} TEXT")
 
 
+def drop_obsolete_columns(cursor, table_name, obsolete_columns):
+    existing = {row[1] for row in cursor.execute(f"PRAGMA table_info({table_name})").fetchall()}
+    for column in obsolete_columns:
+        if column not in existing:
+            continue
+        logger.info("Dropping obsolete database column %s.%s", table_name, column)
+        cursor.execute(
+            f"ALTER TABLE {quote_mysql_identifier(table_name)} "
+            f"DROP COLUMN {quote_mysql_identifier(column)}"
+        )
+
+
+def remove_obsolete_schema_columns(cursor):
+    drop_obsolete_columns(cursor, "tank_data", ("simulator", "source_tank_simulator"))
+
+
 def rebuild_tank_data_without_simulator_columns(cursor):
     existing = [row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()]
     obsolete = {"simulator", "source_tank_simulator"}
@@ -4488,6 +4504,40 @@ def ensure_ignored_devices_table(cursor):
     )
 
 
+def ensure_performance_indexes(cursor):
+    index_statements = (
+        "CREATE INDEX idx_created_at ON tank_data(created_at)",
+        "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
+        "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
+        "CREATE INDEX idx_tank_data_device_source_created ON tank_data(device_id, device_source(16), created_at DESC, id DESC)",
+        "CREATE INDEX idx_tank_data_device_source_id ON tank_data(device_id, device_source(16), id DESC)",
+        "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
+        "CREATE INDEX idx_alerts_device_active_updated ON ops_alerts(device_id, active, updated_at DESC, id DESC)",
+        "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
+        "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
+        "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
+        "CREATE INDEX idx_device_command_queue_target_command ON device_command_queue(target_device, delivered_at, command, id DESC)",
+        "CREATE INDEX idx_relay_queue_next_attempt ON relay_queue(next_attempt_at, id)",
+        "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
+        "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
+        "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
+        "CREATE INDEX idx_android_app_releases_version_created ON android_app_releases(version_code DESC, created_at DESC, id DESC)",
+        "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at DESC, id DESC)",
+        "CREATE INDEX idx_customer_accounts_email_updated ON customer_accounts(email, updated_at DESC)",
+        "CREATE INDEX idx_customer_password_reset_expires ON customer_password_reset_tokens(expires_at, used_at)",
+        "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
+        "CREATE INDEX idx_device_auth_keys_updated ON device_auth_keys(updated_at, device_id)",
+        "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
+        "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
+    )
+    for statement in index_statements:
+        try:
+            cursor.execute(statement)
+        except Exception as exc:
+            if "duplicate" not in str(exc).lower():
+                raise
+
+
 def load_base64_json_env(name):
     raw_value = os.environ.get(name, "").strip()
     if not raw_value:
@@ -4668,6 +4718,7 @@ def init_db():
         )
         ensure_tank_data_columns(cursor)
         ensure_tank_data_mysql_column_types(cursor)
+        remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
@@ -4690,28 +4741,7 @@ def init_db():
         ensure_ignored_devices_table(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
-        for statement in (
-            "CREATE INDEX idx_created_at ON tank_data(created_at)",
-            "CREATE INDEX idx_tank_data_device_created ON tank_data(device_id, created_at DESC, id DESC)",
-            "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
-            "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
-            "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
-            "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
-            "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
-            "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
-            "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
-            "CREATE INDEX idx_android_app_releases_created ON android_app_releases(created_at DESC, id DESC)",
-            "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at)",
-            "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
-            "CREATE INDEX idx_device_auth_keys_updated ON device_auth_keys(updated_at, device_id)",
-            "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
-            "CREATE INDEX idx_ignored_devices_updated ON ignored_devices(updated_at, device_id)",
-        ):
-            try:
-                cursor.execute(statement)
-            except Exception as exc:
-                if "duplicate" not in str(exc).lower():
-                    raise
+        ensure_performance_indexes(cursor)
 
     maybe_reset_device_source_mode_on_boot()
     deleted_counts = purge_configured_virtual_device_records()
@@ -6084,45 +6114,30 @@ def fetch_latest_row(db):
 
 def recent_counts(db, limit=200):
     clause, params = device_source_where_clause()
-    motor_cycles = db.execute(
+    row = db.execute(
         f"""
-        SELECT COUNT(*) FROM (
+        SELECT
+            COALESCE(SUM(CASE WHEN motor='ON' AND COALESCE(prev_motor,'OFF')!='ON' THEN 1 ELSE 0 END), 0) AS motor_cycles,
+            COALESCE(SUM(CASE WHEN pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES' THEN 1 ELSE 0 END), 0) AS leak_events
+        FROM (
             SELECT motor,
-                   LAG(motor) OVER (ORDER BY id) AS prev_motor
-            FROM (
-                SELECT id, motor
-                FROM tank_data
-                WHERE {clause}
-                ORDER BY created_at DESC, id DESC
-                LIMIT {limit}
-            ) recent_motor_rows
-            ORDER BY id
-        ) motor_transitions
-        WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
-        """,
-        tuple(params),
-    ).fetchone()[0]
-
-    leak_events = db.execute(
-        f"""
-        SELECT COUNT(*) FROM (
-            SELECT pipe_leak,
+                   pipe_leak,
+                   LAG(motor) OVER (ORDER BY id) AS prev_motor,
                    LAG(pipe_leak) OVER (ORDER BY id) AS prev_pipe_leak
             FROM (
-                SELECT id, pipe_leak
+                SELECT id, motor, pipe_leak
                 FROM tank_data
                 WHERE {clause}
                 ORDER BY created_at DESC, id DESC
                 LIMIT {limit}
-            ) recent_leak_rows
+            ) recent_rows
             ORDER BY id
-        ) leak_transitions
-        WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
+        ) transitions
         """,
         tuple(params),
-    ).fetchone()[0]
+    ).fetchone()
 
-    return motor_cycles, leak_events
+    return int(row["motor_cycles"] or 0), int(row["leak_events"] or 0)
 
 
 def enrich_snapshot(data, motor_cycles=0, leak_events=0):
@@ -8902,45 +8917,30 @@ def fetch_device_snapshot(device_id):
         ).fetchone()
         if not row:
             return None
-        motor_cycles = db.execute(
+        counts = db.execute(
             f"""
-            SELECT COUNT(*) FROM (
+            SELECT
+                COALESCE(SUM(CASE WHEN motor='ON' AND COALESCE(prev_motor,'OFF')!='ON' THEN 1 ELSE 0 END), 0) AS motor_cycles,
+                COALESCE(SUM(CASE WHEN pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES' THEN 1 ELSE 0 END), 0) AS leak_events
+            FROM (
                 SELECT motor,
-                       LAG(motor) OVER (ORDER BY id) AS prev_motor
-                FROM (
-                    SELECT id, motor
-                    FROM tank_data
-                    WHERE device_id = ?
-                      AND {source_clause}
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT 200
-                ) recent_motor_rows
-                ORDER BY id
-            ) motor_transitions
-            WHERE motor='ON' AND COALESCE(prev_motor,'OFF')!='ON'
-            """,
-            (normalized_device_id, *source_params),
-        ).fetchone()[0]
-        leak_events = db.execute(
-            f"""
-            SELECT COUNT(*) FROM (
-                SELECT pipe_leak,
+                       pipe_leak,
+                       LAG(motor) OVER (ORDER BY id) AS prev_motor,
                        LAG(pipe_leak) OVER (ORDER BY id) AS prev_pipe_leak
                 FROM (
-                    SELECT id, pipe_leak
+                    SELECT id, motor, pipe_leak
                     FROM tank_data
                     WHERE device_id = ?
                       AND {source_clause}
                     ORDER BY created_at DESC, id DESC
                     LIMIT 200
-                ) recent_leak_rows
+                ) recent_rows
                 ORDER BY id
-            ) leak_transitions
-            WHERE pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES'
+            ) transitions
             """,
             (normalized_device_id, *source_params),
-        ).fetchone()[0]
-    return enrich_snapshot(dict(row), motor_cycles, leak_events)
+        ).fetchone()
+    return enrich_snapshot(dict(row), int(counts["motor_cycles"] or 0), int(counts["leak_events"] or 0))
 
 
 def fetch_device_history(device_id, limit=48):
