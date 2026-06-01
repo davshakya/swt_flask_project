@@ -1276,6 +1276,19 @@ function toChartNumberArray(values,{allowNull=false}={}){return(Array.isArray(va
 function downsampleSeries(labels,values,maxPoints=240){const safeLabels=Array.isArray(labels)?labels:[];const safeValues=Array.isArray(values)?values:[];const size=Math.min(safeLabels.length,safeValues.length);if(size<=maxPoints)return{labels:safeLabels.slice(0,size),values:safeValues.slice(0,size)};const sampledLabels=[];const sampledValues=[];const step=(size-1)/(maxPoints-1);for(let index=0;index<maxPoints;index+=1){const sourceIndex=Math.min(size-1,Math.round(index*step));sampledLabels.push(safeLabels[sourceIndex]);sampledValues.push(safeValues[sourceIndex]);}return{labels:sampledLabels,values:sampledValues};}
 function updateChartSafely(chart,key,labels,values){if(!chart)return;try{chart.data.labels=labels;chart.data.datasets[0].data=values;chart.update("none");}catch(error){console.error(`Chart update failed for ${key}`,error);banner("commandBanner","Analytics charts hit a rendering issue. The summary cards are still accurate.","warn");}}
 function getFiniteChartValues(values){return(Array.isArray(values)?values:[]).filter((value)=>value!==null&&value!==undefined&&Number.isFinite(Number(value))).map((value)=>Number(value));}
+function chartTimeMs(value){
+    if(value instanceof Date)return value.getTime();
+    const text=String(value??"").trim();
+    if(!text)return null;
+    const localMatch=text.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if(localMatch){
+        const [,year,month,day,hour,minute,second="0"]=localMatch;
+        const ms=new Date(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute),Number(second)).getTime();
+        return Number.isFinite(ms)?ms:null;
+    }
+    const parsed=Date.parse(text);
+    return Number.isFinite(parsed)?parsed:null;
+}
 function resizeCanvasChart(canvas){const rect=canvas.getBoundingClientRect();const width=Math.max(320,Math.round(rect.width||canvas.clientWidth||640));const height=Math.max(220,Math.round(rect.height||canvas.clientHeight||300));const dpr=Math.max(1,window.devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);return{ctx,width,height};}
 function drawCanvasChrome(ctx,width,height,title){const text=themeVar("--text");const muted=themeVar("--muted");const grid=themeVar("--chart-grid");const left=52;const right=18;const top=18;const bottom=30;const plotWidth=Math.max(10,width-left-right);const plotHeight=Math.max(10,height-top-bottom);ctx.clearRect(0,0,width,height);ctx.lineWidth=1;ctx.strokeStyle=grid;for(let step=0;step<=5;step+=1){const y=top+(plotHeight/5)*step;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+plotWidth,y);ctx.stroke();}ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+plotHeight);ctx.lineTo(left+plotWidth,top+plotHeight);ctx.stroke();ctx.fillStyle=text;ctx.font='600 12px "Trebuchet MS","Segoe UI",sans-serif';ctx.fillText(title,left,14);ctx.fillStyle=muted;return{left,right,top,bottom,plotWidth,plotHeight};}
 function drawCanvasEmpty(canvas,title,message){
@@ -1303,7 +1316,7 @@ function drawCanvasEmpty(canvas,title,message){
     ctx.fillText(message,width/2,box.top+box.plotHeight/2+26);
     ctx.textAlign="left";
 }
-function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null}={}){
+function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index"}={}){
     const {ctx,width,height}=resizeCanvasChart(canvas);
     const box=drawCanvasChrome(ctx,width,height,title);
     const numericValues=Array.isArray(values)?values.map((value)=>value===null||value===undefined?null:Number(value)):[];
@@ -1327,7 +1340,15 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
     }
     const safeLabels=Array.isArray(labels)?labels:[];
     const sampleCount=Math.max(1,numericValues.length);
-    const lineXForIndex=(index)=>box.left+(sampleCount===1?box.plotWidth/2:(index/(sampleCount-1))*box.plotWidth);
+    const timePositions=xScale==="time"?safeLabels.slice(0,sampleCount).map(chartTimeMs):[];
+    const finiteTimes=timePositions.filter((value)=>value!==null&&Number.isFinite(value));
+    const minTime=finiteTimes.length?Math.min(...finiteTimes):null;
+    const maxTime=finiteTimes.length?Math.max(...finiteTimes):null;
+    const useTimeScale=minTime!==null&&maxTime!==null&&maxTime>minTime;
+    const lineXForIndex=(index)=>{
+        if(useTimeScale&&Number.isFinite(timePositions[index]))return box.left+((timePositions[index]-minTime)/(maxTime-minTime))*box.plotWidth;
+        return box.left+(sampleCount===1?box.plotWidth/2:(index/(sampleCount-1))*box.plotWidth);
+    };
     const barSlotWidth=box.plotWidth/sampleCount;
     const barCenterForIndex=(index)=>box.left+barSlotWidth*(index+0.5);
     const yForValue=(value)=>box.top+((max-value)/(max-min))*box.plotHeight;
@@ -1392,7 +1413,7 @@ function drawAnalyticsCharts(data){
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
     const motorSeries=downsampleSeries(motorSeriesRaw.time,motorSeriesRaw.values,240);
-    drawCanvasSeries(charts.motor.canvas,"Motor State",motorSeries.labels,motorSeries.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],tickFormatter:(value)=>Number(value)>=0.5?"ON":"OFF"});
+    drawCanvasSeries(charts.motor.canvas,"Motor State",motorSeries.labels,motorSeries.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],xScale:"time",tickFormatter:(value)=>Number(value)>=0.5?"ON":"OFF"});
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
