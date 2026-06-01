@@ -101,6 +101,9 @@ def test_cloud_ingestion_accepts_firmware_device_ip_url():
     assert 'cleaned.get("device_ip_url")' in server_source
     assert 'cleaned["device_local_url"] = cleaned.get("device_ip_url")' in server_source
     assert 'cleaned["level"] = cleaned.get("main_tank_level")' in server_source
+    assert 'relay_state_label(cleaned.get("relay_on"))' in server_source
+    assert 'relay_state_label(cleaned.get("relay"))' in server_source
+    assert 'cleaned["motor"] = relay_state' in server_source
     assert 'cleaned["motor"] = cleaned.get("pump")' in server_source
     assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
 

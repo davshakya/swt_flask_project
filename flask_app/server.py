@@ -3258,11 +3258,27 @@ def sanitize_payload(payload):
 def apply_device_status_aliases(cleaned):
     if not isinstance(cleaned, dict):
         return cleaned
+
+    def relay_state_label(value):
+        if isinstance(value, bool):
+            return "ON" if value else "OFF"
+        normalized = str(value or "").strip().upper()
+        if normalized in {"1", "TRUE", "YES", "ON", "RUNNING", "ACTIVE"}:
+            return "ON"
+        if normalized in {"0", "FALSE", "NO", "OFF", "STOPPED", "INACTIVE"}:
+            return "OFF"
+        return None
+
     if not cleaned.get("device_local_url") and cleaned.get("device_ip_url"):
         cleaned["device_local_url"] = cleaned.get("device_ip_url")
     if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
         cleaned["level"] = cleaned.get("main_tank_level")
-    if cleaned.get("motor") is None and cleaned.get("pump") is not None:
+    relay_state = relay_state_label(cleaned.get("relay_on"))
+    if relay_state is None:
+        relay_state = relay_state_label(cleaned.get("relay"))
+    if relay_state is not None:
+        cleaned["motor"] = relay_state
+    elif cleaned.get("motor") is None and cleaned.get("pump") is not None:
         cleaned["motor"] = cleaned.get("pump")
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
