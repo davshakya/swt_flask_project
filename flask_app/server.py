@@ -532,6 +532,7 @@ SALES_ENQUIRY_BACKUP_PATH = Path(
 ).expanduser()
 if not SALES_ENQUIRY_BACKUP_PATH.is_absolute():
     SALES_ENQUIRY_BACKUP_PATH = PROJECT_ROOT / SALES_ENQUIRY_BACKUP_PATH
+SHOW_PRICING_LINKS = env_flag("SWT_SHOW_PRICING_LINKS", default=False)
 LOGIN_USERNAME = os.environ.get("LOGIN_USERNAME", DEFAULT_ADMIN_USERNAME).strip() or DEFAULT_ADMIN_USERNAME
 LOGIN_PASSWORD = os.environ.get("LOGIN_PASSWORD", DEFAULT_ADMIN_PASSWORD).strip() or DEFAULT_ADMIN_PASSWORD
 RESET_ADMIN_PASSWORD_ON_BOOT = os.environ.get("RESET_ADMIN_PASSWORD_ON_BOOT", "false").lower() in {"1", "true", "yes", "on"}
@@ -1996,6 +1997,7 @@ def render_login_page(
         sales_form=sales_form,
         homepage_user=homepage_login_status(),
         homepage_auth=homepage_auth_status(),
+        show_pricing_links=SHOW_PRICING_LINKS,
         on_dedicated_login_route=not is_landing_page,
         show_login_modal=(bool(error) or not is_landing_page) if show_login_modal is None else bool(show_login_modal),
     )

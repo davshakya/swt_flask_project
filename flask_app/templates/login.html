@@ -4212,7 +4212,9 @@ min-width:0;
             <a href="#how-it-works">How It Works</a>
             <a href="#solutions">Property Types</a>
             <a href="#proof">Setup Check</a>
+            {% if show_pricing_links|default(false) %}
             <a href="{{ url_for('pricing_page') }}">Pricing</a>
+            {% endif %}
             <a href="#enquiry">Contact Sales</a>
         </nav>
         <div class="nav-actions">
@@ -4673,7 +4675,11 @@ min-width:0;
                     <strong>One motor repair can cost &#8377;5,000 to &#8377;15,000.</strong>
                     <p>A quick demo helps you compare that risk with the cost of early alerts and pump protection.</p>
                 </div>
+                {% if show_pricing_links|default(false) %}
                 <a class="button-secondary" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
+                {% else %}
+                <a class="button-secondary" href="#enquiry">Book Free Demo</a>
+                {% endif %}
             </div>
         </div>
     </section>
@@ -5432,7 +5438,9 @@ min-width:0;
             <button class="chatbot-chip" type="button" data-chat-prompt="I need pump control over internet">Pump control</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="How does it prevent overflow and motor damage?">Motor safety</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="I manage an apartment or RWA">Apartment/RWA</button>
+            {% if show_pricing_links|default(false) %}
             <button class="chatbot-chip" type="button" data-chat-prompt="What is the pricing?">Pricing</button>
+            {% endif %}
             <button class="chatbot-chip" type="button" data-chat-prompt="Give complete product information with price and installation types">Product info</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="What details are needed for installation?">Installation</button>
             <button class="chatbot-chip" type="button" data-chat-prompt="Book a demo call">Book demo</button>
@@ -5933,6 +5941,7 @@ const chatbotForm = document.getElementById("chatbotForm");
 const chatbotInput = document.getElementById("chatbotInput");
 const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
+const showPricingLinks = {{ "true" if show_pricing_links|default(false) else "false" }};
 let chatbotSessionCount = 1;
 
 function updateChatbotViewport() {
@@ -5968,10 +5977,15 @@ function appendChatMessage(text, sender = "bot", actions = []) {
     message.className = `chatbot-message is-${sender === "user" ? "user" : "bot"}`;
     message.textContent = text;
 
-    if (actions.length) {
+    const visibleActions = actions.filter((action) => {
+        if (showPricingLinks) return true;
+        return !action.href || !String(action.href).includes(pricingPageUrl);
+    });
+
+    if (visibleActions.length) {
         const actionWrap = document.createElement("div");
         actionWrap.className = "chatbot-actions";
-        actions.forEach((action) => {
+        visibleActions.forEach((action) => {
             const actionElement = action.href ? document.createElement("a") : document.createElement("button");
             actionElement.className = "chatbot-action";
             actionElement.textContent = action.label;
