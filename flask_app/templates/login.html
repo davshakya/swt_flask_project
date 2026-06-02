@@ -4208,7 +4208,6 @@ min-width:0;
         </a>
         <nav class="nav-links" aria-label="Page sections">
             <a href="#benefits">Benefits</a>
-            <a href="#savings">Savings</a>
             <a href="#how-it-works">How It Works</a>
             <a href="#solutions">Property Types</a>
             <a href="#proof">Setup Check</a>
@@ -4286,7 +4285,6 @@ min-width:0;
             <div class="hero-actions">
                 <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
                 <a class="button-secondary is-primary-cta" href="#demo">Watch 2-Min Video</a>
-                <a class="button is-quiet-cta" href="#savings">Calculate Savings</a>
             </div>
         </div>
 
@@ -4413,33 +4411,6 @@ min-width:0;
         <div class="social-proof-note">Site coverage and monitoring volume depend on project size, tank count and installation scope.</div>
     </section>
 
-    <section id="testimonials" class="section surface">
-        <div class="section-header">
-            <div>
-                <div class="eyebrow">Customer Proof</div>
-                <h2>More confidence before rollout.</h2>
-            </div>
-        </div>
-
-        <div class="testimonial-grid">
-            <article class="testimonial-card">
-                <blockquote>"Reduced overflow complaints within the first month."</blockquote>
-                <p>The live status view helped the team respond before water spilled from the overhead tank.</p>
-                <cite>RWA maintenance lead, Gurgaon</cite>
-            </article>
-            <article class="testimonial-card">
-                <blockquote>"The pump status became visible to everyone who needed it."</blockquote>
-                <p>Residents and service staff no longer depended on manual tank checks for basic updates.</p>
-                <cite>Property manager, Noida</cite>
-            </article>
-            <article class="testimonial-card">
-                <blockquote>"The demo made the purchase decision easier."</blockquote>
-                <p>Seeing the sensor, dashboard and alerts together helped compare cost against repair risk.</p>
-                <cite>Independent home owner, Delhi NCR</cite>
-            </article>
-        </div>
-    </section>
-
     <section id="benefits" class="section surface">
         <div class="section-header">
             <div>
@@ -4504,111 +4475,6 @@ min-width:0;
             <div class="urgency-copy">
                 <strong>One repair or one month of overflow waste can cost more than the setup.</strong>
                 <p>Protect against dry-run damage, refill delays, overflow waste and avoidable site visits.</p>
-            </div>
-        </div>
-    </section>
-
-    <section id="analysis" class="section surface">
-        <div class="section-header">
-            <div>
-                <div class="eyebrow">Real-World Analysis</div>
-                <h2>What the system changes at the site level.</h2>
-                <p class="section-copy">Each source of waste becomes easier to understand, explain and reduce when the tank, pump and alert history are visible together.</p>
-            </div>
-        </div>
-
-        <div class="analysis-grid">
-            <article class="analysis-card">
-                <h3>Overflow waste</h3>
-                <div class="analysis-point">
-                    <strong>Issue</strong>
-                    <p>Tank overflow causes direct water loss and often goes unnoticed until someone reports it.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Analysis</strong>
-                    <p>A 1000-liter tank overflowing twice a week can waste thousands of liters every month.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Impact</strong>
-                    <p>Higher water bills, resident complaints and avoidable pump runtime.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Solution</strong>
-                    <p>Live tank level, full-tank alerts and automatic pump control reduce overflow incidents.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Expected Result</strong>
-                    <p>Up to 90% reduction in overflow-related waste when alerts and pump action are followed.</p>
-                </div>
-            </article>
-
-            <article class="analysis-card">
-                <h3>Motor and dry-run risk</h3>
-                <div class="analysis-point">
-                    <strong>Issue</strong>
-                    <p>The pump can run when source water is low or when tank readings are not being checked.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Analysis</strong>
-                    <p>One dry-run repair can cost more than several months of monitoring and alerts.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Impact</strong>
-                    <p>Motor wear, emergency service visits and water availability issues.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Solution</strong>
-                    <p>Pump status, source tank safety and sensor health stay visible in one dashboard.</p>
-                </div>
-                <div class="analysis-point">
-                    <strong>Expected Result</strong>
-                    <p>Faster action before pump stress becomes a repair event.</p>
-                </div>
-            </article>
-        </div>
-    </section>
-
-    <section id="savings" class="section surface">
-        <div class="section-header">
-            <div>
-                <div class="eyebrow">Estimate Your Savings</div>
-                <h2>Calculate monthly water waste and payback.</h2>
-                <p class="section-copy">Use a simple estimate to understand why overflow alerts, pump protection and remote monitoring can pay back quickly.</p>
-            </div>
-        </div>
-
-        <div class="calculator-layout">
-            <form class="calculator-form" id="savingsCalculator" aria-label="Water savings calculator">
-                <label>Tank capacity in liters
-                    <input id="calcTankCapacity" type="number" min="100" max="1000000" step="100" value="1000" inputmode="numeric">
-                </label>
-                <label>Overflow frequency per week
-                    <input id="calcOverflowFrequency" type="number" min="0" max="50" step="1" value="2" inputmode="numeric">
-                </label>
-                <label>Estimated water cost per 1000 liters
-                    <input id="calcWaterCost" type="number" min="0" max="10000" step="1" value="80" inputmode="numeric">
-                </label>
-                <label>Estimated system cost
-                    <input id="calcSystemCost" type="number" min="0" max="1000000" step="500" value="12000" inputmode="numeric">
-                </label>
-            </form>
-            <div class="calculator-result" aria-live="polite">
-                <div class="calculator-result-grid">
-                    <div class="calculator-metric">
-                        <span>Water saved per month</span>
-                        <strong id="calcWaterSaved">--</strong>
-                    </div>
-                    <div class="calculator-metric">
-                        <span>Cost saved per year</span>
-                        <strong id="calcYearlySavings">--</strong>
-                    </div>
-                    <div class="calculator-metric">
-                        <span>Payback period</span>
-                        <strong id="calcPayback">--</strong>
-                    </div>
-                </div>
-                <p class="section-copy">This is a planning estimate. Actual savings depend on water tariff, site behavior, overflow volume and how consistently alerts are acted on.</p>
-                <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
             </div>
         </div>
     </section>
