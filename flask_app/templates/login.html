@@ -707,24 +707,6 @@ background:var(--accent);
 justify-self:start;
 margin-top:4px;
 }
-.sticky-demo-cta{
-position:fixed;
-right:18px;
-bottom:18px;
-z-index:40;
-display:inline-flex;
-align-items:center;
-justify-content:center;
-min-height:50px;
-padding:13px 20px;
-border-radius:999px;
-background:var(--button-secondary);
-color:#102329;
-font-weight:950;
-text-decoration:none;
-box-shadow:0 18px 42px rgba(12,56,66,.22);
-border:1px solid rgba(255,255,255,.42);
-}
 .preview-visual-link{
 display:block;
 position:relative;
@@ -3052,14 +3034,20 @@ justify-content:flex-end;
 }
 .whatsapp-float{
 position:fixed;
-left:24px;
-bottom:24px;
+left:14px;
+bottom:14px;
 z-index:39;
 display:inline-flex;
 align-items:center;
-gap:10px;
-min-height:54px;
-padding:10px 16px;
+justify-content:center;
+gap:0;
+width:58px;
+min-width:58px;
+max-width:58px;
+height:58px;
+min-height:58px;
+padding:0;
+box-sizing:border-box;
 border-radius:999px;
 background:linear-gradient(135deg,#22c55e,#128c7e);
 color:#fff;
@@ -3067,20 +3055,34 @@ font-weight:900;
 text-decoration:none;
 box-shadow:0 20px 44px rgba(18,140,126,.28);
 border:1px solid rgba(255,255,255,.28);
+cursor:grab;
+touch-action:none;
+user-select:none;
+}
+.whatsapp-float.is-dragging,
+.site-chatbot.is-dragging .chatbot-launcher{
+cursor:grabbing;
+transition:none;
 }
 .whatsapp-float svg{
-width:34px;
-height:34px;
+width:42px;
+height:42px;
 flex:0 0 auto;
 border-radius:999px;
-padding:7px;
+padding:8px;
 background:rgba(255,255,255,.18);
 fill:currentColor;
 }
 .whatsapp-float span{
-display:block;
-font-size:13px;
-line-height:1.2;
+position:absolute;
+width:1px;
+height:1px;
+padding:0;
+margin:-1px;
+overflow:hidden;
+clip:rect(0,0,0,0);
+white-space:nowrap;
+border:0;
 }
 .whatsapp-float small{
 display:block;
@@ -3088,6 +3090,38 @@ font-size:11px;
 line-height:1.2;
 font-weight:800;
 opacity:.86;
+}
+@media (max-width:900px){
+.whatsapp-float{
+left:14px;
+right:auto;
+bottom:14px;
+width:58px;
+min-width:58px;
+max-width:58px;
+height:58px;
+min-height:58px;
+padding:0;
+gap:0;
+justify-content:center;
+box-sizing:border-box;
+}
+.whatsapp-float svg{
+width:42px;
+height:42px;
+padding:8px;
+}
+.whatsapp-float span{
+position:absolute;
+width:1px;
+height:1px;
+padding:0;
+margin:-1px;
+overflow:hidden;
+clip:rect(0,0,0,0);
+white-space:nowrap;
+border:0;
+}
 }
 .site-chatbot{
 position:fixed;
@@ -3098,6 +3132,10 @@ display:grid;
 justify-items:end;
 gap:12px;
 pointer-events:none;
+touch-action:none;
+}
+.site-chatbot:not(.is-open){
+cursor:grab;
 }
 .site-chatbot > *{
 pointer-events:auto;
@@ -3119,7 +3157,7 @@ transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
 .chatbot-launcher:hover{
 transform:translateY(-2px);
 box-shadow:0 26px 54px rgba(9,72,80,.26);
-border-color:rgba(239,155,65,.42);
+border-color:rgba(13,147,168,.42);
 }
 .chatbot-launcher-icon{
 display:grid;
@@ -3904,13 +3942,6 @@ padding-right:18px;
 .demo-steps{
 grid-template-columns:1fr;
 }
-.sticky-demo-cta{
-left:16px;
-right:16px;
-bottom:12px;
-width:auto;
-min-height:54px;
-}
 .demo-mobile-sidecopy strong,
 .demo-dark-card h3,
 .demo-dashboard-title h3{
@@ -4030,19 +4061,23 @@ padding:12px;
 .site-chatbot{
 right:10px;
 bottom:var(--chatbot-mobile-bottom,10px);
-left:10px;
+left:auto;
 top:auto;
-justify-items:stretch;
+justify-items:end;
 }
 .whatsapp-float{
 left:14px;
 right:auto;
 bottom:14px;
 width:58px;
+min-width:58px;
+max-width:58px;
 height:58px;
 min-height:58px;
 padding:0;
+gap:0;
 justify-content:center;
+box-sizing:border-box;
 }
 .whatsapp-float svg{
 width:42px;
@@ -4061,9 +4096,12 @@ white-space:nowrap;
 border:0;
 }
 .site-chatbot.is-open{
+left:10px;
+right:10px;
 top:var(--chatbot-mobile-top,10px);
 bottom:var(--chatbot-mobile-bottom,10px);
 height:auto;
+justify-items:stretch;
 }
 .chatbot-panel{
 width:100%;
@@ -4265,8 +4303,6 @@ min-width:0;
             </details>
         </div>
     </header>
-
-    <a class="sticky-demo-cta" href="#enquiry">Book Free Demo</a>
 
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
@@ -5275,7 +5311,7 @@ min-width:0;
     </footer>
 </div>
 
-<a class="whatsapp-float" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" aria-label="Talk to SaleWell installation expert on WhatsApp">
+<a class="whatsapp-float" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" draggable="false" aria-label="Talk to SaleWell installation expert on WhatsApp">
     <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
         <path d="M16.03 4.2c-6.42 0-11.64 5.14-11.64 11.46 0 2.17.62 4.28 1.78 6.1l-1.2 5.84 5.98-1.54a11.83 11.83 0 0 0 5.08 1.15c6.42 0 11.64-5.14 11.64-11.46S22.45 4.2 16.03 4.2Zm0 20.98c-1.72 0-3.4-.46-4.86-1.33l-.35-.21-3.55.91.71-3.46-.23-.36a9.27 9.27 0 0 1-1.42-4.97c0-5.2 4.35-9.43 9.7-9.43s9.7 4.23 9.7 9.43-4.35 9.42-9.7 9.42Zm5.32-7.06c-.29-.14-1.72-.84-1.99-.93-.27-.1-.46-.14-.65.14-.19.28-.75.93-.92 1.12-.17.19-.34.21-.63.07-.29-.14-1.23-.45-2.34-1.42-.86-.75-1.45-1.68-1.62-1.96-.17-.28-.02-.43.13-.57.13-.13.29-.34.43-.5.14-.17.19-.28.29-.47.1-.19.05-.35-.02-.5-.07-.14-.65-1.55-.89-2.13-.23-.56-.47-.48-.65-.49h-.56c-.19 0-.5.07-.77.35-.27.28-1.01.98-1.01 2.38s1.04 2.76 1.18 2.95c.14.19 2.05 3.08 4.97 4.32.69.29 1.24.47 1.66.6.7.22 1.33.19 1.83.12.56-.08 1.72-.7 1.96-1.37.24-.68.24-1.26.17-1.37-.07-.13-.26-.2-.55-.34Z"/>
     </svg>
@@ -5804,6 +5840,7 @@ if (selectedPricingPlan) {
 const chatbot = document.getElementById("siteChatbot");
 const chatbotPanel = document.getElementById("chatbotPanel");
 const chatbotLauncher = document.getElementById("chatbotLauncher");
+const whatsappFloat = document.querySelector(".whatsapp-float");
 const chatbotClose = document.getElementById("chatbotClose");
 const chatbotSkip = document.getElementById("chatbotSkip");
 const chatbotMessages = document.getElementById("chatbotMessages");
@@ -5813,6 +5850,144 @@ const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
 const showPricingLinks = {{ "true" if show_pricing_links|default(false) else "false" }};
 let chatbotSessionCount = 1;
+let whatsappDragSuppressClick = false;
+let chatbotDragSuppressClick = false;
+
+function clampFloatingPosition(left, top, element) {
+    const margin = 8;
+    const width = element.offsetWidth || 58;
+    const height = element.offsetHeight || 58;
+    return {
+        left: Math.min(Math.max(margin, left), Math.max(margin, window.innerWidth - width - margin)),
+        top: Math.min(Math.max(margin, top), Math.max(margin, window.innerHeight - height - margin)),
+    };
+}
+
+function setFloatingPosition(element, position) {
+    if (!element || !position) return;
+    const clamped = clampFloatingPosition(position.left, position.top, element);
+    element.style.left = `${clamped.left}px`;
+    element.style.top = `${clamped.top}px`;
+    element.style.right = "auto";
+    element.style.bottom = "auto";
+}
+
+function clearFloatingPosition(element) {
+    if (!element) return;
+    element.style.left = "";
+    element.style.top = "";
+    element.style.right = "";
+    element.style.bottom = "";
+}
+
+function readFloatingPosition(storageKey) {
+    try {
+        const parsed = JSON.parse(window.localStorage.getItem(storageKey) || "null");
+        if (Number.isFinite(parsed?.left) && Number.isFinite(parsed?.top)) return parsed;
+    } catch (error) {
+        return null;
+    }
+    return null;
+}
+
+function saveFloatingPosition(storageKey, position) {
+    try {
+        window.localStorage.setItem(storageKey, JSON.stringify(position));
+    } catch (error) {
+        // Local storage can be unavailable in private or locked-down browsing modes.
+    }
+}
+
+function makeFloatingControlMovable({ element, handle, storageKey, canDrag = () => true, onDragStart, onDragEnd }) {
+    if (!element || !handle || !window.PointerEvent) return null;
+    const savedPosition = readFloatingPosition(storageKey);
+    if (savedPosition && canDrag()) setFloatingPosition(element, savedPosition);
+
+    const dragState = {
+        active: false,
+        moved: false,
+        pointerId: 0,
+        offsetX: 0,
+        offsetY: 0,
+    };
+
+    handle.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0 || !canDrag()) return;
+        const rect = element.getBoundingClientRect();
+        dragState.active = true;
+        dragState.moved = false;
+        dragState.pointerId = event.pointerId;
+        dragState.offsetX = event.clientX - rect.left;
+        dragState.offsetY = event.clientY - rect.top;
+        element.classList.add("is-dragging");
+        handle.setPointerCapture?.(event.pointerId);
+        onDragStart?.();
+    });
+
+    handle.addEventListener("pointermove", (event) => {
+        if (!dragState.active || event.pointerId !== dragState.pointerId) return;
+        const nextPosition = clampFloatingPosition(event.clientX - dragState.offsetX, event.clientY - dragState.offsetY, element);
+        if (Math.abs(nextPosition.left - element.getBoundingClientRect().left) > 2 || Math.abs(nextPosition.top - element.getBoundingClientRect().top) > 2) {
+            dragState.moved = true;
+        }
+        setFloatingPosition(element, nextPosition);
+        event.preventDefault();
+    });
+
+    function finishDrag(event) {
+        if (!dragState.active || event.pointerId !== dragState.pointerId) return;
+        dragState.active = false;
+        element.classList.remove("is-dragging");
+        handle.releasePointerCapture?.(event.pointerId);
+        if (dragState.moved) {
+            const rect = element.getBoundingClientRect();
+            const position = clampFloatingPosition(rect.left, rect.top, element);
+            saveFloatingPosition(storageKey, position);
+            onDragEnd?.(true);
+            window.setTimeout(() => onDragEnd?.(false), 350);
+        } else {
+            onDragEnd?.(false);
+        }
+    }
+
+    handle.addEventListener("pointerup", finishDrag);
+    handle.addEventListener("pointercancel", finishDrag);
+
+    window.addEventListener("resize", () => {
+        if (!canDrag()) return;
+        const position = readFloatingPosition(storageKey);
+        if (position) setFloatingPosition(element, position);
+    });
+
+    return {
+        applySavedPosition() {
+            const position = readFloatingPosition(storageKey);
+            if (position) setFloatingPosition(element, position);
+        },
+        clearPosition() {
+            clearFloatingPosition(element);
+        },
+    };
+}
+
+const whatsappFloatDrag = makeFloatingControlMovable({
+    element: whatsappFloat,
+    handle: whatsappFloat,
+    storageKey: "salewell_whatsapp_float_position",
+    onDragEnd: (suppressClick) => {
+        whatsappDragSuppressClick = suppressClick;
+    },
+});
+
+const chatbotFloatDrag = makeFloatingControlMovable({
+    element: chatbot,
+    handle: chatbotLauncher,
+    storageKey: "salewell_chatbot_float_position",
+    canDrag: () => !chatbot?.classList.contains("is-open"),
+    onDragEnd: (suppressClick) => {
+        chatbotDragSuppressClick = suppressClick;
+    },
+});
 
 function updateChatbotViewport() {
     if (!window.visualViewport) return;
@@ -5826,6 +6001,9 @@ function updateChatbotViewport() {
 
 function setChatbotOpen(isOpen) {
     if (!chatbot || !chatbotPanel || !chatbotLauncher) return;
+    if (isOpen) {
+        chatbotFloatDrag?.clearPosition();
+    }
     chatbot.classList.toggle("is-open", isOpen);
     chatbotPanel.hidden = !isOpen;
     chatbotLauncher.setAttribute("aria-expanded", isOpen ? "true" : "false");
@@ -5833,6 +6011,8 @@ function setChatbotOpen(isOpen) {
         updateChatbotViewport();
         window.setTimeout(() => chatbotInput?.focus(), 40);
         scrollChatToBottom();
+    } else {
+        chatbotFloatDrag?.applySavedPosition();
     }
 }
 
@@ -6605,8 +6785,21 @@ function submitChatbotPrompt(prompt) {
     window.setTimeout(() => appendChatMessage(response.text, "bot", response.actions), 180);
 }
 
+if (whatsappFloat) {
+    whatsappFloat.addEventListener("click", (event) => {
+        if (!whatsappDragSuppressClick) return;
+        event.preventDefault();
+        event.stopPropagation();
+        whatsappDragSuppressClick = false;
+    });
+}
+
 if (chatbotLauncher) {
     chatbotLauncher.addEventListener("click", () => {
+        if (chatbotDragSuppressClick) {
+            chatbotDragSuppressClick = false;
+            return;
+        }
         setChatbotOpen(!chatbot?.classList.contains("is-open"));
     });
 }
