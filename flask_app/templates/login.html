@@ -2650,13 +2650,13 @@ max-width:640px;
 justify-self:start;
 }
 .support-layout{
-grid-template-columns:minmax(0,1fr) minmax(380px,.9fr);
+grid-template-columns:repeat(2,minmax(0,1fr));
 align-items:start;
 }
 .support-media-stack{
 display:grid;
 gap:14px;
-justify-items:end;
+justify-items:stretch;
 align-content:start;
 }
 .enquiry-layout{
@@ -2706,12 +2706,24 @@ line-height:1.42;
 color:#d7ecf0;
 }
 #setup-check .visual{
-width:min(100%,640px);
-justify-self:end;
+width:100%;
+justify-self:stretch;
 aspect-ratio:4 / 3;
 }
+#setup-check .support-layout{
+align-items:stretch;
+}
+#setup-check .support-media-stack{
+height:100%;
+grid-template-rows:minmax(0,1fr) auto;
+}
+#setup-check .support-media-stack .visual{
+min-height:0;
+height:100%;
+aspect-ratio:auto;
+}
 #setup-check .support-media-stack .contact-card{
-width:min(100%,640px);
+width:100%;
 }
 .steps{
 display:grid;
@@ -2763,6 +2775,7 @@ border:1px solid var(--line);
 display:flex;
 flex-direction:column;
 gap:16px;
+height:100%;
 }
 .support-panel h3{
 margin:14px 0 0;
@@ -3816,6 +3829,8 @@ grid-template-columns:1fr;
 #setup-check .visual{
 justify-self:center;
 width:min(100%,620px);
+height:auto;
+aspect-ratio:4 / 3;
 }
 #how-it-works .media-split{
 gap:18px;
@@ -3830,6 +3845,8 @@ padding-left:0;
 }
 #setup-check .support-media-stack{
 justify-items:center;
+height:auto;
+grid-template-rows:auto;
 }
 #setup-check .support-media-stack .contact-card{
 width:min(100%,620px);
@@ -4574,10 +4591,6 @@ min-width:0;
                 </ul>
             </article>
         </div>
-        <div class="card-toggle-row">
-            <button class="ghost-link" id="benefitCardsToggle" type="button" aria-expanded="false" aria-controls="benefitCards">Show all problems solved</button>
-        </div>
-
         <div class="urgency-banner">
             <div class="urgency-pill">Cost Of Waiting</div>
             <div class="urgency-copy">
@@ -5103,15 +5116,6 @@ min-width:0;
 
                     <div class="demo-controls">
                         <div class="demo-status-line" id="demoStatusLine">Stop Water Overflow Automatically</div>
-                        <div class="demo-control-actions">
-                            <div class="demo-transport-actions" aria-label="Demo playback controls">
-                                <button class="demo-control-button" id="demoPrevButton" type="button" aria-label="Previous demo scene">Back</button>
-                                <button class="demo-control-button is-primary" id="demoPlayPauseButton" type="button" aria-pressed="true">Pause</button>
-                                <button class="demo-control-button" id="demoNextButton" type="button" aria-label="Next demo scene">Next</button>
-                            </div>
-                            <button class="demo-control-button demo-fullscreen" id="demoFullscreenButton" type="button" aria-pressed="false">Full Screen</button>
-                            <button class="demo-control-button demo-replay" id="demoReplayButton" type="button">Replay Demo</button>
-                        </div>
                     </div>
                 </div>
 
