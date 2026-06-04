@@ -183,6 +183,7 @@ IST_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
 MOBILE_TOKEN_SALT = "smart-water-tank-mobile"
 APP_SECRET_KEY_SETTING = "app_secret_key"
 DASHBOARD_PASSWORD_SETTING = "dashboard_password"
+HOMEPAGE_VISITOR_COUNT_SETTING = "homepage_visitor_count"
 ACTIVE_SESSION_SETTING_PREFIX = "active_session"
 SESSION_PLATFORM_ANDROID = "android"
 SESSION_PLATFORM_DASHBOARD = "dashboard"
@@ -666,6 +667,7 @@ relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
 db_prune_lock = threading.Lock()
+homepage_visitor_count_lock = threading.Lock()
 relay_state = {
     "last_success_at": None,
     "last_error_at": None,
@@ -1977,6 +1979,11 @@ def render_login_page(
             "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
         )
     sales_form = sales_form or sales_form_from_pricing_query()
+    homepage_visitor_count = (
+        increment_homepage_visitor_count()
+        if is_landing_page
+        else get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+    )
     return render_template(
         "login.html",
         error=error,
@@ -1997,6 +2004,7 @@ def render_login_page(
         sales_form=sales_form,
         homepage_user=homepage_login_status(),
         homepage_auth=homepage_auth_status(),
+        homepage_visitor_count=format_count_label(homepage_visitor_count),
         show_pricing_links=SHOW_PRICING_LINKS,
         on_dedicated_login_route=not is_landing_page,
         show_login_modal=(bool(error) or not is_landing_page) if show_login_modal is None else bool(show_login_modal),
@@ -4792,6 +4800,25 @@ def set_app_setting(key, value):
             """,
             (key, value),
         )
+
+
+def increment_homepage_visitor_count():
+    with homepage_visitor_count_lock:
+        raw_count = get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+        try:
+            current_count = int(str(raw_count or "0").strip())
+        except ValueError:
+            current_count = 0
+        next_count = max(0, current_count) + 1
+        set_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, str(next_count))
+        return next_count
+
+
+def format_count_label(value):
+    try:
+        return f"{int(value):,}"
+    except (TypeError, ValueError):
+        return "0"
 
 
 def delete_app_setting(key):

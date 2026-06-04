@@ -308,6 +308,24 @@ color:var(--brand-deep);
 .login-status span{
 white-space:nowrap;
 }
+.visitor-count{
+display:inline-flex;
+align-items:center;
+gap:7px;
+min-height:36px;
+padding:6px 11px;
+border:1px solid var(--line-strong);
+border-radius:16px;
+background:var(--brand-soft);
+font-size:12px;
+font-weight:900;
+color:var(--brand-deep);
+white-space:nowrap;
+}
+.visitor-count strong{
+font-size:13px;
+color:var(--text);
+}
 .logout-form{
 margin:0;
 display:flex;
@@ -1258,6 +1276,7 @@ color:var(--section-accent-deep);
 }
 @media (prefers-color-scheme: dark){
 .login-status,
+.visitor-count,
 .user-login-dropdown,
 .nav-button,
 .ghost-link,
@@ -3696,6 +3715,7 @@ padding-bottom:24px;
 .proof-pills span,
 .user-login-dropdown,
 .login-status,
+.visitor-count,
 .nav-button,
 .ghost-link{
 background:linear-gradient(180deg,rgba(11,31,40,.94),rgba(7,22,30,.9));
@@ -3758,7 +3778,8 @@ min-height:48px;
 padding:12px 18px;
 font-size:14px;
 }
-.login-status{
+.login-status,
+.visitor-count{
 min-height:34px;
 font-size:11.5px;
 }
@@ -5310,6 +5331,10 @@ min-width:0;
         </div>
         <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
+        <div class="visitor-count" aria-label="Homepage visitor count">
+            <span>Visitors</span>
+            <strong>{{ homepage_visitor_count|default("0") }}</strong>
+        </div>
         <div>
             <a class="android-download-link" href="{{ url_for('android_app_download') }}" aria-label="Download Android app">
                 <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
