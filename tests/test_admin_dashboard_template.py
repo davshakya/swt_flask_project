@@ -163,6 +163,16 @@ def test_admin_slave_status_uses_direct_peer_packet_freshness():
     assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source
 
 
+def test_admin_device_table_shows_raw_upper_echo_distance():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert '"sensor_distance_cm": payload.get("sensor_distance_cm")' in server_source
+    assert '"water_depth_label": payload.get("water_depth_label")' in server_source
+    assert "Depth {{ device.water_depth_label" in admin_template
+    assert "Echo {% if device.sensor_distance_cm is not none %}" in admin_template
+
+
 def test_dashboards_render_company_icon_home_links():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

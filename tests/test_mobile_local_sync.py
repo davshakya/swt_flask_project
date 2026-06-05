@@ -67,13 +67,13 @@ def test_local_device_status_uses_local_web_username_before_device_id():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = server_source.index("def fetch_local_device_status(")
     function_body = server_source[function_start : server_source.index("def mobile_local_sync()", function_start)]
+    auth_block = function_body[function_body.index("username = ") : function_body.index("timeout = ", function_body.index("username = "))]
 
     env_username = 'os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()'
-    device_id_username = "normalize_device_id(device_id)"
 
-    assert env_username in function_body
-    assert device_id_username in function_body
-    assert function_body.index(env_username) < function_body.index(device_id_username)
+    assert env_username in auth_block
+    assert 'or "swtadmin"' in auth_block
+    assert "normalize_device_id(device_id)" not in auth_block
 
 
 def test_blank_relay_env_values_explicitly_clear_runtime_relay_config():

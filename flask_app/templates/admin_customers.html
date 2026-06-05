@@ -721,6 +721,13 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                     Pump --
                                     {% endif %}
                                 </div>
+                                <div class="cell-sub">
+                                    {% if device.last_sync_at %}
+                                    Depth {{ device.water_depth_label or "--" }} / Echo {% if device.sensor_distance_cm is not none %}{{ "%.1f"|format(device.sensor_distance_cm) }} cm{% else %}--{% endif %}
+                                    {% else %}
+                                    Depth -- / Echo --
+                                    {% endif %}
+                                </div>
                             </td>
                             <td>
                                 <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}">{{ device.warning_alert_label or "Clear" }}</span>
