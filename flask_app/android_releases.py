@@ -23,6 +23,7 @@ ANDROID_STRING_POOL_UTF8_FLAG = 0x00000100
 ANDROID_VERSION_CODE_RESOURCE_ID = 0x0101021B
 ANDROID_VERSION_NAME_RESOURCE_ID = 0x0101021C
 ANDROID_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
+ANDROID_BLOCKED_APK_FILENAME_MARKERS = ("debug", "unsigned")
 
 
 def sanitize_android_apk_filename(filename):
@@ -50,6 +51,10 @@ def read_uploaded_android_apk(uploaded_file, max_bytes):
         raise ValueError("Choose an Android .apk file to upload.")
     if Path(raw_name).suffix.lower() != ".apk":
         raise ValueError("Upload an Android .apk file.")
+    safe_name = sanitize_android_apk_filename(raw_name)
+    safe_name_lower = safe_name.lower()
+    if any(marker in safe_name_lower for marker in ANDROID_BLOCKED_APK_FILENAME_MARKERS):
+        raise ValueError("Upload a signed release APK. Debug or unsigned APK files are not allowed for customer updates.")
 
     payload = uploaded_file.stream.read(max_bytes + 1)
     if not payload:
@@ -62,7 +67,7 @@ def read_uploaded_android_apk(uploaded_file, max_bytes):
     version_info = extract_android_apk_version(payload)
 
     return {
-        "original_filename": sanitize_android_apk_filename(raw_name),
+        "original_filename": safe_name,
         "payload": payload,
         "version_name": version_info["version_name"],
         "version_code": version_info["version_code"],

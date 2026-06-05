@@ -2684,13 +2684,21 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
     else:
         relay_label, relay_tone = admin_reachable_status_fields(relay_enabled, online and relay_enabled)
 
+    slave_upper_enabled = bool(service_config.get("slave_upper_sensor_enabled")) and bool(service_config.get("slave_device_enabled", True))
+    peer_packet_fresh = direct_peer_packet_is_fresh(entry)
+    tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
     if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         upper_enabled = False
+    if slave_upper_enabled:
+        upper_enabled = True
+        upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid
+    else:
+        upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
     upper_label, upper_tone = admin_reachable_status_fields(
         upper_enabled,
-        online and upper_enabled and admin_sensor_reachable(upper_sensor),
+        upper_reachable,
     )
 
     lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
