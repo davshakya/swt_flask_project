@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -168,9 +169,40 @@ def test_admin_device_table_shows_raw_upper_echo_distance():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
     assert '"sensor_distance_cm": payload.get("sensor_distance_cm")' in server_source
+    assert '"sensor_distance_label": sensor_distance_label' in server_source
     assert '"water_depth_label": payload.get("water_depth_label")' in server_source
     assert "Depth {{ device.water_depth_label" in admin_template
-    assert "Echo {% if device.sensor_distance_cm is not none %}" in admin_template
+    assert "Echo {{ device.sensor_distance_label" in admin_template
+    assert '"%.1f"|format(device.sensor_distance_cm)' not in admin_template
+
+
+def test_admin_customer_page_renders_string_sensor_distance():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    client = server.app.test_client()
+    with client.session_transaction() as session:
+        auth_marker = server.current_auth_marker_for_identity("admin", username=server.LOGIN_USERNAME)
+        platform_session_id = server.register_active_platform_session(
+            server.SESSION_PLATFORM_DASHBOARD,
+            "admin",
+            username=server.LOGIN_USERNAME,
+        )
+        session["logged_in"] = True
+        session["username"] = server.LOGIN_USERNAME
+        session["role"] = "admin"
+        session["device_id"] = None
+        session["auth_marker"] = auth_marker
+        session["platform_session_id"] = platform_session_id
+        session["admin_logged_in"] = True
+        session["admin_username"] = server.LOGIN_USERNAME
+        session["admin_device_id"] = None
+        session["admin_auth_marker"] = auth_marker
+        session["admin_platform_session_id"] = platform_session_id
+        session["csrf_token"] = "test-csrf-token"
+    response = client.get("/admin/customers")
+    assert response.status_code == 200
 
 
 def test_dashboards_render_company_icon_home_links():

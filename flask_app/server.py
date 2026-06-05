@@ -2784,6 +2784,13 @@ def fetch_active_alert_summaries(device_ids=None, updated_since=None):
 def build_admin_device_entry(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id or (snapshot or {}).get("device_id"))
     payload = snapshot if snapshot is not None else build_empty_snapshot_payload(normalized_device_id)
+    sensor_distance_raw = payload.get("sensor_distance_cm")
+    sensor_distance_value = safe_float(sensor_distance_raw, None)
+    sensor_distance_label = (
+        f"{sensor_distance_value:.1f} cm"
+        if sensor_distance_value is not None and sensor_distance_value >= 0
+        else "--"
+    )
     source_ip = payload.get("source_ip")
     device_local_url = normalize_device_base_url(payload.get("device_local_url") or payload.get("device_ip_url"))
     device_local_host = None
@@ -2821,6 +2828,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
         "sensor_distance_cm": payload.get("sensor_distance_cm"),
+        "sensor_distance_label": sensor_distance_label,
         "water_depth_cm": payload.get("water_depth_cm"),
         "water_depth_label": payload.get("water_depth_label"),
         "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),

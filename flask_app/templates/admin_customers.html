@@ -723,7 +723,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 </div>
                                 <div class="cell-sub">
                                     {% if device.last_sync_at %}
-                                    Depth {{ device.water_depth_label or "--" }} / Echo {% if device.sensor_distance_cm is not none %}{{ "%.1f"|format(device.sensor_distance_cm) }} cm{% else %}--{% endif %}
+                                    Depth {{ device.water_depth_label or "--" }} / Echo {{ device.sensor_distance_label or "--" }}
                                     {% else %}
                                     Depth -- / Echo --
                                     {% endif %}
