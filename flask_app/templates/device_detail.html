@@ -1011,7 +1011,9 @@ document.querySelectorAll(".tank-setup-form").forEach((form)=>{
   const calibrateButton=form.querySelector("[data-tank-setup-calibrate]");
   function updateCalibrateState(){
     if(!calibrateButton)return;
-    const ready=Boolean(heightInput?.checkValidity()&&capacityInput?.checkValidity());
+    const hasHeight=Boolean(heightInput&&heightInput.value.trim()!=="");
+    const hasCapacity=Boolean(capacityInput&&capacityInput.value.trim()!=="");
+    const ready=Boolean(hasHeight&&hasCapacity&&heightInput.checkValidity()&&capacityInput.checkValidity());
     calibrateButton.disabled=!ready;
   }
   heightInput?.addEventListener("input",updateCalibrateState);

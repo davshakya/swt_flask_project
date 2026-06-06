@@ -289,7 +289,9 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "window.swtSyncLowerSensorSetupVisibility=syncLowerSensorSetupVisibility;" in device_template
     assert "syncLowerSensorSetupVisibility();" in device_template
     assert 'window.addEventListener("pageshow",syncLowerSensorSetupVisibility);' in device_template
-    assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
+    assert 'heightInput&&heightInput.value.trim()!==""' in device_template
+    assert 'capacityInput&&capacityInput.value.trim()!==""' in device_template
+    assert "hasHeight&&hasCapacity&&heightInput.checkValidity()&&capacityInput.checkValidity()" in device_template
     assert 'if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");' in device_template
     assert "Save Height & Capacity" in device_template
     assert ">Calibrate Sensor</span>" in device_template
@@ -302,6 +304,7 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
+    assert 'config_error="Tank height is required before calibration."' in server_source
     assert 'calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert "The master will forward upper calibration to the slave MCU" in server_source

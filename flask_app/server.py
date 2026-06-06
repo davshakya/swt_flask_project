@@ -12299,6 +12299,14 @@ def admin_device_detail_sensor_configure(device_id):
                 config_error="Tank capacity is required.",
             )
         )
+    if action in {"save_calibrate", "save_and_calibrate", "calibrate"} and height_cm is None:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Tank height is required before calibration.",
+            )
+        )
     if height_cm is not None and (height_cm < 2.1 or height_cm > 500):
         return redirect(
             url_for(
