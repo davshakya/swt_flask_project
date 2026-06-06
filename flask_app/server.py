@@ -9533,6 +9533,17 @@ def fetch_latest_android_app_release():
     return None
 
 
+def normalize_android_upload_filename_for_release_channel(filename):
+    raw_name = Path(str(filename or "")).name.strip() or "smart-water-tank.apk"
+    cleaned = re.sub(r"(?i)(debug|unsigned)", "build", raw_name)
+    cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", cleaned).strip(" .-_")
+    if not cleaned:
+        cleaned = "smart-water-tank"
+    if not cleaned.lower().endswith(".apk"):
+        cleaned = f"{cleaned}.apk"
+    return cleaned
+
+
 def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
     upload = read_uploaded_android_apk(uploaded_file, ANDROID_RELEASE_MAX_BYTES)
     normalized_version_name = upload["version_name"]
@@ -11557,6 +11568,8 @@ def admin_android_release_upload():
     search_query = request.values.get("q", "", type=str) or ""
 
     apk_file = request.files.get("apk_file")
+    if apk_file is not None and apk_file.filename:
+        apk_file.filename = normalize_android_upload_filename_for_release_channel(apk_file.filename)
     notes = request.form.get("notes", "")
     try:
         release = create_android_app_release(
