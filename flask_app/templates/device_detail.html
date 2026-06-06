@@ -254,8 +254,8 @@ body{font-size:16px}
                         <input id="admin_upper_tank_capacity_liters" name="capacity_liters" type="number" min="50" max="50000" step="0.1" inputmode="decimal" placeholder="1000" required data-tank-setup-capacity>
                     </div>
                     <div class="tank-setup-actions">
-                        <button id="upperTankSetupSaveButton" class="btn btn-admin" type="submit" name="action" value="save"><span>Save {{ upper_setup_label }} Height & Capacity</span></button>
-                        <button id="upperTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate {{ upper_setup_label|lower }} sensor?" data-confirm-message="Save {{ upper_setup_label|lower }} tank height and capacity, then queue upper calibration for device {{ device_id }}?" data-confirm-button="Save & Calibrate"><span>Save & Calibrate {{ upper_setup_label }} Sensor</span></button>
+                        <button id="upperTankSetupSaveButton" class="btn btn-admin" type="submit" name="action" value="save"><span>Save Height & Capacity</span></button>
+                        <button id="upperTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate {{ upper_setup_label|lower }} sensor?" data-confirm-message="Save {{ upper_setup_label|lower }} tank height and capacity, then queue upper calibration for device {{ device_id }}?" data-confirm-button="Calibrate Sensor"><span>Calibrate Sensor</span></button>
                     </div>
                 </form>
                 <div id="upperSensorSetupHelp" class="helper-text">Use the {{ upper_setup_label|lower }} tank's measured sensor-to-empty-tank height and capacity.</div>
@@ -424,12 +424,13 @@ function syncUpperSensorSetupLabels(){
   if(title)title.textContent=`${label} Sensor Setup`;
   if(heightLabel)heightLabel.textContent=`${label} Height Cm`;
   if(capacityLabel)capacityLabel.textContent=`${label} Capacity Liters`;
-  if(saveButton)saveButton.textContent=`Save ${label} Height & Capacity`;
+  if(saveButton)saveButton.textContent="Save Height & Capacity";
   if(calibrateButton){
     calibrateButton.dataset.confirmTitle=`Save and calibrate ${lowerLabel} sensor?`;
     calibrateButton.dataset.confirmMessage=`Save ${lowerLabel} tank height and capacity, then queue upper calibration for device ${DEVICE_ID}?`;
+    calibrateButton.dataset.confirmButton="Calibrate Sensor";
     const span=calibrateButton.querySelector("span");
-    if(span)span.textContent=`Save & Calibrate ${label} Sensor`;
+    if(span)span.textContent="Calibrate Sensor";
   }
   if(help)help.textContent=`Use the ${lowerLabel} tank's measured sensor-to-empty-tank height and capacity.`;
 }
