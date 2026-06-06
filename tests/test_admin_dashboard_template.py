@@ -241,6 +241,7 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".hero-actions .btn{height:36px;min-height:36px;min-width:96px" in device_template
     assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
     assert ".admin-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}" in device_template
+    assert ".admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.tank-setup-form .btn,.firmware-upload-grid .btn{width:100%;max-width:none;justify-self:stretch}" in device_template
     assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
 
 
@@ -288,6 +289,23 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert "The master will forward upper calibration to the slave MCU" in server_source
+
+
+def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '{% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}' in device_template
+    assert '{% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}' in device_template
+    assert 'id="masterUpperSensorOption" type="checkbox" name="master_upper_sensor_enabled" value="1" {% if master_upper_checked %}checked{% endif %}' in device_template
+    assert 'id="slaveUpperSensorOption" type="checkbox" name="slave_upper_sensor_enabled" value="1" {% if slave_upper_checked %}checked{% endif %}' in device_template
+    assert 'Only one upper sensor source can be active.' in device_template
+    assert "function syncRuntimeConfigurationOptions()" in device_template
+    assert "slaveUpper.checked=false;" in device_template
+    assert "masterUpper.checked=false;" in device_template
+    assert "slaveUpper.disabled=!slaveEnabled;" in device_template
+    assert 'elif slave_upper_sensor_enabled:' in server_source
+    assert 'master_upper_sensor_enabled = False' in server_source
 
 
 def test_device_detail_renders_master_slave_memory_health_graph():
