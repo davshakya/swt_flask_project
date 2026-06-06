@@ -269,9 +269,11 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "Lower / Source Sensor Setup" in device_template
     assert 'id="upperSensorSetupSection"' in device_template
     assert 'id="lowerSensorSetupSection"' in device_template
+    assert 'id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled"' in device_template
+    assert 'onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"' in device_template
     assert '{% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}' in device_template
     assert "{% if master_upper_checked or slave_upper_checked %}" in device_template
-    assert '{% if service_config.get("source_tank_monitoring_enabled") %}' in device_template
+    assert 'class="admin-form sensor-setup-card {% if not service_config.get("source_tank_monitoring_enabled") %}hidden-section{% endif %}" id="lowerSensorSetupSection"' in device_template
     assert "upperTankSetupForm" in device_template
     assert "lowerTankSetupForm" in device_template
     assert "admin_upper_tank_height_cm" in device_template
@@ -282,6 +284,11 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "lowerTankSetupCalibrateButton" in device_template
     assert 'class="tank-setup-actions"' in device_template
     assert "document.querySelectorAll(\".tank-setup-form\")" in device_template
+    assert "function syncLowerSensorSetupVisibility()" in device_template
+    assert 'lowerSetup.classList.toggle("hidden-section",!lowerSensor.checked);' in device_template
+    assert "window.swtSyncLowerSensorSetupVisibility=syncLowerSensorSetupVisibility;" in device_template
+    assert "syncLowerSensorSetupVisibility();" in device_template
+    assert 'window.addEventListener("pageshow",syncLowerSensorSetupVisibility);' in device_template
     assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
     assert 'if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");' in device_template
     assert "Save Height & Capacity" in device_template

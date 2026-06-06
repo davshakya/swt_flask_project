@@ -179,7 +179,7 @@ body{font-size:16px}
                     <div class="config-section">
                         <h4>Master Configuration</h4>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
-                        <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Lower Sensor</label>
+                        <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
@@ -262,8 +262,7 @@ body{font-size:16px}
             </div>
             {% endif %}
 
-                {% if service_config.get("source_tank_monitoring_enabled") %}
-            <div class="admin-form sensor-setup-card" id="lowerSensorSetupSection">
+            <div class="admin-form sensor-setup-card {% if not service_config.get("source_tank_monitoring_enabled") %}hidden-section{% endif %}" id="lowerSensorSetupSection">
                 <h3>Lower / Source Sensor Setup</h3>
                 <form class="tank-setup-form" id="lowerTankSetupForm" method="post" action="{{ url_for('admin_device_detail_sensor_configure', device_id=device_id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -283,7 +282,6 @@ body{font-size:16px}
                 </form>
                 <div class="helper-text">Use the lower/source tank's measured sensor-to-empty-tank height and capacity.</div>
             </div>
-                {% endif %}
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -434,7 +432,14 @@ function syncUpperSensorSetupLabels(){
   }
   if(help)help.textContent=`Use the ${lowerLabel} tank's measured sensor-to-empty-tank height and capacity.`;
 }
+function syncLowerSensorSetupVisibility(){
+  const lowerSensor=document.getElementById("lowerSensorOption");
+  const lowerSetup=document.getElementById("lowerSensorSetupSection");
+  if(!lowerSensor||!lowerSetup)return;
+  lowerSetup.classList.toggle("hidden-section",!lowerSensor.checked);
+}
 window.swtSyncRuntimeConfigurationOptions=syncRuntimeConfigurationOptions;
+window.swtSyncLowerSensorSetupVisibility=syncLowerSensorSetupVisibility;
 document.addEventListener("DOMContentLoaded",()=>{
   function preserveViewport(callback){
     const x=window.scrollX||0;
@@ -578,6 +583,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         const error=finalUrl.searchParams.get("config_error");
         showResultModal(error?"Action failed":"Action saved",error||message||"Request completed. Live device details will update without reloading the page.",Boolean(error)||!response.ok);
         if(response.ok&&!error){
+          syncLowerSensorSetupVisibility();
           preserveViewport(()=>{loadDevice({silent:true});});
           if(form.querySelector('input[type="password"]'))form.reset();
         }
@@ -601,8 +607,11 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(masterUpper?.checked&&slaveUpper)slaveUpper.checked=false;
     syncRuntimeConfigurationOptions();
   });
+  document.getElementById("lowerSensorOption")?.addEventListener("change",syncLowerSensorSetupVisibility);
+  syncLowerSensorSetupVisibility();
 });
 window.addEventListener("pageshow",syncRuntimeConfigurationOptions);
+window.addEventListener("pageshow",syncLowerSensorSetupVisibility);
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
   if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
   const raw=String(value??"").trim();
