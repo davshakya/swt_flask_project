@@ -285,9 +285,8 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
     assert 'if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");' in device_template
     assert "Save Height & Capacity" in device_template
-    assert "Save Lower Height & Capacity" in device_template
     assert ">Calibrate Sensor</span>" in device_template
-    assert "Save & Calibrate Lower Sensor" in device_template
+    assert 'data-confirm-button="Calibrate Sensor"' in device_template
     assert "admin_device_detail_sensor_configure" in device_template
     assert "admin_device_detail_sensor_calibrate" in server_source
     assert 'name="sensor" value="upper"' in device_template
@@ -307,8 +306,8 @@ def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
 
     assert '{% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}' in device_template
     assert '{% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}' in device_template
-    assert 'id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %}' in device_template
-    assert 'id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %}' in device_template
+    assert 'id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"' in device_template
+    assert 'id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"' in device_template
     assert 'Only one upper sensor source can be active.' in device_template
     assert 'onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"' in device_template
     assert "function syncRuntimeConfigurationOptions()" in device_template
@@ -318,6 +317,7 @@ def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
     assert 'calibrateButton.dataset.confirmButton="Calibrate Sensor";' in device_template
     assert 'if(span)span.textContent="Calibrate Sensor";' in device_template
     assert "window.swtSyncRuntimeConfigurationOptions=syncRuntimeConfigurationOptions;" in device_template
+    assert 'window.addEventListener("pageshow",syncRuntimeConfigurationOptions);' in device_template
     assert "slaveUpper.checked=false;" in device_template
     assert "masterUpper.checked=false;" in device_template
     assert "slaveUpper.disabled=true;" in device_template

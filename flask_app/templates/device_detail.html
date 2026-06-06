@@ -178,7 +178,7 @@ body{font-size:16px}
                 <div class="config-sections">
                     <div class="config-section">
                         <h4>Master Configuration</h4>
-                        <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %}> Upper Sensor</label>
+                        <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Lower Sensor</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
@@ -187,7 +187,7 @@ body{font-size:16px}
                     <div class="config-section">
                         <h4>Slave Configuration</h4>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
-                        <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %}> Upper Sensor</label>
+                        <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
@@ -277,8 +277,8 @@ body{font-size:16px}
                         <input id="admin_lower_tank_capacity_liters" name="capacity_liters" type="number" min="50" max="50000" step="0.1" inputmode="decimal" placeholder="1000" required data-tank-setup-capacity>
                     </div>
                     <div class="tank-setup-actions">
-                        <button class="btn btn-admin" type="submit" name="action" value="save"><span>Save Lower Height & Capacity</span></button>
-                        <button id="lowerTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate lower sensor?" data-confirm-message="Save lower/source tank height and capacity, then queue lower/source calibration for device {{ device_id }}?" data-confirm-button="Save & Calibrate"><span>Save & Calibrate Lower Sensor</span></button>
+                        <button class="btn btn-admin" type="submit" name="action" value="save"><span>Save Height & Capacity</span></button>
+                        <button id="lowerTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate lower sensor?" data-confirm-message="Save lower/source tank height and capacity, then queue lower/source calibration for device {{ device_id }}?" data-confirm-button="Calibrate Sensor"><span>Calibrate Sensor</span></button>
                     </div>
                 </form>
                 <div class="helper-text">Use the lower/source tank's measured sensor-to-empty-tank height and capacity.</div>
@@ -602,6 +602,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     syncRuntimeConfigurationOptions();
   });
 });
+window.addEventListener("pageshow",syncRuntimeConfigurationOptions);
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
   if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
   const raw=String(value??"").trim();
