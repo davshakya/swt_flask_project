@@ -70,6 +70,7 @@ body{font-size:16px}
     {% set slave_device_checked = service_config.get("slave_device_enabled", True) %}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
+    {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
     {% if firmware_install_profile is not defined %}
         {% if config_type == "master_slave" %}
             {% set firmware_install_profile = {
@@ -238,26 +239,28 @@ body{font-size:16px}
                 <div class="helper-text">Delete returns to the admin fleet table because the device detail record is removed.</div>
             </div>
 
-            <div class="admin-form sensor-setup-card" id="upperSensorSetupSection">
-                <h3>Upper Sensor Setup</h3>
+            {% if master_upper_checked or slave_upper_checked %}
+            <div class="admin-form sensor-setup-card" id="upperSensorSetupSection" data-master-upper-label="Master Upper" data-slave-upper-label="Slave Upper">
+                <h3 id="upperSensorSetupTitle">{{ upper_setup_label }} Sensor Setup</h3>
                 <form class="tank-setup-form" id="upperTankSetupForm" method="post" action="{{ url_for('admin_device_detail_sensor_configure', device_id=device_id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="sensor" value="upper">
                     <div class="form-group">
-                        <label for="admin_upper_tank_height_cm">Upper Height Cm</label>
+                        <label id="upperSensorHeightLabel" for="admin_upper_tank_height_cm">{{ upper_setup_label }} Height Cm</label>
                         <input id="admin_upper_tank_height_cm" name="height_cm" type="number" min="2.1" max="500" step="0.1" inputmode="decimal" placeholder="60.0" required data-tank-setup-height>
                     </div>
                     <div class="form-group">
-                        <label for="admin_upper_tank_capacity_liters">Upper Capacity Liters</label>
+                        <label id="upperSensorCapacityLabel" for="admin_upper_tank_capacity_liters">{{ upper_setup_label }} Capacity Liters</label>
                         <input id="admin_upper_tank_capacity_liters" name="capacity_liters" type="number" min="50" max="50000" step="0.1" inputmode="decimal" placeholder="1000" required data-tank-setup-capacity>
                     </div>
                     <div class="tank-setup-actions">
-                        <button class="btn btn-admin" type="submit" name="action" value="save"><span>Save Upper Height & Capacity</span></button>
-                        <button id="upperTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate upper sensor?" data-confirm-message="Save upper tank height and capacity, then queue upper calibration for device {{ device_id }}?" data-confirm-button="Save & Calibrate"><span>Save & Calibrate Upper Sensor</span></button>
+                        <button id="upperTankSetupSaveButton" class="btn btn-admin" type="submit" name="action" value="save"><span>Save {{ upper_setup_label }} Height & Capacity</span></button>
+                        <button id="upperTankSetupCalibrateButton" class="btn btn-admin" type="submit" name="action" value="save_calibrate" disabled data-tank-setup-calibrate data-confirm-title="Save and calibrate {{ upper_setup_label|lower }} sensor?" data-confirm-message="Save {{ upper_setup_label|lower }} tank height and capacity, then queue upper calibration for device {{ device_id }}?" data-confirm-button="Save & Calibrate"><span>Save & Calibrate {{ upper_setup_label }} Sensor</span></button>
                     </div>
                 </form>
-                <div class="helper-text">Use the upper tank's measured sensor-to-empty-tank height and capacity.</div>
+                <div id="upperSensorSetupHelp" class="helper-text">Use the {{ upper_setup_label|lower }} tank's measured sensor-to-empty-tank height and capacity.</div>
             </div>
+            {% endif %}
 
                 {% if service_config.get("source_tank_monitoring_enabled") %}
             <div class="admin-form sensor-setup-card" id="lowerSensorSetupSection">
@@ -404,6 +407,31 @@ function syncRuntimeConfigurationOptions(){
   }else{
     slaveUpper.disabled=false;
   }
+  syncUpperSensorSetupLabels();
+}
+function syncUpperSensorSetupLabels(){
+  const section=document.getElementById("upperSensorSetupSection");
+  const slaveUpper=document.getElementById("slaveUpperSensorOption");
+  if(!section)return;
+  const label=slaveUpper?.checked?(section.dataset.slaveUpperLabel||"Slave Upper"):(section.dataset.masterUpperLabel||"Master Upper");
+  const lowerLabel=label.toLowerCase();
+  const title=document.getElementById("upperSensorSetupTitle");
+  const heightLabel=document.getElementById("upperSensorHeightLabel");
+  const capacityLabel=document.getElementById("upperSensorCapacityLabel");
+  const saveButton=document.getElementById("upperTankSetupSaveButton")?.querySelector("span");
+  const calibrateButton=document.getElementById("upperTankSetupCalibrateButton");
+  const help=document.getElementById("upperSensorSetupHelp");
+  if(title)title.textContent=`${label} Sensor Setup`;
+  if(heightLabel)heightLabel.textContent=`${label} Height Cm`;
+  if(capacityLabel)capacityLabel.textContent=`${label} Capacity Liters`;
+  if(saveButton)saveButton.textContent=`Save ${label} Height & Capacity`;
+  if(calibrateButton){
+    calibrateButton.dataset.confirmTitle=`Save and calibrate ${lowerLabel} sensor?`;
+    calibrateButton.dataset.confirmMessage=`Save ${lowerLabel} tank height and capacity, then queue upper calibration for device ${DEVICE_ID}?`;
+    const span=calibrateButton.querySelector("span");
+    if(span)span.textContent=`Save & Calibrate ${label} Sensor`;
+  }
+  if(help)help.textContent=`Use the ${lowerLabel} tank's measured sensor-to-empty-tank height and capacity.`;
 }
 window.swtSyncRuntimeConfigurationOptions=syncRuntimeConfigurationOptions;
 document.addEventListener("DOMContentLoaded",()=>{

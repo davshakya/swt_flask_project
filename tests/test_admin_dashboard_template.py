@@ -265,10 +265,12 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert "Upper Sensor Setup" in device_template
+    assert "{{ upper_setup_label }} Sensor Setup" in device_template
     assert "Lower / Source Sensor Setup" in device_template
     assert 'id="upperSensorSetupSection"' in device_template
     assert 'id="lowerSensorSetupSection"' in device_template
+    assert '{% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}' in device_template
+    assert "{% if master_upper_checked or slave_upper_checked %}" in device_template
     assert '{% if service_config.get("source_tank_monitoring_enabled") %}' in device_template
     assert "upperTankSetupForm" in device_template
     assert "lowerTankSetupForm" in device_template
@@ -282,15 +284,15 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "document.querySelectorAll(\".tank-setup-form\")" in device_template
     assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
     assert 'if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");' in device_template
-    assert "Save Upper Height & Capacity" in device_template
+    assert "Save {{ upper_setup_label }} Height & Capacity" in device_template
     assert "Save Lower Height & Capacity" in device_template
-    assert "Save & Calibrate Upper Sensor" in device_template
+    assert "Save & Calibrate {{ upper_setup_label }} Sensor" in device_template
     assert "Save & Calibrate Lower Sensor" in device_template
     assert "admin_device_detail_sensor_configure" in device_template
     assert "admin_device_detail_sensor_calibrate" in server_source
     assert 'name="sensor" value="upper"' in device_template
     assert 'name="sensor" value="lower"' in device_template
-    assert 'data-confirm-title="Save and calibrate upper sensor?"' in device_template
+    assert 'data-confirm-title="Save and calibrate {{ upper_setup_label|lower }} sensor?"' in device_template
     assert 'command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
@@ -310,6 +312,9 @@ def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
     assert 'Only one upper sensor source can be active.' in device_template
     assert 'onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"' in device_template
     assert "function syncRuntimeConfigurationOptions()" in device_template
+    assert "function syncUpperSensorSetupLabels()" in device_template
+    assert 'const label=slaveUpper?.checked?(section.dataset.slaveUpperLabel||"Slave Upper"):(section.dataset.masterUpperLabel||"Master Upper");' in device_template
+    assert 'if(saveButton)saveButton.textContent=`Save ${label} Height & Capacity`;' in device_template
     assert "window.swtSyncRuntimeConfigurationOptions=syncRuntimeConfigurationOptions;" in device_template
     assert "slaveUpper.checked=false;" in device_template
     assert "masterUpper.checked=false;" in device_template
