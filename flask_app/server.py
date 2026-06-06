@@ -3320,6 +3320,8 @@ SOURCE_TANK_ALIAS_FIELDS = {
     "lower_sensor_info": ("source_tank_sensor_info", "source_sensor_info"),
     "lower_sensor_distance_cm": ("source_tank_sensor_distance_cm", "source_sensor_distance_cm"),
     "lower_tank_service": ("source_tank_service", "source_service"),
+    "lower_tank_height_cm": ("source_tank_height_cm", "source_height_cm"),
+    "lower_tank_capacity_liters": ("source_tank_capacity_liters", "source_capacity_liters"),
 }
 
 
@@ -6280,9 +6282,17 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     else:
         data["lower_water_depth_cm"] = None
         data["lower_water_depth_label"] = "--"
+    lower_capacity_liters = safe_float(
+        data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters"),
+        capacity_liters,
+    )
+    if lower_capacity_liters <= 0:
+        lower_capacity_liters = capacity_liters
+    data["source_tank_capacity_liters"] = round(lower_capacity_liters, 1)
+    data["lower_tank_capacity_liters"] = round(lower_capacity_liters, 1)
     if data["lower_tank_level"] is not None:
-        lower_liters = round((data["lower_tank_level"] / 100) * capacity_liters, 1)
-        data["lower_water_available_label"] = f"{lower_liters:.1f} L / {capacity_liters:.1f} L"
+        lower_liters = round((data["lower_tank_level"] / 100) * lower_capacity_liters, 1)
+        data["lower_water_available_label"] = f"{lower_liters:.1f} L / {lower_capacity_liters:.1f} L"
     else:
         data["lower_water_available_label"] = "--"
     data["last_sync_at"] = format_timestamp(created_at)
@@ -12249,13 +12259,34 @@ def admin_device_detail_sensor_calibrate(device_id):
 @csrf_protect
 def admin_device_detail_sensor_configure(device_id):
     scoped_device_id = current_scope_device_id(device_id)
+    service_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
+    sensor = str(request.values.get("sensor") or "upper").strip().lower()
+    lower_requested = sensor in {"lower", "source", "source_tank"}
+    height_cm = request.values.get("height_cm", type=float)
     capacity_liters = request.values.get("capacity_liters", type=float)
+    action = str(request.values.get("action") or "save").strip().lower()
+    if lower_requested and not bool(service_config.get("source_tank_monitoring_enabled")):
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Lower/source tank setup is not available because lower sensor service is disabled.",
+            )
+        )
     if capacity_liters is None:
         return redirect(
             url_for(
                 "device_detail_page",
                 device_id=scoped_device_id,
                 config_error="Tank capacity is required.",
+            )
+        )
+    if height_cm is not None and (height_cm < 2.1 or height_cm > 500):
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Tank height must be between 2.1 and 500 cm.",
             )
         )
     if capacity_liters < 50 or capacity_liters > 50000:
@@ -12267,7 +12298,10 @@ def admin_device_detail_sensor_configure(device_id):
             )
         )
 
-    command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"
+    if height_cm is not None:
+        command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}" if lower_requested else f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"
+    else:
+        command = f"CONFIG_LOWER_CAPACITY:{capacity_liters:.1f}" if lower_requested else f"CONFIG_CAPACITY:{capacity_liters:.1f}"
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -12286,15 +12320,51 @@ def admin_device_detail_sensor_configure(device_id):
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
+            "sensor": "lower" if lower_requested else "upper",
+            "height_cm": round(height_cm, 1) if height_cm is not None else None,
             "capacity_liters": round(capacity_liters, 1),
             "queued_at": result.get("queued_at"),
         },
     )
+    calibration_result = None
+    if action in {"save_calibrate", "save_and_calibrate", "calibrate"}:
+        calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
+        calibration_result = queue_command(calibration_command, target_device=scoped_device_id)
+        if isinstance(calibration_result, tuple):
+            payload, _status_code = calibration_result
+            return redirect(
+                url_for(
+                    "device_detail_page",
+                    device_id=scoped_device_id,
+                    config_error=payload.get("error") or "Tank setup saved, but unable to queue calibration.",
+                )
+            )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="queue_device_calibration",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "command": calibration_result.get("command"),
+                "sensor": "lower" if lower_requested else "upper",
+                "command_target": scoped_device_id,
+                "queued_at": calibration_result.get("queued_at"),
+                "queued_after_tank_setup": True,
+            },
+        )
+
+    sensor_label = "Lower/source" if lower_requested else "Upper"
+    config_parts = [f"{sensor_label} tank capacity command queued: {capacity_liters:.1f} L"]
+    if height_cm is not None:
+        config_parts.insert(0, f"{sensor_label} tank height command queued: {height_cm:.1f} cm")
+    if calibration_result:
+        config_parts.append(f"{sensor_label} calibration command queued.")
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
-            config_message=f"Tank capacity command queued: {capacity_liters:.1f} L. Calibrate next to learn tank height.",
+            config_message=". ".join(config_parts),
         )
     )
 

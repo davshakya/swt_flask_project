@@ -263,13 +263,29 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
     assert "Tank Setup" in device_template
-    assert "admin_tank_capacity_liters" in device_template
+    assert "upperTankSetupForm" in device_template
+    assert "lowerTankSetupForm" in device_template
+    assert "admin_upper_tank_height_cm" in device_template
+    assert "admin_upper_tank_capacity_liters" in device_template
+    assert "admin_lower_tank_height_cm" in device_template
+    assert "admin_lower_tank_capacity_liters" in device_template
+    assert "upperTankSetupCalibrateButton" in device_template
+    assert "lowerTankSetupCalibrateButton" in device_template
+    assert "document.querySelectorAll(\".tank-setup-form\")" in device_template
+    assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
+    assert "Save Upper Height & Capacity" in device_template
+    assert "Save Lower Height & Capacity" in device_template
+    assert "Save & Calibrate Upper Sensor" in device_template
+    assert "Save & Calibrate Lower Sensor" in device_template
     assert "admin_device_detail_sensor_configure" in device_template
-    assert "admin_device_detail_sensor_calibrate" in device_template
+    assert "admin_device_detail_sensor_calibrate" in server_source
     assert 'name="sensor" value="upper"' in device_template
     assert 'name="sensor" value="lower"' in device_template
-    assert 'data-confirm-title="Calibrate upper sensor?"' in device_template
+    assert 'data-confirm-title="Save and calibrate upper sensor?"' in device_template
+    assert 'command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
+    assert 'f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
+    assert 'calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert "The master will forward upper calibration to the slave MCU" in server_source
 
