@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-05-27`
+Last refreshed: `2026-06-06`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
 
@@ -20,6 +20,7 @@ Within the wider workspace:
 - Device telemetry ingestion through `POST /status`
 - Device command delivery through `/device/command` and `/device/command/ack`
 - Admin and customer login flows with separate scopes
+- Customer forgot-password and reset-password flow when SMTP is configured
 - Browser dashboard, customer dashboard, and per-device detail pages
 - PWA manifest, service worker, install prompt, mobile-friendly public pages, and customer-facing homepage
 - Pricing/comparison page for Starter Wi-Fi, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
@@ -30,7 +31,7 @@ Within the wider workspace:
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
-- Android update manifest at `/static/version.json`
+- Android update manifests at `/static/version.json` and `/api/mobile/app/update`
 - MySQL/MariaDB schema initialization for local and hosted deployment
 
 ## Customer and Sales Features
@@ -59,8 +60,7 @@ Within the wider workspace:
 | `Flask_deployment_README.md` | cPanel / Passenger deployment guide |
 | `scripts/` | Operational and data utility scripts |
 | `docs/` | Production rollout and support guidance |
-| `data/` | Default local upload/artifact storage location |
-| `tests/` | Small backend-only pytest checks for startup/env parsing and optional simulator imports |
+| `tests/` | Backend-local pytest checks for startup/env parsing, mobile local sync, firmware artifacts, dashboard behavior, and optional simulator imports |
 
 ## Runtime Flow
 
@@ -185,7 +185,6 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `DB_MAINTENANCE_ENABLED`: Enables cleanup/maintenance passes.
 - `DB_TARGET_SIZE_MB`: Soft database size target used by maintenance logic.
 - `DB_MAINTENANCE_MIN_INTERVAL_SECONDS`: Minimum spacing between maintenance runs.
-- `DB_WAL_AUTOCHECKPOINT_PAGES`: Legacy setting ignored by MySQL-only deployments.
 - `TEMP_DB_SIZE_GUARD_ENABLED`: Temporary safety flag that skips post-retention maintenance when nothing was pruned and the database is still under the configured size target.
 - `TEMP_HARD_DB_CAP_ENABLED`: Temporary hard-cap flag that trims the oldest telemetry rows when the database stays above the configured size target.
 - `TEMP_HARD_DB_CAP_BATCH_ROWS`: Number of oldest telemetry rows to remove per hard-cap batch while preserving the newest row for each device.
@@ -220,10 +219,15 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/` | Redirects to the correct dashboard for the logged-in user | Session |
 | `/login/admin` | Admin login page | Public |
 | `/login/customer` | Customer login page | Public |
+| `/login/customer/forgot-password` | Request a customer password reset email | Public |
+| `/login/customer/reset-password/<token>` | Complete a customer password reset | Public token |
+| `/account/password` | Change the current admin dashboard password | Admin |
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
+| `/admin/devices/register` | Register device credentials and optional customer account | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
 | `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
+| `/admin/releases/android/prune` | Prune old uploaded Android APK releases | Admin |
 | `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
 | `/customer/dashboard` | Customer dashboard | Customer |
 | `/devices/<device_id>` | Device detail page | Logged-in user |
@@ -247,6 +251,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/last` | Latest dashboard snapshot | Session |
 | `/history` | Time-window telemetry history | Session |
 | `/analytics` | Aggregated usage analytics | Session |
+| `/analytics/export.csv` | CSV export for analytics/history records | Session |
 | `/system/status` | Structured device/system state | Session |
 | `/monitoring/summary` | Monitoring summary | Session |
 | `/monitoring/alerts` | Alert list | Session |
@@ -266,11 +271,15 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/auth/login` | `POST` | Exchange admin/customer credentials for a token |
 | `/api/mobile/bootstrap` | `GET` | Initial dashboard/mobile payload |
 | `/api/mobile/analytics` | `GET` | Analytics payload |
+| `/api/mobile/local-sync` | `POST` | Store local-device status observed by the mobile app |
 | `/api/mobile/last` | `GET` | Latest snapshot |
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
+| `/api/mobile/device/local-auth/reset` | `POST` | Queue/reset local firmware auth from an authenticated mobile session |
 | `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware for `role=master` or `role=slave` |
 | `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device and role |
+| `/api/mobile/app/update` | `GET` | Android update manifest for the latest uploaded APK |
+| `/api/mobile/app/latest.apk` | `GET` | Authenticated latest Android APK download |
 | `/api/mobile/motor/on` | `POST` | Queue motor `ON` |
 | `/api/mobile/motor/off` | `POST` | Queue motor `OFF` |
 | `/api/mobile/sensor/calibrate` | `POST` | Queue calibration |
@@ -346,10 +355,6 @@ $env:SWT_FLASK_TEST_REPO = "..\\swt_test_cases_project"
 ```
 
 ## Utility Scripts
-
-### Legacy SQLite Migration Helpers
-
-Some scripts remain for one-time migration from older SQLite pilot data, but the Flask app itself now runs MySQL/MariaDB only. Do not use those helpers as the production database path.
 
 ### Virtual Device Emulator
 

@@ -9,6 +9,8 @@ from urllib.parse import urlparse
 
 def parse_simple_dotenv(dotenv_path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
+    if not dotenv_path.exists():
+        return values
     try:
         with dotenv_path.open("r", encoding="utf-8") as handle:
             for raw_line in handle:
@@ -68,9 +70,12 @@ def normalize_http_base_url(value: Any) -> str | None:
 def env_flag(name: str, default: bool = False, environ: Any = None) -> bool:
     env_source = os.environ if environ is None else environ
     raw_value = env_source.get(name)
-    if raw_value is None or str(raw_value).strip() == "":
+    if raw_value is None:
         return default
-    return str(raw_value).strip().lower() in {"1", "true", "yes", "on"}
+    text = str(raw_value).strip()
+    if not text:
+        return default
+    return text.lower() in {"1", "true", "yes", "on"}
 
 
 def _warn_invalid_env_value(name: str, raw_value: Any, expected_type: str, default: Any) -> None:
