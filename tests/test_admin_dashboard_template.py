@@ -241,7 +241,9 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".hero-actions .btn{height:36px;min-height:36px;min-width:96px" in device_template
     assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
     assert ".admin-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}" in device_template
-    assert ".admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.tank-setup-form .btn,.firmware-upload-grid .btn{width:100%;max-width:none;justify-self:stretch}" in device_template
+    assert ".admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.firmware-upload-grid .btn{width:100%;max-width:none;justify-self:stretch}" in device_template
+    assert ".sensor-setup-card{align-content:start}" in device_template
+    assert ".tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}" in device_template
     assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
 
 
@@ -263,7 +265,11 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert "Tank Setup" in device_template
+    assert "Upper Sensor Setup" in device_template
+    assert "Lower / Source Sensor Setup" in device_template
+    assert 'id="upperSensorSetupSection"' in device_template
+    assert 'id="lowerSensorSetupSection"' in device_template
+    assert '{% if service_config.get("source_tank_monitoring_enabled") %}' in device_template
     assert "upperTankSetupForm" in device_template
     assert "lowerTankSetupForm" in device_template
     assert "admin_upper_tank_height_cm" in device_template
@@ -272,8 +278,10 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "admin_lower_tank_capacity_liters" in device_template
     assert "upperTankSetupCalibrateButton" in device_template
     assert "lowerTankSetupCalibrateButton" in device_template
+    assert 'class="tank-setup-actions"' in device_template
     assert "document.querySelectorAll(\".tank-setup-form\")" in device_template
     assert "heightInput?.checkValidity()&&capacityInput?.checkValidity()" in device_template
+    assert 'if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");' in device_template
     assert "Save Upper Height & Capacity" in device_template
     assert "Save Lower Height & Capacity" in device_template
     assert "Save & Calibrate Upper Sensor" in device_template
@@ -300,10 +308,13 @@ def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
     assert 'id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %}' in device_template
     assert 'id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %}' in device_template
     assert 'Only one upper sensor source can be active.' in device_template
+    assert 'onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"' in device_template
     assert "function syncRuntimeConfigurationOptions()" in device_template
+    assert "window.swtSyncRuntimeConfigurationOptions=syncRuntimeConfigurationOptions;" in device_template
     assert "slaveUpper.checked=false;" in device_template
     assert "masterUpper.checked=false;" in device_template
-    assert "slaveUpper.disabled=!slaveEnabled;" in device_template
+    assert "slaveUpper.disabled=true;" in device_template
+    assert "slaveUpper.disabled=false;" in device_template
     assert 'upper_sensor_source = request.form.get("upper_sensor_source")' in server_source
     assert 'if upper_sensor_source in {"master", "slave"}:' in server_source
     assert 'slave_upper_sensor_enabled = slave_device_enabled and upper_sensor_source == "slave"' in server_source
