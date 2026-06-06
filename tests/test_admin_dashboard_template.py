@@ -297,13 +297,16 @@ def test_device_detail_keeps_upper_sensor_sources_mutually_exclusive():
 
     assert '{% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}' in device_template
     assert '{% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}' in device_template
-    assert 'id="masterUpperSensorOption" type="checkbox" name="master_upper_sensor_enabled" value="1" {% if master_upper_checked %}checked{% endif %}' in device_template
-    assert 'id="slaveUpperSensorOption" type="checkbox" name="slave_upper_sensor_enabled" value="1" {% if slave_upper_checked %}checked{% endif %}' in device_template
+    assert 'id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %}' in device_template
+    assert 'id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %}' in device_template
     assert 'Only one upper sensor source can be active.' in device_template
     assert "function syncRuntimeConfigurationOptions()" in device_template
     assert "slaveUpper.checked=false;" in device_template
     assert "masterUpper.checked=false;" in device_template
     assert "slaveUpper.disabled=!slaveEnabled;" in device_template
+    assert 'upper_sensor_source = request.form.get("upper_sensor_source")' in server_source
+    assert 'if upper_sensor_source in {"master", "slave"}:' in server_source
+    assert 'slave_upper_sensor_enabled = slave_device_enabled and upper_sensor_source == "slave"' in server_source
     assert 'elif slave_upper_sensor_enabled:' in server_source
     assert 'master_upper_sensor_enabled = False' in server_source
 
@@ -393,8 +396,8 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "Master Configuration" in device_template
     assert "Slave Configuration" in device_template
     assert "Other Features" in device_template
-    assert 'name="master_upper_sensor_enabled"' in device_template
-    assert 'name="slave_upper_sensor_enabled"' in device_template
+    assert 'name="upper_sensor_source" value="master"' in device_template
+    assert 'name="upper_sensor_source" value="slave"' in device_template
     assert 'name="relay_enabled"' in device_template
     assert "syncRuntimeConfigurationOptions" in device_template
     assert "Upload Master Firmware" in device_template

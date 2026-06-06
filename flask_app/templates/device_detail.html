@@ -177,7 +177,7 @@ body{font-size:16px}
                 <div class="config-sections">
                     <div class="config-section">
                         <h4>Master Configuration</h4>
-                        <label class="service-option"><input id="masterUpperSensorOption" type="checkbox" name="master_upper_sensor_enabled" value="1" {% if master_upper_checked %}checked{% endif %}> Upper Sensor</label>
+                        <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %}> Upper Sensor</label>
                         <label class="service-option"><input type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %}> Lower Sensor</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
@@ -186,7 +186,7 @@ body{font-size:16px}
                     <div class="config-section">
                         <h4>Slave Configuration</h4>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %}> Use Slave Device</label>
-                        <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="checkbox" name="slave_upper_sensor_enabled" value="1" {% if slave_upper_checked %}checked{% endif %}> Upper Sensor</label>
+                        <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %}> Upper Sensor</label>
                         <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">

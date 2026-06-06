@@ -12154,8 +12154,13 @@ def device_simulator_enabled(device_id, snapshot=None):
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     slave_device_enabled = "slave_device_enabled" in request.form
-    slave_upper_sensor_enabled = slave_device_enabled and "slave_upper_sensor_enabled" in request.form
-    master_upper_sensor_enabled = "master_upper_sensor_enabled" in request.form
+    upper_sensor_source = request.form.get("upper_sensor_source")
+    if upper_sensor_source in {"master", "slave"}:
+        slave_upper_sensor_enabled = slave_device_enabled and upper_sensor_source == "slave"
+        master_upper_sensor_enabled = not slave_upper_sensor_enabled
+    else:
+        slave_upper_sensor_enabled = slave_device_enabled and "slave_upper_sensor_enabled" in request.form
+        master_upper_sensor_enabled = "master_upper_sensor_enabled" in request.form
     if not slave_upper_sensor_enabled:
         master_upper_sensor_enabled = True
     elif slave_upper_sensor_enabled:
