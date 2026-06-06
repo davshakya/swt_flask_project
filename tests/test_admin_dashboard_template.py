@@ -393,11 +393,11 @@ def test_android_release_upload_modal_is_detached_and_shows_progress():
     assert '.android-upload-progress-bar' in admin_template
 
 
-def test_android_release_upload_rejects_debug_or_unsigned_apks():
+def test_android_release_upload_allows_debug_or_unsigned_apks():
     android_release_helper = (PROJECT_ROOT / "flask_app" / "android_releases.py").read_text(encoding="utf-8")
 
-    assert 'ANDROID_BLOCKED_APK_FILENAME_MARKERS = ("debug", "unsigned")' in android_release_helper
-    assert "Upload a signed release APK. Debug or unsigned APK files are not allowed for customer updates." in android_release_helper
+    assert "ANDROID_BLOCKED_APK_FILENAME_MARKERS" not in android_release_helper
+    assert "Debug or unsigned APK files are not allowed" not in android_release_helper
 
 
 def test_android_release_cleanup_removes_all_builds_copy():
