@@ -188,6 +188,7 @@ ACTIVE_SESSION_SETTING_PREFIX = "active_session"
 SESSION_PLATFORM_ANDROID = "android"
 SESSION_PLATFORM_DASHBOARD = "dashboard"
 DEFAULT_ANDROID_SSO_SESSION_LIMIT = 1
+DEFAULT_ADMIN_ANDROID_SSO_SESSION_LIMIT = 1
 MAX_ANDROID_SSO_SESSION_LIMIT = 10
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
@@ -1550,6 +1551,11 @@ def normalize_android_sso_session_limit(value, default=DEFAULT_ANDROID_SSO_SESSI
 def active_platform_session_limit(platform, role, username=None, device_id=None):
     if normalize_session_platform(platform) != SESSION_PLATFORM_ANDROID:
         return 1
+    if str(role or "").strip() == "admin":
+        return normalize_android_sso_session_limit(
+            os.environ.get("ADMIN_ANDROID_SSO_SESSION_LIMIT"),
+            default=DEFAULT_ADMIN_ANDROID_SSO_SESSION_LIMIT,
+        )
     if str(role or "").strip() != "customer":
         return 1
     normalized_device_id = normalize_device_id(device_id or username)
@@ -1588,6 +1594,10 @@ def active_platform_sessions(platform, role, username=None, device_id=None):
     if limited_sessions != active_sessions:
         set_app_setting(setting_key, serialize_active_platform_sessions(limited_sessions))
     return limited_sessions
+
+
+def active_platform_session_count(platform, role, username=None, device_id=None):
+    return len(active_platform_sessions(platform, role, username=username, device_id=device_id))
 
 
 def register_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
@@ -5867,6 +5877,11 @@ def authenticate_dashboard_user(username, password):
             "username": normalized_username,
             "device_id": None,
             "display_name": "Administrator",
+            "android_sso_session_limit": active_platform_session_limit(
+                SESSION_PLATFORM_ANDROID,
+                "admin",
+                username=normalized_username,
+            ),
             "auth_marker": current_dashboard_auth_marker(),
         }
     customer = fetch_customer_account(normalized_username)
@@ -5952,31 +5967,10 @@ def resolve_mobile_user():
         g.mobile_user = None
         return None
 
-    if role == "admin" and username == LOGIN_USERNAME:
-        current_auth_marker = current_dashboard_auth_marker()
-        if not secrets.compare_digest(token_auth_marker, current_auth_marker):
-            g.mobile_user = None
-            return None
-        if not active_platform_session_matches(
-            SESSION_PLATFORM_ANDROID,
-            "admin",
-            username=username,
-            session_id=platform_session_id,
-        ):
-            g.mobile_auth_error = "session_replaced"
-            g.mobile_user = None
-            return None
-        user = {
-            "role": "admin",
-            "username": username,
-            "device_id": None,
-            "display_name": "Administrator",
-            "platform_session_id": platform_session_id,
-            "cloud_feed_enabled": True,
-            "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
-            "ai_analysis_enabled": True,
-        }
-    elif role == "customer" and device_id:
+    if role == "admin":
+        g.mobile_user = None
+        return None
+    if role == "customer" and device_id:
         customer = fetch_customer_account(device_id)
         if not customer or int(customer.get("active", 0)) != 1:
             g.mobile_user = None
@@ -10530,6 +10524,13 @@ def mobile_auth_login():
     if not authenticated_user:
         time.sleep(0.5)
         return jsonify({"error": "invalid username or password"}), 401
+    if authenticated_user.get("role") == "admin":
+        return jsonify(
+            {
+                "error": "Admin login is only available from the web dashboard.",
+                "code": "admin_mobile_login_not_allowed",
+            }
+        ), 403
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
@@ -10648,27 +10649,7 @@ def mobile_account_password():
     device_id = user.get("device_id")
 
     if role == "admin":
-        if not verify_dashboard_password(current_password):
-            return jsonify({"error": "Current password is incorrect."}), 400
-        set_dashboard_password(new_password)
-        updated_user = {
-            "role": "admin",
-            "username": username or LOGIN_USERNAME,
-            "device_id": None,
-            "display_name": "Administrator",
-            "cloud_feed_enabled": True,
-            "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
-            "ai_analysis_enabled": True,
-            "auth_marker": current_dashboard_auth_marker(),
-        }
-        log_audit_event(
-            actor=username or current_actor_username(),
-            action="reset_dashboard_password",
-            target_type="dashboard_account",
-            target_id=LOGIN_USERNAME,
-            details={"username": LOGIN_USERNAME, "source": "mobile_api"},
-        )
-        return jsonify(build_mobile_auth_response_payload(updated_user, message="Dashboard password updated successfully."))
+        return jsonify({"error": "Admin mobile access is not available.", "code": "admin_mobile_not_allowed"}), 403
 
     if role == "customer" and device_id:
         account = fetch_customer_account(device_id)
@@ -12193,6 +12174,12 @@ def device_detail_page(device_id):
         is_admin=True,
         customer_account=account,
         service_config=service_config,
+        android_sso_active_session_count=active_platform_session_count(
+            SESSION_PLATFORM_ANDROID,
+            "customer",
+            username=scoped_device_id,
+            device_id=scoped_device_id,
+        ),
         firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",

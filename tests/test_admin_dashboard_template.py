@@ -246,6 +246,16 @@ def test_device_detail_exposes_mobile_logout_button():
     assert "def admin_device_detail_mobile_logout(device_id):" in server_source
 
 
+def test_device_detail_shows_android_sso_server_session_diagnostic():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "android_sso_active_session_count" in device_template
+    assert "Server currently allows" in device_template
+    assert "def active_platform_session_count(" in server_source
+    assert "android_sso_active_session_count=active_platform_session_count(" in server_source
+
+
 def test_device_detail_uses_compact_balanced_cards_and_buttons():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
