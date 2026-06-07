@@ -1578,6 +1578,36 @@ def serialize_active_platform_sessions(session_ids):
     return json.dumps(normalized, separators=(",", ":"))
 
 
+def active_platform_sessions(platform, role, username=None, device_id=None):
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return []
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
+    limited_sessions = active_sessions[-session_limit:]
+    if limited_sessions != active_sessions:
+        set_app_setting(setting_key, serialize_active_platform_sessions(limited_sessions))
+    return limited_sessions
+
+
+def android_sso_login_blocked(role, username=None, device_id=None):
+    if str(role or "").strip() != "customer":
+        return False
+    session_limit = active_platform_session_limit(
+        SESSION_PLATFORM_ANDROID,
+        role,
+        username=username,
+        device_id=device_id,
+    )
+    active_sessions = active_platform_sessions(
+        SESSION_PLATFORM_ANDROID,
+        role,
+        username=username,
+        device_id=device_id,
+    )
+    return len(active_sessions) >= session_limit
+
+
 def register_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
@@ -1598,12 +1628,7 @@ def active_platform_session_matches(platform, role, username=None, device_id=Non
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
         return False
-    active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
-    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
-    limited_sessions = active_sessions[-session_limit:]
-    if limited_sessions != active_sessions:
-        set_app_setting(setting_key, serialize_active_platform_sessions(limited_sessions))
-        active_sessions = limited_sessions
+    active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
     return any(secrets.compare_digest(active_session_id, supplied_session_id) for active_session_id in active_sessions)
 
 
@@ -10521,6 +10546,17 @@ def mobile_auth_login():
     if not authenticated_user:
         time.sleep(0.5)
         return jsonify({"error": "invalid username or password"}), 401
+    if android_sso_login_blocked(
+        authenticated_user.get("role"),
+        username=authenticated_user.get("username"),
+        device_id=authenticated_user.get("device_id"),
+    ):
+        return jsonify(
+            {
+                "error": "This account is already signed in on another Android device. Log out from that device before signing in here.",
+                "code": "android_session_limit_reached",
+            }
+        ), 409
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
