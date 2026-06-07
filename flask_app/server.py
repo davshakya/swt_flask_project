@@ -1590,24 +1590,6 @@ def active_platform_sessions(platform, role, username=None, device_id=None):
     return limited_sessions
 
 
-def android_sso_login_blocked(role, username=None, device_id=None):
-    if str(role or "").strip() != "customer":
-        return False
-    session_limit = active_platform_session_limit(
-        SESSION_PLATFORM_ANDROID,
-        role,
-        username=username,
-        device_id=device_id,
-    )
-    active_sessions = active_platform_sessions(
-        SESSION_PLATFORM_ANDROID,
-        role,
-        username=username,
-        device_id=device_id,
-    )
-    return len(active_sessions) >= session_limit
-
-
 def register_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
@@ -10548,17 +10530,6 @@ def mobile_auth_login():
     if not authenticated_user:
         time.sleep(0.5)
         return jsonify({"error": "invalid username or password"}), 401
-    if android_sso_login_blocked(
-        authenticated_user.get("role"),
-        username=authenticated_user.get("username"),
-        device_id=authenticated_user.get("device_id"),
-    ):
-        return jsonify(
-            {
-                "error": "This account is already signed in on another Android device. Log out from that device before signing in here.",
-                "code": "android_session_limit_reached",
-            }
-        ), 409
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
@@ -12344,6 +12315,43 @@ def admin_device_detail_configuration(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Configuration saved. Device changes apply on the next command poll."))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/mobile/logout", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_mobile_logout(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    account = fetch_customer_account(scoped_device_id)
+    if not account:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Customer account not found for this device.",
+            )
+        )
+    clear_active_platform_session(
+        SESSION_PLATFORM_ANDROID,
+        "customer",
+        username=scoped_device_id,
+        device_id=scoped_device_id,
+    )
+    log_audit_event(
+        actor=current_actor_username(),
+        action="logout_all_mobile_devices",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={"platform": SESSION_PLATFORM_ANDROID},
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message="All Android app sessions were signed out for this customer.",
+        )
+    )
 
 
 @app.route("/devices/<device_id>/sensor/calibrate", methods=["POST"])

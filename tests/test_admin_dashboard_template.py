@@ -235,6 +235,17 @@ def test_device_detail_dashboard_button_returns_to_admin_dashboard():
     assert '<a class="btn" href="/">Dashboard</a>' not in device_template
 
 
+def test_device_detail_exposes_mobile_logout_button():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "admin_device_detail_mobile_logout" in device_template
+    assert "Log Out Mobile Devices" in device_template
+    assert 'data-confirm-title="Log out mobile devices?"' in device_template
+    assert '@app.route("/devices/<device_id>/mobile/logout", methods=["POST"])' in server_source
+    assert "def admin_device_detail_mobile_logout(device_id):" in server_source
+
+
 def test_device_detail_uses_compact_balanced_cards_and_buttons():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
