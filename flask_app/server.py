@@ -188,7 +188,6 @@ ACTIVE_SESSION_SETTING_PREFIX = "active_session"
 SESSION_PLATFORM_ANDROID = "android"
 SESSION_PLATFORM_DASHBOARD = "dashboard"
 DEFAULT_ANDROID_SSO_SESSION_LIMIT = 1
-DEFAULT_ADMIN_ANDROID_SSO_SESSION_LIMIT = 1
 MAX_ANDROID_SSO_SESSION_LIMIT = 10
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
@@ -1551,11 +1550,6 @@ def normalize_android_sso_session_limit(value, default=DEFAULT_ANDROID_SSO_SESSI
 def active_platform_session_limit(platform, role, username=None, device_id=None):
     if normalize_session_platform(platform) != SESSION_PLATFORM_ANDROID:
         return 1
-    if str(role or "").strip() == "admin":
-        return normalize_android_sso_session_limit(
-            os.environ.get("ADMIN_ANDROID_SSO_SESSION_LIMIT"),
-            default=DEFAULT_ADMIN_ANDROID_SSO_SESSION_LIMIT,
-        )
     if str(role or "").strip() != "customer":
         return 1
     normalized_device_id = normalize_device_id(device_id or username)
@@ -5877,11 +5871,6 @@ def authenticate_dashboard_user(username, password):
             "username": normalized_username,
             "device_id": None,
             "display_name": "Administrator",
-            "android_sso_session_limit": active_platform_session_limit(
-                SESSION_PLATFORM_ANDROID,
-                "admin",
-                username=normalized_username,
-            ),
             "auth_marker": current_dashboard_auth_marker(),
         }
     customer = fetch_customer_account(normalized_username)

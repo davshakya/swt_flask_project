@@ -268,7 +268,7 @@ The mobile API uses signed tokens, not browser sessions.
 
 | Route | Method | Purpose |
 | --- | --- | --- |
-| `/api/mobile/auth/login` | `POST` | Exchange admin/customer credentials for a token |
+| `/api/mobile/auth/login` | `POST` | Exchange customer credentials for a mobile token; admin sign-in is web-dashboard-only |
 | `/api/mobile/bootstrap` | `GET` | Initial dashboard/mobile payload |
 | `/api/mobile/analytics` | `GET` | Analytics payload |
 | `/api/mobile/local-sync` | `POST` | Store local-device status observed by the mobile app |
