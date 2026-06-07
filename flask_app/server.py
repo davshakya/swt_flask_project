@@ -12264,6 +12264,7 @@ def device_simulator_enabled(device_id, snapshot=None):
 @csrf_protect
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
+    previous_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
     slave_device_enabled = "slave_device_enabled" in request.form
     upper_sensor_source = request.form.get("upper_sensor_source")
     if upper_sensor_source in {"master", "slave"}:
@@ -12304,15 +12305,32 @@ def admin_device_detail_configuration(device_id):
         )
         queued_command = build_device_service_command(updated_config)
         queue_command(queued_command, target_device=scoped_device_id)
+        android_sso_limit_changed = int(previous_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT)) != int(
+            updated_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT)
+        )
+        if android_sso_limit_changed:
+            clear_active_platform_session(
+                SESSION_PLATFORM_ANDROID,
+                "customer",
+                username=scoped_device_id,
+                device_id=scoped_device_id,
+            )
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
             target_type="device",
             target_id=scoped_device_id,
             device_id=scoped_device_id,
-            details={"service_config": updated_config, "queued_command": queued_command},
+            details={
+                "service_config": updated_config,
+                "queued_command": queued_command,
+                "android_sessions_cleared": android_sso_limit_changed,
+            },
         )
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message="Configuration saved. Device changes apply on the next command poll."))
+        message = "Configuration saved. Device changes apply on the next command poll."
+        if android_sso_limit_changed:
+            message += " Android app sessions were signed out so the new device count starts clean."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
 
