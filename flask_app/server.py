@@ -1582,12 +1582,7 @@ def active_platform_sessions(platform, role, username=None, device_id=None):
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
         return []
-    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
-    active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
-    limited_sessions = active_sessions[-session_limit:]
-    if limited_sessions != active_sessions:
-        set_app_setting(setting_key, serialize_active_platform_sessions(limited_sessions))
-    return limited_sessions
+    return parse_active_platform_sessions(get_app_setting(setting_key, ""))
 
 
 def active_platform_session_count(platform, role, username=None, device_id=None):
@@ -12240,7 +12235,6 @@ def device_simulator_enabled(device_id, snapshot=None):
 @csrf_protect
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    previous_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
     slave_device_enabled = "slave_device_enabled" in request.form
     upper_sensor_source = request.form.get("upper_sensor_source")
     if upper_sensor_source in {"master", "slave"}:
@@ -12281,15 +12275,6 @@ def admin_device_detail_configuration(device_id):
         )
         queued_command = build_device_service_command(updated_config)
         queue_command(queued_command, target_device=scoped_device_id)
-        android_sso_limit_changed = int(previous_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT)) != int(
-            updated_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT)
-        )
-        clear_active_platform_session(
-            SESSION_PLATFORM_ANDROID,
-            "customer",
-            username=scoped_device_id,
-            device_id=scoped_device_id,
-        )
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
@@ -12299,12 +12284,10 @@ def admin_device_detail_configuration(device_id):
             details={
                 "service_config": updated_config,
                 "queued_command": queued_command,
-                "android_sessions_cleared": True,
-                "android_sso_limit_changed": android_sso_limit_changed,
+                "android_sessions_preserved": True,
             },
         )
         message = "Configuration saved. Device changes apply on the next command poll."
-        message += " Android app sessions were signed out so the saved device count starts clean."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
