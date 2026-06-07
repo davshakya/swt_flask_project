@@ -71,6 +71,8 @@ def test_mobile_tokens_register_and_validate_one_active_android_session_per_user
     assert '"platform_session_id": platform_session_id' in issue_source
     assert "active_platform_session_matches(" in resolve_source
     assert "SESSION_PLATFORM_ANDROID" in resolve_source
+    assert "register_active_platform_session(" in resolve_source
+    assert "session_id=platform_session_id" in resolve_source
     assert 'g.mobile_auth_error = "session_replaced"' in resolve_source
 
 
@@ -110,6 +112,17 @@ def test_mobile_logout_clears_the_current_android_session():
     assert "clear_active_platform_session(" in function_source
     assert "SESSION_PLATFORM_ANDROID" in function_source
     assert 'session_id=user.get("platform_session_id")' in function_source
+
+
+def test_admin_mobile_logout_rotates_mobile_auth_marker():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index('@app.route("/devices/<device_id>/mobile/logout", methods=["POST"])')
+    function_source = source[route_start : source.index('\n\n@app.route("/devices/<device_id>/sensor/calibrate"', route_start)]
+
+    assert "clear_active_platform_session(" in function_source
+    assert "rotate_mobile_session_epoch(scoped_device_id)" in function_source
+    assert "current_mobile_session_epoch(normalized_device_id)" in source
+    assert 'build_auth_marker("customer", normalized_device_id, password_hash, current_mobile_session_epoch(normalized_device_id))' in source
 
 
 def test_admin_runtime_configuration_save_preserves_android_sessions():

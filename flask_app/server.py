@@ -1535,6 +1535,30 @@ def active_session_setting_key(platform, role, username=None, device_id=None):
     return f"{ACTIVE_SESSION_SETTING_PREFIX}:{normalized_platform}:{identity_hash}"
 
 
+def mobile_session_epoch_setting_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    identity_hash = hashlib.sha256(f"customer:{normalized_device_id}".encode("utf-8")).hexdigest()
+    return f"{ACTIVE_SESSION_SETTING_PREFIX}:android_epoch:{identity_hash}"
+
+
+def current_mobile_session_epoch(device_id):
+    key = mobile_session_epoch_setting_key(device_id)
+    if not key:
+        return ""
+    return str(get_app_setting(key, "") or "").strip()
+
+
+def rotate_mobile_session_epoch(device_id):
+    key = mobile_session_epoch_setting_key(device_id)
+    if not key:
+        return ""
+    epoch = secrets.token_urlsafe(18)
+    set_app_setting(key, epoch)
+    return epoch
+
+
 def new_platform_session_id():
     return secrets.token_urlsafe(32)
 
@@ -5020,7 +5044,7 @@ def customer_auth_marker(device_id, account=None):
     password_hash = str(resolved_account.get("password_hash") or "").strip()
     if not password_hash:
         return None
-    return build_auth_marker("customer", normalized_device_id, password_hash)
+    return build_auth_marker("customer", normalized_device_id, password_hash, current_mobile_session_epoch(normalized_device_id))
 
 
 def current_auth_marker_for_identity(role, username=None, device_id=None, account=None):
@@ -5969,9 +5993,13 @@ def resolve_mobile_user():
             device_id=device_id,
             session_id=platform_session_id,
         ):
-            g.mobile_auth_error = "session_replaced"
-            g.mobile_user = None
-            return None
+            register_active_platform_session(
+                SESSION_PLATFORM_ANDROID,
+                "customer",
+                username=device_id,
+                device_id=device_id,
+                session_id=platform_session_id,
+            )
         service_config = fetch_device_service_config(device_id, account=customer)
         user = {
             "role": "customer",
@@ -12312,6 +12340,7 @@ def admin_device_detail_mobile_logout(device_id):
         username=scoped_device_id,
         device_id=scoped_device_id,
     )
+    rotate_mobile_session_epoch(scoped_device_id)
     log_audit_event(
         actor=current_actor_username(),
         action="logout_all_mobile_devices",
