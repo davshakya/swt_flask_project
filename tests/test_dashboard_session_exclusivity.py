@@ -74,6 +74,20 @@ def test_mobile_tokens_register_and_validate_one_active_android_session_per_user
     assert 'g.mobile_auth_error = "session_replaced"' in resolve_source
 
 
+def test_android_sessions_use_configurable_sso_limit():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    register_start = source.index("def register_active_platform_session(")
+    register_source = source[register_start : source.index("\ndef active_platform_session_matches", register_start)]
+    validate_start = source.index("def active_platform_session_matches(")
+    validate_source = source[validate_start : source.index("\ndef clear_active_platform_session", validate_start)]
+
+    assert "def normalize_android_sso_session_limit(" in source
+    assert "def active_platform_session_limit(" in source
+    assert "android_sso_session_limit" in source
+    assert "serialize_active_platform_sessions(active_sessions[-session_limit:])" in register_source
+    assert "limited_sessions = active_sessions[-session_limit:]" in validate_source
+
+
 def test_replaced_mobile_session_returns_distinct_response_without_auto_refresh():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = source.index("def mobile_auth_required(view):")

@@ -187,6 +187,8 @@ HOMEPAGE_VISITOR_COUNT_SETTING = "homepage_visitor_count"
 ACTIVE_SESSION_SETTING_PREFIX = "active_session"
 SESSION_PLATFORM_ANDROID = "android"
 SESSION_PLATFORM_DASHBOARD = "dashboard"
+DEFAULT_ANDROID_SSO_SESSION_LIMIT = 1
+MAX_ANDROID_SSO_SESSION_LIMIT = 10
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
@@ -1537,12 +1539,55 @@ def new_platform_session_id():
     return secrets.token_urlsafe(32)
 
 
+def normalize_android_sso_session_limit(value, default=DEFAULT_ANDROID_SSO_SESSION_LIMIT):
+    try:
+        resolved = int(str(value).strip())
+    except (TypeError, ValueError):
+        resolved = default
+    return max(1, min(resolved, MAX_ANDROID_SSO_SESSION_LIMIT))
+
+
+def active_platform_session_limit(platform, role, username=None, device_id=None):
+    if normalize_session_platform(platform) != SESSION_PLATFORM_ANDROID:
+        return 1
+    if str(role or "").strip() != "customer":
+        return 1
+    normalized_device_id = normalize_device_id(device_id or username)
+    if not normalized_device_id:
+        return 1
+    service_config = fetch_device_service_config(normalized_device_id)
+    return normalize_android_sso_session_limit(service_config.get("android_sso_session_limit"))
+
+
+def parse_active_platform_sessions(raw_value):
+    raw = str(raw_value or "").strip()
+    if not raw:
+        return []
+    if raw.startswith("["):
+        try:
+            decoded = json.loads(raw)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            decoded = []
+        if isinstance(decoded, list):
+            return [str(item).strip() for item in decoded if str(item or "").strip()]
+    return [raw]
+
+
+def serialize_active_platform_sessions(session_ids):
+    normalized = [str(item).strip() for item in (session_ids or []) if str(item or "").strip()]
+    return json.dumps(normalized, separators=(",", ":"))
+
+
 def register_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
         return ""
     next_session_id = str(session_id or new_platform_session_id()).strip()
-    set_app_setting(setting_key, next_session_id)
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
+    active_sessions = [item for item in active_sessions if item != next_session_id]
+    active_sessions.append(next_session_id)
+    set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions[-session_limit:]))
     return next_session_id
 
 
@@ -1553,8 +1598,13 @@ def active_platform_session_matches(platform, role, username=None, device_id=Non
     setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
     if not setting_key:
         return False
-    active_session_id = str(get_app_setting(setting_key, "") or "").strip()
-    return bool(active_session_id) and secrets.compare_digest(active_session_id, supplied_session_id)
+    active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    limited_sessions = active_sessions[-session_limit:]
+    if limited_sessions != active_sessions:
+        set_app_setting(setting_key, serialize_active_platform_sessions(limited_sessions))
+        active_sessions = limited_sessions
+    return any(secrets.compare_digest(active_session_id, supplied_session_id) for active_session_id in active_sessions)
 
 
 def clear_active_platform_session(platform, role, username=None, device_id=None, session_id=None):
@@ -1563,8 +1613,16 @@ def clear_active_platform_session(platform, role, username=None, device_id=None,
         return
     supplied_session_id = str(session_id or "").strip()
     if supplied_session_id:
-        active_session_id = str(get_app_setting(setting_key, "") or "").strip()
-        if active_session_id and not secrets.compare_digest(active_session_id, supplied_session_id):
+        active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
+        if active_sessions and not any(secrets.compare_digest(active_session_id, supplied_session_id) for active_session_id in active_sessions):
+            return
+        remaining_sessions = [
+            active_session_id
+            for active_session_id in active_sessions
+            if not secrets.compare_digest(active_session_id, supplied_session_id)
+        ]
+        if remaining_sessions:
+            set_app_setting(setting_key, serialize_active_platform_sessions(remaining_sessions))
             return
     delete_app_setting(setting_key)
 
@@ -4478,6 +4536,7 @@ def ensure_device_service_configs_table(cursor):
             local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 0,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
+            android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -4500,6 +4559,7 @@ def ensure_device_service_configs_columns(cursor):
         "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 0",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
         "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
     }
@@ -5453,6 +5513,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=False)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
+    android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
     effective_cloud_feed_enabled = cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF and account_cloud_feed_enabled
     effective_ai_analysis_enabled = (
         ai_analysis_enabled
@@ -5493,6 +5554,9 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "local_firmware_upload_enabled": local_firmware_upload_enabled,
         "buzzer_enabled": buzzer_enabled,
         "led_display_enabled": led_display_enabled,
+        "android_sso_session_limit": android_sso_session_limit,
+        "android_sso_session_limit_label": f"{android_sso_session_limit} Android device{'s' if android_sso_session_limit != 1 else ''}",
+        "android_sso_session_limit_max": MAX_ANDROID_SSO_SESSION_LIMIT,
         "hardware_enabled_count": hardware_enabled_count,
         "hardware_enabled_label": f"{hardware_enabled_count}/5 device services active",
         "service_profile_hint": (
@@ -5527,6 +5591,7 @@ def default_device_service_config(device_id=None, account=None):
             "local_firmware_upload_enabled": False,
             "buzzer_enabled": True,
             "led_display_enabled": True,
+            "android_sso_session_limit": DEFAULT_ANDROID_SSO_SESSION_LIMIT,
         },
         account=account,
     )
@@ -5560,7 +5625,7 @@ def fetch_device_service_config(device_id, account=None):
                    slave_device_enabled, slave_upper_sensor_enabled,
                    source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                   buzzer_enabled, led_display_enabled,
+                   buzzer_enabled, led_display_enabled, android_sso_session_limit,
                    created_at, updated_at
             FROM device_service_configs
             WHERE device_id = ?
@@ -5583,7 +5648,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
                slave_device_enabled, slave_upper_sensor_enabled,
                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-               buzzer_enabled, led_display_enabled,
+               buzzer_enabled, led_display_enabled, android_sso_session_limit,
                created_at, updated_at
         FROM device_service_configs
         """
@@ -5629,6 +5694,7 @@ def upsert_device_service_config(
     local_firmware_upload_enabled=None,
     buzzer_enabled=None,
     led_display_enabled=None,
+    android_sso_session_limit=None,
 ):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -5690,6 +5756,10 @@ def upsert_device_service_config(
         led_display_enabled,
         default=existing.get("led_display_enabled", True),
     )
+    resolved_android_sso_session_limit = normalize_android_sso_session_limit(
+        android_sso_session_limit,
+        default=existing.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT),
+    )
     resolved_cloud_feed_mode = normalize_device_service_cloud_mode(
         cloud_feed_mode,
         default=existing.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
@@ -5703,10 +5773,10 @@ def upsert_device_service_config(
                 slave_device_enabled, slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                buzzer_enabled, led_display_enabled,
+                buzzer_enabled, led_display_enabled, android_sso_session_limit,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -5720,6 +5790,7 @@ def upsert_device_service_config(
                 local_firmware_upload_enabled=excluded.local_firmware_upload_enabled,
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
+                android_sso_session_limit=excluded.android_sso_session_limit,
                 updated_at=CURRENT_TIMESTAMP
             """,
             (
@@ -5736,6 +5807,7 @@ def upsert_device_service_config(
                 1 if resolved_local_firmware_upload_enabled else 0,
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
+                resolved_android_sso_session_limit,
             ),
         )
 
@@ -5806,6 +5878,7 @@ def authenticate_dashboard_user(username, password):
         "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
         "cloud_feed_mode": service_config.get("cloud_feed_mode"),
         "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
+        "android_sso_session_limit": service_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT),
         "auth_marker": current_auth_marker_for_identity("customer", device_id=normalized_username, account=customer),
     }
 
@@ -5925,6 +5998,7 @@ def resolve_mobile_user():
             "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
             "cloud_feed_mode": service_config.get("cloud_feed_mode"),
             "ai_analysis_enabled": service_config.get("effective_ai_analysis_enabled", True),
+            "android_sso_session_limit": service_config.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT),
         }
     else:
         g.mobile_user = None
@@ -10429,6 +10503,7 @@ def build_mobile_auth_response_payload(authenticated_user, message=None):
             "cloud_feed_enabled": authenticated_user.get("cloud_feed_enabled", True),
             "cloud_feed_mode": authenticated_user.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
             "ai_analysis_enabled": authenticated_user.get("ai_analysis_enabled", True),
+            "android_sso_session_limit": authenticated_user.get("android_sso_session_limit", DEFAULT_ANDROID_SSO_SESSION_LIMIT),
         },
         "expires_in_seconds": MOBILE_TOKEN_MAX_AGE_SECONDS,
     }
@@ -12202,6 +12277,7 @@ def admin_device_detail_configuration(device_id):
             ),
             ota_enabled=("ota_enabled" in request.form),
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
+            android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
         queued_command = build_device_service_command(updated_config)
         queue_command(queued_command, target_device=scoped_device_id)

@@ -196,6 +196,11 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="ota_enabled" value="1" {% if service_config.get("ota_enabled") %}checked{% endif %}> OTA Service</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled") %}checked{% endif %}> Local Firmware Upload</label>
+                        <div class="form-group">
+                            <label for="android_sso_session_limit">Android SSO Device Count</label>
+                            <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
+                        </div>
+                        <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached.</div>
                     </div>
                 </div>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
