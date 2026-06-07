@@ -1594,11 +1594,10 @@ def register_active_platform_session(platform, role, username=None, device_id=No
     if not setting_key:
         return ""
     next_session_id = str(session_id or new_platform_session_id()).strip()
-    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
     active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
     active_sessions = [item for item in active_sessions if item != next_session_id]
     active_sessions.append(next_session_id)
-    set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions[-session_limit:]))
+    set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions))
     return next_session_id
 
 
