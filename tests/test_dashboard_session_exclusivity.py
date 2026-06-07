@@ -99,6 +99,18 @@ def test_mobile_login_blocks_when_android_sso_slots_are_full():
     assert "), 409" in function_source
 
 
+def test_mobile_logout_clears_the_current_android_session():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index('@app.route("/api/mobile/auth/logout", methods=["POST"])')
+    function_source = source[route_start : source.index("\n\n@app.route(\"/api/mobile/bootstrap\")", route_start)]
+
+    assert '@app.route("/api/mobile/auth/logout", methods=["POST"])' in function_source
+    assert "@mobile_auth_required" in function_source
+    assert "clear_active_platform_session(" in function_source
+    assert "SESSION_PLATFORM_ANDROID" in function_source
+    assert 'session_id=user.get("platform_session_id")' in function_source
+
+
 def test_replaced_mobile_session_returns_distinct_response_without_auto_refresh():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = source.index("def mobile_auth_required(view):")

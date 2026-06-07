@@ -5989,6 +5989,7 @@ def resolve_mobile_user():
             "username": username,
             "device_id": None,
             "display_name": "Administrator",
+            "platform_session_id": platform_session_id,
             "cloud_feed_enabled": True,
             "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
             "ai_analysis_enabled": True,
@@ -6018,6 +6019,7 @@ def resolve_mobile_user():
             "username": device_id,
             "device_id": device_id,
             "display_name": customer.get("display_name") or device_id,
+            "platform_session_id": platform_session_id,
             "slave_device_enabled": service_config.get("slave_device_enabled", True),
             "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled", True),
             "cloud_feed_enabled": service_config.get("cloud_feed_enabled", True),
@@ -10558,6 +10560,20 @@ def mobile_auth_login():
             }
         ), 409
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
+
+
+@app.route("/api/mobile/auth/logout", methods=["POST"])
+@mobile_auth_required
+def mobile_auth_logout():
+    user = resolve_mobile_user() or {}
+    clear_active_platform_session(
+        SESSION_PLATFORM_ANDROID,
+        user.get("role"),
+        username=user.get("username"),
+        device_id=user.get("device_id"),
+        session_id=user.get("platform_session_id"),
+    )
+    return jsonify({"ok": True})
 
 
 @app.route("/api/mobile/bootstrap")
