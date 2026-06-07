@@ -239,7 +239,7 @@ def test_device_detail_exposes_mobile_logout_button():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert "admin_device_detail_mobile_logout" in device_template
+    assert 'action="/devices/{{ device_id }}/mobile/logout"' in device_template
     assert "Log Out Mobile Devices" in device_template
     assert 'data-confirm-title="Log out mobile devices?"' in device_template
     assert '@app.route("/devices/<device_id>/mobile/logout", methods=["POST"])' in server_source

@@ -236,7 +236,7 @@ body{font-size:16px}
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>
                 </form>
-                <form method="post" action="{{ url_for('admin_device_detail_mobile_logout', device_id=device_id) }}" data-confirm-title="Log out mobile devices?" data-confirm-message="Sign out all Android app sessions for customer {{ device_id }}? The customer can sign in again on any phone after this." data-confirm-button="Log Out Mobile Devices">
+                <form method="post" action="/devices/{{ device_id }}/mobile/logout" data-confirm-title="Log out mobile devices?" data-confirm-message="Sign out all Android app sessions for customer {{ device_id }}? The customer can sign in again on any phone after this." data-confirm-button="Log Out Mobile Devices">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-admin btn-full" type="submit"><span>Log Out Mobile Devices</span></button>
                 </form>
