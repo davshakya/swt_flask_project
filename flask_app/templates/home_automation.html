@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home_automation.css') }}">
   </head>
   <body>
-    <main class="shell" data-cloud-enabled="{{ 'true' if cloud_enabled else 'false' }}">
+    <main class="shell" data-cloud-enabled="{{ 'true' if cloud_enabled else 'false' }}" data-local-proxy="false">
       <header class="topbar">
         <div>
           <p class="eyebrow">SaleWell</p>
@@ -20,8 +20,8 @@
         <div class="field">
           <label for="mode">Control</label>
           <select id="mode">
+            <option value="cloud" selected>Cloud</option>
             <option value="local">Local Wi-Fi</option>
-            <option value="cloud">Cloud</option>
           </select>
         </div>
         <div class="field grow">

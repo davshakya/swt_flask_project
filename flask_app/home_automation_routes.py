@@ -29,7 +29,7 @@ def register_home_automation_routes(app):
         return headers
 
     def cloud_url(device_id, path):
-        base = f"{cloud_base_url}/devices/{device_id}/"
+        base = f"{effective_cloud_base_url()}/devices/{device_id}/"
         return urljoin(base, path.lstrip("/"))
 
     def proxy_response(response):
@@ -50,9 +50,12 @@ def register_home_automation_routes(app):
         return jsonify({"error": f"{target}_unreachable", "detail": str(exc)}), 502
 
     def require_cloud():
-        if not cloud_base_url:
+        if not effective_cloud_base_url():
             return jsonify({"error": "cloud_not_configured"}), 503
         return None
+
+    def effective_cloud_base_url():
+        return cloud_base_url or request.url_root.rstrip("/")
 
     def payload_for(command):
         if command not in COMMAND_PAYLOAD_KEYS:
@@ -96,7 +99,7 @@ def register_home_automation_routes(app):
         return render_template(
             "home_automation.html",
             local_device_url=local_device_url,
-            cloud_enabled=bool(cloud_base_url),
+            cloud_enabled=True,
             default_device_id=default_device_id,
         )
 

@@ -25,11 +25,20 @@ function isCloudMode() {
 }
 
 function apiPath(path) {
-  if (!isCloudMode()) {
+  if (isCloudMode()) {
+    const deviceId = encodeURIComponent(els.deviceId.value.trim());
+    return `/api/home-automation/cloud/${deviceId}/${path}`;
+  }
+  if (els.shell.dataset.localProxy === "true") {
     return `/api/home-automation/local/${path}`;
   }
-  const deviceId = encodeURIComponent(els.deviceId.value.trim());
-  return `/api/home-automation/cloud/${deviceId}/${path}`;
+  return `${normalizedLocalUrl()}/${path}`;
+}
+
+function normalizedLocalUrl() {
+  const rawValue = document.getElementById("localUrl").value.trim();
+  const withScheme = /^https?:\/\//i.test(rawValue) ? rawValue : `http://${rawValue}`;
+  return withScheme.replace(/\/+$/, "");
 }
 
 function setStatus(label, className) {
@@ -38,10 +47,14 @@ function setStatus(label, className) {
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, {
+  const requestOptions = {
     headers: {"Content-Type": "application/json"},
     ...options,
-  });
+  };
+  if (!isCloudMode() && els.shell.dataset.localProxy !== "true") {
+    requestOptions.mode = "cors";
+  }
+  const response = await fetch(url, requestOptions);
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(body.detail || body.error || "Request failed");
@@ -100,31 +113,52 @@ async function refreshStatus() {
     setStatus("Online", "online");
   } catch (error) {
     setStatus("Offline", "offline");
+    renderError(error);
   }
 }
 
-async function sendSwitch(id, nextState) {
-  await requestJson(apiPath("switch"), {
-    method: "POST",
-    body: JSON.stringify({id, state: nextState}),
-  });
+function localCommandOptions(payload) {
+  if (isCloudMode() || els.shell.dataset.localProxy === "true") {
+    return {
+      method: "POST",
+      body: JSON.stringify(payload),
+    };
+  }
+  const query = new URLSearchParams(payload).toString();
+  return {
+    method: "GET",
+    urlSuffix: query ? `?${query}` : "",
+  };
+}
+
+async function requestCommand(path, payload) {
+  const options = localCommandOptions(payload);
+  const url = `${apiPath(path)}${options.urlSuffix || ""}`;
+  delete options.urlSuffix;
+  await requestJson(url, options);
   await refreshStatus();
 }
 
 async function sendAll(nextState) {
-  await requestJson(apiPath("all"), {
-    method: "POST",
-    body: JSON.stringify({state: nextState}),
-  });
-  await refreshStatus();
+  await requestCommand("all", {state: nextState});
 }
 
 async function sendFan(speed) {
-  await requestJson(apiPath("fan"), {
-    method: "POST",
-    body: JSON.stringify({speed}),
-  });
-  await refreshStatus();
+  await requestCommand("fan", {speed});
+}
+
+async function sendSwitch(id, nextState) {
+  await requestCommand("switch", {id, state: nextState});
+}
+
+function renderError(error) {
+  els.channels.innerHTML = "";
+  const detail = document.createElement("div");
+  detail.className = "notice";
+  detail.textContent = isCloudMode()
+    ? `Cloud status is unavailable for ${els.deviceId.value.trim() || "this device"}. ${error.message || ""}`
+    : `Local device is unreachable from this browser. Use the same Wi-Fi as the board and confirm the URL ${normalizedLocalUrl()}. ${error.message || ""}`;
+  els.channels.appendChild(detail);
 }
 
 els.channels.addEventListener("click", async (event) => {
@@ -144,11 +178,6 @@ els.fanSpeed.addEventListener("input", () => {
   els.fanSpeedText.textContent = `Speed ${els.fanSpeed.value}`;
 });
 els.fanSpeed.addEventListener("change", () => sendFan(els.fanSpeed.value));
-
-if (els.shell.dataset.cloudEnabled !== "true") {
-  const option = els.mode.querySelector('option[value="cloud"]');
-  option.textContent = "Cloud (not configured)";
-}
 
 refreshStatus();
 setInterval(refreshStatus, 10000);

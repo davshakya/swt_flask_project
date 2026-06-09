@@ -204,6 +204,16 @@ button.secondary {
   margin-bottom: 16px;
 }
 
+.notice {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border: 1px solid rgba(180, 35, 24, 0.2);
+  border-radius: 8px;
+  background: #fff8f7;
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .channel-card {
   min-height: 154px;
   display: flex;
