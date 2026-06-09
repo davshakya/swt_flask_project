@@ -126,6 +126,15 @@ Useful first URLs:
 - Health check: `http://localhost:8000/health`
 - Home automation: `http://localhost:8000/home-automation`
 
+If you only need the home automation dashboard and do not have MySQL running, use the dashboard-only runner:
+
+```powershell
+$env:HA_LOCAL_DEVICE_URL="http://192.168.1.50"
+python run_home_automation_local.py
+```
+
+Open `http://localhost:5000/home-automation`.
+
 ## Configuration Loading
 
 The app automatically reads configuration from:
