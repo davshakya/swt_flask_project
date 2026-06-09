@@ -14,6 +14,7 @@ Within the wider workspace:
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
+- [`../home_automation_project/README.md`](../home_automation_project/README.md) documents the home automation switch-board firmware that this Flask app can proxy/control
 
 ## What This Project Includes
 
@@ -32,6 +33,7 @@ Within the wider workspace:
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
+- Home automation dashboard and local/cloud proxy at `/home-automation`
 - MySQL/MariaDB schema initialization for local and hosted deployment
 
 ## Customer and Sales Features
@@ -49,6 +51,7 @@ Within the wider workspace:
 | --- | --- |
 | `server.py` | Root entrypoint and WSGI compatibility wrapper |
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
+| `flask_app/home_automation_routes.py` | Home automation dashboard and proxy routes |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
 | `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
@@ -121,6 +124,7 @@ Useful first URLs:
 - Admin login: `http://localhost:8000/login/admin`
 - Customer login: `http://localhost:8000/login/customer`
 - Health check: `http://localhost:8000/health`
+- Home automation: `http://localhost:8000/home-automation`
 
 ## Configuration Loading
 
@@ -233,6 +237,28 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/devices/<device_id>` | Device detail page | Logged-in user |
 | `/static/version.json` | Android update manifest for the latest uploaded APK | Public |
 | `/downloads/android/latest.apk` | Download the latest uploaded Android APK | Public |
+| `/home-automation` | Home automation switch-board dashboard | Public |
+
+### Home Automation Proxy
+
+The home automation page can control a board directly on local Wi-Fi or through a compatible cloud API.
+
+Environment variables:
+
+- `HA_LOCAL_DEVICE_URL`: local board URL, for example `http://192.168.1.50`
+- `HA_DEVICE_ID`: default home automation device id shown in the dashboard
+- `HA_REQUEST_TIMEOUT`: proxy timeout in seconds, default `6`
+- `SALEWELL_CLOUD_BASE_URL`: optional cloud API origin
+- `SALEWELL_CLOUD_API_KEY`: optional bearer token for cloud API calls
+
+Proxy routes:
+
+| Route | Method | Purpose |
+| --- | --- | --- |
+| `/api/home-automation/local/status` | `GET` | Read local board status |
+| `/api/home-automation/local/<switch|fan|all>` | `POST` | Send local board command |
+| `/api/home-automation/cloud/<device_id>/status` | `GET` | Read cloud device status |
+| `/api/home-automation/cloud/<device_id>/<switch|fan|all>` | `POST` | Send cloud command |
 
 ### Device-facing endpoints
 

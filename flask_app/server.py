@@ -68,6 +68,7 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.home_automation_routes import register_home_automation_routes
 from flask_app.runtime_utils import (
     env_float,
     env_int,
@@ -303,6 +304,7 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)
+register_home_automation_routes(app)
 
 
 COMPRESSIBLE_RESPONSE_MIMETYPES = {

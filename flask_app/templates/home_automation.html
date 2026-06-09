@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SaleWell Home Automation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home_automation.css') }}">
+  </head>
+  <body>
+    <main class="shell" data-cloud-enabled="{{ 'true' if cloud_enabled else 'false' }}">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">SaleWell</p>
+          <h1>Home Automation</h1>
+        </div>
+        <div class="status-pill" id="connectionStatus">Checking</div>
+      </header>
+
+      <section class="control-strip">
+        <div class="field">
+          <label for="mode">Control</label>
+          <select id="mode">
+            <option value="local">Local Wi-Fi</option>
+            <option value="cloud">Cloud</option>
+          </select>
+        </div>
+        <div class="field grow">
+          <label for="deviceId">Device ID</label>
+          <input id="deviceId" value="{{ default_device_id }}" autocomplete="off">
+        </div>
+        <div class="field grow">
+          <label for="localUrl">Local device</label>
+          <input id="localUrl" value="{{ local_device_url }}" disabled>
+        </div>
+        <button class="icon-button" id="refreshButton" title="Refresh status" type="button">
+          <span aria-hidden="true">R</span>
+        </button>
+      </section>
+
+      <section class="summary-grid" aria-live="polite">
+        <div class="metric">
+          <span>Mode</span>
+          <strong id="modeLabel">Local Wi-Fi</strong>
+        </div>
+        <div class="metric">
+          <span>IP</span>
+          <strong id="ipLabel">-</strong>
+        </div>
+        <div class="metric">
+          <span>Signal</span>
+          <strong id="rssiLabel">-</strong>
+        </div>
+        <div class="metric">
+          <span>Fan</span>
+          <strong id="fanLabel">0</strong>
+        </div>
+      </section>
+
+      <section class="actions">
+        <button id="allOnButton" type="button">All On</button>
+        <button id="allOffButton" type="button">All Off</button>
+      </section>
+
+      <section class="channels" id="channels"></section>
+
+      <section class="fan-panel">
+        <div>
+          <h2>Fan Speed</h2>
+          <p id="fanSpeedText">Speed 0</p>
+        </div>
+        <input id="fanSpeed" type="range" min="0" max="5" value="0">
+      </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/home_automation.js') }}"></script>
+  </body>
+</html>
