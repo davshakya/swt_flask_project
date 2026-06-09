@@ -248,17 +248,20 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/downloads/android/latest.apk` | Download the latest uploaded Android APK | Public |
 | `/home-automation` | Home automation switch-board dashboard | Public |
 
-### Home Automation Proxy
+### Home Automation Cloud
 
-The home automation page can control a board directly on local Wi-Fi or through a compatible cloud API.
+The home automation page can control a board directly on local Wi-Fi or through the same cloud command queue used by the Smart Water Tank relay. In cloud mode, the ESP8266 posts telemetry to `/status`, polls `/device/command`, and acknowledges with `/device/command/ack`, so the home router does not need port forwarding.
 
 Environment variables:
 
 - `HA_LOCAL_DEVICE_URL`: local board URL, for example `http://192.168.1.50`
 - `HA_DEVICE_ID`: default home automation device id shown in the dashboard
+- `HA_DEVICE_KEY`: optional shared key required from the board on sync requests
 - `HA_REQUEST_TIMEOUT`: proxy timeout in seconds, default `6`
-- `SALEWELL_CLOUD_BASE_URL`: optional cloud API origin
+- `SALEWELL_CLOUD_BASE_URL`: optional external cloud API origin; leave blank to use this Flask app as the cloud queue
 - `SALEWELL_CLOUD_API_KEY`: optional bearer token for cloud API calls
+
+Firmware should use the same `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY` identity variables as the water tank firmware, and point `SWT_CLOUD_BASE_URL` to this Flask deployment, for example `https://salewell.co.in`.
 
 Proxy routes:
 

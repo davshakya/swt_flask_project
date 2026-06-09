@@ -68,7 +68,11 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
-from flask_app.home_automation_routes import register_home_automation_routes
+from flask_app.home_automation_routes import (
+    record_home_automation_status,
+    register_home_automation_routes,
+    set_home_automation_command_queue,
+)
 from flask_app.runtime_utils import (
     env_float,
     env_int,
@@ -3696,6 +3700,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
+    record_home_automation_status(cleaned)
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -9934,6 +9939,9 @@ def queue_command(command, target_device=None):
         "mqtt_delivery": "published" if mqtt_published else ("pending" if mqtt_feature_enabled() else "disabled"),
     }
     return result
+
+
+set_home_automation_command_queue(queue_command)
 
 
 def relay_status_to_cloud(payload):
