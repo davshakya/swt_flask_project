@@ -1,12 +1,15 @@
 const state = {
   channels: [],
   fanSpeed: 0,
+  devices: readRegisteredDevices(),
 };
 
 const els = {
   shell: document.querySelector(".shell"),
   mode: document.getElementById("mode"),
   deviceId: document.getElementById("deviceId"),
+  registeredDeviceSelect: document.getElementById("registeredDeviceSelect"),
+  registeredDevices: document.getElementById("registeredDevices"),
   connectionStatus: document.getElementById("connectionStatus"),
   modeLabel: document.getElementById("modeLabel"),
   ipLabel: document.getElementById("ipLabel"),
@@ -19,6 +22,19 @@ const els = {
   allOnButton: document.getElementById("allOnButton"),
   allOffButton: document.getElementById("allOffButton"),
 };
+
+function readRegisteredDevices() {
+  const script = document.getElementById("homeAutomationDevices");
+  if (!script) {
+    return [];
+  }
+  try {
+    const devices = JSON.parse(script.textContent || "[]");
+    return Array.isArray(devices) ? devices : [];
+  } catch (error) {
+    return [];
+  }
+}
 
 function isCloudMode() {
   return els.mode.value === "cloud";
@@ -46,6 +62,10 @@ function setStatus(label, className) {
   els.connectionStatus.className = `status-pill ${className || ""}`.trim();
 }
 
+function selectedDeviceId() {
+  return els.deviceId.value.trim();
+}
+
 async function requestJson(url, options = {}) {
   const requestOptions = {
     headers: {"Content-Type": "application/json"},
@@ -63,6 +83,10 @@ async function requestJson(url, options = {}) {
 }
 
 function renderStatus(data) {
+  if (!Array.isArray(data.channels)) {
+    throw new Error(data.error || "home_status_unavailable");
+  }
+
   state.channels = Array.isArray(data.channels) ? data.channels : [];
   state.fanSpeed = Number.isFinite(data.fan_speed) ? data.fan_speed : 0;
 
@@ -72,6 +96,7 @@ function renderStatus(data) {
   els.fanLabel.textContent = String(state.fanSpeed);
   els.fanSpeed.value = String(state.fanSpeed);
   els.fanSpeedText.textContent = `Speed ${state.fanSpeed}`;
+  markSelectedDeviceOnline(data);
   els.channels.innerHTML = "";
 
   state.channels.forEach((channel) => {
@@ -89,6 +114,81 @@ function renderStatus(data) {
     `;
     els.channels.appendChild(card);
   });
+}
+
+function renderRegisteredDevices() {
+  if (!els.registeredDevices || !els.registeredDeviceSelect) {
+    return;
+  }
+
+  els.registeredDeviceSelect.innerHTML = "";
+  els.registeredDevices.innerHTML = "";
+
+  if (!state.devices.length) {
+    els.registeredDeviceSelect.hidden = true;
+    const empty = document.createElement("div");
+    empty.className = "notice neutral";
+    empty.textContent = "No registered Home Automation boards are assigned to this login yet.";
+    els.registeredDevices.appendChild(empty);
+    return;
+  }
+
+  els.registeredDeviceSelect.hidden = state.devices.length < 2 && els.shell.dataset.canSelectDevices !== "true";
+  state.devices.forEach((device) => {
+    const option = document.createElement("option");
+    option.value = device.device_id;
+    option.textContent = device.label || device.device_id;
+    els.registeredDeviceSelect.appendChild(option);
+  });
+
+  if (!selectedDeviceId()) {
+    els.deviceId.value = state.devices[0].device_id;
+  }
+  els.registeredDeviceSelect.value = selectedDeviceId();
+
+  state.devices.forEach((device) => {
+    const card = document.createElement("button");
+    card.className = `device-card ${device.online ? "online" : "offline"} ${device.device_id === selectedDeviceId() ? "selected" : ""}`;
+    card.type = "button";
+    card.dataset.deviceId = device.device_id;
+    card.innerHTML = `
+      <span class="device-card-top">
+        <strong>${escapeHtml(device.label || device.device_id)}</strong>
+        <span>${device.online ? "Online" : "Offline"}</span>
+      </span>
+      <span class="device-id">${escapeHtml(device.device_id)}</span>
+      <span class="device-meta">${escapeHtml(device.access_label || "Registered device")}</span>
+      <span class="device-meta">${escapeHtml(device.credentials_label || "No customer credentials")}${device.email ? ` · ${escapeHtml(device.email)}` : ""}</span>
+      <span class="device-meta">${device.ip ? `IP ${escapeHtml(device.ip)}` : "Waiting for telemetry"}${device.rssi === null || device.rssi === undefined ? "" : ` · ${escapeHtml(device.rssi)} dBm`}</span>
+    `;
+    els.registeredDevices.appendChild(card);
+  });
+}
+
+function selectRegisteredDevice(deviceId) {
+  if (!deviceId) {
+    return;
+  }
+  els.deviceId.value = deviceId;
+  if (els.registeredDeviceSelect) {
+    els.registeredDeviceSelect.value = deviceId;
+  }
+  renderRegisteredDevices();
+  refreshStatus();
+}
+
+function markSelectedDeviceOnline(data) {
+  const deviceId = selectedDeviceId();
+  const device = state.devices.find((item) => item.device_id === deviceId);
+  if (!device) {
+    return;
+  }
+  device.online = true;
+  device.ip = data.ip || device.ip || "";
+  device.rssi = data.rssi;
+  device.fan_speed = data.fan_speed;
+  device.channel_count = Array.isArray(data.channels) ? data.channels.length : device.channel_count;
+  renderRegisteredDevices();
 }
 
 function escapeHtml(value) {
@@ -171,6 +271,13 @@ els.channels.addEventListener("click", async (event) => {
 
 els.mode.addEventListener("change", refreshStatus);
 els.deviceId.addEventListener("change", refreshStatus);
+els.registeredDeviceSelect.addEventListener("change", () => selectRegisteredDevice(els.registeredDeviceSelect.value));
+els.registeredDevices.addEventListener("click", (event) => {
+  const card = event.target.closest(".device-card");
+  if (card) {
+    selectRegisteredDevice(card.dataset.deviceId);
+  }
+});
 els.refreshButton.addEventListener("click", refreshStatus);
 els.allOnButton.addEventListener("click", () => sendAll("on"));
 els.allOffButton.addEventListener("click", () => sendAll("off"));
@@ -179,5 +286,6 @@ els.fanSpeed.addEventListener("input", () => {
 });
 els.fanSpeed.addEventListener("change", () => sendFan(els.fanSpeed.value));
 
+renderRegisteredDevices();
 refreshStatus();
 setInterval(refreshStatus, 10000);

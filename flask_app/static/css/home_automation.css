@@ -90,6 +90,7 @@ h2 {
 
 .control-strip,
 .summary-grid,
+.device-directory,
 .fan-panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -103,6 +104,96 @@ h2 {
   gap: 12px;
   padding: 14px;
   margin-bottom: 16px;
+}
+
+.device-directory {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.section-heading select {
+  max-width: 280px;
+}
+
+.device-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.device-card {
+  display: block;
+  min-height: 142px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+  color: var(--ink);
+  text-align: left;
+  box-shadow: none;
+}
+
+.device-card:hover,
+.device-card.selected {
+  border-color: rgba(15, 118, 110, 0.55);
+  background: #f4fbf9;
+}
+
+.device-card.selected {
+  box-shadow: inset 0 0 0 2px rgba(15, 118, 110, 0.14);
+}
+
+.device-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.device-card-top strong,
+.device-id,
+.device-meta {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.device-card-top strong {
+  font-size: 16px;
+}
+
+.device-card-top span {
+  flex: 0 0 auto;
+  color: var(--danger);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.device-card.online .device-card-top span {
+  color: var(--accent-strong);
+}
+
+.device-id {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.device-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .field {
@@ -214,6 +305,12 @@ button.secondary {
   font-weight: 700;
 }
 
+.notice.neutral {
+  border-color: var(--line);
+  background: #fbfcfb;
+  color: var(--muted);
+}
+
 .channel-card {
   min-height: 154px;
   display: flex;
@@ -292,8 +389,18 @@ input[type="range"] {
   .control-strip,
   .summary-grid,
   .channels,
+  .device-list,
   .fan-panel {
     grid-template-columns: 1fr;
+  }
+
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .section-heading select {
+    max-width: none;
   }
 
   .metric {

@@ -256,10 +256,9 @@ Environment variables:
 
 - `HA_LOCAL_DEVICE_URL`: local board URL, for example `http://192.168.1.50`
 - `HA_DEVICE_ID`: default home automation device id shown in the dashboard
-- `HA_DEVICE_KEY`: optional shared key required from the board on sync requests
 - `HA_REQUEST_TIMEOUT`: proxy timeout in seconds, default `6`
-- `SALEWELL_CLOUD_BASE_URL`: optional external cloud API origin; leave blank to use this Flask app as the cloud queue
-- `SALEWELL_CLOUD_API_KEY`: optional bearer token for cloud API calls
+- `HA_HOME_AUTOMATION_CLOUD_BASE_URL`: optional external home automation API origin; leave blank to use this Flask app and the SWT command queue
+- `HA_HOME_AUTOMATION_CLOUD_API_KEY`: optional bearer token for external home automation API calls
 
 Firmware should use the same `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY` identity variables as the water tank firmware, and point `SWT_CLOUD_BASE_URL` to this Flask deployment, for example `https://salewell.co.in`.
 

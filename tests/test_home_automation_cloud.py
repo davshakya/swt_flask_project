@@ -5,12 +5,16 @@ from flask_app.home_automation_routes import (
     record_home_automation_status,
     register_home_automation_routes,
     set_home_automation_command_queue,
+    set_home_automation_device_access,
+    set_home_automation_view_context,
 )
 
 
 def make_app(monkeypatch, device_key=""):
     HOME_AUTOMATION_STATUS.clear()
     set_home_automation_command_queue(None)
+    set_home_automation_device_access(None)
+    set_home_automation_view_context(None)
     monkeypatch.delenv("SALEWELL_CLOUD_BASE_URL", raising=False)
     monkeypatch.setenv("HA_DEVICE_ID", "sha_board_dev")
     if device_key:
@@ -68,3 +72,13 @@ def test_cloud_command_reports_unavailable_when_swt_queue_is_not_bound(monkeypat
     )
     assert response.status_code == 503
     assert response.json["error"] == "command_queue_unavailable"
+
+
+def test_cloud_status_requires_registered_device_access(monkeypatch):
+    client = make_app(monkeypatch).test_client()
+    set_home_automation_device_access(lambda device_id: ({"error": "forbidden"}, 403))
+
+    response = client.get("/api/home-automation/cloud/other_board/status")
+
+    assert response.status_code == 403
+    assert response.json["error"] == "forbidden"

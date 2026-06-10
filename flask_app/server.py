@@ -69,9 +69,12 @@ from flask_app.firmware_artifacts import (
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
 from flask_app.home_automation_routes import (
+    list_home_automation_statuses,
     record_home_automation_status,
     register_home_automation_routes,
     set_home_automation_command_queue,
+    set_home_automation_device_access,
+    set_home_automation_view_context,
 )
 from flask_app.runtime_utils import (
     env_float,
@@ -9941,7 +9944,106 @@ def queue_command(command, target_device=None):
     return result
 
 
+def home_automation_device_label(device_id, account=None):
+    if account and str(account.get("display_name") or "").strip():
+        return str(account.get("display_name")).strip()
+    return device_id
+
+
+def home_automation_device_entry(device_id, account=None, status=None, access_label=None):
+    normalized_device_id = normalize_device_id(device_id)
+    snapshot = status or {}
+    channels = snapshot.get("channels") if isinstance(snapshot.get("channels"), list) else []
+    online = bool(snapshot)
+    active_account = int((account or {}).get("active", 0) or 0) == 1
+    email = str((account or {}).get("email") or "").strip()
+    return {
+        "device_id": normalized_device_id,
+        "label": home_automation_device_label(normalized_device_id, account=account),
+        "email": email,
+        "access_label": access_label or ("Customer" if account else "Registered device"),
+        "credentials_label": "Credentials active" if active_account else ("No customer credentials" if not account else "Customer inactive"),
+        "has_credentials": active_account,
+        "online": online,
+        "ip": snapshot.get("ip") or "",
+        "rssi": snapshot.get("rssi"),
+        "fan_speed": snapshot.get("fan_speed", 0),
+        "channel_count": len(channels),
+        "last_seen": snapshot.get("cloud_last_seen"),
+    }
+
+
+def home_automation_accessible_devices():
+    statuses = list_home_automation_statuses()
+    if is_admin_user():
+        accounts = {normalize_device_id(account.get("device_id")): account for account in list_customer_accounts(limit=200)}
+        device_ids = set(statuses.keys())
+        device_ids.update(device_id for device_id in accounts.keys() if device_id)
+        device_ids.update(list_registered_device_ids(limit=200))
+        device_ids.update(DEVICE_KEY_MAP.keys())
+        ordered_ids = sorted(device_id for device_id in device_ids if normalize_device_id(device_id))
+        return [
+            home_automation_device_entry(
+                device_id,
+                account=accounts.get(device_id),
+                status=statuses.get(device_id),
+                access_label="Admin/customer" if accounts.get(device_id) else "Admin",
+            )
+            for device_id in ordered_ids
+        ]
+
+    customer_device_id = current_customer_device_id()
+    if not customer_device_id:
+        return []
+    return [
+        home_automation_device_entry(
+            customer_device_id,
+            account=current_customer_account(),
+            status=statuses.get(customer_device_id),
+            access_label="Your board",
+        )
+    ]
+
+
+def home_automation_view_context():
+    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
+        return {
+            "authenticated": False,
+            "login_url": url_for("customer_login", next=request.path),
+            "devices": [],
+        }
+
+    devices = home_automation_accessible_devices()
+    configured_device_id = os.getenv("HA_DEVICE_ID") or os.getenv("SWT_DEVICE_ID") or "sha_board_dev"
+    default_device_id = devices[0]["device_id"] if devices else (current_customer_device_id() or configured_device_id)
+    return {
+        "authenticated": True,
+        "role": current_user_role() or "customer",
+        "devices": devices,
+        "default_device_id": default_device_id,
+        "can_select_devices": is_admin_user() or len(devices) > 1,
+    }
+
+
+def home_automation_require_device_access(device_id):
+    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
+        return jsonify({"error": "login_required"}), 401
+
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return jsonify({"error": "device_id_required"}), 400
+    if is_admin_user():
+        return None
+
+    customer_device_id = current_customer_device_id()
+    if customer_device_id and normalized_device_id == customer_device_id:
+        return None
+    return jsonify({"error": "forbidden"}), 403
+
+
 set_home_automation_command_queue(queue_command)
+set_home_automation_view_context(home_automation_view_context)
+set_home_automation_device_access(home_automation_require_device_access)
 
 
 def relay_status_to_cloud(payload):

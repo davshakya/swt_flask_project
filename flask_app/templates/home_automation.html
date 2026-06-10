@@ -7,7 +7,12 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/home_automation.css') }}">
   </head>
   <body>
-    <main class="shell" data-cloud-enabled="{{ 'true' if cloud_enabled else 'false' }}" data-local-proxy="false">
+    <main
+      class="shell"
+      data-cloud-enabled="{{ 'true' if cloud_enabled else 'false' }}"
+      data-local-proxy="false"
+      data-can-select-devices="{{ 'true' if can_select_devices else 'false' }}"
+    >
       <header class="topbar">
         <div>
           <p class="eyebrow">SaleWell</p>
@@ -15,6 +20,17 @@
         </div>
         <div class="status-pill" id="connectionStatus">Checking</div>
       </header>
+
+      <section class="device-directory">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Registered devices</p>
+            <h2>Customer Accessible Boards</h2>
+          </div>
+          <select id="registeredDeviceSelect" aria-label="Registered device"></select>
+        </div>
+        <div class="device-list" id="registeredDevices"></div>
+      </section>
 
       <section class="control-strip">
         <div class="field">
@@ -26,7 +42,7 @@
         </div>
         <div class="field grow">
           <label for="deviceId">Device ID</label>
-          <input id="deviceId" value="{{ default_device_id }}" autocomplete="off">
+          <input id="deviceId" value="{{ default_device_id }}" autocomplete="off" {% if not can_select_devices %}readonly{% endif %}>
         </div>
         <div class="field grow">
           <label for="localUrl">Local device</label>
@@ -72,6 +88,7 @@
       </section>
     </main>
 
+    <script id="homeAutomationDevices" type="application/json">{{ registered_devices|tojson }}</script>
     <script src="{{ url_for('static', filename='js/home_automation.js') }}"></script>
   </body>
 </html>

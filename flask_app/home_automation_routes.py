@@ -4,7 +4,7 @@ import time
 from urllib.parse import urljoin
 
 import requests
-from flask import abort, jsonify, render_template, request
+from flask import abort, jsonify, redirect, render_template, request, url_for
 
 
 COMMAND_PAYLOAD_KEYS = {
@@ -16,11 +16,38 @@ COMMAND_PAYLOAD_KEYS = {
 HOME_AUTOMATION_STATUS = {}
 HOME_AUTOMATION_LOCK = threading.Lock()
 SWT_QUEUE_COMMAND_FN = None
+HOME_AUTOMATION_VIEW_CONTEXT_FN = None
+HOME_AUTOMATION_DEVICE_ACCESS_FN = None
 
 
 def set_home_automation_command_queue(queue_fn):
     global SWT_QUEUE_COMMAND_FN
     SWT_QUEUE_COMMAND_FN = queue_fn
+
+
+def set_home_automation_view_context(context_fn):
+    global HOME_AUTOMATION_VIEW_CONTEXT_FN
+    HOME_AUTOMATION_VIEW_CONTEXT_FN = context_fn
+
+
+def set_home_automation_device_access(access_fn):
+    global HOME_AUTOMATION_DEVICE_ACCESS_FN
+    HOME_AUTOMATION_DEVICE_ACCESS_FN = access_fn
+
+
+def list_home_automation_statuses():
+    with HOME_AUTOMATION_LOCK:
+        return {device_id: dict(status) for device_id, status in HOME_AUTOMATION_STATUS.items()}
+
+
+def default_home_automation_context(default_device_id):
+    return {
+        "authenticated": True,
+        "role": "public",
+        "devices": [],
+        "default_device_id": default_device_id,
+        "can_select_devices": True,
+    }
 
 
 def record_home_automation_status(payload):
@@ -37,9 +64,9 @@ def record_home_automation_status(payload):
 
 def register_home_automation_routes(app):
     local_device_url = os.getenv("HA_LOCAL_DEVICE_URL", "http://192.168.1.50")
-    cloud_base_url = os.getenv("SALEWELL_CLOUD_BASE_URL", "").rstrip("/")
-    cloud_api_key = os.getenv("SALEWELL_CLOUD_API_KEY", "")
-    default_device_id = os.getenv("HA_DEVICE_ID", "sha_board_dev")
+    cloud_base_url = os.getenv("HA_HOME_AUTOMATION_CLOUD_BASE_URL", "").rstrip("/")
+    cloud_api_key = os.getenv("HA_HOME_AUTOMATION_CLOUD_API_KEY", "")
+    default_device_id = os.getenv("HA_DEVICE_ID") or os.getenv("SWT_DEVICE_ID") or "sha_board_dev"
     request_timeout = float(os.getenv("HA_REQUEST_TIMEOUT", "6"))
 
     def local_url(path):
@@ -139,6 +166,9 @@ def register_home_automation_routes(app):
         return response if response else request_error("local_device", exc)
 
     def cloud_get(device_id, path):
+        access_response = require_device_access(device_id)
+        if access_response:
+            return access_response
         if not cloud_base_url:
             if path.strip("/") != "status":
                 abort(404)
@@ -153,6 +183,9 @@ def register_home_automation_routes(app):
         return response if response else request_error("cloud", exc)
 
     def cloud_command(device_id, command):
+        access_response = require_device_access(device_id)
+        if access_response:
+            return access_response
         command_payload, error = validate_command_payload(command)
         if error:
             message, status_code = error
@@ -174,13 +207,36 @@ def register_home_automation_routes(app):
         )
         return response if response else request_error("cloud", exc)
 
+    def home_context():
+        if HOME_AUTOMATION_VIEW_CONTEXT_FN is None:
+            return default_home_automation_context(default_device_id)
+        context = HOME_AUTOMATION_VIEW_CONTEXT_FN() or {}
+        context.setdefault("authenticated", True)
+        context.setdefault("role", "public")
+        context.setdefault("devices", [])
+        context.setdefault("default_device_id", default_device_id)
+        context.setdefault("can_select_devices", True)
+        return context
+
+    def require_device_access(device_id):
+        if HOME_AUTOMATION_DEVICE_ACCESS_FN is None:
+            return None
+        response = HOME_AUTOMATION_DEVICE_ACCESS_FN(device_id)
+        return response
+
     @app.get("/home-automation")
     def home_automation():
+        context = home_context()
+        if not context.get("authenticated"):
+            return redirect(context.get("login_url") or url_for("customer_login", next=request.path))
         return render_template(
             "home_automation.html",
             local_device_url=local_device_url,
             cloud_enabled=True,
-            default_device_id=default_device_id,
+            default_device_id=context.get("default_device_id") or default_device_id,
+            registered_devices=context.get("devices") or [],
+            viewer_role=context.get("role") or "public",
+            can_select_devices=bool(context.get("can_select_devices", True)),
         )
 
     @app.get("/api/home-automation/local/status")
