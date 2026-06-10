@@ -74,6 +74,7 @@ from flask_app.home_automation_routes import (
     register_home_automation_routes,
     set_home_automation_command_queue,
     set_home_automation_device_access,
+    set_home_automation_mobile_access,
     set_home_automation_view_context,
 )
 from flask_app.runtime_utils import (
@@ -10068,6 +10069,7 @@ def home_automation_require_device_access(device_id):
 set_home_automation_command_queue(queue_command)
 set_home_automation_view_context(home_automation_view_context)
 set_home_automation_device_access(home_automation_require_device_access)
+set_home_automation_mobile_access(resolve_mobile_user, current_mobile_scope_device_id)
 
 
 def relay_status_to_cloud(payload):

@@ -17,6 +17,7 @@
         <div>
           <p class="eyebrow">SaleWell</p>
           <h1>Home Automation</h1>
+          <p class="page-subtitle">Use your SaleWell account to control assigned appliances from local Wi-Fi or cloud.</p>
         </div>
         <div class="status-pill" id="connectionStatus">Checking</div>
       </header>
@@ -24,8 +25,8 @@
       <section class="device-directory">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Registered devices</p>
-            <h2>Customer Accessible Boards</h2>
+            <p class="eyebrow">Account devices</p>
+            <h2>Boards linked to this login</h2>
           </div>
           <select id="registeredDeviceSelect" aria-label="Registered device"></select>
         </div>
@@ -34,10 +35,10 @@
 
       <section class="control-strip">
         <div class="field">
-          <label for="mode">Control</label>
+          <label for="mode">Dashboard mode</label>
           <select id="mode">
-            <option value="cloud" selected>Cloud</option>
-            <option value="local">Local Wi-Fi</option>
+            <option value="cloud" selected>Cloud dashboard</option>
+            <option value="local">Local Wi-Fi dashboard</option>
           </select>
         </div>
         <div class="field grow">
@@ -45,7 +46,7 @@
           <input id="deviceId" value="{{ default_device_id }}" autocomplete="off" {% if not can_select_devices %}readonly{% endif %}>
         </div>
         <div class="field grow">
-          <label for="localUrl">Local device</label>
+          <label for="localUrl">Local board URL</label>
           <input id="localUrl" value="{{ local_device_url }}" disabled>
         </div>
         <button class="icon-button" id="refreshButton" title="Refresh status" type="button">
@@ -74,9 +75,15 @@
 
       <section class="actions">
         <button id="allOnButton" type="button">All On</button>
-        <button id="allOffButton" type="button">All Off</button>
+        <button class="secondary danger-action" id="allOffButton" type="button">All Off</button>
       </section>
 
+      <div class="section-heading appliance-heading">
+        <div>
+          <p class="eyebrow">Connected appliances</p>
+          <h2>Switches on selected board</h2>
+        </div>
+      </div>
       <section class="channels" id="channels"></section>
 
       <section class="fan-panel">

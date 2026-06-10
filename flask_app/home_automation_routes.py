@@ -18,6 +18,8 @@ HOME_AUTOMATION_LOCK = threading.Lock()
 SWT_QUEUE_COMMAND_FN = None
 HOME_AUTOMATION_VIEW_CONTEXT_FN = None
 HOME_AUTOMATION_DEVICE_ACCESS_FN = None
+HOME_AUTOMATION_MOBILE_USER_FN = None
+HOME_AUTOMATION_MOBILE_SCOPE_FN = None
 
 
 def set_home_automation_command_queue(queue_fn):
@@ -33,6 +35,12 @@ def set_home_automation_view_context(context_fn):
 def set_home_automation_device_access(access_fn):
     global HOME_AUTOMATION_DEVICE_ACCESS_FN
     HOME_AUTOMATION_DEVICE_ACCESS_FN = access_fn
+
+
+def set_home_automation_mobile_access(user_fn, scope_fn):
+    global HOME_AUTOMATION_MOBILE_USER_FN, HOME_AUTOMATION_MOBILE_SCOPE_FN
+    HOME_AUTOMATION_MOBILE_USER_FN = user_fn
+    HOME_AUTOMATION_MOBILE_SCOPE_FN = scope_fn
 
 
 def list_home_automation_statuses():
@@ -165,10 +173,11 @@ def register_home_automation_routes(app):
         )
         return response if response else request_error("local_device", exc)
 
-    def cloud_get(device_id, path):
-        access_response = require_device_access(device_id)
-        if access_response:
-            return access_response
+    def cloud_get(device_id, path, check_access=True):
+        if check_access:
+            access_response = require_device_access(device_id)
+            if access_response:
+                return access_response
         if not cloud_base_url:
             if path.strip("/") != "status":
                 abort(404)
@@ -182,10 +191,11 @@ def register_home_automation_routes(app):
         response, exc = request_device("GET", cloud_url(device_id, path), headers=cloud_headers())
         return response if response else request_error("cloud", exc)
 
-    def cloud_command(device_id, command):
-        access_response = require_device_access(device_id)
-        if access_response:
-            return access_response
+    def cloud_command(device_id, command, check_access=True):
+        if check_access:
+            access_response = require_device_access(device_id)
+            if access_response:
+                return access_response
         command_payload, error = validate_command_payload(command)
         if error:
             message, status_code = error
@@ -224,6 +234,20 @@ def register_home_automation_routes(app):
         response = HOME_AUTOMATION_DEVICE_ACCESS_FN(device_id)
         return response
 
+    def require_mobile_device_id():
+        if HOME_AUTOMATION_MOBILE_USER_FN is None or HOME_AUTOMATION_MOBILE_SCOPE_FN is None:
+            return None, (jsonify({"error": "mobile_auth_unavailable"}), 503)
+        user = HOME_AUTOMATION_MOBILE_USER_FN()
+        if not user:
+            return None, (jsonify({"error": "authentication required"}), 401)
+        try:
+            device_id = HOME_AUTOMATION_MOBILE_SCOPE_FN(request.values.get("device_id", type=str))
+        except Exception:
+            return None, (jsonify({"error": "forbidden"}), 403)
+        if not device_id:
+            return None, (jsonify({"error": "device_id_required"}), 400)
+        return device_id, None
+
     @app.get("/home-automation")
     def home_automation():
         context = home_context()
@@ -254,3 +278,17 @@ def register_home_automation_routes(app):
     @app.post("/api/home-automation/cloud/<device_id>/<command>")
     def api_home_automation_cloud_command(device_id, command):
         return cloud_command(device_id, command)
+
+    @app.get("/api/mobile/home-automation/status")
+    def api_mobile_home_automation_status():
+        device_id, error_response = require_mobile_device_id()
+        if error_response:
+            return error_response
+        return cloud_get(device_id, "/status", check_access=False)
+
+    @app.post("/api/mobile/home-automation/<command>")
+    def api_mobile_home_automation_command(command):
+        device_id, error_response = require_mobile_device_id()
+        if error_response:
+            return error_response
+        return cloud_command(device_id, command, check_access=False)

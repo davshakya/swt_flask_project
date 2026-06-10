@@ -6,6 +6,7 @@ from flask_app.home_automation_routes import (
     register_home_automation_routes,
     set_home_automation_command_queue,
     set_home_automation_device_access,
+    set_home_automation_mobile_access,
     set_home_automation_view_context,
 )
 
@@ -14,6 +15,7 @@ def make_app(monkeypatch, device_key=""):
     HOME_AUTOMATION_STATUS.clear()
     set_home_automation_command_queue(None)
     set_home_automation_device_access(None)
+    set_home_automation_mobile_access(None, None)
     set_home_automation_view_context(None)
     monkeypatch.delenv("SALEWELL_CLOUD_BASE_URL", raising=False)
     monkeypatch.setenv("HA_DEVICE_ID", "sha_board_dev")
@@ -82,3 +84,45 @@ def test_cloud_status_requires_registered_device_access(monkeypatch):
 
     assert response.status_code == 403
     assert response.json["error"] == "forbidden"
+
+
+def test_mobile_home_automation_routes_use_authenticated_customer_scope(monkeypatch):
+    queued_commands = []
+    client = make_app(monkeypatch).test_client()
+    set_home_automation_mobile_access(
+        lambda: {"role": "customer", "device_id": "sha_board_dev"},
+        lambda requested_device_id=None: requested_device_id or "sha_board_dev",
+    )
+    set_home_automation_command_queue(
+        lambda command, target_device=None: queued_commands.append((command, target_device))
+        or {"status": "queued", "command": command, "target_device": target_device}
+    )
+    record_home_automation_status(
+        {
+            "project": "home_automation_switch_board",
+            "device_id": "sha_board_dev",
+            "channels": [{"id": 1, "name": "Light", "state": True}],
+            "fan_speed": 2,
+            "ip": "192.168.1.50",
+        }
+    )
+
+    status = client.get("/api/mobile/home-automation/status")
+    assert status.status_code == 200
+    assert status.json["device_id"] == "sha_board_dev"
+    assert status.json["channels"][0]["name"] == "Light"
+
+    command = client.post("/api/mobile/home-automation/all", json={"state": "off"})
+    assert command.status_code == 200
+    assert command.json["command"] == "ALL:OFF"
+    assert queued_commands == [("ALL:OFF", "sha_board_dev")]
+
+
+def test_mobile_home_automation_requires_mobile_auth(monkeypatch):
+    client = make_app(monkeypatch).test_client()
+    set_home_automation_mobile_access(lambda: None, lambda requested_device_id=None: requested_device_id)
+
+    response = client.get("/api/mobile/home-automation/status")
+
+    assert response.status_code == 401
+    assert response.json["error"] == "authentication required"

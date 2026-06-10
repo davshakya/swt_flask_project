@@ -100,16 +100,18 @@ function renderStatus(data) {
   els.channels.innerHTML = "";
 
   state.channels.forEach((channel) => {
+    const applianceName = channel.name || `Appliance ${channel.id}`;
+    const isOn = Boolean(channel.state);
     const card = document.createElement("article");
-    card.className = "channel-card";
+    card.className = `channel-card ${isOn ? "is-on" : "is-off"}`;
     card.innerHTML = `
       <div>
-        <div class="channel-name">${escapeHtml(channel.name || `Channel ${channel.id}`)}</div>
-        <div class="channel-state">${channel.state ? "On" : "Off"}</div>
+        <div class="channel-name">${escapeHtml(applianceName)}</div>
+        <div class="channel-state ${isOn ? "on" : "off"}">${isOn ? "Running" : "Off"}</div>
       </div>
       <div class="toggle">
-        <button class="off ${channel.state ? "" : "active"}" data-id="${channel.id}" data-state="off" type="button">Off</button>
-        <button class="on ${channel.state ? "active" : ""}" data-id="${channel.id}" data-state="on" type="button">On</button>
+        <button class="off ${isOn ? "" : "active"}" data-id="${channel.id}" data-state="off" type="button">Turn Off</button>
+        <button class="on ${isOn ? "active" : ""}" data-id="${channel.id}" data-state="on" type="button">Turn On</button>
       </div>
     `;
     els.channels.appendChild(card);
@@ -128,7 +130,7 @@ function renderRegisteredDevices() {
     els.registeredDeviceSelect.hidden = true;
     const empty = document.createElement("div");
     empty.className = "notice neutral";
-    empty.textContent = "No registered Home Automation boards are assigned to this login yet.";
+    empty.textContent = "No Home Automation boards are assigned to this SaleWell login yet.";
     els.registeredDevices.appendChild(empty);
     return;
   }
@@ -158,8 +160,8 @@ function renderRegisteredDevices() {
       </span>
       <span class="device-id">${escapeHtml(device.device_id)}</span>
       <span class="device-meta">${escapeHtml(device.access_label || "Registered device")}</span>
-      <span class="device-meta">${escapeHtml(device.credentials_label || "No customer credentials")}${device.email ? ` · ${escapeHtml(device.email)}` : ""}</span>
-      <span class="device-meta">${device.ip ? `IP ${escapeHtml(device.ip)}` : "Waiting for telemetry"}${device.rssi === null || device.rssi === undefined ? "" : ` · ${escapeHtml(device.rssi)} dBm`}</span>
+      <span class="device-meta">${escapeHtml(device.credentials_label || "No customer credentials")}${device.email ? ` - ${escapeHtml(device.email)}` : ""}</span>
+      <span class="device-meta">${device.ip ? `IP ${escapeHtml(device.ip)}` : "Waiting for telemetry"}${device.rssi === null || device.rssi === undefined ? "" : ` - ${escapeHtml(device.rssi)} dBm`}</span>
     `;
     els.registeredDevices.appendChild(card);
   });

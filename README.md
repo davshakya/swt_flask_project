@@ -14,7 +14,7 @@ Within the wider workspace:
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
-- [`../home_automation_project/README.md`](../home_automation_project/README.md) documents the home automation switch-board firmware that this Flask app can proxy/control
+- [`../home_automation_firmware/README.md`](../home_automation_firmware/README.md) documents the home automation switch-board firmware that this Flask app can proxy/control
 
 ## What This Project Includes
 
