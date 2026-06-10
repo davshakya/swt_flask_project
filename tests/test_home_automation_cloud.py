@@ -27,7 +27,11 @@ def make_app(monkeypatch, device_key=""):
         monkeypatch.setenv("HA_DEVICE_KEY", device_key)
     else:
         monkeypatch.delenv("HA_DEVICE_KEY", raising=False)
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=str(PROJECT_ROOT / "flask_app" / "templates"),
+        static_folder=str(PROJECT_ROOT / "flask_app" / "static"),
+    )
     register_home_automation_routes(app)
     return app
 
@@ -132,6 +136,27 @@ def test_mobile_home_automation_requires_mobile_auth(monkeypatch):
     assert response.json["error"] == "authentication required"
 
 
+def test_home_automation_page_renders_without_admin_dashboard_route(monkeypatch):
+    client = make_app(monkeypatch).test_client()
+
+    response = client.get("/home-automation")
+
+    assert response.status_code == 200
+    assert b"Home Automation" in response.data
+    assert b"Back to Admin Dashboard" not in response.data
+
+
+def test_home_automation_page_links_back_to_admin_dashboard(monkeypatch):
+    app = make_app(monkeypatch)
+    app.add_url_rule("/admin/customers", "admin_customers", lambda: "admin")
+    client = app.test_client()
+
+    response = client.get("/home-automation")
+
+    assert response.status_code == 200
+    assert b'href="/admin/customers">Back to Admin Dashboard</a>' in response.data
+
+
 def test_home_automation_admin_registration_route_exists():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     template_source = (PROJECT_ROOT / "flask_app" / "templates" / "home_automation.html").read_text(encoding="utf-8")
@@ -141,6 +166,6 @@ def test_home_automation_admin_registration_route_exists():
     assert "def admin_home_automation_register_device():" in server_source
     assert "Home Automation device IDs must start with sha_." in server_source
     assert "admin_home_automation_register_device" in template_source
-    assert 'href="{{ url_for(\'admin_customers\') }}">Back to Admin Dashboard</a>' in template_source
+    assert "Back to Admin Dashboard" in template_source
     assert 'pattern="sha_.*"' in template_source
     assert "Home Automation" in admin_source

@@ -20,7 +20,9 @@
           <p class="page-subtitle">Use your SaleWell account to control assigned appliances from local Wi-Fi or cloud.</p>
         </div>
         <div class="header-actions">
-          <a class="nav-button" href="{{ url_for('admin_customers') }}">Back to Admin Dashboard</a>
+          {% if admin_dashboard_url %}
+          <a class="nav-button" href="{{ admin_dashboard_url }}">Back to Admin Dashboard</a>
+          {% endif %}
           <div class="status-pill" id="connectionStatus">Checking</div>
         </div>
       </header>

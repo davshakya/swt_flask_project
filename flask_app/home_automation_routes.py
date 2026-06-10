@@ -253,10 +253,14 @@ def register_home_automation_routes(app):
         context = home_context()
         if not context.get("authenticated"):
             return redirect(context.get("login_url") or url_for("customer_login", next=request.path))
+        admin_dashboard_url = context.get("admin_dashboard_url") or ""
+        if not admin_dashboard_url and "admin_customers" in app.view_functions:
+            admin_dashboard_url = url_for("admin_customers")
         return render_template(
             "home_automation.html",
             local_device_url=local_device_url,
             cloud_enabled=True,
+            admin_dashboard_url=admin_dashboard_url,
             default_device_id=context.get("default_device_id") or default_device_id,
             registered_devices=context.get("devices") or [],
             viewer_role=context.get("role") or "public",
