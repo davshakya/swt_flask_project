@@ -9951,6 +9951,15 @@ def home_automation_device_label(device_id, account=None):
     return device_id
 
 
+def configured_home_automation_device_id():
+    return normalize_device_id(os.getenv("HA_DEVICE_ID") or "sha_000-000-000-001")
+
+
+def is_home_automation_device_id(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    return bool(normalized_device_id and normalized_device_id.startswith("sha_"))
+
+
 def home_automation_truthy(value):
     if isinstance(value, bytes):
         return value not in {b"", b"\x00", b"0"}
@@ -9984,6 +9993,7 @@ def home_automation_device_entry(device_id, account=None, status=None, access_la
 
 def home_automation_accessible_devices():
     statuses = list_home_automation_statuses()
+    configured_device_id = configured_home_automation_device_id()
     if is_admin_user():
         try:
             customer_accounts = list_customer_accounts(limit=200)
@@ -10001,7 +10011,13 @@ def home_automation_accessible_devices():
         device_ids.update(device_id for device_id in accounts.keys() if device_id)
         device_ids.update(registered_device_ids)
         device_ids.update(DEVICE_KEY_MAP.keys())
-        ordered_ids = sorted(device_id for device_id in device_ids if normalize_device_id(device_id))
+        if configured_device_id:
+            device_ids.add(configured_device_id)
+        ordered_ids = sorted(
+            device_id
+            for device_id in device_ids
+            if is_home_automation_device_id(device_id)
+        )
         return [
             home_automation_device_entry(
                 device_id,
@@ -10013,10 +10029,12 @@ def home_automation_accessible_devices():
         ]
 
     customer_device_id = current_customer_device_id()
-    if not customer_device_id:
+    if not customer_device_id and not configured_device_id:
         return []
+    if not is_home_automation_device_id(customer_device_id):
+        customer_device_id = configured_device_id
     try:
-        customer_account = current_customer_account()
+        customer_account = fetch_customer_account(customer_device_id)
     except Exception:
         logger.exception("Unable to load customer account for Home Automation dashboard")
         customer_account = None
@@ -10039,8 +10057,8 @@ def home_automation_view_context():
         }
 
     devices = home_automation_accessible_devices()
-    configured_device_id = os.getenv("HA_DEVICE_ID") or os.getenv("SWT_DEVICE_ID") or "sha_board_dev"
-    default_device_id = devices[0]["device_id"] if devices else (current_customer_device_id() or configured_device_id)
+    configured_device_id = configured_home_automation_device_id()
+    default_device_id = devices[0]["device_id"] if devices else configured_device_id
     return {
         "authenticated": True,
         "role": current_user_role() or "customer",
@@ -10062,6 +10080,9 @@ def home_automation_require_device_access(device_id):
 
     customer_device_id = current_customer_device_id()
     if customer_device_id and normalized_device_id == customer_device_id:
+        return None
+    configured_device_id = configured_home_automation_device_id()
+    if configured_device_id and normalized_device_id == configured_device_id:
         return None
     return jsonify({"error": "forbidden"}), 403
 

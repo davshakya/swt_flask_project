@@ -18,7 +18,7 @@ def make_app(monkeypatch, device_key=""):
     set_home_automation_mobile_access(None, None)
     set_home_automation_view_context(None)
     monkeypatch.delenv("SALEWELL_CLOUD_BASE_URL", raising=False)
-    monkeypatch.setenv("HA_DEVICE_ID", "sha_board_dev")
+    monkeypatch.setenv("HA_DEVICE_ID", "sha_000-000-000-001")
     if device_key:
         monkeypatch.setenv("HA_DEVICE_KEY", device_key)
     else:
@@ -36,32 +36,32 @@ def test_cloud_command_uses_swt_device_command_queue(monkeypatch):
         or {"status": "queued", "command": command, "target_device": target_device}
     )
 
-    offline = client.get("/api/home-automation/cloud/sha_board_dev/status")
+    offline = client.get("/api/home-automation/cloud/sha_000-000-000-001/status")
     assert offline.status_code == 404
     assert offline.json["error"] == "device_offline"
 
     queued = client.post(
-        "/api/home-automation/cloud/sha_board_dev/switch",
+        "/api/home-automation/cloud/sha_000-000-000-001/switch",
         json={"id": 1, "state": "on"},
     )
     assert queued.status_code == 200
     assert queued.json["status"] == "queued"
     assert queued.json["command"] == "SWITCH:1:ON"
-    assert queued_commands == [("SWITCH:1:ON", "sha_board_dev")]
+    assert queued_commands == [("SWITCH:1:ON", "sha_000-000-000-001")]
 
     record_home_automation_status(
         {
             "project": "home_automation_switch_board",
-            "device_id": "sha_board_dev",
+            "device_id": "sha_000-000-000-001",
             "channels": [],
             "fan_speed": 0,
             "ip": "192.168.1.50",
         }
     )
 
-    online = client.get("/api/home-automation/cloud/sha_board_dev/status")
+    online = client.get("/api/home-automation/cloud/sha_000-000-000-001/status")
     assert online.status_code == 200
-    assert online.json["device_id"] == "sha_board_dev"
+    assert online.json["device_id"] == "sha_000-000-000-001"
     assert online.json["ip"] == "192.168.1.50"
 
 
@@ -69,7 +69,7 @@ def test_cloud_command_reports_unavailable_when_swt_queue_is_not_bound(monkeypat
     client = make_app(monkeypatch).test_client()
 
     response = client.post(
-        "/api/home-automation/cloud/sha_board_dev/fan",
+        "/api/home-automation/cloud/sha_000-000-000-001/fan",
         json={"speed": 3},
     )
     assert response.status_code == 503
@@ -90,8 +90,8 @@ def test_mobile_home_automation_routes_use_authenticated_customer_scope(monkeypa
     queued_commands = []
     client = make_app(monkeypatch).test_client()
     set_home_automation_mobile_access(
-        lambda: {"role": "customer", "device_id": "sha_board_dev"},
-        lambda requested_device_id=None: requested_device_id or "sha_board_dev",
+        lambda: {"role": "customer", "device_id": "sha_000-000-000-001"},
+        lambda requested_device_id=None: requested_device_id or "sha_000-000-000-001",
     )
     set_home_automation_command_queue(
         lambda command, target_device=None: queued_commands.append((command, target_device))
@@ -100,7 +100,7 @@ def test_mobile_home_automation_routes_use_authenticated_customer_scope(monkeypa
     record_home_automation_status(
         {
             "project": "home_automation_switch_board",
-            "device_id": "sha_board_dev",
+            "device_id": "sha_000-000-000-001",
             "channels": [{"id": 1, "name": "Light", "state": True}],
             "fan_speed": 2,
             "ip": "192.168.1.50",
@@ -109,13 +109,13 @@ def test_mobile_home_automation_routes_use_authenticated_customer_scope(monkeypa
 
     status = client.get("/api/mobile/home-automation/status")
     assert status.status_code == 200
-    assert status.json["device_id"] == "sha_board_dev"
+    assert status.json["device_id"] == "sha_000-000-000-001"
     assert status.json["channels"][0]["name"] == "Light"
 
     command = client.post("/api/mobile/home-automation/all", json={"state": "off"})
     assert command.status_code == 200
     assert command.json["command"] == "ALL:OFF"
-    assert queued_commands == [("ALL:OFF", "sha_board_dev")]
+    assert queued_commands == [("ALL:OFF", "sha_000-000-000-001")]
 
 
 def test_mobile_home_automation_requires_mobile_auth(monkeypatch):

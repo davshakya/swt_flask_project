@@ -74,7 +74,7 @@ def register_home_automation_routes(app):
     local_device_url = os.getenv("HA_LOCAL_DEVICE_URL", "http://192.168.1.50")
     cloud_base_url = os.getenv("HA_HOME_AUTOMATION_CLOUD_BASE_URL", "").rstrip("/")
     cloud_api_key = os.getenv("HA_HOME_AUTOMATION_CLOUD_API_KEY", "")
-    default_device_id = os.getenv("HA_DEVICE_ID") or os.getenv("SWT_DEVICE_ID") or "sha_board_dev"
+    default_device_id = os.getenv("HA_DEVICE_ID") or "sha_000-000-000-001"
     request_timeout = float(os.getenv("HA_REQUEST_TIMEOUT", "6"))
 
     def local_url(path):
