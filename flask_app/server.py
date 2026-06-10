@@ -10011,8 +10011,9 @@ def home_automation_device_entry_with_options(device_id, account=None, status=No
         "ip": snapshot.get("ip") or "",
         "rssi": snapshot.get("rssi"),
         "fan_speed": snapshot.get("fan_speed", 0),
+        "channels": channels,
         "channel_count": len(channels),
-        "last_seen": snapshot.get("cloud_last_seen"),
+        "cloud_last_seen": snapshot.get("cloud_last_seen"),
         "can_delete": bool(can_delete),
     }
 

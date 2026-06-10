@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>SaleWell Home Automation</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/home_automation.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/home_automation.css', v='20260610-appliances-v3') }}">
   </head>
   <body>
     <main
@@ -171,7 +171,7 @@
                 <th>Signal</th>
                 <th>Upper Sensor</th>
                 <th>Lower Sensor</th>
-                <th>Tank</th>
+                <th>Appliances</th>
                 <th>Alerts</th>
                 <th>Last Sync</th>
                 <th>Actions</th>
@@ -284,6 +284,6 @@
     </main>
 
     <script id="homeAutomationDevices" type="application/json">{{ registered_devices|tojson }}</script>
-    <script src="{{ url_for('static', filename='js/home_automation.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/home_automation.js', v='20260610-appliances-v3') }}"></script>
   </body>
 </html>

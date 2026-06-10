@@ -73,6 +73,10 @@ function apiPath(path) {
   return `${normalizedLocalUrl()}/${path}`;
 }
 
+function cloudApiPath(deviceId, path) {
+  return `/api/home-automation/cloud/${encodeURIComponent(deviceId)}/${path}`;
+}
+
 function normalizedLocalUrl() {
   const rawValue = document.getElementById("localUrl").value.trim();
   const withScheme = /^https?:\/\//i.test(rawValue) ? rawValue : `http://${rawValue}`;
@@ -185,22 +189,64 @@ function alertSummary(device, percent) {
   return {label: "Clear", tone: "clear"};
 }
 
-function tankSummary(device) {
-  if (device.level !== undefined && device.level !== null) {
-    const level = Number(device.level);
-    return {
-      main: Number.isFinite(level) ? `${level}%` : String(device.level),
-      sub: `Pump ${device.motor || "--"} / ${device.mode || "--"}`,
-      detail: `Depth ${device.water_depth_label || "--"} / Echo ${device.sensor_distance_label || "--"}`,
-    };
+function normalizeChannels(channels) {
+  return Array.isArray(channels) ? channels : [];
+}
+
+function applianceLabel(channel) {
+  return channel.name || channel.label || `Appliance ${channel.id ?? ""}`.trim();
+}
+
+function renderApplianceList(device) {
+  const channels = normalizeChannels(device.channels);
+  if (channels.length) {
+    return `
+      <div class="appliance-list">
+        ${channels
+          .map((channel) => {
+            const isOn = Boolean(channel.state);
+            return `
+              <span class="appliance-chip ${isOn ? "on" : "off"}">
+                <strong>${escapeHtml(applianceLabel(channel))}</strong>
+                <em>${isOn ? "On" : "Off"}</em>
+              </span>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
   }
-  const channelCount = Number.isFinite(Number(device.channel_count)) ? Number(device.channel_count) : "--";
-  const fanSpeed = Number.isFinite(Number(device.fan_speed)) ? Number(device.fan_speed) : "--";
-  return {
-    main: "Home automation",
-    sub: `Fan ${fanSpeed}`,
-    detail: `Appliances ${channelCount}`,
-  };
+
+  const channelCount = Number.isFinite(Number(device.channel_count)) ? Number(device.channel_count) : 0;
+  if (channelCount > 0) {
+    return `
+      <div class="appliance-list">
+        <span class="appliance-chip unknown">
+          <strong>${channelCount} appliance${channelCount === 1 ? "" : "s"}</strong>
+          <em>Waiting for names</em>
+        </span>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="appliance-list">
+      <span class="appliance-chip unknown">
+        <strong>No appliances</strong>
+        <em>No telemetry</em>
+      </span>
+    </div>
+  `;
+}
+
+function updateDeviceFromStatus(device, data) {
+  device.online = true;
+  device.ip = data.ip || device.ip || "";
+  device.rssi = data.rssi;
+  device.fan_speed = data.fan_speed;
+  device.channels = normalizeChannels(data.channels);
+  device.cloud_last_seen = data.cloud_last_seen || Math.floor(Date.now() / 1000);
+  device.channel_count = device.channels.length;
 }
 
 function dashboardStats() {
@@ -313,7 +359,6 @@ function renderBoardTable() {
     const lowerText = device.lower_sensor_status_label || "Disabled";
     const lowerTone = device.lower_sensor_status_tone || "clear";
     const alert = alertSummary(device, percent);
-    const tank = tankSummary(device);
     const lastSync = shortDateTime(lastSyncValue(device));
     const signalLabel = rssi === null ? "--" : String(rssi);
     const customerLabel = device.label || device.email || "Unassigned";
@@ -347,11 +392,7 @@ function renderBoardTable() {
       <td>${escapeHtml(signalLabel)}</td>
       <td><span class="status-badge ${upperTone}">${escapeHtml(upperText)}</span></td>
       <td><span class="status-badge ${lowerTone}">${escapeHtml(lowerText)}</span></td>
-      <td>
-        <span class="cell-main">${escapeHtml(tank.main)}</span>
-        <span class="cell-sub">${escapeHtml(tank.sub)}</span>
-        <span class="cell-sub">${escapeHtml(tank.detail)}</span>
-      </td>
+      <td>${renderApplianceList(device)}</td>
       <td><span class="status-badge ${alert.tone}">${escapeHtml(alert.label)}</span></td>
       <td class="last-sync-cell ${device.online ? "is-live" : "is-stale"}">
         <span class="sync-date">${escapeHtml(lastSync.date)}</span>
@@ -418,6 +459,32 @@ function renderRegisteredDevices() {
   renderSelectedBoardHeader();
 }
 
+async function refreshFleetStatuses() {
+  if (!isCloudMode() || !state.devices.length) {
+    return;
+  }
+  const selectedId = selectedDeviceId();
+  const results = await Promise.allSettled(
+    state.devices.map(async (device) => {
+      const data = await requestJson(cloudApiPath(device.device_id, "status"));
+      return {device, data};
+    })
+  );
+
+  results.forEach((result) => {
+    if (result.status === "fulfilled") {
+      updateDeviceFromStatus(result.value.device, result.value.data);
+      if (result.value.device.device_id === selectedId) {
+        state.channels = normalizeChannels(result.value.data.channels);
+        state.fanSpeed = Number.isFinite(result.value.data.fan_speed) ? result.value.data.fan_speed : 0;
+      }
+      return;
+    }
+  });
+
+  renderRegisteredDevices();
+}
+
 function selectRegisteredDevice(deviceId) {
   if (!deviceId) {
     return;
@@ -444,12 +511,7 @@ function markSelectedDeviceOnline(data) {
   if (!device) {
     return;
   }
-  device.online = true;
-  device.ip = data.ip || device.ip || "";
-  device.rssi = data.rssi;
-  device.fan_speed = data.fan_speed;
-  device.cloud_last_seen = Math.floor(Date.now() / 1000);
-  device.channel_count = Array.isArray(data.channels) ? data.channels.length : device.channel_count;
+  updateDeviceFromStatus(device, data);
   renderRegisteredDevices();
 }
 
@@ -621,4 +683,6 @@ els.fanSpeed.addEventListener("change", () => sendFan(els.fanSpeed.value));
 renderRegisteredDevices();
 renderActivity("Dashboard opened", selectedDeviceId() || "No board selected");
 refreshStatus();
+refreshFleetStatuses();
 setInterval(refreshStatus, 10000);
+setInterval(refreshFleetStatuses, 30000);

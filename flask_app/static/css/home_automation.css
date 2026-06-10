@@ -717,6 +717,68 @@ button.secondary {
   color: #607d8b;
 }
 
+.appliance-list {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.appliance-chip {
+  display: inline-grid;
+  gap: 2px;
+  max-width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 5px 8px;
+}
+
+.appliance-chip strong,
+.appliance-chip em {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.appliance-chip strong {
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.appliance-chip em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.appliance-chip.on {
+  border-color: rgba(34, 197, 94, 0.28);
+  background: #ecfdf5;
+}
+
+.appliance-chip.on em {
+  color: #15803d;
+}
+
+.appliance-chip.off {
+  border-color: rgba(239, 68, 68, 0.22);
+  background: #fff7f7;
+}
+
+.appliance-chip.off em {
+  color: #b91c1c;
+}
+
+.appliance-chip.unknown {
+  background: #f1f5f9;
+}
+
 .signal-cell {
   min-width: 120px;
   display: grid;
