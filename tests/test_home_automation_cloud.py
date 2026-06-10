@@ -141,5 +141,6 @@ def test_home_automation_admin_registration_route_exists():
     assert "def admin_home_automation_register_device():" in server_source
     assert "Home Automation device IDs must start with sha_." in server_source
     assert "admin_home_automation_register_device" in template_source
+    assert 'href="{{ url_for(\'admin_customers\') }}">Back to Admin Dashboard</a>' in template_source
     assert 'pattern="sha_.*"' in template_source
     assert "Home Automation" in admin_source
