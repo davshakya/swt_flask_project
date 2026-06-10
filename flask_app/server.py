@@ -9950,12 +9950,20 @@ def home_automation_device_label(device_id, account=None):
     return device_id
 
 
+def home_automation_truthy(value):
+    if isinstance(value, bytes):
+        return value not in {b"", b"\x00", b"0"}
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 def home_automation_device_entry(device_id, account=None, status=None, access_label=None):
     normalized_device_id = normalize_device_id(device_id)
     snapshot = status or {}
     channels = snapshot.get("channels") if isinstance(snapshot.get("channels"), list) else []
     online = bool(snapshot)
-    active_account = int((account or {}).get("active", 0) or 0) == 1
+    active_account = home_automation_truthy((account or {}).get("active", 0))
     email = str((account or {}).get("email") or "").strip()
     return {
         "device_id": normalized_device_id,
@@ -9976,10 +9984,21 @@ def home_automation_device_entry(device_id, account=None, status=None, access_la
 def home_automation_accessible_devices():
     statuses = list_home_automation_statuses()
     if is_admin_user():
-        accounts = {normalize_device_id(account.get("device_id")): account for account in list_customer_accounts(limit=200)}
+        try:
+            customer_accounts = list_customer_accounts(limit=200)
+        except Exception:
+            logger.exception("Unable to load customer accounts for Home Automation dashboard")
+            customer_accounts = []
+        try:
+            registered_device_ids = list_registered_device_ids(limit=200)
+        except Exception:
+            logger.exception("Unable to load registered devices for Home Automation dashboard")
+            registered_device_ids = []
+
+        accounts = {normalize_device_id(account.get("device_id")): account for account in customer_accounts}
         device_ids = set(statuses.keys())
         device_ids.update(device_id for device_id in accounts.keys() if device_id)
-        device_ids.update(list_registered_device_ids(limit=200))
+        device_ids.update(registered_device_ids)
         device_ids.update(DEVICE_KEY_MAP.keys())
         ordered_ids = sorted(device_id for device_id in device_ids if normalize_device_id(device_id))
         return [
@@ -9995,10 +10014,15 @@ def home_automation_accessible_devices():
     customer_device_id = current_customer_device_id()
     if not customer_device_id:
         return []
+    try:
+        customer_account = current_customer_account()
+    except Exception:
+        logger.exception("Unable to load customer account for Home Automation dashboard")
+        customer_account = None
     return [
         home_automation_device_entry(
             customer_device_id,
-            account=current_customer_account(),
+            account=customer_account,
             status=statuses.get(customer_device_id),
             access_label="Your board",
         )
