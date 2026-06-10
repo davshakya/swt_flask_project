@@ -154,7 +154,7 @@ def test_home_automation_page_links_back_to_admin_dashboard(monkeypatch):
     response = client.get("/home-automation")
 
     assert response.status_code == 200
-    assert b'href="/admin/customers">Back to Admin Dashboard</a>' in response.data
+    assert b'href="/admin/customers">Admin Dashboard</a>' in response.data
 
 
 def test_home_automation_admin_registration_route_exists():
@@ -170,8 +170,10 @@ def test_home_automation_admin_registration_route_exists():
     assert "clear_home_automation_status(normalized_device_id)" in server_source
     assert "Home Automation device IDs must start with sha_." in server_source
     assert 'action="/admin/home-automation/register"' in template_source
-    assert "admin_home_automation_delete_device" in template_source
-    assert "Registered SHA boards" in template_source
-    assert "Back to Admin Dashboard" in template_source
+    assert "/admin/home-automation/${encodeURIComponent(device.device_id)}/delete" in (
+        PROJECT_ROOT / "flask_app" / "static" / "js" / "home_automation.js"
+    ).read_text(encoding="utf-8")
+    assert "Registered SHA Boards" in template_source
+    assert "Admin Dashboard" in template_source
     assert 'pattern="sha_.*"' in template_source
     assert "Home Automation" in admin_source
