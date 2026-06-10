@@ -11666,6 +11666,73 @@ def admin_register_device_credentials():
     )
 
 
+@app.route("/admin/home-automation")
+@admin_required
+def admin_home_automation():
+    return redirect(url_for("home_automation"))
+
+
+@app.route("/admin/home-automation/register", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_home_automation_register_device():
+    device_id = normalize_device_id(request.form.get("device_id", ""))
+    device_key = request.form.get("device_key", "")
+    display_name = request.form.get("display_name", "")
+    email = request.form.get("email", "")
+    password = request.form.get("password", "")
+    try:
+        if not is_home_automation_device_id(device_id):
+            raise ValueError("Home Automation device IDs must start with sha_.")
+        normalized_device_id = register_device_credentials(
+            device_id,
+            device_key,
+            registration_source="home_automation_admin",
+            remote_addr=request.remote_addr,
+        )
+        log_audit_event(
+            actor=current_actor_username(),
+            action="register_home_automation_device",
+            target_type="device_auth_key",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details={"registration_source": "home_automation_admin"},
+        )
+        customer_profile_requested = any(str(value or "").strip() for value in (display_name, email))
+        customer_saved = False
+        if customer_profile_requested and not str(password or "").strip():
+            raise ValueError("Customer password is required when customer name or email is entered.")
+        if str(password or "").strip():
+            account = upsert_customer_account(
+                normalized_device_id,
+                password,
+                display_name=display_name,
+                email=email,
+                service_updates_enabled=True,
+                marketing_emails_enabled=False,
+            )
+            customer_saved = True
+            log_audit_event(
+                actor=current_actor_username(),
+                action="upsert_home_automation_customer_account",
+                target_type="customer_account",
+                target_id=account["device_id"],
+                device_id=account["device_id"],
+                details={
+                    "display_name": account.get("display_name"),
+                    "email": account.get("email"),
+                    "password_scope": "cloud_only",
+                    "source": "home_automation_page",
+                },
+            )
+        message = f"SHA device {normalized_device_id} registered."
+        if customer_saved:
+            message += " Customer login was also saved."
+        return redirect(url_for("home_automation", registration_success=message))
+    except ValueError as exc:
+        return redirect(url_for("home_automation", registration_error=str(exc)))
+
+
 @app.route("/admin/customers/<device_id>/password", methods=["POST"])
 @admin_required
 @csrf_protect

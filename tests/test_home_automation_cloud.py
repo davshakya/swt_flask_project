@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from flask import Flask
 
 from flask_app.home_automation_routes import (
@@ -9,6 +11,8 @@ from flask_app.home_automation_routes import (
     set_home_automation_mobile_access,
     set_home_automation_view_context,
 )
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def make_app(monkeypatch, device_key=""):
@@ -126,3 +130,16 @@ def test_mobile_home_automation_requires_mobile_auth(monkeypatch):
 
     assert response.status_code == 401
     assert response.json["error"] == "authentication required"
+
+
+def test_home_automation_admin_registration_route_exists():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    template_source = (PROJECT_ROOT / "flask_app" / "templates" / "home_automation.html").read_text(encoding="utf-8")
+    admin_source = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert '@app.route("/admin/home-automation/register", methods=["POST"])' in server_source
+    assert "def admin_home_automation_register_device():" in server_source
+    assert "Home Automation device IDs must start with sha_." in server_source
+    assert "admin_home_automation_register_device" in template_source
+    assert 'pattern="sha_.*"' in template_source
+    assert "Home Automation" in admin_source

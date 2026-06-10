@@ -44,6 +44,14 @@ select {
   margin-bottom: 18px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: var(--accent);
@@ -99,6 +107,7 @@ h2 {
 .control-strip,
 .summary-grid,
 .device-directory,
+.registration-panel,
 .fan-panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -117,6 +126,18 @@ h2 {
 .device-directory {
   padding: 16px;
   margin-bottom: 16px;
+}
+
+.registration-panel {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.registration-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) minmax(210px, 1fr) minmax(150px, 0.8fr) minmax(170px, 1fr) minmax(210px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
 }
 
 .section-heading {
@@ -245,6 +266,25 @@ button {
 
 button:hover {
   background: var(--accent-strong);
+}
+
+.nav-button {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 0 14px;
+  text-decoration: none;
+  font-weight: 800;
+}
+
+.nav-button:hover {
+  border-color: rgba(15, 118, 110, 0.4);
+  color: var(--accent-strong);
 }
 
 button.secondary {
@@ -414,11 +454,16 @@ input[type="range"] {
     flex-direction: column;
   }
 
+  .header-actions {
+    justify-content: flex-start;
+  }
+
   .status-pill {
     align-self: flex-start;
   }
 
   .control-strip,
+  .registration-form,
   .summary-grid,
   .channels,
   .device-list,

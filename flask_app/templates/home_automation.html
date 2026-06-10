@@ -19,8 +19,55 @@
           <h1>Home Automation</h1>
           <p class="page-subtitle">Use your SaleWell account to control assigned appliances from local Wi-Fi or cloud.</p>
         </div>
-        <div class="status-pill" id="connectionStatus">Checking</div>
+        <div class="header-actions">
+          {% if viewer_role == "admin" %}
+          <a class="nav-button" href="{{ url_for('admin_customers') }}">Admin Dashboard</a>
+          {% endif %}
+          <div class="status-pill" id="connectionStatus">Checking</div>
+        </div>
       </header>
+
+      {% if registration_success %}
+      <div class="notice neutral">{{ registration_success }}</div>
+      {% endif %}
+      {% if registration_error %}
+      <div class="notice">{{ registration_error }}</div>
+      {% endif %}
+
+      {% if viewer_role == "admin" %}
+      <section class="registration-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Admin setup</p>
+            <h2>Register SHA Home Automation board</h2>
+          </div>
+        </div>
+        <form class="registration-form" method="post" action="{{ url_for('admin_home_automation_register_device') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="haRegisterDeviceId">SHA Device ID</label>
+            <input id="haRegisterDeviceId" name="device_id" value="{{ default_device_id }}" pattern="sha_.*" autocomplete="off" required>
+          </div>
+          <div class="field">
+            <label for="haRegisterDeviceKey">Device API Key</label>
+            <input id="haRegisterDeviceKey" name="device_key" type="password" minlength="32" autocomplete="new-password" required>
+          </div>
+          <div class="field">
+            <label for="haRegisterName">Customer name</label>
+            <input id="haRegisterName" name="display_name" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="haRegisterEmail">Customer email</label>
+            <input id="haRegisterEmail" name="email" type="email" placeholder="Optional">
+          </div>
+          <div class="field">
+            <label for="haRegisterPassword">Customer password</label>
+            <input id="haRegisterPassword" name="password" type="password" minlength="6" autocomplete="new-password" placeholder="Required only when adding customer">
+          </div>
+          <button type="submit">Register SHA Board</button>
+        </form>
+      </section>
+      {% endif %}
 
       <section class="device-directory">
         <div class="section-heading">

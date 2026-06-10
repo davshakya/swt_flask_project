@@ -261,6 +261,8 @@ def register_home_automation_routes(app):
             registered_devices=context.get("devices") or [],
             viewer_role=context.get("role") or "public",
             can_select_devices=bool(context.get("can_select_devices", True)),
+            registration_success=request.args.get("registration_success", "", type=str) or "",
+            registration_error=request.args.get("registration_error", "", type=str) or "",
         )
 
     @app.get("/api/home-automation/local/status")
