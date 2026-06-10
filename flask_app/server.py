@@ -129,6 +129,8 @@ def load_workspace_device_env_files(project_root, environ):
     candidate_paths = (
         project_device_env,
         workspace_root / "device.env",
+        workspace_root / "home_automation_firmware" / "device.env",
+        workspace_root / "home_automation_android" / "device.env",
         workspace_root / "swt_firmware_project" / "device.env",
         workspace_root / "swt_android_app_project" / "device.env",
     )
@@ -260,18 +262,36 @@ def resolve_app_secret_key():
 
 
 def resolve_device_key_registry():
-    shared_registry = os.environ.get("SWT_DEVICE_KEYS", "").strip()
-    if shared_registry:
-        return shared_registry, "SWT_DEVICE_KEYS"
+    registry_items = []
+    registry_sources = []
 
     configured_registry = os.environ.get("DEVICE_KEYS", "").strip()
     if configured_registry:
-        return configured_registry, "DEVICE_KEYS"
+        registry_items.append(configured_registry)
+        registry_sources.append("DEVICE_KEYS")
+
+    shared_registry = os.environ.get("SWT_DEVICE_KEYS", "").strip()
+    if shared_registry:
+        registry_items.append(shared_registry)
+        registry_sources.append("SWT_DEVICE_KEYS")
 
     shared_device_id = os.environ.get("SWT_DEVICE_ID", "").strip()
     shared_device_key = os.environ.get("SWT_DEVICE_API_KEY", "").strip()
     if shared_device_id and shared_device_key:
-        return f"{shared_device_id}:{shared_device_key}", "SWT_DEVICE_ID/SWT_DEVICE_API_KEY"
+        registry_items.append(f"{shared_device_id}:{shared_device_key}")
+        registry_sources.append("SWT_DEVICE_ID/SWT_DEVICE_API_KEY")
+
+    home_device_id = os.environ.get("HA_DEVICE_ID", "").strip()
+    home_device_key = (
+        os.environ.get("HA_DEVICE_API_KEY", "").strip()
+        or os.environ.get("HA_DEVICE_KEY", "").strip()
+    )
+    if home_device_id and home_device_key:
+        registry_items.append(f"{home_device_id}:{home_device_key}")
+        registry_sources.append("HA_DEVICE_ID/HA_DEVICE_API_KEY")
+
+    if registry_items:
+        return ",".join(registry_items), ",".join(registry_sources)
 
     return DEFAULT_DEVICE_KEYS, "default"
 
