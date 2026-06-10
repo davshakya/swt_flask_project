@@ -10,6 +10,9 @@ const els = {
   deviceId: document.getElementById("deviceId"),
   registeredDeviceSelect: document.getElementById("registeredDeviceSelect"),
   boardTableBody: document.getElementById("boardTableBody"),
+  boardTableMeta: document.getElementById("boardTableMeta"),
+  boardVisiblePill: document.getElementById("boardVisiblePill"),
+  boardUpdatedPill: document.getElementById("boardUpdatedPill"),
   boardSearch: document.getElementById("boardSearch"),
   boardFilter: document.getElementById("boardFilter"),
   connectionStatus: document.getElementById("connectionStatus"),
@@ -78,8 +81,9 @@ function normalizedLocalUrl() {
 
 function setStatus(label, className) {
   els.connectionStatus.textContent = label;
-  els.connectionStatus.className = `status-pill ${className || ""}`.trim();
+  els.connectionStatus.closest(".status-pill").className = `status-pill ${className || ""}`.trim();
   els.activeBoardState.textContent = label;
+  els.activeBoardState.className = className || "";
 }
 
 function selectedDeviceId() {
@@ -110,13 +114,102 @@ function signalPercent(rssi) {
   return Math.max(0, Math.min(100, Math.round((value + 100) * 2)));
 }
 
+function rawSignal(device) {
+  const candidates = [device.rssi, device.wifi_rssi, device.signal];
+  const value = candidates.find((candidate) => Number.isFinite(Number(candidate)));
+  return value === undefined ? null : Number(value);
+}
+
+function deviceIp(device) {
+  return device.ip || device.device_local_host || device.source_ip || device.local_ip || "";
+}
+
+function deviceLocalUrl(device) {
+  return device.device_local_url || (deviceIp(device) ? `http://${deviceIp(device)}` : "");
+}
+
+function shortDateTime(value) {
+  if (!value) {
+    return {date: "--", time: ""};
+  }
+  if (Number.isFinite(Number(value))) {
+    const numericValue = Number(value);
+    const milliseconds = numericValue < 100000000000 ? numericValue * 1000 : numericValue;
+    const date = new Date(milliseconds);
+    return {
+      date: date.toLocaleDateString(undefined, {year: "numeric", month: "2-digit", day: "2-digit"}),
+      time: date.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit", second: "2-digit"}),
+    };
+  }
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const date = new Date(normalized.endsWith("Z") ? normalized : `${normalized}Z`);
+  if (Number.isNaN(date.getTime())) {
+    const [rawDate, rawTime = ""] = String(value).split(/[ T]/);
+    return {date: rawDate || "--", time: rawTime ? `${rawTime.replace(/\.\d+$/, "")}` : ""};
+  }
+  return {
+    date: date.toLocaleDateString(undefined, {year: "numeric", month: "2-digit", day: "2-digit"}),
+    time: date.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit", second: "2-digit"}),
+  };
+}
+
+function lastSyncValue(device) {
+  return device.last_sync_at || device.last_seen_at || device.cloud_last_seen_at || device.cloud_last_seen || device.updated_at || "";
+}
+
+function telemetryStatus(device) {
+  if (device.telemetry_status_label) {
+    return device.telemetry_status_label;
+  }
+  return device.online ? "Live" : "Stale";
+}
+
+function statusTone(isReachable, isWarning = false) {
+  if (isWarning) {
+    return "warning";
+  }
+  return isReachable ? "online" : "offline";
+}
+
+function alertSummary(device, percent) {
+  const count = Number(device.active_alert_count || 0);
+  if (count > 0) {
+    return {label: `${count} active`, tone: device.latest_alert_severity === "danger" ? "danger" : "warning"};
+  }
+  if (!device.online) {
+    return {label: "1 active", tone: "danger"};
+  }
+  if (percent !== null && percent < 45) {
+    return {label: "Signal", tone: "warning"};
+  }
+  return {label: "Clear", tone: "clear"};
+}
+
+function tankSummary(device) {
+  if (device.level !== undefined && device.level !== null) {
+    const level = Number(device.level);
+    return {
+      main: Number.isFinite(level) ? `${level}%` : String(device.level),
+      sub: `Pump ${device.motor || "--"} / ${device.mode || "--"}`,
+      detail: `Depth ${device.water_depth_label || "--"} / Echo ${device.sensor_distance_label || "--"}`,
+    };
+  }
+  const channelCount = Number.isFinite(Number(device.channel_count)) ? Number(device.channel_count) : "--";
+  const fanSpeed = Number.isFinite(Number(device.fan_speed)) ? Number(device.fan_speed) : "--";
+  return {
+    main: "Home automation",
+    sub: `Fan ${fanSpeed}`,
+    detail: `Appliances ${channelCount}`,
+  };
+}
+
 function dashboardStats() {
   const total = state.devices.length;
   const online = state.devices.filter((device) => device.online).length;
   const offline = Math.max(0, total - online);
   const activeCustomers = state.devices.filter((device) => device.has_credentials).length;
   const lowSignal = state.devices.filter((device) => {
-    const percent = signalPercent(device.rssi);
+    const percent = signalPercent(rawSignal(device));
     return device.online && percent !== null && percent < 45;
   }).length;
   const alerts = offline + lowSignal;
@@ -173,7 +266,7 @@ function filteredDevices() {
       device.credentials_label,
     ].join(" ").toLowerCase();
     const matchesQuery = !query || haystack.includes(query);
-    const percent = signalPercent(device.rssi);
+    const percent = signalPercent(rawSignal(device));
     const isWarning = device.online && percent !== null && percent < 45;
     const matchesFilter =
       filter === "all" ||
@@ -190,26 +283,80 @@ function renderBoardTable() {
   }
   els.boardTableBody.innerHTML = "";
   const devices = filteredDevices();
+  if (els.boardTableMeta) {
+    const total = state.devices.length;
+    els.boardTableMeta.textContent = `${total} device${total === 1 ? "" : "s"}`;
+  }
+  if (els.boardVisiblePill) {
+    els.boardVisiblePill.textContent = `${devices.length} visible`;
+  }
+  if (els.boardUpdatedPill) {
+    els.boardUpdatedPill.textContent = "Updated now";
+  }
   if (!devices.length) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td class="empty-row" colspan="6">No boards match the current view.</td>`;
+    row.innerHTML = `<td class="empty-row" colspan="12">No boards match the current view.</td>`;
     els.boardTableBody.appendChild(row);
     return;
   }
 
   const csrfToken = document.querySelector("input[name='csrf_token']")?.value || "";
   devices.forEach((device) => {
-    const percent = signalPercent(device.rssi);
+    const rssi = rawSignal(device);
+    const percent = signalPercent(rssi);
     const statusClass = device.online ? (percent !== null && percent < 45 ? "warning" : "online") : "offline";
-    const statusText = device.online ? (statusClass === "warning" ? "Warning" : "Online") : "Offline";
+    const masterText = device.online ? "Reachable" : "Unreachable";
+    const slaveText = device.slave_status_label || "Disabled";
+    const slaveTone = device.slave_status_tone || "clear";
+    const upperText = device.upper_sensor_status_label || masterText;
+    const upperTone = device.upper_sensor_status_tone || statusTone(device.online, statusClass === "warning");
+    const lowerText = device.lower_sensor_status_label || "Disabled";
+    const lowerTone = device.lower_sensor_status_tone || "clear";
+    const alert = alertSummary(device, percent);
+    const tank = tankSummary(device);
+    const lastSync = shortDateTime(lastSyncValue(device));
+    const signalLabel = rssi === null ? "--" : String(rssi);
+    const customerLabel = device.label || device.email || "Unassigned";
+    const customerDetail = device.email && device.label ? device.email : device.access_label || device.credentials_label || "";
+    const localIp = deviceIp(device);
+    const localUrl = deviceLocalUrl(device);
     const row = document.createElement("tr");
     row.dataset.deviceId = device.device_id;
+    if (alert.tone === "danger" || alert.tone === "warning") {
+      row.classList.add("has-alerts");
+    }
+    if (device.device_id === selectedDeviceId()) {
+      row.classList.add("selected-row");
+    }
     row.innerHTML = `
-      <td><span class="board-id">${escapeHtml(device.device_id)}</span></td>
-      <td>${escapeHtml(device.label || device.email || "Unassigned")}</td>
-      <td><span class="status-badge ${statusClass}"><span class="status-dot"></span>${statusText}</span></td>
-      <td>${percent === null ? "-" : `${percent}%`}</td>
-      <td>${Number.isFinite(device.channel_count) ? device.channel_count : "-"}</td>
+      <td class="device-id-cell">
+        <span class="board-id">${escapeHtml(device.device_id)}</span>
+        <span class="cell-sub">Local IP: ${
+          localUrl
+            ? `<a class="device-link" href="${escapeHtml(localUrl)}" target="_blank" rel="noopener">${escapeHtml(localIp || localUrl)}</a>`
+            : "--"
+        }</span>
+      </td>
+      <td>
+        <span class="cell-main">${escapeHtml(customerLabel)}</span>
+        <span class="cell-sub">${escapeHtml(customerDetail || "Email not added")}</span>
+      </td>
+      <td><span class="status-badge ${statusClass}">${masterText}</span></td>
+      <td><span class="status-badge ${slaveTone}">${escapeHtml(slaveText)}</span></td>
+      <td>${escapeHtml(telemetryStatus(device))}</td>
+      <td>${escapeHtml(signalLabel)}</td>
+      <td><span class="status-badge ${upperTone}">${escapeHtml(upperText)}</span></td>
+      <td><span class="status-badge ${lowerTone}">${escapeHtml(lowerText)}</span></td>
+      <td>
+        <span class="cell-main">${escapeHtml(tank.main)}</span>
+        <span class="cell-sub">${escapeHtml(tank.sub)}</span>
+        <span class="cell-sub">${escapeHtml(tank.detail)}</span>
+      </td>
+      <td><span class="status-badge ${alert.tone}">${escapeHtml(alert.label)}</span></td>
+      <td class="last-sync-cell ${device.online ? "is-live" : "is-stale"}">
+        <span class="sync-date">${escapeHtml(lastSync.date)}</span>
+        ${lastSync.time ? `<span class="sync-time">${escapeHtml(lastSync.time)}</span>` : ""}
+      </td>
       <td><div class="row-actions"></div></td>
     `;
     const actions = row.querySelector(".row-actions");
@@ -301,6 +448,7 @@ function markSelectedDeviceOnline(data) {
   device.ip = data.ip || device.ip || "";
   device.rssi = data.rssi;
   device.fan_speed = data.fan_speed;
+  device.cloud_last_seen = Math.floor(Date.now() / 1000);
   device.channel_count = Array.isArray(data.channels) ? data.channels.length : device.channel_count;
   renderRegisteredDevices();
 }
@@ -456,6 +604,12 @@ els.deviceId.addEventListener("change", () => {
 els.registeredDeviceSelect.addEventListener("change", () => selectRegisteredDevice(els.registeredDeviceSelect.value));
 els.boardSearch?.addEventListener("input", renderBoardTable);
 els.boardFilter?.addEventListener("change", renderBoardTable);
+els.boardSearch?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && els.boardSearch.value) {
+    els.boardSearch.value = "";
+    renderBoardTable();
+  }
+});
 els.refreshButton.addEventListener("click", refreshStatus);
 els.allOnButton.addEventListener("click", () => sendAll("on"));
 els.allOffButton.addEventListener("click", () => sendAll("off"));

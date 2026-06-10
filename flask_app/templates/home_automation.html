@@ -14,7 +14,10 @@
       data-can-select-devices="{{ 'true' if can_select_devices else 'false' }}"
     >
       <nav class="dashboard-nav" aria-label="Home automation admin navigation">
-        <a class="brand-mark" href="{{ admin_dashboard_url or '#' }}">SaleWell</a>
+        <a class="brand-mark" href="{{ admin_dashboard_url or '#' }}">
+          <span class="brand-icon" aria-hidden="true">S</span>
+          <span>SaleWell</span>
+        </a>
         <div class="nav-links">
           <a href="#overview">Dashboard</a>
           <a href="#boards">Boards</a>
@@ -25,7 +28,10 @@
           {% if admin_dashboard_url %}
           <a class="nav-button" href="{{ admin_dashboard_url }}">Admin Dashboard</a>
           {% endif %}
-          <div class="status-pill" id="connectionStatus">Checking</div>
+          <div class="status-pill" aria-live="polite">
+            <span>System</span>
+            <strong id="connectionStatus">Checking</strong>
+          </div>
         </div>
       </nav>
 
@@ -36,8 +42,9 @@
           <p class="page-subtitle">Monitor SHA boards, manage customer mappings, and control assigned appliances from cloud or local Wi-Fi.</p>
         </div>
         <div class="hero-status">
-          <span id="activeBoardName">{{ default_device_id }}</span>
-          <strong id="activeBoardState">Offline</strong>
+          <span>Selected board</span>
+          <strong id="activeBoardName">{{ default_device_id }}</strong>
+          <em id="activeBoardState">Offline</em>
         </div>
       </header>
 
@@ -113,6 +120,14 @@
             <select id="registeredDeviceSelect" aria-label="Selected board"></select>
           </div>
         </div>
+        <div class="table-toolbar">
+          <div id="boardTableMeta" class="table-meta">{{ registered_devices|length }} devices</div>
+          <div class="table-pills">
+            <span id="boardVisiblePill" class="table-pill">{{ registered_devices|length }} visible</span>
+            <span id="boardUpdatedPill" class="table-pill">Updated now</span>
+            <span class="table-pill">Press Escape in search to clear quickly</span>
+          </div>
+        </div>
 
         {% if viewer_role == "admin" %}
         <details class="add-board-panel">
@@ -150,9 +165,15 @@
               <tr>
                 <th>Board ID</th>
                 <th>Customer</th>
-                <th>Status</th>
+                <th>Master Status</th>
+                <th>Slave Status</th>
+                <th>Telemetry</th>
                 <th>Signal</th>
-                <th>Appliances</th>
+                <th>Upper Sensor</th>
+                <th>Lower Sensor</th>
+                <th>Tank</th>
+                <th>Alerts</th>
+                <th>Last Sync</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -167,9 +188,7 @@
             <p class="eyebrow">Selected Board Details</p>
             <h2 id="selectedBoardTitle">{{ default_device_id }}</h2>
           </div>
-          <button class="icon-button" id="refreshButton" title="Refresh status" type="button">
-            <span aria-hidden="true">R</span>
-          </button>
+          <button class="refresh-button" id="refreshButton" title="Refresh status" type="button">Refresh</button>
         </div>
 
         <section class="control-strip">
