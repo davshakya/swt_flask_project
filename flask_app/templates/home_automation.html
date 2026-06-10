@@ -42,7 +42,7 @@
             <h2>Register SHA Home Automation board</h2>
           </div>
         </div>
-        <form class="registration-form" method="post" action="{{ url_for('admin_home_automation_register_device') }}">
+        <form class="registration-form" method="post" action="/admin/home-automation/register">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <div class="field">
             <label for="haRegisterDeviceId">SHA Device ID</label>
@@ -67,6 +67,44 @@
           <button type="submit">Register SHA Board</button>
         </form>
       </section>
+
+      {% set delete_namespace = namespace(count=0) %}
+      {% for device in registered_devices %}
+        {% if device.can_delete %}
+          {% set delete_namespace.count = delete_namespace.count + 1 %}
+        {% endif %}
+      {% endfor %}
+      {% if delete_namespace.count %}
+      <section class="registration-panel">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Admin devices</p>
+            <h2>Registered SHA boards</h2>
+          </div>
+        </div>
+        <div class="admin-device-list">
+          {% for device in registered_devices %}
+            {% if device.can_delete %}
+            <article class="admin-device-card">
+              <div>
+                <strong>{{ device.label or device.device_id }}</strong>
+                <span>{{ device.device_id }}</span>
+                <span>{{ "Online" if device.online else "Offline" }}</span>
+              </div>
+              <form
+                method="post"
+                action="{{ url_for('admin_home_automation_delete_device', device_id=device.device_id) }}"
+                onsubmit="return confirm('Delete SHA device {{ device.device_id }} and its stored admin records?');"
+              >
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button class="secondary danger-action" type="submit">Delete</button>
+              </form>
+            </article>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
       {% endif %}
 
       <section class="device-directory">

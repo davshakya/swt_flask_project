@@ -69,6 +69,7 @@ from flask_app.firmware_artifacts import (
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
 from flask_app.home_automation_routes import (
+    clear_home_automation_status,
     list_home_automation_statuses,
     record_home_automation_status,
     register_home_automation_routes,
@@ -9989,6 +9990,10 @@ def home_automation_truthy(value):
 
 
 def home_automation_device_entry(device_id, account=None, status=None, access_label=None):
+    return home_automation_device_entry_with_options(device_id, account=account, status=status, access_label=access_label)
+
+
+def home_automation_device_entry_with_options(device_id, account=None, status=None, access_label=None, can_delete=False):
     normalized_device_id = normalize_device_id(device_id)
     snapshot = status or {}
     channels = snapshot.get("channels") if isinstance(snapshot.get("channels"), list) else []
@@ -10008,6 +10013,7 @@ def home_automation_device_entry(device_id, account=None, status=None, access_la
         "fan_speed": snapshot.get("fan_speed", 0),
         "channel_count": len(channels),
         "last_seen": snapshot.get("cloud_last_seen"),
+        "can_delete": bool(can_delete),
     }
 
 
@@ -10025,6 +10031,7 @@ def home_automation_accessible_devices():
         except Exception:
             logger.exception("Unable to load registered devices for Home Automation dashboard")
             registered_device_ids = []
+        registered_device_id_set = set(registered_device_ids)
 
         accounts = {normalize_device_id(account.get("device_id")): account for account in customer_accounts}
         device_ids = set(statuses.keys())
@@ -10039,11 +10046,12 @@ def home_automation_accessible_devices():
             if is_home_automation_device_id(device_id)
         )
         return [
-            home_automation_device_entry(
+            home_automation_device_entry_with_options(
                 device_id,
                 account=accounts.get(device_id),
                 status=statuses.get(device_id),
                 access_label="Admin/customer" if accounts.get(device_id) else "Admin",
+                can_delete=device_id in registered_device_id_set,
             )
             for device_id in ordered_ids
         ]
@@ -11749,6 +11757,38 @@ def admin_home_automation_register_device():
         if customer_saved:
             message += " Customer login was also saved."
         return redirect(url_for("home_automation", registration_success=message))
+    except ValueError as exc:
+        return redirect(url_for("home_automation", registration_error=str(exc)))
+
+
+@app.route("/admin/home-automation/<device_id>/delete", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_home_automation_delete_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    try:
+        if not is_home_automation_device_id(normalized_device_id):
+            raise ValueError("Home Automation device IDs must start with sha_.")
+        deleted_counts = delete_known_device(normalized_device_id)
+        with get_db() as db:
+            deleted_counts["device_auth_keys"] = int(
+                db.execute("DELETE FROM device_auth_keys WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
+            )
+        clear_home_automation_status(normalized_device_id)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="delete_home_automation_device",
+            target_type="device",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details=deleted_counts,
+        )
+        return redirect(
+            url_for(
+                "home_automation",
+                registration_success=f"SHA device {normalized_device_id} was deleted.",
+            )
+        )
     except ValueError as exc:
         return redirect(url_for("home_automation", registration_error=str(exc)))
 

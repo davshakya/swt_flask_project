@@ -48,6 +48,14 @@ def list_home_automation_statuses():
         return {device_id: dict(status) for device_id, status in HOME_AUTOMATION_STATUS.items()}
 
 
+def clear_home_automation_status(device_id):
+    normalized_device_id = str(device_id or "").strip()
+    if not normalized_device_id:
+        return
+    with HOME_AUTOMATION_LOCK:
+        HOME_AUTOMATION_STATUS.pop(normalized_device_id, None)
+
+
 def default_home_automation_context(default_device_id):
     return {
         "authenticated": True,

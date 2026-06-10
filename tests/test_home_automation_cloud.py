@@ -164,8 +164,14 @@ def test_home_automation_admin_registration_route_exists():
 
     assert '@app.route("/admin/home-automation/register", methods=["POST"])' in server_source
     assert "def admin_home_automation_register_device():" in server_source
+    assert '@app.route("/admin/home-automation/<device_id>/delete", methods=["POST"])' in server_source
+    assert "def admin_home_automation_delete_device(device_id):" in server_source
+    assert "delete_home_automation_device" in server_source
+    assert "clear_home_automation_status(normalized_device_id)" in server_source
     assert "Home Automation device IDs must start with sha_." in server_source
-    assert "admin_home_automation_register_device" in template_source
+    assert 'action="/admin/home-automation/register"' in template_source
+    assert "admin_home_automation_delete_device" in template_source
+    assert "Registered SHA boards" in template_source
     assert "Back to Admin Dashboard" in template_source
     assert 'pattern="sha_.*"' in template_source
     assert "Home Automation" in admin_source

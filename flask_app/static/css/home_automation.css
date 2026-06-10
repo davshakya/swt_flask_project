@@ -140,6 +140,43 @@ h2 {
   align-items: end;
 }
 
+.admin-device-list {
+  display: grid;
+  gap: 10px;
+}
+
+.admin-device-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfb;
+}
+
+.admin-device-card strong,
+.admin-device-card span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.admin-device-card strong {
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.admin-device-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-device-card form {
+  flex: 0 0 auto;
+}
+
 .section-heading {
   display: flex;
   align-items: end;
@@ -464,11 +501,17 @@ input[type="range"] {
 
   .control-strip,
   .registration-form,
+  .admin-device-card,
   .summary-grid,
   .channels,
   .device-list,
   .fan-panel {
     grid-template-columns: 1fr;
+  }
+
+  .admin-device-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .section-heading {
