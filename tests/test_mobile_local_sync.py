@@ -108,6 +108,15 @@ def test_cloud_ingestion_accepts_firmware_device_ip_url():
     assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
 
 
+def test_registered_device_key_can_recover_from_stale_wildcard_key():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert "def registered_device_auth_rule_matches(device_id, device_key):" in server_source
+    assert 'if matched_rule.get("kind") == "wildcard":' in server_source
+    assert "registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)" in server_source
+    assert "matched_rule = registered_rule" in server_source
+
+
 def test_admin_templates_do_not_show_public_source_ip_as_local_ip():
     admin_source = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     detail_source = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")

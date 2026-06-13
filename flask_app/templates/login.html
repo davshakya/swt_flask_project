@@ -6286,7 +6286,7 @@ const chatInstallationTypes = [
         fit: "sites where shielded sensor extension passes testing, with dual-node upgrade when reliability matters",
     },
     {
-        name: "Dual ESP32 Wireless Kit",
+        name: "NodeMCU UDP Dual Node Kit",
         range: "20 m+ or multi-floor route",
         fit: "customer-ready tall-building installs where the tank node reads level near the tank and the control node stays near pump/relay/contactor",
     },
@@ -6406,7 +6406,7 @@ function shortBookingInterruptAnswer(rawInput) {
         return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
     }
     if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
-        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, cable route and whether the site needs Single Controller, Shielded Wire/Dual Node, or Dual ESP32 Wireless.`;
+        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, cable route and whether the site needs Single Controller, Shielded Wire/Dual Node, or NodeMCU UDP Dual Node.`;
     }
     if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
         return `For apartments or managed sites, start with RWA Standard. Choose Commercial AI Pro for reports, leak insight, or many tanks.`;
@@ -6716,7 +6716,7 @@ function getChatbotResponse(rawInput) {
         const commercialPlans = chatPlanCatalog.slice(3, 5).map(planPricingLine).join(" | ");
         const extraInfo = wantsProductInfo
             ? `\n${productInfoText()}`
-            : `\nInstallation types depend on measured route: Single Controller under 10 m, Shielded Wire/Dual Node for 10-20 m, and Dual ESP32 Wireless for 20 m+ or multi-floor sites.`;
+            : `\nInstallation types depend on measured route: Single Controller under 10 m, Shielded Wire/Dual Node for 10-20 m, and NodeMCU UDP Dual Node for 20 m+ or multi-floor sites.`;
         return {
             text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.${extraInfo}`,
             actions: [

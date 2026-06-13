@@ -1019,6 +1019,17 @@ def fetch_auto_registered_device_auth_rule(device_id):
     }
 
 
+def registered_device_auth_rule_matches(device_id, device_key):
+    registered_rule = fetch_auto_registered_device_auth_rule(device_id)
+    if not registered_rule:
+        return None
+    expected_hash = str(registered_rule.get("key_hash") or "")
+    provided_hash = hash_device_api_key(device_key)
+    if hmac.compare_digest(provided_hash, expected_hash):
+        return registered_rule
+    return None
+
+
 def remember_auto_registered_device_key(device_id, device_key, remote_addr=None, registration_source="auto_activation"):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -3216,8 +3227,16 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
             logger.warning("Rejected auto-registered device auth for %s", normalized_device_id)
             return False, None, "invalid device credentials", 403
     elif require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
-        logger.warning("Rejected device auth for %s", normalized_device_id)
-        return False, None, "invalid device credentials", 403
+        if matched_rule.get("kind") == "wildcard":
+            registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)
+            if registered_rule:
+                matched_rule = registered_rule
+            else:
+                logger.warning("Rejected device auth for %s", normalized_device_id)
+                return False, None, "invalid device credentials", 403
+        else:
+            logger.warning("Rejected device auth for %s", normalized_device_id)
+            return False, None, "invalid device credentials", 403
 
     remember_registered_device(
         normalized_device_id,

@@ -74,6 +74,12 @@ Within the wider workspace:
 5. Browser or mobile control actions queue commands in `device_command_queue`; optional integrations can relay selected payloads when configured.
 6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
 
+Pump `Start` and `Stop` commands are logical commands. On current default
+firmware they become short relay pulses for the physical green Start and red
+Stop/open circuits. Old maintained-relay firmware can still interpret them as
+held relay ON/OFF. The backend command queue does not bypass or replace the
+panel safety wiring.
+
 ## Local Setup
 
 ### 1. Copy the example config files
