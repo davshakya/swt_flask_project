@@ -214,6 +214,17 @@ def test_dashboards_render_company_icon_home_links():
     assert "url_for('homepage')" not in customer_template
 
 
+def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert ".brand-logo.is-spinning .logo-wheel" in customer_template
+    assert "const PUMP_START_GRACE_MS=60000;" in customer_template
+    assert "pendingPumpStartUntil:0" in customer_template
+    assert "const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil" in customer_template
+    assert "const spinning=running||pendingActive||startInferred" in customer_template
+    assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
+
+
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

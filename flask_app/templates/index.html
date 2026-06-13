@@ -570,6 +570,7 @@ const EVENT_FEED_LIMIT=5;
 const FAST_POLL_MS=10000;
 const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_POLL_MS=90000;
+const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
 const state={
@@ -577,6 +578,7 @@ const state={
     customRange:false,
     lastAlert:"",
     pendingPumpStart:false,
+    pendingPumpStartUntil:0,
     commandBusy:false,
     preferences:{lowThreshold:20,overflowThreshold:95,leakAlerts:true,systemAlerts:true,desktopAlerts:false},
     cache:{},
@@ -673,7 +675,7 @@ function pumpDisplayState(motorState,levelIncreasing=false){
     if(levelIncreasing&&!isPumpRunning(motor))return"START";
     return motor||"--";
 }
-function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const running=isPumpRunning(motorState);const startInferred=levelIncreasing&&!running;const spinning=running||pending||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pending||startInferred)&&!running);status.innerHTML=spinning?(startInferred?"Pump Status <strong>start</strong>":(pending&&!running?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>")):"Pump Status <strong>idle</strong>";}
+function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const startInferred=levelIncreasing&&!running;const spinning=running||pendingActive||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pendingActive||startInferred)&&!running);status.innerHTML=spinning?(startInferred?"Pump Status <strong>start</strong>":(pendingActive&&!running?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>")):"Pump Status <strong>idle</strong>";}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;
@@ -1549,8 +1551,15 @@ function renderSnapshot(snapshot){
     ["btn_on","btn_off"].forEach((id)=>document.getElementById(id)?.classList.remove("active"));
     const motorState=(snapshot.motor||"").toUpperCase();
     const staleTelemetry=snapshot.telemetry_status==="stale";
-    if(motorState==="ON")state.pendingPumpStart=false;
-    else if(!staleTelemetry)state.pendingPumpStart=false;
+    if(motorState==="ON"){
+        state.pendingPumpStart=false;
+        state.pendingPumpStartUntil=0;
+    }else if(state.pendingPumpStart&&Date.now()>=state.pendingPumpStartUntil){
+        state.pendingPumpStart=false;
+        state.pendingPumpStartUntil=0;
+    }else if(!state.pendingPumpStart&&!staleTelemetry){
+        state.pendingPumpStart=false;
+    }
     updatePumpLogoMotion({motorState,pending:state.pendingPumpStart,levelIncreasing:upperTankIncreasing});
     if(!staleTelemetry){
         if(motorState==="ON")document.getElementById("btn_on").classList.add("active");
@@ -1637,7 +1646,7 @@ function renderAnalytics(data){
 function renderEvents(events){const timeline=document.getElementById("eventTimeline");timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");li.innerHTML="<time>No timeline yet</time>No data available yet. Wait for the next sync or activity.";timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const li=document.createElement("li");li.classList.add(event.severity||"info");li.innerHTML=`<time>${localizedTimeText(event.time)}</time>${event.message||"--"}`;timeline.appendChild(li);});}
 
 function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCommandAvailability();}
-async function sendMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
+async function sendMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will use the current sensor reading.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(capacity)){banner("commandBanner","Enter tank capacity in liters.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});let message=`Tank capacity queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.capacity_liters).toFixed(1)} L.`;if(calibrateAfter){const calibrationPayload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});message+=` Calibration queued at ${localizedTimeText(calibrationPayload.queued_at,"now")} to learn tank height.`;}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}

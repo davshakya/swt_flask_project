@@ -137,10 +137,11 @@
 .form-helper-card strong{display:block;margin-bottom:6px;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--admin-accent-strong);white-space:nowrap}
 .form-helper-card span{display:block;color:var(--admin-text-soft);line-height:1.55}
 .table-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
-.searchControls{grid-template-columns:minmax(0,1fr) auto auto auto auto;gap:10px}
+.searchControls{grid-template-columns:minmax(0,1fr) auto auto auto;gap:10px}
 .searchControls button,.searchControls a{min-height:44px;padding:11px 15px;border-radius:16px}
 .searchControls .clearLink{border:1px solid var(--admin-border);background:rgba(255,255,255,.74);color:var(--text)}
-.searchControls .actionLauncher{border:0;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;white-space:nowrap}
+.searchActionGroup{display:flex;gap:10px;align-items:stretch;justify-content:flex-end;flex-wrap:wrap}
+.searchControls .actionLauncher{border:0;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;white-space:nowrap;min-width:148px}
 .searchControls .actionLauncher:hover{filter:brightness(1.03)}
 .searchMeta{font-size:11px;line-height:1.5}
 .device-helper{font-size:11px;line-height:1.5;color:var(--admin-text-soft)}
@@ -268,6 +269,7 @@
 .section-badges .pill{min-height:28px}
 .searchBar{gap:7px;margin:10px 0 8px}
 .searchControls{gap:8px;align-items:stretch}
+.searchActionGroup{gap:8px}
 .searchControls button,.searchControls a,.searchInput{min-height:38px;padding:9px 12px;border-radius:14px}
 .table-toolbar{margin-top:8px}
 .alert-table-shell{max-height:14rem}
@@ -312,6 +314,8 @@
 .hero-focus-card.primary{grid-column:auto}
 .admin-control-room .summary-grid{grid-template-columns:1fr}
 .searchControls{grid-template-columns:1fr}
+.searchActionGroup{justify-content:stretch}
+.searchControls .actionLauncher{flex:1 1 150px;min-width:0}
 .table-toolbar{align-items:flex-start}
 .service-modal{padding:12px}
 .service-modal-dialog{width:min(100%,calc(100vw - 16px));padding:16px}
@@ -650,9 +654,11 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <input id="device_search" name="q" class="searchInput" type="search" placeholder="Search by device ID, IP, or customer name" value="{{ search_query or '' }}">
                     <button id="device_search_button" type="submit">Search</button>
                     <a id="device_search_clear" class="clearLink" href="/admin/customers">Clear</a>
-                    <a class="actionLauncher" href="{{ url_for('home_automation') }}">Home Automation</a>
-                    <button class="actionLauncher" type="button" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</button>
-                    <button class="actionLauncher" type="button" data-panel-toggle aria-controls="release_channel_panel" aria-expanded="false">Android Updates</button>
+                    <div class="searchActionGroup" aria-label="Device actions">
+                        <a class="actionLauncher" href="{{ url_for('home_automation') }}">Home Automation</a>
+                        <button class="actionLauncher" type="button" data-panel-toggle aria-controls="release_channel_panel" aria-expanded="false">Android Updates</button>
+                        <button class="actionLauncher" type="button" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</button>
+                    </div>
                 </div>
                 <div class="table-toolbar">
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
