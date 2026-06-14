@@ -5596,7 +5596,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         payload.get("main_sensor_enabled"),
         default=True,
     )
-    source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
+    source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=False)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -5671,7 +5671,7 @@ def default_device_service_config(device_id=None, account=None):
             "master_upper_sensor_enabled": False,
             "slave_device_enabled": True,
             "slave_upper_sensor_enabled": True,
-            "source_tank_monitoring_enabled": True,
+            "source_tank_monitoring_enabled": False,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "cloud_feed_mode": (
@@ -5820,7 +5820,7 @@ def upsert_device_service_config(
     )
     resolved_source_tank_monitoring_enabled = boolish_enabled(
         source_tank_monitoring_enabled,
-        default=existing.get("source_tank_monitoring_enabled", True),
+        default=existing.get("source_tank_monitoring_enabled", False),
     )
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,

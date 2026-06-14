@@ -6,7 +6,7 @@ from flask_app.firmware_artifacts import (
     validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
 )
-from flask_app.server import build_device_firmware_install_profile
+from flask_app.server import build_device_firmware_install_profile, default_device_service_config
 
 
 def test_detect_firmware_binary_role_from_embedded_marker():
@@ -86,3 +86,10 @@ def test_master_slave_install_profile_respects_source_sensor_service():
         }
     )
     assert with_source["flags"]["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1"
+
+
+def test_default_device_service_config_disables_source_sensor():
+    service_config = default_device_service_config("swt-demo")
+    assert service_config["source_tank_monitoring_enabled"] is False
+    profile = build_device_firmware_install_profile(service_config)
+    assert profile["flags"]["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "0"
