@@ -6,6 +6,7 @@ from flask_app.firmware_artifacts import (
     validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
 )
+from flask_app.server import build_device_firmware_install_profile
 
 
 def test_detect_firmware_binary_role_from_embedded_marker():
@@ -64,3 +65,24 @@ def test_validate_firmware_binary_build_flags_rejects_install_profile_mismatch()
             },
             "master-firmware.bin",
         )
+
+
+def test_master_slave_install_profile_respects_source_sensor_service():
+    without_source = build_device_firmware_install_profile(
+        {
+            "slave_device_enabled": True,
+            "source_tank_monitoring_enabled": False,
+        }
+    )
+    assert without_source["configuration_type"] == "master_slave"
+    assert without_source["flags"]["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "0"
+    assert without_source["flags"]["SWT_ARCH_ID"] == "1"
+    assert without_source["flags"]["SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT"] == "1"
+
+    with_source = build_device_firmware_install_profile(
+        {
+            "slave_device_enabled": True,
+            "source_tank_monitoring_enabled": True,
+        }
+    )
+    assert with_source["flags"]["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1"

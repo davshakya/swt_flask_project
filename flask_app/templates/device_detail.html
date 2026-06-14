@@ -75,9 +75,9 @@ body{font-size:16px}
         {% if config_type == "master_slave" %}
             {% set firmware_install_profile = {
                 "label": "Master + Slave",
-                "description": "Build swt_master for a pump master that receives upper tank level from a slave MCU.",
+                "description": "Build swt_master for a pump master that receives upper tank level from a slave MCU without a lower/source tank sensor.",
                 "flag_rows": [
-                    {"key": "SWT_FEATURE_MASTER_LOWER_SENSOR", "value": "1"},
+                    {"key": "SWT_FEATURE_MASTER_LOWER_SENSOR", "value": "0"},
                     {"key": "SWT_ARCH_ID", "value": "1"},
                     {"key": "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT", "value": "0"},
                     {"key": "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT", "value": "1"},

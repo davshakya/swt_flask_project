@@ -5543,17 +5543,27 @@ MASTER_SLAVE_FIRMWARE_BUILD_FLAGS = {
 def build_device_firmware_install_profile(service_config):
     config = service_config or {}
     master_slave_enabled = bool(config.get("slave_device_enabled", True))
-    flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
+    flags = dict(MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS)
+    flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] = (
+        "1" if master_slave_enabled and bool(config.get("source_tank_monitoring_enabled", True)) else "0"
+    )
     return {
         "configuration_type": "master_slave" if master_slave_enabled else "master_only",
-        "label": "Master + Slave" if master_slave_enabled else "Master Only",
+        "label": (
+            "Master + Slave + Source Sensor"
+            if master_slave_enabled and flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1"
+            else ("Master + Slave" if master_slave_enabled else "Master Only")
+        ),
         "description": (
-            "Build swt_master for a pump master that receives upper tank level from a slave MCU."
+            (
+                "Build swt_master for a pump master that receives upper tank level from a slave MCU"
+                + (" and reads a lower/source tank sensor." if flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1" else " without a lower/source tank sensor.")
+            )
             if master_slave_enabled
             else "Build swt_master for a single MCU that reads the upper tank sensor locally."
         ),
         "requires_slave_firmware": master_slave_enabled,
-        "flags": dict(flags),
+        "flags": flags,
         "flag_rows": [{"key": key, "value": value} for key, value in flags.items()],
     }
 
