@@ -5543,27 +5543,17 @@ MASTER_SLAVE_FIRMWARE_BUILD_FLAGS = {
 def build_device_firmware_install_profile(service_config):
     config = service_config or {}
     master_slave_enabled = bool(config.get("slave_device_enabled", True))
-    flags = dict(MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS)
-    flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] = (
-        "1" if master_slave_enabled and bool(config.get("source_tank_monitoring_enabled", True)) else "0"
-    )
+    flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
     return {
         "configuration_type": "master_slave" if master_slave_enabled else "master_only",
-        "label": (
-            "Master + Slave + Source Sensor"
-            if master_slave_enabled and flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1"
-            else ("Master + Slave" if master_slave_enabled else "Master Only")
-        ),
+        "label": "Master + Slave" if master_slave_enabled else "Master Only",
         "description": (
-            (
-                "Build swt_master for a pump master that receives upper tank level from a slave MCU"
-                + (" and reads a lower/source tank sensor." if flags["SWT_FEATURE_MASTER_LOWER_SENSOR"] == "1" else " without a lower/source tank sensor.")
-            )
+            "Build swt_master for a pump master that receives upper tank level from a slave MCU."
             if master_slave_enabled
             else "Build swt_master for a single MCU that reads the upper tank sensor locally."
         ),
         "requires_slave_firmware": master_slave_enabled,
-        "flags": flags,
+        "flags": dict(flags),
         "flag_rows": [{"key": key, "value": value} for key, value in flags.items()],
     }
 
@@ -5596,7 +5586,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         payload.get("main_sensor_enabled"),
         default=True,
     )
-    source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=False)
+    source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -5671,7 +5661,7 @@ def default_device_service_config(device_id=None, account=None):
             "master_upper_sensor_enabled": False,
             "slave_device_enabled": True,
             "slave_upper_sensor_enabled": True,
-            "source_tank_monitoring_enabled": False,
+            "source_tank_monitoring_enabled": True,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "cloud_feed_mode": (
@@ -5820,7 +5810,7 @@ def upsert_device_service_config(
     )
     resolved_source_tank_monitoring_enabled = boolish_enabled(
         source_tank_monitoring_enabled,
-        default=existing.get("source_tank_monitoring_enabled", False),
+        default=existing.get("source_tank_monitoring_enabled", True),
     )
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,
@@ -11131,6 +11121,7 @@ register_mobile_firmware_routes(
     build_firmware_artifact_payload=build_firmware_artifact_payload,
     firmware_artifact_storage_path=firmware_artifact_storage_path,
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
+    queue_device_command=queue_device_command,
     logger=logger,
 )
 
@@ -11237,6 +11228,29 @@ def acknowledge_device_command():
         "device_source_mode": get_device_source_mode(),
         "control_policy": CONTROL_POLICY,
     }, status_code
+
+
+@app.route("/device/firmware/<int:artifact_id>/download")
+def device_firmware_artifact_download(artifact_id):
+    auth_ok, auth_payload, auth_status = authenticate_device_request()
+    if not auth_ok:
+        return auth_payload, auth_status
+    device_id = auth_payload
+    try:
+        target_role = normalize_firmware_artifact_role(request.args.get("role", "master", type=str))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    artifact = fetch_firmware_artifact(artifact_id, device_id=device_id, role=target_role)
+    if not artifact:
+        return jsonify({"error": "firmware artifact not found"}), 404
+
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
+        return jsonify({"error": "firmware artifact file is missing"}), 404
+
+    return build_firmware_artifact_file_response(artifact, storage_path)
 
 
 @app.route("/login", methods=["GET", "POST"])
