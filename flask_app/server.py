@@ -5932,6 +5932,17 @@ def paired_slave_device_id(master_device_id):
     return normalized_device_id
 
 
+def paired_activity_device_ids(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+    ids = [normalized_device_id]
+    slave_device_id = paired_slave_device_id(normalized_device_id)
+    if slave_device_id and slave_device_id not in ids:
+        ids.append(slave_device_id)
+    return ids
+
+
 def authenticate_dashboard_user(username, password):
     normalized_username = str(username or "").strip()
     if normalized_username == LOGIN_USERNAME and verify_dashboard_password(password):
@@ -8217,11 +8228,20 @@ def device_status_from_snapshot(snapshot):
     }
 
 
-def build_generated_device_events(limit=12, device_id=None):
+def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     if not TELEMETRY_HISTORY_ENABLED:
         return []
 
     normalized_device_id = normalize_device_id(device_id)
+    if include_pair and normalized_device_id:
+        activity_device_ids = paired_activity_device_ids(normalized_device_id)
+        if len(activity_device_ids) > 1:
+            events = []
+            for activity_device_id in activity_device_ids:
+                events.extend(build_generated_device_events(limit=limit, device_id=activity_device_id, include_pair=False))
+            combined_limit = max(1, int(limit or 12))
+            return sorted(events, key=lambda event: str(event.get("time") or ""), reverse=True)[:combined_limit]
+
     source_clause, source_params = device_source_where_clause()
     query = """
         SELECT id, device_id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
@@ -8230,7 +8250,7 @@ def build_generated_device_events(limit=12, device_id=None):
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
                local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
-               created_at
+               node_role, device_type, created_at
         FROM tank_data
         WHERE 
     """
@@ -8283,6 +8303,8 @@ def build_generated_device_events(limit=12, device_id=None):
                     "source_table": "tank_data",
                     "source_row_id": current.get("id"),
                     "device_id": normalize_device_id(current.get("device_id")),
+                    "node_role": current.get("node_role"),
+                    "device_type": current.get("device_type"),
                     **(details or {}),
                 },
             }
@@ -8860,8 +8882,10 @@ def fetch_device_events(limit=12, device_id=None):
     """
     params = []
     if normalized_device_id:
-        query += " AND device_id = ?"
-        params.append(normalized_device_id)
+        activity_device_ids = paired_activity_device_ids(normalized_device_id)
+        placeholders = ",".join("?" for _ in activity_device_ids)
+        query += f" AND device_id IN ({placeholders})"
+        params.extend(activity_device_ids)
     query += " ORDER BY event_at DESC, id DESC LIMIT ?"
     params.append(max(1, int(limit or 12)))
 
@@ -12992,7 +13016,8 @@ def device_detail_status(device_id):
     if include_history:
         payload["history"] = fetch_device_history(scoped_device_id, limit=48)
     if include_events:
-        payload["events"] = build_events(limit=10, device_id=scoped_device_id)
+        event_limit = max(10, min(request.args.get("event_limit", default=300, type=int), 500))
+        payload["events"] = build_events(limit=event_limit, device_id=scoped_device_id)
     return jsonify(payload)
 
 
@@ -13234,7 +13259,7 @@ def events():
     response = customer_cloud_feed_block_response()
     if response:
         return response
-    limit = max(1, min(request.args.get("limit", default=12, type=int), 30))
+    limit = max(1, min(request.args.get("limit", default=12, type=int), 500))
     return jsonify(build_events(limit, device_id=current_scope_device_id(request.args.get("device_id", type=str))))
 
 

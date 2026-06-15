@@ -632,6 +632,18 @@ function compactLocaleLabel(value){
 function localizedTimeText(value,fallback="--"){
     return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
 }
+function compactTimeLabel(value){
+    return formatLocaleDateTime(value,String(value??"").trim(),{hour:"numeric",minute:"2-digit"});
+}
+function chartAxisLabel(value,{timeOnly=false}={}){
+    return timeOnly?compactTimeLabel(value):compactLocaleLabel(value);
+}
+function chartTooltipTimeLabel(value){
+    const raw=String(value??"").trim();
+    if(!raw)return"--";
+    if(/^\d{1,2}(?::\d{2})?$/.test(raw))return formatHourBucket(raw);
+    return localizedTimeText(raw,raw);
+}
 function setElementVisibility(id, visible){
     const el=document.getElementById(id);
     if(!el)return;
@@ -1291,9 +1303,20 @@ function chartTimeMs(value){
     const parsed=Date.parse(text);
     return Number.isFinite(parsed)?parsed:null;
 }
+function analyticsRangeIsToday(){
+    const today=isoDate(new Date());
+    if(state.customRange){
+        const start=document.getElementById("startDate")?.value;
+        const end=document.getElementById("endDate")?.value;
+        return Boolean(start&&end&&start===today&&end===today);
+    }
+    return Number(state.quickRange)===1;
+}
 function resizeCanvasChart(canvas){const rect=canvas.getBoundingClientRect();const width=Math.max(320,Math.round(rect.width||canvas.clientWidth||640));const height=Math.max(220,Math.round(rect.height||canvas.clientHeight||300));const dpr=Math.max(1,window.devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);return{ctx,width,height};}
 function drawCanvasChrome(ctx,width,height,title){const text=themeVar("--text");const muted=themeVar("--muted");const grid=themeVar("--chart-grid");const left=52;const right=18;const top=18;const bottom=30;const plotWidth=Math.max(10,width-left-right);const plotHeight=Math.max(10,height-top-bottom);ctx.clearRect(0,0,width,height);ctx.lineWidth=1;ctx.strokeStyle=grid;for(let step=0;step<=5;step+=1){const y=top+(plotHeight/5)*step;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+plotWidth,y);ctx.stroke();}ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+plotHeight);ctx.lineTo(left+plotWidth,top+plotHeight);ctx.stroke();ctx.fillStyle=text;ctx.font='600 12px "Trebuchet MS","Segoe UI",sans-serif';ctx.fillText(title,left,14);ctx.fillStyle=muted;return{left,right,top,bottom,plotWidth,plotHeight};}
 function drawCanvasEmpty(canvas,title,message){
+    canvas.__swtChartPoints=[];
+    canvas.__swtChartRender=null;
     const {ctx,width,height}=resizeCanvasChart(canvas);
     const box=drawCanvasChrome(ctx,width,height,title);
     const accent=themeVar("--chart-level");
@@ -1318,7 +1341,49 @@ function drawCanvasEmpty(canvas,title,message){
     ctx.fillText(message,width/2,box.top+box.plotHeight/2+26);
     ctx.textAlign="left";
 }
-function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index"}={}){
+function drawChartTooltip(ctx,width,height,box,point,{label,valueText,color}){
+    if(!point)return;
+    const text=themeVar("--text");
+    const panel=themeVar("--panel-strong")||themeVar("--panel");
+    const line=themeVar("--line");
+    ctx.save();
+    ctx.strokeStyle=`${color}99`;
+    ctx.lineWidth=1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath();
+    ctx.moveTo(point.x,box.top);
+    ctx.lineTo(point.x,box.top+box.plotHeight);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.arc(point.x,point.y,4,0,Math.PI*2);
+    ctx.fill();
+    const rows=[label,valueText].filter(Boolean);
+    ctx.font='700 12px "Trebuchet MS","Segoe UI",sans-serif';
+    const padding=9;
+    const rowHeight=16;
+    const tooltipWidth=Math.min(width-18,Math.max(...rows.map((row)=>ctx.measureText(row).width))+padding*2);
+    const tooltipHeight=rows.length*rowHeight+padding*2-2;
+    let x=point.x+12;
+    if(x+tooltipWidth>width-8)x=point.x-tooltipWidth-12;
+    x=Math.max(8,Math.min(x,width-tooltipWidth-8));
+    let y=point.y-tooltipHeight-12;
+    if(y<8)y=point.y+14;
+    y=Math.max(8,Math.min(y,height-tooltipHeight-8));
+    ctx.fillStyle=panel;
+    ctx.strokeStyle=line;
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    if(typeof ctx.roundRect==="function")ctx.roundRect(x,y,tooltipWidth,tooltipHeight,10);
+    else ctx.rect(x,y,tooltipWidth,tooltipHeight);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle=text;
+    rows.forEach((row,index)=>ctx.fillText(row,x+padding,y+padding+12+(index*rowHeight)));
+    ctx.restore();
+}
+function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index",xLabelMode="auto",hoverIndex=null}={}){
     const {ctx,width,height}=resizeCanvasChart(canvas);
     const box=drawCanvasChrome(ctx,width,height,title);
     const numericValues=Array.isArray(values)?values.map((value)=>value===null||value===undefined?null:Number(value)):[];
@@ -1354,6 +1419,12 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
     const barSlotWidth=box.plotWidth/sampleCount;
     const barCenterForIndex=(index)=>box.left+barSlotWidth*(index+0.5);
     const yForValue=(value)=>box.top+((max-value)/(max-min))*box.plotHeight;
+    const useTimeLabels=xLabelMode==="time";
+    const points=numericValues.map((value,index)=>{
+        if(value===null||!Number.isFinite(value))return null;
+        const x=kind==="bar"?barCenterForIndex(index):lineXForIndex(index);
+        return{x,y:yForValue(value),index,value,label:safeLabels[index]??""};
+    });
     if(kind==="bar"){
         const barWidth=Math.max(12,Math.min(64,barSlotWidth*0.54));
         ctx.fillStyle=color;
@@ -1368,9 +1439,16 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
         ctx.textAlign="center";
         const labelIndexes=sampleCount<=7?[...Array(sampleCount).keys()]:[0,Math.floor((sampleCount-1)/2),sampleCount-1];
         labelIndexes.forEach((index)=>{
-            const shortLabel=compactLocaleLabel(safeLabels[index]??"");
+            const shortLabel=chartAxisLabel(safeLabels[index]??"",{timeOnly:useTimeLabels});
             ctx.fillText(shortLabel,barCenterForIndex(index),Math.min(height-6,box.top+box.plotHeight+20));
         });
+        canvas.__swtChartPoints=points.filter(Boolean);
+        canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex});
+        const hoverPoint=points[hoverIndex]||null;
+        if(hoverPoint){
+            const valueText=tickFormatter?tickFormatter(hoverPoint.value):hoverPoint.value.toFixed(1);
+            drawChartTooltip(ctx,width,height,box,hoverPoint,{label:chartTooltipTimeLabel(hoverPoint.label),valueText,color});
+        }
         ctx.textAlign="left";
         return;
     }
@@ -1398,24 +1476,32 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
         ctx.fill();
         ctx.globalAlpha=1;
     }
-    const startLabel=compactLocaleLabel(safeLabels[0]??"");
-    const endLabel=compactLocaleLabel(safeLabels[Math.max(0,safeLabels.length-1)]??"");
+    const startLabel=chartAxisLabel(safeLabels[0]??"",{timeOnly:useTimeLabels});
+    const endLabel=chartAxisLabel(safeLabels[Math.max(0,safeLabels.length-1)]??"",{timeOnly:useTimeLabels});
     ctx.fillStyle=themeVar("--chart-ticks");
     ctx.textAlign="left";
     ctx.fillText(startLabel,box.left,Math.min(height-6,box.top+box.plotHeight+20));
     ctx.textAlign="right";
     ctx.fillText(endLabel,box.left+box.plotWidth,Math.min(height-6,box.top+box.plotHeight+20));
     ctx.textAlign="left";
+    canvas.__swtChartPoints=points.filter(Boolean);
+    canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex});
+    const hoverPoint=points[hoverIndex]||null;
+    if(hoverPoint){
+        const valueText=tickFormatter?tickFormatter(hoverPoint.value):hoverPoint.value.toFixed(1);
+        drawChartTooltip(ctx,width,height,box,hoverPoint,{label:chartTooltipTimeLabel(hoverPoint.label),valueText,color});
+    }
 }
 function drawAnalyticsCharts(data){
     if(!chartsAvailable||!data)return;
+    const todayAxis=analyticsRangeIsToday();
     const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),360);
-    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`});
+    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
     drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
     const motorSeries=downsampleSeries(motorSeriesRaw.time,motorSeriesRaw.values,240);
-    drawCanvasSeries(charts.motor.canvas,"Motor State",motorSeries.labels,motorSeries.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],xScale:"time",tickFormatter:(value)=>Number(value)>=0.5?"ON":"OFF"});
+    drawCanvasSeries(charts.motor.canvas,"Motor State",motorSeries.labels,motorSeries.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],xScale:"time",xLabelMode:todayAxis?"time":"auto",tickFormatter:(value)=>Number(value)>=0.5?"ON":"OFF"});
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
@@ -1471,12 +1557,42 @@ function applyCloudFeedAvailability(){
 
 function initCharts(){
     chartsAvailable=true;
-    [["level","levelChart","Tank Level %"],["daily","dailyChart","Daily Usage %"],["pattern","patternChart","Hourly Usage %"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Daily Usage %"],["pattern","patternChart","Hourly Usage %"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
 }
 
 function refreshChartsTheme(){
     if(state.data.analytics){drawAnalyticsCharts(state.data.analytics);return;}
     if(chartsAvailable){Object.values(charts).forEach((chart)=>{if(chart?.canvas&&chart?.title)drawCanvasEmpty(chart.canvas,chart.title,"No data available yet. Wait for the next sync.");});}
+}
+function attachCanvasChartHover(canvas){
+    if(!canvas||canvas.__swtHoverAttached)return;
+    canvas.__swtHoverAttached=true;
+    canvas.addEventListener("mousemove",(event)=>{
+        const points=canvas.__swtChartPoints||[];
+        const render=canvas.__swtChartRender;
+        if(!points.length||typeof render!=="function")return;
+        const rect=canvas.getBoundingClientRect();
+        const x=event.clientX-rect.left;
+        const y=event.clientY-rect.top;
+        let nearest=null;
+        let nearestDistance=Infinity;
+        points.forEach((point)=>{
+            const distance=Math.hypot(point.x-x,(point.y-y)*0.65);
+            if(distance<nearestDistance){
+                nearest=point;
+                nearestDistance=distance;
+            }
+        });
+        const nextHoverIndex=nearest&&nearestDistance<=42?nearest.index:null;
+        if(canvas.__swtHoverIndex===nextHoverIndex)return;
+        canvas.__swtHoverIndex=nextHoverIndex;
+        render(nextHoverIndex);
+    });
+    canvas.addEventListener("mouseleave",()=>{
+        if(canvas.__swtHoverIndex===null||canvas.__swtHoverIndex===undefined)return;
+        canvas.__swtHoverIndex=null;
+        if(typeof canvas.__swtChartRender==="function")canvas.__swtChartRender(null);
+    });
 }
 
 function renderTank(snapshot){
