@@ -680,6 +680,10 @@ function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",ti
   const raw=String(value??"").trim();
   return raw||fallback;
 }
+function formatIstDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
+  const formatted=formatLocaleDateTime(value,fallback,options);
+  return formatted&&formatted!==fallback?`${formatted} IST`:formatted;
+}
 function setText(id,value){const node=document.getElementById(id);const next=value??"--";if(node&&node.textContent!==next)node.textContent=next;}
 function setHtml(id,value){setStableHtml(document.getElementById(id),value??"--");}
 function setClassName(id,className){const node=document.getElementById(id);if(node&&node.className!==className)node.className=className;}
@@ -841,14 +845,14 @@ function renderMemoryHealth(history,snapshot,serviceConfig){
     const x=(index)=>margin.left+(index/maxIndex)*innerWidth;
     const y=(value)=>margin.top+((maxValue-value)/(maxValue-minValue))*innerHeight;
     const pathFor=(points)=>points.map((entry,pointIndex)=>`${pointIndex?"L":"M"}${x(entry.index).toFixed(1)},${y(entry.value).toFixed(1)}`).join(" ");
-    const dotsFor=(role)=>series[role].map((entry)=>`<circle class="memory-dot-${role}" cx="${x(entry.index).toFixed(1)}" cy="${y(entry.value).toFixed(1)}" r="3"><title>${role==="slave"?"Slave":"Master"} ${formatHeapValue(entry.value)} at ${escapeHtml(formatLocaleDateTime(entry.row.time))}</title></circle>`).join("");
+    const dotsFor=(role)=>series[role].map((entry)=>`<circle class="memory-dot-${role}" cx="${x(entry.index).toFixed(1)}" cy="${y(entry.value).toFixed(1)}" r="3"><title>${role==="slave"?"Slave":"Master"} ${formatHeapValue(entry.value)} at ${escapeHtml(formatIstDateTime(entry.row.time))}</title></circle>`).join("");
     const gridValues=[minValue,(minValue+maxValue)/2,maxValue];
     const grid=gridValues.map((value)=>`<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"></line><text x="10" y="${(y(value)+4).toFixed(1)}">${escapeHtml(formatter(value))}</text>`).join("");
     const thresholdLine=threshold===null?"":`<line class="memory-grid" x1="${margin.left}" x2="${width-margin.right}" y1="${y(threshold).toFixed(1)}" y2="${y(threshold).toFixed(1)}" stroke-dasharray="5 5"></line><text x="${width-margin.right-104}" y="${(y(threshold)-6).toFixed(1)}">Low line</text>`;
     const lines=activeRoles.map((role)=>series[role].length>1?`<path class="memory-line-${role}" d="${pathFor(series[role])}"></path>`:"").join("");
     const firstTime=historyRows[0]?.time||rows[0]?.row?.time;
     const latestTime=historyRows[historyRows.length-1]?.time||rows[rows.length-1]?.row?.time;
-    return`<div class="memory-chart-wrap"><div class="chart-title">${escapeHtml(title)}<span>${escapeHtml(unit)}</span></div>${chartLegend}<svg class="memory-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">${grid}${thresholdLine}${lines}${activeRoles.map((role)=>dotsFor(role)).join("")}<text x="${margin.left}" y="${height-10}">${escapeHtml(formatLocaleDateTime(firstTime,"Current point"))}</text><text x="${width-margin.right-122}" y="${height-10}">${escapeHtml(formatLocaleDateTime(latestTime,"Latest point"))}</text></svg></div>`;
+    return`<div class="memory-chart-wrap"><div class="chart-title">${escapeHtml(title)}<span>${escapeHtml(unit)}</span></div>${chartLegend}<svg class="memory-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(title)}">${grid}${thresholdLine}${lines}${activeRoles.map((role)=>dotsFor(role)).join("")}<text x="${margin.left}" y="${height-10}">${escapeHtml(formatIstDateTime(firstTime,"Current point",{hour:"numeric",minute:"2-digit"}))}</text><text x="${width-margin.right-122}" y="${height-10}">${escapeHtml(formatIstDateTime(latestTime,"Latest point",{hour:"numeric",minute:"2-digit"}))}</text></svg></div>`;
   }
   const heapChart=renderTrendChart({title:"Heap Graph",unit:"Master + Slave",series:heapSeries,formatter:formatBytes,threshold:15000,emptyText:"Heap telemetry has not been reported yet."});
   setStableHtml(wrap,`${statsHtml}${heapChart}`);
@@ -1042,7 +1046,7 @@ function renderActivityTable(){
   }
   setStableHtml(root,pageItems.map((entry)=>`
     <tr>
-      <td>${escapeHtml(formatLocaleDateTime(entry.time))}</td>
+      <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
       <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
       <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div></td>
       <td><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></td>

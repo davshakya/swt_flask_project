@@ -649,17 +649,25 @@ function compactLocaleLabel(value){
 function localizedTimeText(value,fallback="--"){
     return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
 }
+function localizedIstDateTime(value,fallback="--"){
+    const formatted=formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
+    return formatted&&formatted!==fallback?`${formatted} IST`:formatted;
+}
+function localizedIstTime(value,fallback="--"){
+    const formatted=formatLocaleDateTime(value,fallback,{hour:"numeric",minute:"2-digit"});
+    return formatted&&formatted!==fallback?`${formatted} IST`:formatted;
+}
 function compactTimeLabel(value){
-    return formatLocaleDateTime(value,String(value??"").trim(),{hour:"numeric",minute:"2-digit"});
+    return localizedIstTime(value,String(value??"").trim());
 }
 function chartAxisLabel(value,{timeOnly=false}={}){
-    return timeOnly?compactTimeLabel(value):compactLocaleLabel(value);
+    return timeOnly?compactTimeLabel(value):localizedIstDateTime(value,compactLocaleLabel(value));
 }
 function chartTooltipTimeLabel(value){
     const raw=String(value??"").trim();
     if(!raw)return"--";
     if(/^\d{1,2}(?::\d{2})?$/.test(raw))return formatHourBucket(raw);
-    return localizedTimeText(raw,raw);
+    return localizedIstDateTime(raw,raw);
 }
 function setElementVisibility(id, visible){
     const el=document.getElementById(id);
