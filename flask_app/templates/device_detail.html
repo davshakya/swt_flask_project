@@ -373,8 +373,9 @@ body{font-size:16px}
                 {% else %}
                 <div class="helper-text">No master firmware build has been uploaded for this device yet.</div>
                 {% endif %}
-                <div class="helper-text">Master uploads must match the current {{ firmware_install_profile.label }} install profile unless the recovery override below is selected.</div>
-                <label class="service-option upload-override"><input type="checkbox" name="allow_profile_mismatch" value="1"> <span><strong>Upload anyway</strong><span>Bypass install-profile validation for recovery or runtime reconfiguration. Use only when you will apply the correct MCU configuration before upgrade/install.</span></span></label>
+                <div class="helper-text">Master uploads can be stored even when the firmware profile differs from the current {{ firmware_install_profile.label }} install profile. Use the profile details above to choose the correct runtime setup before upgrading.</div>
+                <input type="hidden" name="allow_profile_mismatch" value="0">
+                <label class="service-option upload-override"><input type="checkbox" name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override> <span><strong>Store for recovery/profile change</strong><span>Profile mismatch is allowed for master uploads. Apply the correct MCU runtime configuration before upgrade/install.</span></span></label>
                 <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
             </form>
             <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
@@ -630,7 +631,10 @@ document.addEventListener("DOMContentLoaded",()=>{
           button.textContent=originalLabel;
         }
       });
-      request.send(new FormData(form));
+      const formData=new FormData(form);
+      const profileOverride=form.querySelector("[data-profile-mismatch-override]");
+      if(profileOverride)formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0");
+      request.send(formData);
     });
   });
   document.querySelectorAll("[data-confirm-title]").forEach((form)=>{

@@ -12052,24 +12052,20 @@ def admin_device_firmware_upload(device_id):
         firmware_file = request.files.get("firmware_file")
         notes = request.form.get("notes", "")
         role = request.form.get("firmware_role", "master")
-        allow_profile_mismatch = boolish_enabled(
-            request.form.get("allow_profile_mismatch"),
-            default=False,
+        allow_profile_mismatch = any(
+            boolish_enabled(value, default=False)
+            for value in request.form.getlist("allow_profile_mismatch")
         )
         try:
             normalized_role = normalize_firmware_artifact_role(role)
-            expected_build_flags = None
-            profile_validation_bypassed = normalized_role == "master" and allow_profile_mismatch
-            if normalized_role == "master" and not profile_validation_bypassed:
-                service_config = fetch_device_service_config(normalized_device_id)
-                expected_build_flags = build_device_firmware_install_profile(service_config)["flags"]
+            profile_validation_bypassed = normalized_role == "master"
             artifact = create_firmware_artifact(
                 normalized_device_id,
                 firmware_file,
                 notes=notes,
                 uploaded_by=current_actor_username(),
                 role=normalized_role,
-                expected_build_flags=expected_build_flags,
+                expected_build_flags=None,
             )
             firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or normalized_role)
             log_audit_event(
@@ -12087,13 +12083,13 @@ def admin_device_firmware_upload(device_id):
                     "size_bytes": artifact.get("size_bytes"),
                     "notes": artifact.get("notes"),
                     "delivery": "android_local_wifi",
-                    "profile_validation": "bypassed" if profile_validation_bypassed else "enforced",
-                    "allow_profile_mismatch": profile_validation_bypassed,
+                    "profile_validation": "bypassed" if profile_validation_bypassed else "not_applicable",
+                    "allow_profile_mismatch": bool(allow_profile_mismatch or profile_validation_bypassed),
                 },
             )
             version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
             mismatch_note = (
-                " Profile validation was bypassed; save and apply the correct runtime configuration before upgrading the device."
+                " Install-profile validation is advisory only; save and apply the correct runtime configuration before upgrading the device."
                 if profile_validation_bypassed
                 else ""
             )
