@@ -469,6 +469,25 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "target_device=target_device" in mobile_firmware_routes
 
 
+def test_device_detail_can_queue_cloud_firmware_upgrade():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "admin_device_firmware_cloud_upgrade" in device_template
+    assert "Upgrade Master + Slave from Cloud" in device_template
+    assert 'data-confirm-title="Queue cloud firmware upgrade?"' in device_template
+    assert 'name="include_slave" value="1"' in device_template
+    assert "@app.route(\"/admin/customers/<device_id>/firmware/cloud-upgrade\", methods=[\"POST\"])" in server_source
+    assert "def admin_device_firmware_cloud_upgrade(device_id):" in server_source
+    assert "CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS" in server_source
+    assert "Device telemetry is stale" in server_source
+    assert 'snapshot.get("command_service")' in server_source
+    assert 'snapshot.get("ota_service")' in server_source
+    assert "OTA_BUNDLE:" in server_source
+    assert "queue_device_command(command, normalized_device_id)" in server_source
+    assert 'action="queue_cloud_firmware_upgrade"' in server_source
+
+
 def test_device_detail_install_profile_template_has_deploy_fallback():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
