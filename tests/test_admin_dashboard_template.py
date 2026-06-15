@@ -509,6 +509,12 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "syncRuntimeConfigurationOptions" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template
+    assert "Firmware Install Profile" in device_template
+    assert 'name="allow_profile_mismatch" value="1"' in device_template
+    assert "Upload anyway" in device_template
+    assert "SERVICECFG command" in device_template
+    assert "profile_validation_bypassed = normalized_role == \"master\" and allow_profile_mismatch" in server_source
+    assert "\"profile_validation\": \"bypassed\" if profile_validation_bypassed else \"enforced\"" in server_source
     assert ".release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px" in admin_template
     assert "latest_global_firmware_artifact" not in server_source
     assert '"__all_customers__"' not in mobile_firmware_routes
@@ -523,10 +529,15 @@ def test_device_detail_can_queue_cloud_firmware_upgrade():
     assert 'action="/admin/customers/{{ device_id }}/firmware/cloud-upgrade"' in device_template
     assert "url_for('admin_device_firmware_cloud_upgrade'" not in device_template
     assert "Upgrade Master + Slave from Cloud" in device_template
+    assert "Upgrade Master from Cloud" in device_template
     assert 'data-confirm-title="Queue cloud firmware upgrade?"' in device_template
-    assert 'name="include_slave" value="1"' in device_template
+    assert 'name="include_slave" value="{{ \'1\' if cloud_upgrade_requires_slave else \'0\' }}"' in device_template
+    assert 'cloud_upgrade_requires_slave = firmware_install_profile.get("requires_slave_firmware")' in device_template
+    assert "cloud_upgrade_ready = master_firmware and ((not cloud_upgrade_requires_slave) or slave_firmware)" in device_template
     assert "@app.route(\"/admin/customers/<device_id>/firmware/cloud-upgrade\", methods=[\"POST\"])" in server_source
     assert "def admin_device_firmware_cloud_upgrade(device_id):" in server_source
+    assert "firmware_install_profile = build_device_firmware_install_profile(service_config)" in server_source
+    assert 'include_slave = requested_include_slave and bool(firmware_install_profile.get("requires_slave_firmware"))' in server_source
     assert "CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS" in server_source
     assert "Device telemetry is stale" in server_source
     assert 'snapshot.get("command_service")' in server_source
@@ -542,7 +553,9 @@ def test_device_detail_install_profile_template_has_deploy_fallback():
     assert "{% if firmware_install_profile is not defined %}" in device_template
     assert '"SWT_ARCH_ID", "value": "4"' in device_template
     assert '"SWT_DIRECT_PEER_ENABLED", "value": "0"' in device_template
-    assert "Required master firmware build flags" not in device_template
+    assert "Firmware Install Profile" in device_template
+    assert "{{ firmware_install_profile.description }}" in device_template
+    assert "{% for flag in firmware_install_profile.flag_rows %}" in device_template
 
 
 def test_android_app_update_check_compares_installed_version_code():

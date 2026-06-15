@@ -12052,10 +12052,15 @@ def admin_device_firmware_upload(device_id):
         firmware_file = request.files.get("firmware_file")
         notes = request.form.get("notes", "")
         role = request.form.get("firmware_role", "master")
+        allow_profile_mismatch = boolish_enabled(
+            request.form.get("allow_profile_mismatch"),
+            default=False,
+        )
         try:
             normalized_role = normalize_firmware_artifact_role(role)
             expected_build_flags = None
-            if normalized_role == "master":
+            profile_validation_bypassed = normalized_role == "master" and allow_profile_mismatch
+            if normalized_role == "master" and not profile_validation_bypassed:
                 service_config = fetch_device_service_config(normalized_device_id)
                 expected_build_flags = build_device_firmware_install_profile(service_config)["flags"]
             artifact = create_firmware_artifact(
@@ -12082,12 +12087,20 @@ def admin_device_firmware_upload(device_id):
                     "size_bytes": artifact.get("size_bytes"),
                     "notes": artifact.get("notes"),
                     "delivery": "android_local_wifi",
+                    "profile_validation": "bypassed" if profile_validation_bypassed else "enforced",
+                    "allow_profile_mismatch": profile_validation_bypassed,
                 },
             )
             version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+            mismatch_note = (
+                " Profile validation was bypassed; save and apply the correct runtime configuration before upgrading the device."
+                if profile_validation_bypassed
+                else ""
+            )
             success = (
                 f"{firmware_role.title()} firmware uploaded for {normalized_device_id}. "
                 f"{artifact['original_filename']}{version_suffix} is now available to the Android app for local Wi-Fi upgrades."
+                f"{mismatch_note}"
             )
         except ValueError as exc:
             error = str(exc)
@@ -12138,8 +12151,16 @@ def admin_device_firmware_cloud_upgrade(device_id):
         error = "Choose a valid device before starting a cloud firmware upgrade."
     else:
         requested_role = request.form.get("firmware_role", "master_slave", type=str)
-        include_slave = str(request.form.get("include_slave", "1")).strip().lower() not in {"0", "false", "no", "off"}
+        requested_include_slave = str(request.form.get("include_slave", "1")).strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
         try:
+            service_config = fetch_device_service_config(normalized_device_id)
+            firmware_install_profile = build_device_firmware_install_profile(service_config)
+            include_slave = requested_include_slave and bool(firmware_install_profile.get("requires_slave_firmware"))
             snapshot = fetch_device_snapshot(normalized_device_id)
             if not snapshot:
                 raise ValueError("No recent device telemetry is available. Wait for the device to sync before starting cloud firmware upgrade.")
