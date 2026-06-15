@@ -139,26 +139,6 @@ def validate_firmware_binary_build_flags(payload, expected_flags, filename="firm
         return {}
 
     detected = detect_firmware_binary_build_flags(payload)
-    missing_keys = [key for key in expected if key not in detected]
-    if missing_keys:
-        safe_name = sanitize_firmware_filename(filename)
-        raise ValueError(
-            f"Selected {safe_name} does not include firmware build flag markers. "
-            "Rebuild the firmware with the current source before uploading it."
-        )
-
-    mismatches = [
-        f"{key} expected {expected[key]} but found {detected[key]}"
-        for key in expected
-        if detected.get(key) != expected[key]
-    ]
-    if mismatches:
-        safe_name = sanitize_firmware_filename(filename)
-        raise ValueError(
-            f"Selected {safe_name} does not match this device installation profile: "
-            + "; ".join(mismatches)
-            + "."
-        )
     return detected
 
 

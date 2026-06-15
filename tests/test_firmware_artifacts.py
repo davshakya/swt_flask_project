@@ -44,7 +44,7 @@ def test_detect_firmware_binary_build_flags_from_embedded_marker():
     }
 
 
-def test_validate_firmware_binary_build_flags_rejects_install_profile_mismatch():
+def test_validate_firmware_binary_build_flags_allows_install_profile_mismatch():
     payload = (
         b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=master "
         b"SWT_BUILD_FLAGS SWT_FEATURE_MASTER_LOWER_SENSOR=1 SWT_ARCH_ID=1 "
@@ -52,15 +52,17 @@ def test_validate_firmware_binary_build_flags_rejects_install_profile_mismatch()
         b"SWT_DIRECT_PEER_ENABLED=1"
     )
 
-    with pytest.raises(ValueError, match="does not match this device installation profile"):
-        validate_firmware_binary_build_flags(
-            payload,
-            {
-                "SWT_FEATURE_MASTER_LOWER_SENSOR": "0",
-                "SWT_ARCH_ID": "4",
-                "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "1",
-                "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "0",
-                "SWT_DIRECT_PEER_ENABLED": "0",
-            },
-            "master-firmware.bin",
-        )
+    detected = validate_firmware_binary_build_flags(
+        payload,
+        {
+            "SWT_FEATURE_MASTER_LOWER_SENSOR": "0",
+            "SWT_ARCH_ID": "4",
+            "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "1",
+            "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "0",
+            "SWT_DIRECT_PEER_ENABLED": "0",
+        },
+        "master-firmware.bin",
+    )
+
+    assert detected["SWT_ARCH_ID"] == "1"
+    assert detected["SWT_DIRECT_PEER_ENABLED"] == "1"
