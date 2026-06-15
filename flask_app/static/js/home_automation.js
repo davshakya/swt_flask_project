@@ -136,25 +136,58 @@ function shortDateTime(value) {
   if (!value) {
     return {date: "--", time: ""};
   }
+  const localeTools = window.swtLocale || {};
+  if (typeof localeTools.formatDateTime === "function") {
+    const formatted = localeTools.formatDateTime(value, "", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    if (formatted) {
+      const parts = formatted.trim().split(/\s+/);
+      return {
+        date: parts[0] || "--",
+        time: `${parts.slice(1).join(" ")} IST`.trim(),
+      };
+    }
+  }
+  const formatIstParts = (date) => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+      hourCycle: "h23",
+    }).formatToParts(date).reduce((acc, part) => {
+      acc[part.type] = part.value;
+      return acc;
+    }, {});
+    return {
+      date: `${parts.year}-${parts.month}-${parts.day}`,
+      time: `${parts.hour}:${parts.minute}:${parts.second} IST`,
+    };
+  };
   if (Number.isFinite(Number(value))) {
     const numericValue = Number(value);
     const milliseconds = numericValue < 100000000000 ? numericValue * 1000 : numericValue;
     const date = new Date(milliseconds);
-    return {
-      date: date.toLocaleDateString(undefined, {year: "numeric", month: "2-digit", day: "2-digit"}),
-      time: date.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit", second: "2-digit"}),
-    };
+    return formatIstParts(date);
   }
   const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
   const date = new Date(normalized.endsWith("Z") ? normalized : `${normalized}Z`);
   if (Number.isNaN(date.getTime())) {
     const [rawDate, rawTime = ""] = String(value).split(/[ T]/);
-    return {date: rawDate || "--", time: rawTime ? `${rawTime.replace(/\.\d+$/, "")}` : ""};
+    return {date: rawDate || "--", time: rawTime ? `${rawTime.replace(/\.\d+$/, "")} UTC` : ""};
   }
-  return {
-    date: date.toLocaleDateString(undefined, {year: "numeric", month: "2-digit", day: "2-digit"}),
-    time: date.toLocaleTimeString(undefined, {hour: "2-digit", minute: "2-digit", second: "2-digit"}),
-  };
+  return formatIstParts(date);
 }
 
 function lastSyncValue(device) {

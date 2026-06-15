@@ -676,8 +676,18 @@ document.addEventListener("DOMContentLoaded",()=>{
 window.addEventListener("pageshow",syncRuntimeConfigurationOptions);
 window.addEventListener("pageshow",syncLowerSensorSetupVisibility);
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
-  if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
+  const tools=window.swtLocale||localeTools||{};
+  if(typeof tools.formatDateTime==="function")return tools.formatDateTime(value,fallback,options);
   const raw=String(value??"").trim();
+  const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if(match){
+    const [,year,month,day,hour="0",minute="0",second="0"]=match;
+    const parsed=new Date(Date.UTC(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute),Number(second)));
+    if(!Number.isNaN(parsed.getTime())){
+      try{return new Intl.DateTimeFormat(undefined,{...options,timeZone:"Asia/Kolkata"}).format(parsed);}
+      catch(error){return raw||fallback;}
+    }
+  }
   return raw||fallback;
 }
 function formatIstDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){

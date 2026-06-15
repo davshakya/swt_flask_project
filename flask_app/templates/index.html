@@ -630,20 +630,33 @@ function hasMeaningfulAnalyticsData(data){
 function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
 function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
-    if(typeof localeTools.formatDateTime==="function")return localeTools.formatDateTime(value,fallback,options);
+    const tools=window.swtLocale||localeTools||{};
+    if(typeof tools.formatDateTime==="function")return tools.formatDateTime(value,fallback,options);
     const raw=String(value??"").trim();
+    const match=raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if(match){
+        const [,year,month,day,hour="0",minute="0",second="0"]=match;
+        const parsed=new Date(Date.UTC(Number(year),Number(month)-1,Number(day),Number(hour),Number(minute),Number(second)));
+        if(!Number.isNaN(parsed.getTime())){
+            try{return new Intl.DateTimeFormat(undefined,{...options,timeZone:"Asia/Kolkata"}).format(parsed);}
+            catch(error){return raw||fallback;}
+        }
+    }
     return raw||fallback;
 }
 function formatLocaleDate(value,fallback="--",options={dateStyle:"medium"}){
-    if(typeof localeTools.formatDate==="function")return localeTools.formatDate(value,fallback,options);
+    const tools=window.swtLocale||localeTools||{};
+    if(typeof tools.formatDate==="function")return tools.formatDate(value,fallback,options);
     return formatLocaleDateTime(value,fallback,options);
 }
 function formatHourBucket(value){
-    if(typeof localeTools.formatHourBucket==="function")return localeTools.formatHourBucket(value);
+    const tools=window.swtLocale||localeTools||{};
+    if(typeof tools.formatHourBucket==="function")return tools.formatHourBucket(value);
     return String(value??"").trim();
 }
 function compactLocaleLabel(value){
-    if(typeof localeTools.compactLabel==="function")return localeTools.compactLabel(value);
+    const tools=window.swtLocale||localeTools||{};
+    if(typeof tools.compactLabel==="function")return tools.compactLabel(value);
     return String(value??"").trim();
 }
 function localizedTimeText(value,fallback="--"){
@@ -690,6 +703,7 @@ function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)re
 function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
 function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
+function nodesById(id){return Array.from(document.querySelectorAll(`#${id}`));}
 function updateUpperTankTrend(snapshot){
     const telemetry=String(snapshot?.telemetry_status||"").toLowerCase();
     if(telemetry&&telemetry!=="live"&&telemetry!=="recent"&&telemetry!=="fresh"){
@@ -759,16 +773,12 @@ function buildSourceTankState(snapshot){
 function updateCommandAvailability(snapshot=state.data.snapshot){
     const sourceState=buildSourceTankState(snapshot);
     const baseEnabled=CAN_CONTROL&&!state.commandBusy;
-    const startButton=document.getElementById("btn_on");
-    const stopButton=document.getElementById("btn_off");
-    const calibrateButton=document.getElementById("btn_calibrate");
-    const configButton=document.getElementById("btn_config");
-    const configCalibrateButton=document.getElementById("btn_config_calibrate");
-    if(startButton)startButton.disabled=!baseEnabled||!sourceState.canStart;
-    if(stopButton)stopButton.disabled=!baseEnabled;
-    if(calibrateButton)calibrateButton.disabled=!baseEnabled;
-    if(configButton)configButton.disabled=!baseEnabled;
-    if(configCalibrateButton)configCalibrateButton.disabled=!baseEnabled;
+    const running=isPumpRunning(snapshot?.motor);
+    nodesById("btn_on").forEach((button)=>{button.disabled=!baseEnabled||running||!sourceState.canStart;});
+    nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});
+    nodesById("btn_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
+    nodesById("btn_config").forEach((button)=>{button.disabled=!baseEnabled;});
+    nodesById("btn_config_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
 }
 function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.systemStatus){
     if(!snapshot){
@@ -1689,7 +1699,7 @@ function renderSnapshot(snapshot){
     updateCustomerSpotlightCards({snapshot,system:state.data.systemStatus,analytics:state.data.analytics});
     setText("actionHint",sourceState.hintText);
     applyStatusTone("actionHint",sourceState.hintTone);
-    ["btn_on","btn_off"].forEach((id)=>document.getElementById(id)?.classList.remove("active"));
+    ["btn_on","btn_off"].forEach((id)=>nodesById(id).forEach((button)=>button.classList.remove("active")));
     const motorState=(snapshot.motor||"").toUpperCase();
     const staleTelemetry=snapshot.telemetry_status==="stale";
     if(motorState==="ON"){
@@ -1703,8 +1713,8 @@ function renderSnapshot(snapshot){
     }
     updatePumpLogoMotion({motorState,pending:state.pendingPumpStart,levelIncreasing:upperTankIncreasing});
     if(!staleTelemetry){
-        if(motorState==="ON")document.getElementById("btn_on").classList.add("active");
-        else document.getElementById("btn_off").classList.add("active");
+        if(isPumpRunning(motorState))nodesById("btn_off").forEach((button)=>button.classList.add("active"));
+        else nodesById("btn_on").forEach((button)=>button.classList.add("active"));
     }
     updateCommandAvailability(snapshot);
     if(staleTelemetry){

@@ -122,6 +122,15 @@
         }
     }
 
+    function formatDateTimeWithZoneLabel(value, fallback = "--", options = { dateStyle: "medium", timeStyle: "short" }) {
+        const formatted = formatDateTime(value, fallback, options);
+        const raw = String(value ?? "").trim();
+        if (!formatted || formatted === fallback || BACKEND_DATE_RE.test(raw)) {
+            return formatted;
+        }
+        return /\bIST\b/.test(formatted) ? formatted : `${formatted} ${DISPLAY_TIME_ZONE_LABEL}`;
+    }
+
     function formatDate(value, fallback = "--", options = { dateStyle: "medium" }) {
         return formatDateTime(value, fallback, options);
     }
@@ -172,7 +181,7 @@
         }
         root.querySelectorAll("[data-utc-datetime]").forEach((node) => {
             const raw = node.getAttribute("data-utc-datetime");
-            node.textContent = formatDateTime(raw, node.textContent || "--");
+            node.textContent = formatDateTimeWithZoneLabel(raw, node.textContent || "--");
             if (raw) {
                 node.title = raw + " UTC, shown in IST";
             }
@@ -186,6 +195,7 @@
         describe,
         formatDate,
         formatDateTime,
+        formatDateTimeWithZoneLabel,
         formatHourBucket,
         localeList: localeList.slice(),
         parseBackendTimestamp,
