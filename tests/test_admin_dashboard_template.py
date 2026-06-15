@@ -509,15 +509,14 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "syncRuntimeConfigurationOptions" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template
-    assert "Firmware Install Profile" in device_template
     assert 'name="allow_profile_mismatch" value="0"' in device_template
     assert 'name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override' in device_template
     assert 'formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0")' in device_template
     assert "Store for recovery/profile change" in device_template
-    assert "SERVICECFG command" in device_template
     assert 'request.form.getlist("allow_profile_mismatch")' in server_source
     assert "profile_validation_bypassed = normalized_role == \"master\"" in server_source
     assert "expected_build_flags=None" in server_source
+    assert "validate_firmware_binary_build_flags(payload" not in server_source
     assert "\"profile_validation\": \"bypassed\" if profile_validation_bypassed else \"not_applicable\"" in server_source
     assert ".release-action-row button,.release-action-row a,.release-utility-form button{min-height:34px" in admin_template
     assert "latest_global_firmware_artifact" not in server_source
@@ -557,9 +556,9 @@ def test_device_detail_install_profile_template_has_deploy_fallback():
     assert "{% if firmware_install_profile is not defined %}" in device_template
     assert '"SWT_ARCH_ID", "value": "4"' in device_template
     assert '"SWT_DIRECT_PEER_ENABLED", "value": "0"' in device_template
-    assert "Firmware Install Profile" in device_template
-    assert "{{ firmware_install_profile.description }}" in device_template
-    assert "{% for flag in firmware_install_profile.flag_rows %}" in device_template
+    assert "Firmware Install Profile" not in device_template
+    assert "{{ firmware_install_profile.description }}" not in device_template
+    assert "{% for flag in firmware_install_profile.flag_rows %}" not in device_template
 
 
 def test_android_app_update_check_compares_installed_version_code():
