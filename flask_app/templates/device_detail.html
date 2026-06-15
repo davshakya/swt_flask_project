@@ -27,14 +27,32 @@
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
-:root{--muted:#bfd3d8}
+:root{--muted:#d5edf3}
 .panel,.summary-card,.detail-card,.info-item,.admin-form,.config-section,.service-option,.flag-list li,.list li,.memory-chart-wrap,.memory-chip,.result-dialog,.result-close,.form-group input,.form-group select,.form-group input[type=file]{
 background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
 border-color:rgba(166,224,235,.18);
 color:var(--text);
 }
-.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty{
+.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty,.activity-count,.activity-page-status,.activity-page-size,.activity-meta{
 color:var(--muted);
+}
+.activity-page-size select,.activity-page-size select option{
+background:#102633;
+color:#f2fbfd;
+}
+.activity-table th{
+color:#dff5fa;
+background:#0e2430;
+}
+.activity-table td,.activity-message{
+color:#f2fbfd;
+}
+.activity-table-wrap{
+background:#0b202b;
+}
+.activity-node{
+background:rgba(85,193,221,.18);
+color:#72dcf4;
 }
 .btn{border-color:rgba(166,224,235,.2)}
 }

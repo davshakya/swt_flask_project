@@ -153,14 +153,31 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
-:root{--muted:#bfd3d8;--chart-ticks:#bfd3d8}
+:root{--muted:#d5edf3;--chart-ticks:#d5edf3}
 .panel,.mini,.card,.chip,.glance-item,.list li,.setting,.live-panel,.sync-strip,input[type="date"],input[type="number"]{
 background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
 border-color:rgba(166,224,235,.18);
 color:var(--text);
 }
-.sub,.muted,.sync-detail,.brand-status,.card .subvalue,.glance-item .detail,.setting span,time,.alert-meta,.customer-pulse-card p,.customer-pulse-card span,.customer-dashboard .hero-lead,.customer-dashboard .brand-status{
+.sub,.muted,.sync-detail,.brand-status,.card .subvalue,.glance-item .detail,.setting span,time,.alert-meta,.customer-pulse-card p,.customer-pulse-card span,.customer-dashboard .hero-lead,.customer-dashboard .brand-status,.customer-dashboard .customer-hero-main p,.customer-dashboard .customer-hero-stat div,.customer-dashboard .customer-pulse-card p{
 color:var(--muted);
+}
+.label,.chip strong,.glance-item span,.input-group label,.tank-caption,.customer-dashboard .customer-hero-stat span,.customer-dashboard .customer-pulse-card span{
+color:#dff5fa;
+}
+.card .value,.statuscopy,.glance-item strong,.setting label,.list li,.customer-dashboard h1,.customer-dashboard h2,.customer-dashboard h3,.customer-dashboard .customer-hero-main strong,.customer-dashboard .customer-pulse-card strong{
+color:#f5fcfe;
+}
+input[type="date"],input[type="number"]{
+color:#f5fcfe;
+background:#102633;
+}
+input[type="date"]::-webkit-calendar-picker-indicator{
+filter:invert(1);
+opacity:.9;
+}
+.btn-outline,.btn-lite,.action-link{
+color:#f5fcfe;
 }
 .btn-outline,.btn-lite,.action-link{
 border-color:rgba(166,224,235,.2);
