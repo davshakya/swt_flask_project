@@ -381,7 +381,7 @@ body{font-size:16px}
                 <button class="btn btn-admin" type="submit"><span>Upload Slave Firmware</span></button>
             </form>
         </div>
-        <form class="admin-form firmware-cloud-upgrade-form" method="post" action="{{ url_for('admin_device_firmware_cloud_upgrade', device_id=device_id) }}" data-confirm-title="Queue cloud firmware upgrade?" data-confirm-message="Queue cloud firmware upgrade for this master and slave pair? This replaces any undelivered cloud command for this device." data-confirm-button="Queue Upgrade">
+        <form class="admin-form firmware-cloud-upgrade-form" method="post" action="/admin/customers/{{ device_id }}/firmware/cloud-upgrade" data-confirm-title="Queue cloud firmware upgrade?" data-confirm-message="Queue cloud firmware upgrade for this master and slave pair? This replaces any undelivered cloud command for this device." data-confirm-button="Queue Upgrade">
             <h3>Cloud Firmware Upgrade</h3>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="firmware_role" value="master_slave">
@@ -452,10 +452,8 @@ let latestHistory=[];
 let latestEvents=[];
 let activityPage=1;
 let activityPageSize=10;
-let lastHeavyRefreshAt=0;
 const ACTIVITY_REFRESH_MS=5000;
 const DEVICE_REFRESH_MS=30000;
-const DEVICE_HEAVY_REFRESH_MS=90000;
 function setStableHtml(node,html){
   if(!node)return;
   const next=html??"";
@@ -1103,8 +1101,7 @@ async function refreshActivityEvents(){
 async function loadDevice({silent=false}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
-  const now=Date.now();
-  const includeHeavy=!silent||!latestHistory.length||now-lastHeavyRefreshAt>=DEVICE_HEAVY_REFRESH_MS;
+  const includeHeavy=!silent&&!latestHistory.length;
   try{
   const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
   if(!includeHeavy){
@@ -1154,7 +1151,6 @@ async function loadDevice({silent=false}={}){
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
-    lastHeavyRefreshAt=now;
   }
   renderMemoryHealth(latestHistory,snapshot,serviceConfig);
   updateSimulatorControls(snapshot,serviceConfig);

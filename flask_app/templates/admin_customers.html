@@ -700,36 +700,36 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             </td>
                             <td>
                                 {% set master_node_label = (device.master_status_label or "Unreachable")|replace("Master ", "")|replace("Slave ", "") %}
-                                <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}">{{ master_node_label }}</span>
+                                <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}" data-device-field="master_status">{{ master_node_label }}</span>
                             </td>
                             <td>
                                 {% set slave_node_label = (device.slave_status_label or "Unreachable")|replace("Master ", "")|replace("Slave ", "") %}
-                                <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}">{{ slave_node_label }}</span>
+                                <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}" data-device-field="slave_status">{{ slave_node_label }}</span>
                             </td>
-                            <td>{{ device.telemetry_status_label or "--" }}</td>
-                            <td>{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
+                            <td data-device-field="telemetry_status">{{ device.telemetry_status_label or "--" }}</td>
+                            <td data-device-field="wifi_rssi">{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}">{{ device.upper_sensor_status_label or "Unreachable" }}</span>
-                            </td>
-                            <td>
-                                <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}">{{ device.lower_sensor_status_label or "Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ device.upper_sensor_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
-                                <div class="cell-main">
+                                <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ device.lower_sensor_status_label or "Unreachable" }}</span>
+                            </td>
+                            <td>
+                                <div class="cell-main" data-device-field="tank_level">
                                     {% if device.last_sync_at %}
                                     {{ device.level if device.level is not none else "--" }}{% if device.level is not none %}%{% endif %}
                                     {% else %}
                                     --
                                     {% endif %}
                                 </div>
-                                <div class="cell-sub">
+                                <div class="cell-sub" data-device-field="pump_mode">
                                     {% if device.last_sync_at %}
                                     Pump {{ device.motor or "--" }} / {{ device.mode or "--" }}
                                     {% else %}
                                     Pump --
                                     {% endif %}
                                 </div>
-                                <div class="cell-sub">
+                                <div class="cell-sub" data-device-field="depth_echo">
                                     {% if device.last_sync_at %}
                                     Depth {{ device.water_depth_label or "--" }} / Echo {{ device.sensor_distance_label or "--" }}
                                     {% else %}
@@ -738,9 +738,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 </div>
                             </td>
                             <td>
-                                <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}">{{ device.warning_alert_label or "Clear" }}</span>
+                                <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}" data-device-field="alerts">{{ device.warning_alert_label or "Clear" }}</span>
                             </td>
-                            <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}">
+                            <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}" data-device-field="last_sync">
                                 {% if device.last_sync_at %}
                                 <span class="sync-date" data-utc-date="{{ device.last_sync_at }}">{{ device.last_sync_at[:10] }}</span>
                                 <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }} UTC</span>
@@ -1104,25 +1104,86 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         });
     }
 
+    function setTextIfChanged(node, value) {
+        if (!node) return;
+        const next = String(value ?? "");
+        if (node.textContent !== next) node.textContent = next;
+    }
+
+    function setPillTone(node, tone, prefix = "pill-") {
+        if (!node) return;
+        Array.from(node.classList).forEach((className) => {
+            if (className.startsWith(prefix) && className !== "pill") node.classList.remove(className);
+        });
+        node.classList.add(`${prefix}${tone || "offline"}`);
+    }
+
+    function updateDeviceRowFromJson(row, device) {
+        if (!row || !device) return;
+        row.dataset.search = device.search || row.dataset.search || "";
+        row.dataset.statusRank = String(device.status_rank || 1);
+        row.dataset.alertCount = String(device.alert_count || 0);
+        row.classList.toggle("has-alerts", Boolean(device.has_alerts));
+
+        const master = row.querySelector('[data-device-field="master_status"]');
+        setTextIfChanged(master, device.master_status || "Unreachable");
+        setPillTone(master, device.master_status_tone || "offline");
+
+        const slave = row.querySelector('[data-device-field="slave_status"]');
+        setTextIfChanged(slave, device.slave_status || "Unreachable");
+        setPillTone(slave, device.slave_status_tone || "offline");
+
+        setTextIfChanged(row.querySelector('[data-device-field="telemetry_status"]'), device.telemetry_status_label || "--");
+        setTextIfChanged(row.querySelector('[data-device-field="wifi_rssi"]'), device.wifi_rssi ?? "--");
+
+        const upper = row.querySelector('[data-device-field="upper_sensor_status"]');
+        setTextIfChanged(upper, device.upper_sensor_status || "Unreachable");
+        setPillTone(upper, device.upper_sensor_status_tone || "offline");
+
+        const lower = row.querySelector('[data-device-field="lower_sensor_status"]');
+        setTextIfChanged(lower, device.lower_sensor_status || "Unreachable");
+        setPillTone(lower, device.lower_sensor_status_tone || "offline");
+
+        setTextIfChanged(row.querySelector('[data-device-field="tank_level"]'), device.tank_level || "--");
+        setTextIfChanged(row.querySelector('[data-device-field="pump_mode"]'), device.pump_mode || "Pump --");
+        setTextIfChanged(row.querySelector('[data-device-field="depth_echo"]'), device.depth_echo || "Depth -- / Echo --");
+
+        const alert = row.querySelector('[data-device-field="alerts"]');
+        setTextIfChanged(alert, device.alert_label || "Clear");
+        setPillTone(alert, device.alert_tone || "clear");
+
+        const lastSync = row.querySelector('[data-device-field="last_sync"]');
+        if (lastSync) {
+            lastSync.classList.toggle("is-live", device.telemetry_status === "live");
+            lastSync.classList.toggle("is-stale", device.telemetry_status !== "live");
+            if (device.last_sync_at) {
+                const next = `<span class="sync-date" data-utc-date="${device.last_sync_at}">${device.last_sync_at.slice(0, 10)}</span> <span class="sync-time" data-utc-time="${device.last_sync_at}">${device.last_sync_at.slice(11)} UTC</span>`;
+                if (lastSync.innerHTML !== next) lastSync.innerHTML = next;
+                applyLocaleDateTime(lastSync);
+            } else {
+                setTextIfChanged(lastSync, "--");
+            }
+        }
+    }
+
     async function refreshDeviceTable() {
         if (!tableBody || refreshInFlight || document.hidden || document.body.classList.contains("modal-open")) return;
         refreshInFlight = true;
         setAutoRefreshStatus("Refreshing...", "info");
         try {
-            const url = new URL(window.location.href);
-            url.searchParams.delete("q");
+            const url = new URL("/admin/customers/device-table.json", window.location.origin);
             const response = await fetch(url.toString(), {
                 credentials: "same-origin",
                 cache: "no-store",
-                headers: { "X-Requested-With": "XMLHttpRequest" },
+                headers: { "Accept": "application/json", "X-Requested-With": "XMLHttpRequest" },
             });
             if (!response.ok) throw new Error(`refresh failed: ${response.status}`);
-            const html = await response.text();
-            const doc = new DOMParser().parseFromString(html, "text/html");
-            const nextTableBody = doc.getElementById("device_table_body");
-            if (!nextTableBody) throw new Error("refresh response missing device table");
-            replaceDeviceRowsSmoothly(Array.from(nextTableBody.querySelectorAll(".device-table-row")));
-            applyLocaleDateTime(tableBody);
+            const payload = await response.json();
+            const devices = Array.isArray(payload.devices) ? payload.devices : [];
+            devices.forEach((device) => {
+                const id = String(device.device_id || "").replace(/[^A-Za-z0-9_-]/g, "_");
+                updateDeviceRowFromJson(document.getElementById(`device_${id}`), device);
+            });
             refreshDeviceRows();
             applySort();
             applyFilter();

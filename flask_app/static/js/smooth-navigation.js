@@ -251,7 +251,7 @@
     try {
       const response = await fetch(targetUrl.href, {
         credentials: "same-origin",
-        cache: "no-store",
+        cache: "default",
         headers: {
           "X-Requested-With": "XMLHttpRequest",
           "X-SWT-Client-Route": "1",

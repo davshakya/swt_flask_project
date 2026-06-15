@@ -46,7 +46,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
-    assert 'const CACHE_NAME = "swt-pwa-v5";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
@@ -212,6 +212,53 @@ def test_dashboards_render_company_icon_home_links():
     assert 'class="dashboard-brand-link" href="/"' in admin_template
     assert 'id="brandLogo" class="brand-logo" href="/"' in customer_template
     assert "url_for('homepage')" not in customer_template
+
+
+def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    pwa_head = (PROJECT_ROOT / "flask_app" / "templates" / "_pwa_head.html").read_text(encoding="utf-8")
+    smooth_navigation = (PROJECT_ROOT / "flask_app" / "static" / "js" / "smooth-navigation.js").read_text(encoding="utf-8")
+    service_worker = (PROJECT_ROOT / "flask_app" / "static" / "service-worker.js").read_text(encoding="utf-8")
+
+    assert "DYNAMIC_HTML_CACHE_SECONDS" in server_source
+    assert "private, max-age=" in server_source
+    assert "stale-while-revalidate" in server_source
+    assert "response.add_etag(weak=True)" in server_source
+    assert '"/device/command"' in server_source
+    assert '"/api/"' in server_source
+    assert "Cache-Control\", \"no-store\"" in server_source
+    assert 'cache: "default"' in smooth_navigation
+    assert 'cache: "no-store"' not in smooth_navigation
+    assert "20260615-cache-v1" in pwa_head
+    assert '"/static/js/smooth-navigation.js"' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
+
+
+def test_admin_customer_auto_refresh_uses_json_not_full_page_downloads():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '@app.route("/admin/customers/device-table.json")' in server_source
+    assert "def admin_customers_device_table_json():" in server_source
+    assert 'new URL("/admin/customers/device-table.json", window.location.origin)' in admin_template
+    assert "DOMParser().parseFromString" not in admin_template
+    refresh_start = admin_template.index("async function refreshDeviceTable")
+    refresh_body = admin_template[refresh_start : admin_template.index("if (input) input.addEventListener", refresh_start)]
+    assert "response.text()" not in refresh_body
+    assert "response.json()" in refresh_body
+    assert 'data-device-field="master_status"' in admin_template
+    assert 'data-device-field="last_sync"' in admin_template
+
+
+def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
+    dashboard_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert "setInterval(()=>loadAnalytics()" not in dashboard_template
+    assert "ANALYTICS_STALE_MS" in dashboard_template
+    assert "const tasks=[refreshLive({force}),refreshEvents({force})]" in dashboard_template
+    assert "DEVICE_HEAVY_REFRESH_MS" not in device_template
+    assert "const includeHeavy=!silent&&!latestHistory.length;" in device_template
 
 
 def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending():
@@ -473,7 +520,8 @@ def test_device_detail_can_queue_cloud_firmware_upgrade():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert "admin_device_firmware_cloud_upgrade" in device_template
+    assert 'action="/admin/customers/{{ device_id }}/firmware/cloud-upgrade"' in device_template
+    assert "url_for('admin_device_firmware_cloud_upgrade'" not in device_template
     assert "Upgrade Master + Slave from Cloud" in device_template
     assert 'data-confirm-title="Queue cloud firmware upgrade?"' in device_template
     assert 'name="include_slave" value="1"' in device_template

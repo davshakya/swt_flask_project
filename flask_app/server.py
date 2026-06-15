@@ -347,6 +347,35 @@ COMPRESSIBLE_RESPONSE_MIMETYPES = {
     "text/plain",
 }
 
+DYNAMIC_HTML_CACHE_SECONDS = max(0, env_int("DYNAMIC_HTML_CACHE_SECONDS", 15))
+DYNAMIC_HTML_STALE_WHILE_REVALIDATE_SECONDS = max(
+    DYNAMIC_HTML_CACHE_SECONDS,
+    env_int("DYNAMIC_HTML_STALE_WHILE_REVALIDATE_SECONDS", 60),
+)
+NO_STORE_ROUTE_PREFIXES = (
+    "/api/",
+    "/analytics",
+    "/dashboard/bootstrap",
+    "/dashboard/local-sync",
+    "/device/command",
+    "/device/status",
+    "/events",
+    "/health",
+    "/history",
+    "/last",
+    "/ml/",
+    "/monitoring/",
+    "/motor/",
+    "/relay/",
+    "/sensor/",
+    "/status",
+    "/system/",
+)
+NO_STORE_ROUTE_SUFFIXES = (
+    "/status",
+    "/local-sync",
+)
+
 
 @app.route("/manifest.webmanifest")
 def web_manifest():
@@ -371,11 +400,48 @@ def apply_security_headers(response):
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     if request.method == "GET" and request.path.startswith("/static/"):
         response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
-    if request.method == "GET" and not request.path.startswith("/static/"):
-        response.headers.setdefault("Cache-Control", "no-store")
+    elif request.method == "GET":
+        apply_dynamic_cache_headers(response)
     if should_gzip_response(response):
         gzip_response(response)
     return response
+
+
+def route_should_not_store(path):
+    normalized_path = str(path or request.path or "")
+    if normalized_path in {"/service-worker.js", "/static/version.json"}:
+        return True
+    if normalized_path.startswith(NO_STORE_ROUTE_PREFIXES):
+        return True
+    return any(normalized_path.endswith(suffix) for suffix in NO_STORE_ROUTE_SUFFIXES)
+
+
+def apply_dynamic_cache_headers(response):
+    if route_should_not_store(request.path):
+        response.headers.setdefault("Cache-Control", "no-store")
+        return
+
+    if response.status_code < 200 or response.status_code >= 300:
+        response.headers.setdefault("Cache-Control", "no-store")
+        return
+
+    if response.mimetype == "text/html":
+        response.headers.setdefault(
+            "Cache-Control",
+            (
+                f"private, max-age={DYNAMIC_HTML_CACHE_SECONDS}, "
+                f"stale-while-revalidate={DYNAMIC_HTML_STALE_WHILE_REVALIDATE_SECONDS}"
+            ),
+        )
+        response.headers["Vary"] = append_vary_header(response.headers.get("Vary"), "Cookie")
+        try:
+            response.add_etag(weak=True)
+            response.make_conditional(request)
+        except RuntimeError:
+            pass
+        return
+
+    response.headers.setdefault("Cache-Control", "no-store")
 
 
 def should_gzip_response(response):
@@ -11685,6 +11751,59 @@ def admin_customers():
         search_query=search_query,
         device_summary=device_summary,
     )
+
+
+@app.route("/admin/customers/device-table.json")
+@admin_required
+def admin_customers_device_table_json():
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    devices = []
+    for device in available_devices:
+        master_node_label = str(device.get("master_status_label") or "Unreachable").replace("Master ", "").replace("Slave ", "")
+        slave_node_label = str(device.get("slave_status_label") or "Unreachable").replace("Master ", "").replace("Slave ", "")
+        last_sync_at = device.get("last_sync_at") or ""
+        has_sync = bool(last_sync_at)
+        level = device.get("level")
+        active_alert_count = device.get("active_alert_count") or 0
+        devices.append(
+            {
+                "device_id": device.get("device_id") or "",
+                "search": (
+                    f"{device.get('device_id') or ''} {device.get('source_ip') or ''} "
+                    f"{device.get('device_local_host') or ''} {device.get('display_name') or ''}"
+                ).lower(),
+                "status_rank": device.get("status_sort_value") or 1,
+                "alert_count": active_alert_count,
+                "has_alerts": active_alert_count > 0,
+                "master_status": master_node_label,
+                "master_status_tone": device.get("master_status_tone") or "offline",
+                "slave_status": slave_node_label,
+                "slave_status_tone": device.get("slave_status_tone") or "offline",
+                "telemetry_status": device.get("telemetry_status") or "no-data",
+                "telemetry_status_label": device.get("telemetry_status_label") or "--",
+                "wifi_rssi": device.get("wifi_rssi") if device.get("wifi_rssi") is not None else "--",
+                "upper_sensor_status": device.get("upper_sensor_status_label") or "Unreachable",
+                "upper_sensor_status_tone": device.get("upper_sensor_status_tone") or "offline",
+                "lower_sensor_status": device.get("lower_sensor_status_label") or "Unreachable",
+                "lower_sensor_status_tone": device.get("lower_sensor_status_tone") or "offline",
+                "tank_level": f"{level}%" if has_sync and level is not None else "--",
+                "pump_mode": f"Pump {device.get('motor') or '--'} / {device.get('mode') or '--'}" if has_sync else "Pump --",
+                "depth_echo": (
+                    f"Depth {device.get('water_depth_label') or '--'} / Echo {device.get('sensor_distance_label') or '--'}"
+                    if has_sync else "Depth -- / Echo --"
+                ),
+                "alert_label": device.get("warning_alert_label") or "Clear",
+                "alert_tone": (
+                    "danger" if device.get("latest_alert_severity") == "danger"
+                    else "warning" if device.get("latest_alert_severity") == "warning"
+                    else "clear" if active_alert_count == 0
+                    else "info"
+                ),
+                "last_sync_at": last_sync_at,
+            }
+        )
+    return jsonify({"devices": devices, "count": len(devices), "updated_at": now_utc().isoformat()})
 
 
 @app.route("/admin/devices/register", methods=["POST"])

@@ -1,6 +1,7 @@
-const CACHE_NAME = "swt-pwa-v5";
+const CACHE_NAME = "swt-pwa-v6";
 const APP_SHELL = [
   "/manifest.webmanifest",
+  "/static/js/smooth-navigation.js",
   "/static/js/locale-datetime.js",
   "/static/pwa/icon-192.png",
   "/static/pwa/icon-512.png",
