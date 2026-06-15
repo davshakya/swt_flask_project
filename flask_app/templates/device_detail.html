@@ -413,12 +413,15 @@ const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const localeTools=window.swtLocale||{};
 let deviceRefreshInFlight=false;
+let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
+let activityRefreshTimer=0;
 let latestHistory=[];
 let latestEvents=[];
 let activityPage=1;
 let activityPageSize=10;
 let lastHeavyRefreshAt=0;
+const ACTIVITY_REFRESH_MS=5000;
 const DEVICE_REFRESH_MS=30000;
 const DEVICE_HEAVY_REFRESH_MS=90000;
 function setStableHtml(node,html){
@@ -1032,6 +1035,25 @@ function setActivityPage(nextPage){
   activityPage=nextPage;
   renderActivityTable();
 }
+async function refreshActivityEvents(){
+  if(activityRefreshInFlight)return;
+  activityRefreshInFlight=true;
+  try{
+    const eventsUrl=new URL("/events",window.location.origin);
+    eventsUrl.searchParams.set("device_id",DEVICE_ID);
+    eventsUrl.searchParams.set("limit","300");
+    const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
+    const data=await response.json();
+    if(response.ok&&Array.isArray(data)){
+      latestEvents=data;
+      renderActivityTable();
+    }
+  }catch(error){
+    console.log("activity refresh error",error);
+  }finally{
+    activityRefreshInFlight=false;
+  }
+}
 async function loadDevice({silent=false}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
@@ -1112,11 +1134,18 @@ document.getElementById("activityLast")?.addEventListener("click",()=>{
   setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
 });
 loadDevice();
+activityRefreshTimer=setInterval(()=>{
+  if(document.hidden)return;
+  refreshActivityEvents();
+},ACTIVITY_REFRESH_MS);
 deviceRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   loadDevice({silent:true});
 },DEVICE_REFRESH_MS);
-window.swtPageTeardown=()=>{if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);};
+window.swtPageTeardown=()=>{
+  if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);
+  if(activityRefreshTimer)clearInterval(activityRefreshTimer);
+};
 })();
 </script>
 <script>
