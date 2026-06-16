@@ -57,6 +57,7 @@ from flask_app.forecast_payloads import (
 from flask_app.firmware_artifacts import (
     FIRMWARE_ARTIFACT_ROLES,
     build_firmware_artifact_file_response as build_firmware_artifact_file_response_payload,
+    build_firmware_artifact_chunk_response as build_firmware_artifact_chunk_response_payload,
     build_firmware_artifact_payload as build_firmware_artifact_response_payload,
     firmware_artifact_storage_path as firmware_artifact_storage_path_for_dir,
     make_stored_firmware_filename,
@@ -11344,6 +11345,35 @@ def device_firmware_artifact_download(artifact_id):
     return build_firmware_artifact_file_response(artifact, storage_path)
 
 
+@app.route("/device/firmware/<int:artifact_id>/chunk")
+def device_firmware_artifact_chunk(artifact_id):
+    auth_ok, auth_payload, auth_status = authenticate_device_request()
+    if not auth_ok:
+        return auth_payload, auth_status
+    device_id = auth_payload
+    try:
+        target_role = normalize_firmware_artifact_role(request.args.get("role", "master", type=str))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    artifact = fetch_firmware_artifact(artifact_id, device_id=device_id, role=target_role)
+    if not artifact:
+        return jsonify({"error": "firmware artifact not found"}), 404
+
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
+        return jsonify({"error": "firmware artifact file is missing"}), 404
+
+    return build_firmware_artifact_chunk_response_payload(
+        Response,
+        artifact,
+        storage_path,
+        request.args.get("offset", 0, type=int),
+        request.args.get("size", 1024, type=int),
+    )
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login():
     next_url = request.values.get("next")
@@ -12173,7 +12203,7 @@ def admin_device_firmware_cloud_upgrade(device_id):
                 raise ValueError(f"No {target_role} firmware upload is available for this device yet.")
 
             master_download_url = url_for(
-                "device_firmware_artifact_download",
+                "device_firmware_artifact_chunk",
                 artifact_id=int(artifact["id"]),
                 device_id=normalized_device_id,
                 role=target_role,
@@ -12185,7 +12215,7 @@ def admin_device_firmware_cloud_upgrade(device_id):
                 if not slave_artifact:
                     raise ValueError("No slave firmware upload is available for this device yet.")
                 slave_download_url = url_for(
-                    "device_firmware_artifact_download",
+                    "device_firmware_artifact_chunk",
                     artifact_id=int(slave_artifact["id"]),
                     device_id=normalized_device_id,
                     role="slave",

@@ -539,6 +539,8 @@ def test_device_detail_can_queue_cloud_firmware_upgrade():
     assert "cloud_upgrade_ready = master_firmware and ((not cloud_upgrade_requires_slave) or slave_firmware)" in device_template
     assert "@app.route(\"/admin/customers/<device_id>/firmware/cloud-upgrade\", methods=[\"POST\"])" in server_source
     assert "def admin_device_firmware_cloud_upgrade(device_id):" in server_source
+    assert "@app.route(\"/device/firmware/<int:artifact_id>/chunk\")" in server_source
+    assert "\"device_firmware_artifact_chunk\"" in server_source
     assert "firmware_install_profile = build_device_firmware_install_profile(service_config)" in server_source
     assert 'include_slave = requested_include_slave and bool(firmware_install_profile.get("requires_slave_firmware"))' in server_source
     assert "CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS" in server_source

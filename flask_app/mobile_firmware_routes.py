@@ -99,7 +99,7 @@ def register_mobile_firmware_routes(
             return jsonify({"error": f"No {target_role} firmware upload is available for this device yet."}), 404
 
         master_download_url = url_for(
-            "device_firmware_artifact_download",
+            "device_firmware_artifact_chunk",
             artifact_id=int(artifact["id"]),
             device_id=target_device,
             role=target_role,
@@ -109,7 +109,7 @@ def register_mobile_firmware_routes(
         slave_download_url = ""
         if slave_artifact:
             slave_download_url = url_for(
-                "device_firmware_artifact_download",
+                "device_firmware_artifact_chunk",
                 artifact_id=int(slave_artifact["id"]),
                 device_id=target_device,
                 role="slave",

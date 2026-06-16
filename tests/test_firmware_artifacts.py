@@ -3,12 +3,20 @@ from types import SimpleNamespace
 import pytest
 
 from flask_app.firmware_artifacts import (
+    build_firmware_artifact_chunk_response,
     build_firmware_artifact_file_response,
     detect_firmware_binary_build_flags,
     detect_firmware_binary_role,
     validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
 )
+
+
+class FakeResponse:
+    def __init__(self, payload, **kwargs):
+        self.payload = payload
+        self.kwargs = kwargs
+        self.headers = {}
 
 
 def test_detect_firmware_binary_role_from_embedded_marker():
@@ -95,3 +103,28 @@ def test_firmware_artifact_download_response_is_ota_friendly(tmp_path):
     assert response.headers["Connection"] == "close"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["x-MD5"] == "abc123"
+
+
+def test_firmware_artifact_chunk_response_returns_requested_slice(tmp_path):
+    firmware_path = tmp_path / "firmware.bin"
+    firmware_path.write_bytes(b"0123456789abcdef")
+
+    response = build_firmware_artifact_chunk_response(
+        FakeResponse,
+        {
+            "id": 7,
+            "content_type": "application/octet-stream",
+            "md5": "def456",
+            "version_label": "26.1.276",
+        },
+        firmware_path,
+        offset=4,
+        size=5,
+    )
+
+    assert response.payload == b"45678"
+    assert response.kwargs["mimetype"] == "application/octet-stream"
+    assert response.headers["Content-Length"] == "5"
+    assert response.headers["X-Firmware-Size"] == "16"
+    assert response.headers["X-Chunk-Offset"] == "4"
+    assert response.headers["X-Chunk-Length"] == "5"

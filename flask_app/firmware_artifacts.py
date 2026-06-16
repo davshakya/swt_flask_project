@@ -215,3 +215,28 @@ def build_firmware_artifact_file_response(send_file_func, artifact, storage_path
         response.headers["X-Firmware-Version"] = artifact["version_label"]
     response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
     return response
+
+
+def build_firmware_artifact_chunk_response(response_class, artifact, storage_path, offset, size):
+    file_size = storage_path.stat().st_size
+    offset = max(0, int(offset or 0))
+    size = max(1, min(int(size or 1024), 4096))
+    if offset >= file_size:
+        payload = b""
+    else:
+        with storage_path.open("rb") as handle:
+            handle.seek(offset)
+            payload = handle.read(min(size, file_size - offset))
+    response = response_class(payload, mimetype=artifact.get("content_type") or "application/octet-stream")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Length"] = str(len(payload))
+    response.headers["Connection"] = "close"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Firmware-Size"] = str(file_size)
+    response.headers["X-Chunk-Offset"] = str(offset)
+    response.headers["X-Chunk-Length"] = str(len(payload))
+    response.headers["x-MD5"] = artifact.get("md5") or ""
+    if artifact.get("version_label"):
+        response.headers["X-Firmware-Version"] = artifact["version_label"]
+    response.headers["X-Firmware-Artifact-Id"] = str(artifact["id"])
+    return response
