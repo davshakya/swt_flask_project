@@ -202,6 +202,9 @@ DEFAULT_ANDROID_SSO_SESSION_LIMIT = 1
 MAX_ANDROID_SSO_SESSION_LIMIT = 10
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
+DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
+DEFAULT_DEVICE_AUTO_START_PCT = 25.0
+DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
 DEVICE_SOURCE_REAL = "real"
@@ -5982,6 +5985,167 @@ def build_device_service_command(service_config):
     )
 
 
+def device_automation_settings_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    return f"{DEVICE_AUTOMATION_SETTINGS_PREFIX}{normalized_device_id}" if normalized_device_id else None
+
+
+def build_device_automation_settings(device_id, auto_start_pct, auto_stop_pct, source, updated_at=None):
+    return {
+        "device_id": normalize_device_id(device_id),
+        "auto_start_pct": round(float(auto_start_pct), 1),
+        "auto_stop_pct": round(float(auto_stop_pct), 1),
+        "source": str(source or "default").strip() or "default",
+        "updated_at": updated_at,
+    }
+
+
+def default_device_automation_settings(device_id=None):
+    return build_device_automation_settings(
+        device_id,
+        DEFAULT_DEVICE_AUTO_START_PCT,
+        DEFAULT_DEVICE_AUTO_STOP_PCT,
+        "default",
+    )
+
+
+def _coerce_optional_threshold_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        raise ValueError("Tank thresholds must be numeric percentages.")
+
+
+def _resolve_threshold_value(payload, *keys):
+    for key in keys:
+        if key in (payload or {}):
+            return payload.get(key)
+    return None
+
+
+def snapshot_device_automation_settings(snapshot, device_id=None):
+    if not snapshot:
+        return None
+    auto_start_pct = _coerce_optional_threshold_value(
+        _resolve_threshold_value(snapshot, "auto_start_pct", "auto_start_level_pct", "lower_threshold_pct")
+    )
+    auto_stop_pct = _coerce_optional_threshold_value(
+        _resolve_threshold_value(snapshot, "auto_stop_pct", "auto_stop_level_pct", "upper_threshold_pct")
+    )
+    if auto_start_pct is None or auto_stop_pct is None:
+        return None
+    if auto_start_pct < 0 or auto_start_pct > 95 or auto_stop_pct < 5 or auto_stop_pct > 100 or auto_start_pct >= auto_stop_pct:
+        return None
+    return build_device_automation_settings(
+        device_id or snapshot.get("device_id"),
+        auto_start_pct,
+        auto_stop_pct,
+        "live_device",
+    )
+
+
+def save_device_automation_settings(device_id, auto_start_pct, auto_stop_pct, source="cloud"):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    settings = build_device_automation_settings(
+        normalized_device_id,
+        auto_start_pct,
+        auto_stop_pct,
+        source,
+        now_utc().strftime(TIMESTAMP_FORMAT),
+    )
+    setting_key = device_automation_settings_key(normalized_device_id)
+    set_app_setting(setting_key, json.dumps(settings, separators=(",", ":")))
+    return settings
+
+
+def fetch_device_automation_settings(device_id, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id)
+    live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
+    if live_settings:
+        setting_key = device_automation_settings_key(normalized_device_id)
+        raw_value = get_app_setting(setting_key, "") if setting_key else ""
+        try:
+            stored = json.loads(raw_value) if raw_value else {}
+        except (TypeError, ValueError, json.JSONDecodeError):
+            stored = {}
+        if (
+            not stored
+            or safe_float(stored.get("auto_start_pct"), -1) != live_settings["auto_start_pct"]
+            or safe_float(stored.get("auto_stop_pct"), -1) != live_settings["auto_stop_pct"]
+        ):
+            save_device_automation_settings(
+                normalized_device_id,
+                live_settings["auto_start_pct"],
+                live_settings["auto_stop_pct"],
+                source="telemetry_sync",
+            )
+        return live_settings
+
+    setting_key = device_automation_settings_key(normalized_device_id)
+    raw_value = get_app_setting(setting_key, "") if setting_key else ""
+    if raw_value:
+        try:
+            payload = json.loads(raw_value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            payload = None
+        if isinstance(payload, dict):
+            auto_start_pct = _coerce_optional_threshold_value(payload.get("auto_start_pct"))
+            auto_stop_pct = _coerce_optional_threshold_value(payload.get("auto_stop_pct"))
+            if auto_start_pct is not None and auto_stop_pct is not None:
+                return build_device_automation_settings(
+                    normalized_device_id,
+                    auto_start_pct,
+                    auto_stop_pct,
+                    payload.get("source") or "saved_cloud",
+                    payload.get("updated_at"),
+                )
+
+    return default_device_automation_settings(normalized_device_id)
+
+
+def upsert_device_automation_settings(device_id, auto_start_pct=None, auto_stop_pct=None, snapshot=None, source="cloud"):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+
+    existing = fetch_device_automation_settings(normalized_device_id, snapshot=snapshot)
+    resolved_start = _coerce_optional_threshold_value(auto_start_pct)
+    resolved_stop = _coerce_optional_threshold_value(auto_stop_pct)
+    if resolved_start is None:
+        resolved_start = safe_float(existing.get("auto_start_pct"), DEFAULT_DEVICE_AUTO_START_PCT)
+    if resolved_stop is None:
+        resolved_stop = safe_float(existing.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
+
+    if resolved_start < 0 or resolved_start > 95:
+        raise ValueError("Start level must be between 0 and 95%.")
+    if resolved_stop < 5 or resolved_stop > 100:
+        raise ValueError("Stop level must be between 5 and 100%.")
+    if resolved_start >= resolved_stop:
+        raise ValueError("Start level must stay below stop level.")
+
+    return save_device_automation_settings(
+        normalized_device_id,
+        resolved_start,
+        resolved_stop,
+        source=source,
+    )
+
+
+def build_device_automation_command(settings):
+    auto_start_pct = safe_float((settings or {}).get("auto_start_pct"), DEFAULT_DEVICE_AUTO_START_PCT)
+    auto_stop_pct = safe_float((settings or {}).get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
+    return "THRESHOLDS:{start}:{stop}".format(
+        start=f"{auto_start_pct:g}",
+        stop=f"{auto_stop_pct:g}",
+    )
+
+
 def paired_slave_device_id(master_device_id):
     normalized_device_id = normalize_device_id(master_device_id)
     parts = normalized_device_id.split("-")
@@ -10869,6 +11033,7 @@ def mobile_bootstrap():
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
         "service_config": service_config,
+        "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
@@ -11103,6 +11268,7 @@ def mobile_device_status():
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "service_config": service_config,
+        "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "viewer": resolve_mobile_user(),
     })
 
@@ -11130,6 +11296,7 @@ def mobile_device_services():
             {
                 "device_id": target_device,
                 "config": fetch_device_service_config(target_device),
+                "automation_settings": fetch_device_automation_settings(target_device, snapshot=snapshot),
                 "live_services": {
                     "source_tank_monitoring_enabled": bool(
                         snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
@@ -11183,6 +11350,84 @@ def mobile_device_services():
         "message": f"Service settings saved for {target_device}.",
         "device_id": target_device,
         "config": updated_config,
+        "queued_command": command,
+    }
+    if isinstance(queue_result, tuple):
+        error_payload, status_code = queue_result
+        response_payload.update({"queue_error": error_payload.get("error")})
+        return jsonify(response_payload), status_code
+    response_payload.update(queue_result)
+    return jsonify(response_payload)
+
+
+@app.route("/api/mobile/device/thresholds", methods=["GET", "POST"])
+@mobile_auth_required
+def mobile_device_thresholds():
+    source_payload = request.get_json(silent=True) or {}
+    requested_device_id = (
+        source_payload.get("device_id")
+        if request.method == "POST"
+        else request.args.get("device_id", type=str)
+    )
+    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+
+    snapshot = fetch_device_snapshot(target_device)
+    if request.method == "GET":
+        return jsonify(
+            {
+                "device_id": target_device,
+                "settings": fetch_device_automation_settings(target_device, snapshot=snapshot),
+            }
+        )
+
+    user = resolve_mobile_user()
+    if not user or user.get("role") != "admin":
+        return jsonify({"error": "admin access required"}), 403
+
+    try:
+        updated_settings = upsert_device_automation_settings(
+            target_device,
+            auto_start_pct=_resolve_threshold_value(
+                source_payload,
+                "auto_start_pct",
+                "auto_start_level_pct",
+                "lower_threshold_pct",
+            ),
+            auto_stop_pct=_resolve_threshold_value(
+                source_payload,
+                "auto_stop_pct",
+                "auto_stop_level_pct",
+                "upper_threshold_pct",
+            ),
+            snapshot=snapshot,
+            source="mobile_api",
+        )
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    command = build_device_automation_command(updated_settings)
+    queue_result = queue_command(command, target_device=target_device)
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="update_device_thresholds_mobile",
+        target_type="device",
+        target_id=target_device,
+        device_id=target_device,
+        details={
+            "automation_settings": updated_settings,
+            "queued_command": command,
+            "source": "mobile_api",
+        },
+    )
+    response_payload = {
+        "message": (
+            f"Tank thresholds saved for {target_device}. "
+            f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%."
+        ),
+        "device_id": target_device,
+        "settings": updated_settings,
         "queued_command": command,
     }
     if isinstance(queue_result, tuple):
@@ -12648,6 +12893,7 @@ def device_detail_page(device_id):
     service_config = fetch_device_service_config(scoped_device_id, account=account)
     firmware_install_profile = build_device_firmware_install_profile(service_config)
     snapshot = fetch_device_snapshot(scoped_device_id)
+    automation_settings = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     if simulator_state in {"on", "off"}:
@@ -12658,6 +12904,7 @@ def device_detail_page(device_id):
         is_admin=True,
         customer_account=account,
         service_config=service_config,
+        automation_settings=automation_settings,
         android_sso_active_session_count=active_platform_session_count(
             SESSION_PLATFORM_ANDROID,
             "customer",
@@ -12791,6 +13038,50 @@ def admin_device_detail_configuration(device_id):
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+
+@app.route("/devices/<device_id>/thresholds", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_thresholds(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id)
+    try:
+        updated_settings = upsert_device_automation_settings(
+            scoped_device_id,
+            auto_start_pct=request.form.get("auto_start_pct"),
+            auto_stop_pct=request.form.get("auto_stop_pct"),
+            snapshot=snapshot,
+            source="admin_dashboard",
+        )
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+    queued_command = build_device_automation_command(updated_settings)
+    queue_result = queue_command(queued_command, target_device=scoped_device_id)
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        error = error_payload.get("error") or "Unable to queue threshold update."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="update_device_detail_thresholds",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "automation_settings": updated_settings,
+            "queued_command": queued_command,
+            "source": "admin_dashboard",
+        },
+    )
+    message = (
+        f"Tank thresholds saved for {scoped_device_id}. "
+        f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
+        "Device changes apply on the next command poll."
+    )
+    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
 
 
 @app.route("/devices/<device_id>/mobile/logout", methods=["POST"])
