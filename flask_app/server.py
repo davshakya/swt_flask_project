@@ -4678,7 +4678,7 @@ def ensure_device_service_configs_table(cursor):
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
             ota_enabled INTEGER NOT NULL DEFAULT 0,
-            local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 0,
+            local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 1,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
             android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
@@ -4701,7 +4701,7 @@ def ensure_device_service_configs_columns(cursor):
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
         "ota_enabled": "INTEGER NOT NULL DEFAULT 0",
-        "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 1",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
         "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
@@ -5654,8 +5654,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
-    ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
-    local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=False)
+    ota_enabled = False
+    local_firmware_upload_enabled = True
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
@@ -5733,7 +5733,7 @@ def default_device_service_config(device_id=None, account=None):
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
             ),
             "ota_enabled": False,
-            "local_firmware_upload_enabled": False,
+            "local_firmware_upload_enabled": True,
             "buzzer_enabled": True,
             "led_display_enabled": True,
             "android_sso_session_limit": DEFAULT_ANDROID_SSO_SESSION_LIMIT,
@@ -5885,14 +5885,8 @@ def upsert_device_service_config(
         ai_analysis_enabled,
         default=existing.get("ai_analysis_enabled", True),
     )
-    resolved_ota_enabled = boolish_enabled(
-        ota_enabled,
-        default=existing.get("ota_enabled", False),
-    )
-    resolved_local_firmware_upload_enabled = boolish_enabled(
-        local_firmware_upload_enabled,
-        default=existing.get("local_firmware_upload_enabled", False),
-    )
+    resolved_ota_enabled = False
+    resolved_local_firmware_upload_enabled = True
     resolved_buzzer_enabled = boolish_enabled(
         buzzer_enabled,
         default=existing.get("buzzer_enabled", True),
@@ -5983,8 +5977,8 @@ def build_device_service_command(service_config):
         relay=1 if relay_enabled else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
         led=1 if bool(config.get("led_display_enabled")) else 0,
-        ota=1 if bool(config.get("ota_enabled")) else 0,
-        upload=1 if bool(config.get("local_firmware_upload_enabled")) else 0,
+        ota=0,
+        upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
     )
 
 
@@ -12409,7 +12403,7 @@ def admin_customer_services(device_id):
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
-            ota_enabled=("ota_enabled" in request.form),
+            ota_enabled=False,
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
@@ -12775,7 +12769,7 @@ def admin_device_detail_configuration(device_id):
                     else DEVICE_SERVICE_CLOUD_FEED_BASIC
                 )
             ),
-            ota_enabled=("ota_enabled" in request.form),
+            ota_enabled=False,
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )

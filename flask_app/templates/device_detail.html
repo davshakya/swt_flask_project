@@ -213,8 +213,7 @@ body{font-size:16px}
                         <h4>Other Features</h4>
                         <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
-                        <label class="service-option"><input type="checkbox" name="ota_enabled" value="1" {% if service_config.get("ota_enabled") %}checked{% endif %}> OTA Service</label>
-                        <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled") %}checked{% endif %}> Local Firmware Upload</label>
+                        <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
                         <div class="form-group">
                             <label for="android_sso_session_limit">Android SSO Device Count</label>
                             <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
@@ -966,7 +965,6 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
     {label:"Water Depth",value:waterDepth,show:true},
     {label:"Command Service",value:yesNo(snapshot.command_service)},
     {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
-    {label:"OTA Service",value:yesNo(snapshot.ota_service),show:Boolean(serviceConfig.ota_enabled)||isPositiveServiceValue(snapshot.ota_service)},
     {label:"Upper Echo Distance",value:sensorDistance,show:mainSensorEnabled},
     {label:"Main Sensor Message",value:infoValue(snapshot.sensor_info),show:mainSensorEnabled},
     {label:"Lower Water Depth",value:lowerWaterDepth,show:sourceMonitoringEnabled},
