@@ -170,6 +170,16 @@ body{font-size:16px}
     <section class="panel">
         <div class="section-head">
             <div>
+                <div class="eyebrow">Current Settings</div>
+                <p>Live automation thresholds, runtime roles, peer links, and saved device configuration from the latest sync.</p>
+            </div>
+        </div>
+        <div id="deviceConfigGrid" class="info-grid" style="margin-top:16px"></div>
+    </section>
+
+    <section class="panel">
+        <div class="section-head">
+            <div>
                 <div class="eyebrow">Memory Health</div>
                 <p>Free heap trend for master and slave controllers from recent telemetry.</p>
             </div>
@@ -808,6 +818,31 @@ function formatHeapValue(value,fallback="Heap not reported"){
   if(!Number.isFinite(number)||number<=0)return fallback;
   return`${formatBytes(number)} free (${formatHeapPercent(number)})`;
 }
+function formatCompactNumber(value,suffix=""){
+  const number=Number(value);
+  if(!Number.isFinite(number))return"--";
+  const text=Number.isInteger(number)?String(number):number.toFixed(1).replace(/\.0$/,"");
+  return `${text}${suffix}`;
+}
+function formatDurationSeconds(value){
+  const number=Number(value);
+  if(!Number.isFinite(number)||number<0)return"--";
+  if(number===0)return"0s";
+  const seconds=Math.round(number);
+  const hours=Math.floor(seconds/3600);
+  const minutes=Math.floor((seconds%3600)/60);
+  const remainingSeconds=seconds%60;
+  const parts=[];
+  if(hours)parts.push(`${hours}h`);
+  if(minutes)parts.push(`${minutes}m`);
+  if(remainingSeconds||!parts.length)parts.push(`${remainingSeconds}s`);
+  return parts.join(" ");
+}
+function formatDurationMs(value){
+  const number=Number(value);
+  if(!Number.isFinite(number)||number<0)return"--";
+  return formatDurationSeconds(number/1000);
+}
 function memoryRole(row,snapshot,serviceConfig){
   const role=String(row?.node_role||row?.device_type||"").trim().toLowerCase();
   if(role.includes("slave"))return"slave";
@@ -1001,6 +1036,55 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
   ].filter((item)=>item.show!==false&&isReportedInfoValue(item.value));
   setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
+function renderDeviceConfiguration(snapshot,serviceConfig,automationSettings){
+  const root=document.getElementById("deviceConfigGrid");
+  if(!root)return;
+  const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
+  const upperSource=infoValue(snapshot?.upper_sensor_source,usesSlave?"slave":"master");
+  const autoStart=automationSettings?.auto_start_pct??snapshot?.auto_start_pct??snapshot?.auto_start_level_pct??snapshot?.lower_threshold_pct;
+  const autoStop=automationSettings?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
+  const simulatorParts=[
+    snapshot?.simulator,
+    snapshot?.upper_tank_simulator,
+    snapshot?.lower_tank_simulator,
+  ].map((value)=>String(value??"").trim().toUpperCase()).filter((value)=>value);
+  const simulatorSummary=simulatorParts.length?Array.from(new Set(simulatorParts)).join(" / "):simulatorStatusText(snapshot,serviceConfig);
+  const items=[
+    {label:"Firmware Role",value:infoValue(snapshot?.firmware_role,titleCase(snapshot?.node_role||""))},
+    {label:"Node Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
+    {label:"Device Type",value:infoValue(titleCase(snapshot?.device_type||""),"Not reported")},
+    {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
+    {label:"Firmware UI",value:infoValue(snapshot?.firmware_ui,"Not reported")},
+    {label:"Build Flags",value:infoValue(snapshot?.firmware_build_flags,"Not reported")},
+    {label:"Upper Sensor Source",value:upperSource},
+    {label:"Upper Sensor Location",value:infoValue(snapshot?.upper_sensor_location,"Not reported")},
+    {label:"Lower Sensor Location",value:infoValue(snapshot?.lower_sensor_location,"Not reported")},
+    {label:"Source Sensor Location",value:infoValue(snapshot?.source_sensor_location,"Not reported")},
+    {label:"Auto Start Threshold",value:Number.isFinite(Number(autoStart))?`${formatCompactNumber(autoStart)}%`:"Not reported"},
+    {label:"Auto Stop Threshold",value:Number.isFinite(Number(autoStop))?`${formatCompactNumber(autoStop)}%`:"Not reported"},
+    {label:"Auto Start Stability",value:formatDurationMs(snapshot?.auto_start_stable_ms)},
+    {label:"Auto Level Samples",value:isReportedInfoValue(snapshot?.auto_level_average_samples)?`${snapshot.auto_level_average_samples}`:"Not reported"},
+    {label:"Max Pump Runtime",value:formatDurationSeconds(snapshot?.max_pump_runtime_s)},
+    {label:"Current Pump Runtime",value:formatDurationSeconds(snapshot?.current_pump_runtime_s)},
+    {label:"Peer Transport",value:infoValue(snapshot?.peer_transport,"Not reported")},
+    {label:"Direct Peer",value:infoValue(snapshot?.direct_peer,"Not reported")},
+    {label:"Peer Port",value:isReportedInfoValue(snapshot?.direct_peer_port)?`${snapshot.direct_peer_port}`:"Not reported"},
+    {label:"Peer Remote IP",value:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for peer")},
+    {label:"Peer Packet Age",value:formatDurationSeconds(snapshot?.direct_peer_last_packet_age_s)},
+    {label:"Cloud Feed Mode",value:infoValue(titleCase(serviceConfig?.cloud_feed_mode||""),"Not reported")},
+    {label:"Cloud Feed Enabled",value:Boolean(serviceConfig?.cloud_feed_enabled)?"Enabled":"Disabled"},
+    {label:"AI Analysis",value:Boolean(serviceConfig?.effective_ai_analysis_enabled)?"Enabled":"Disabled"},
+    {label:"Slave Device",value:usesSlave?"Enabled":"Disabled"},
+    {label:"Relay Control",value:Boolean(serviceConfig?.relay_enabled)?"Enabled":"Disabled"},
+    {label:"Source Tank Monitoring",value:Boolean(serviceConfig?.source_tank_monitoring_enabled)?"Enabled":"Disabled"},
+    {label:"Buzzer Service",value:Boolean(serviceConfig?.buzzer_enabled)?"Enabled":"Disabled"},
+    {label:"LED Display Service",value:Boolean(serviceConfig?.led_display_enabled)?"Enabled":"Disabled"},
+    {label:"Local Firmware Upload",value:Boolean(serviceConfig?.local_firmware_upload_enabled)?"Enabled":"Disabled"},
+    {label:"Android SSO Limit",value:isReportedInfoValue(serviceConfig?.android_sso_session_limit)?`${serviceConfig.android_sso_session_limit}`:"Not reported"},
+    {label:"Simulator Services",value:simulatorSummary},
+  ].filter((item)=>isReportedInfoValue(item.value));
+  setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+}
 function uniqueFeedItems(items){
   const seen=new Set();
   return (items||[]).filter((item)=>{
@@ -1124,6 +1208,7 @@ async function loadDevice({silent=false}={}){
   const systemStatus=data.system_status||{};
   const monitoringSummary=data.monitoring_summary||{};
   const serviceConfig=data.service_config||{};
+  const automationSettings=data.automation_settings||{};
   const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
   const lastSync=snapshot.last_sync_at;
   const level=formatPercent(snapshot.level);
@@ -1153,6 +1238,7 @@ async function loadDevice({silent=false}={}){
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
+  renderDeviceConfiguration(snapshot,serviceConfig,automationSettings);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
   }

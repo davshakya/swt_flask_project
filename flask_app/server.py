@@ -8857,6 +8857,7 @@ def build_command_events(limit=20, device_id=None):
     failure_after_seconds = max(300, STALE_AFTER_SECONDS * 2)
     for row in rows:
         command = str(row["command"] or "").strip().upper() or "COMMAND"
+        command_activity = describe_command_activity(command)
         target_device = normalize_device_id(row["target_device"])
         created_at = format_timestamp(row["created_at"])
         delivered_at = format_timestamp(row["delivered_at"])
@@ -8864,12 +8865,13 @@ def build_command_events(limit=20, device_id=None):
             {
                 "time": created_at,
                 "severity": "info",
-                "message": f"Command queued: {command}.",
-                "kind": "command_queued",
+                "message": command_activity["queued_message"],
+                "kind": f"{command_activity['kind_suffix']}_queued",
                 "details": {
                     "source_table": "device_command_queue",
                     "source_row_id": row["id"],
                     "command": command,
+                    "command_label": command_activity["label"],
                     "device_id": target_device,
                     "command_id": row["id"],
                 },
@@ -8880,12 +8882,13 @@ def build_command_events(limit=20, device_id=None):
                 {
                     "time": delivered_at,
                     "severity": "success",
-                    "message": f"Command acknowledged by device: {command}.",
-                    "kind": "command_acknowledged",
+                    "message": command_activity["ack_message"],
+                    "kind": f"{command_activity['kind_suffix']}_acknowledged",
                     "details": {
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
+                        "command_label": command_activity["label"],
                         "device_id": target_device,
                         "command_id": row["id"],
                     },
@@ -8895,12 +8898,12 @@ def build_command_events(limit=20, device_id=None):
             created_dt = parse_timestamp(row["created_at"])
             age_seconds = int((now - created_dt).total_seconds()) if created_dt else None
             severity = "warning" if age_seconds is not None and age_seconds >= failure_after_seconds else "info"
-            kind = "command_delivery_failed" if severity == "warning" else "command_delivery_pending"
-            message = (
-                f"Command has not been acknowledged yet: {command}."
+            kind = (
+                f"{command_activity['kind_suffix']}_delivery_failed"
                 if severity == "warning"
-                else f"Command waiting for device acknowledgement: {command}."
+                else f"{command_activity['kind_suffix']}_delivery_pending"
             )
+            message = command_activity["failed_message"] if severity == "warning" else command_activity["pending_message"]
             events.append(
                 {
                     "time": created_at,
@@ -8911,6 +8914,7 @@ def build_command_events(limit=20, device_id=None):
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
+                        "command_label": command_activity["label"],
                         "device_id": target_device,
                         "command_id": row["id"],
                         "age_seconds": age_seconds,
@@ -8950,7 +8954,7 @@ def build_ota_events(limit=20, device_id=None):
             {
                 "time": format_timestamp(row["created_at"]),
                 "severity": "info",
-                "message": f"Firmware update published for {target_label}: {version_label}.",
+                "message": f"Firmware uploaded for {target_label}: {version_label}. Upgrade package is ready.",
                 "kind": "ota_published",
                 "details": {
                     "source_table": "firmware_artifacts",
@@ -8968,7 +8972,7 @@ def build_ota_events(limit=20, device_id=None):
                     {
                         "time": format_timestamp(row["created_at"]),
                         "severity": "success",
-                        "message": f"Firmware version is active on device: {current_firmware}.",
+                        "message": f"Firmware version is active on device: {current_firmware}. Upgrade finished successfully.",
                         "kind": "ota_succeeded",
                         "details": {
                             "source_table": "firmware_artifacts",
@@ -8990,7 +8994,7 @@ def build_ota_events(limit=20, device_id=None):
                         "message": (
                             f"Firmware update has not become active after {format_compact_uptime(age_seconds)}: {version_label}."
                             if failed
-                            else f"Firmware update pending on device: {version_label}."
+                            else f"Firmware update is pending on device. Waiting for {version_label} to become active."
                         ),
                         "kind": "ota_failed" if failed else "ota_pending",
                         "details": {
@@ -9152,6 +9156,152 @@ def sync_device_events(device_id=None):
 def build_events(limit=12, device_id=None):
     sync_device_events(device_id=device_id)
     return fetch_device_events(limit=limit, device_id=device_id)
+
+
+def describe_command_activity(command):
+    normalized = str(command or "").strip().upper()
+    details = {
+        "label": normalized or "COMMAND",
+        "queued_message": f"Command queued: {normalized or 'COMMAND'}.",
+        "ack_message": f"Command acknowledged by device: {normalized or 'COMMAND'}.",
+        "pending_message": f"Command waiting for device acknowledgement: {normalized or 'COMMAND'}.",
+        "failed_message": f"Command has not been acknowledged yet: {normalized or 'COMMAND'}.",
+        "kind_suffix": "command",
+    }
+
+    if normalized == "ON":
+        details.update(
+            {
+                "label": "Pump start",
+                "queued_message": "Pump start requested.",
+                "ack_message": "Pump start acknowledged by device.",
+                "pending_message": "Pump start is waiting for device acknowledgement.",
+                "failed_message": "Pump start has not been acknowledged yet.",
+                "kind_suffix": "pump_start",
+            }
+        )
+        return details
+
+    if normalized == "OFF":
+        details.update(
+            {
+                "label": "Pump stop",
+                "queued_message": "Pump stop requested.",
+                "ack_message": "Pump stop acknowledged by device.",
+                "pending_message": "Pump stop is waiting for device acknowledgement.",
+                "failed_message": "Pump stop has not been acknowledged yet.",
+                "kind_suffix": "pump_stop",
+            }
+        )
+        return details
+
+    if normalized == "REBOOT":
+        details.update(
+            {
+                "label": "Device restart",
+                "queued_message": "Device restart requested.",
+                "ack_message": "Device restart acknowledged by device.",
+                "pending_message": "Device restart is waiting for device acknowledgement.",
+                "failed_message": "Device restart has not been acknowledged yet.",
+                "kind_suffix": "device_restart",
+            }
+        )
+        return details
+
+    if normalized in {"SIMULATOR_ON", "SIMULATOR_OFF"}:
+        simulator_state = "enable" if normalized.endswith("_ON") else "disable"
+        simulator_state_past = "enabled" if normalized.endswith("_ON") else "disabled"
+        details.update(
+            {
+                "label": f"Simulator {simulator_state}",
+                "queued_message": f"Simulator {simulator_state} requested.",
+                "ack_message": f"Simulator {simulator_state_past} by device acknowledgement.",
+                "pending_message": f"Simulator {simulator_state} is waiting for device acknowledgement.",
+                "failed_message": f"Simulator {simulator_state} has not been acknowledged yet.",
+                "kind_suffix": "simulator_toggle",
+            }
+        )
+        return details
+
+    if normalized.startswith("THRESHOLDS:"):
+        _prefix, _sep, payload = normalized.partition(":")
+        start_text, _sep2, stop_text = payload.partition(":")
+        threshold_note = (
+            f"start {start_text.strip()}% / stop {stop_text.strip()}%"
+            if start_text.strip() and stop_text.strip()
+            else "device thresholds"
+        )
+        details.update(
+            {
+                "label": "Auto thresholds update",
+                "queued_message": f"Auto thresholds update requested: {threshold_note}.",
+                "ack_message": f"Auto thresholds acknowledged by device: {threshold_note}.",
+                "pending_message": f"Auto thresholds update is waiting for device acknowledgement: {threshold_note}.",
+                "failed_message": f"Auto thresholds update has not been acknowledged yet: {threshold_note}.",
+                "kind_suffix": "threshold_update",
+            }
+        )
+        return details
+
+    if normalized.startswith("SERVICECFG4:"):
+        details.update(
+            {
+                "label": "Runtime service configuration",
+                "queued_message": "Runtime service configuration update requested.",
+                "ack_message": "Runtime service configuration acknowledged by device.",
+                "pending_message": "Runtime service configuration is waiting for device acknowledgement.",
+                "failed_message": "Runtime service configuration has not been acknowledged yet.",
+                "kind_suffix": "service_config_update",
+            }
+        )
+        return details
+
+    if normalized.startswith("CONFIG_UPPER:") or normalized.startswith("CONFIG_LOWER:"):
+        parts = normalized.split(":")
+        sensor_label = "Upper" if normalized.startswith("CONFIG_UPPER:") else "Lower/source"
+        setup_note = ""
+        if len(parts) >= 3:
+            setup_note = f" height {parts[1]} cm / capacity {parts[2]} L"
+        details.update(
+            {
+                "label": f"{sensor_label} tank setup",
+                "queued_message": f"{sensor_label} tank setup requested.{setup_note}",
+                "ack_message": f"{sensor_label} tank setup acknowledged by device.{setup_note}",
+                "pending_message": f"{sensor_label} tank setup is waiting for device acknowledgement.{setup_note}",
+                "failed_message": f"{sensor_label} tank setup has not been acknowledged yet.{setup_note}",
+                "kind_suffix": "tank_setup",
+            }
+        )
+        return details
+
+    if normalized.startswith("CONFIG_CAPACITY:") or normalized.startswith("CONFIG_LOWER_CAPACITY:"):
+        parts = normalized.split(":")
+        sensor_label = "Main tank" if normalized.startswith("CONFIG_CAPACITY:") else "Lower/source tank"
+        capacity_note = f" {parts[1]} L" if len(parts) >= 2 and parts[1].strip() else ""
+        details.update(
+            {
+                "label": f"{sensor_label} capacity",
+                "queued_message": f"{sensor_label} capacity update requested.{capacity_note}",
+                "ack_message": f"{sensor_label} capacity update acknowledged by device.{capacity_note}",
+                "pending_message": f"{sensor_label} capacity update is waiting for device acknowledgement.{capacity_note}",
+                "failed_message": f"{sensor_label} capacity update has not been acknowledged yet.{capacity_note}",
+                "kind_suffix": "tank_capacity_update",
+            }
+        )
+        return details
+
+    if normalized == "CALIBRATE":
+        details.update(
+            {
+                "label": "Sensor calibration",
+                "queued_message": "Sensor calibration requested.",
+                "ack_message": "Sensor calibration acknowledged by device.",
+                "pending_message": "Sensor calibration is waiting for device acknowledgement.",
+                "failed_message": "Sensor calibration has not been acknowledged yet.",
+                "kind_suffix": "sensor_calibration",
+            }
+        )
+    return details
 
 
 def send_alert_webhook(payload):
@@ -13418,6 +13568,7 @@ def device_detail_status(device_id):
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
         "service_config": fetch_device_service_config(scoped_device_id),
+        "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
     }
     if include_alerts:
         payload["alerts"] = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)

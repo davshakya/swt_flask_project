@@ -34,3 +34,15 @@ def test_admin_device_detail_template_has_threshold_save_form():
     assert "name=\"auto_start_pct\"" in source
     assert "name=\"auto_stop_pct\"" in source
     assert "shared across Flask, Android, and firmware" in source
+
+
+def test_device_detail_status_and_template_include_live_configuration_grid():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index('@app.route("/devices/<device_id>/status")')
+    route_source = source[route_start : source.index('\n\n@app.route("/status", methods=["GET", "POST"])', route_start)]
+
+    assert '"automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)' in route_source
+
+    template_source = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    assert "Current Settings" in template_source
+    assert 'id="deviceConfigGrid"' in template_source
