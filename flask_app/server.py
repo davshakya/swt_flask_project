@@ -57,7 +57,6 @@ from flask_app.forecast_payloads import (
 from flask_app.firmware_artifacts import (
     FIRMWARE_ARTIFACT_ROLES,
     build_firmware_artifact_file_response as build_firmware_artifact_file_response_payload,
-    build_firmware_artifact_chunk_response as build_firmware_artifact_chunk_response_payload,
     build_firmware_artifact_payload as build_firmware_artifact_response_payload,
     firmware_artifact_storage_path as firmware_artifact_storage_path_for_dir,
     make_stored_firmware_filename,
@@ -647,10 +646,6 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
-CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS = max(
-    STALE_AFTER_SECONDS,
-    env_int("CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS", 300),
-)
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
@@ -11210,10 +11205,10 @@ register_mobile_firmware_routes(
     current_mobile_scope_device_id=current_mobile_scope_device_id,
     fetch_latest_firmware_artifact=fetch_latest_firmware_artifact,
     fetch_firmware_artifact=fetch_firmware_artifact,
+    fetch_device_service_config=fetch_device_service_config,
     build_firmware_artifact_payload=build_firmware_artifact_payload,
     firmware_artifact_storage_path=firmware_artifact_storage_path,
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
-    queue_device_command=queue_device_command,
     logger=logger,
 )
 
@@ -11343,35 +11338,6 @@ def device_firmware_artifact_download(artifact_id):
         return jsonify({"error": "firmware artifact file is missing"}), 404
 
     return build_firmware_artifact_file_response(artifact, storage_path)
-
-
-@app.route("/device/firmware/<int:artifact_id>/chunk")
-def device_firmware_artifact_chunk(artifact_id):
-    auth_ok, auth_payload, auth_status = authenticate_device_request()
-    if not auth_ok:
-        return auth_payload, auth_status
-    device_id = auth_payload
-    try:
-        target_role = normalize_firmware_artifact_role(request.args.get("role", "master", type=str))
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-
-    artifact = fetch_firmware_artifact(artifact_id, device_id=device_id, role=target_role)
-    if not artifact:
-        return jsonify({"error": "firmware artifact not found"}), 404
-
-    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
-    if not storage_path.is_file():
-        logger.warning("Firmware artifact %s is registered but missing on disk: %s", artifact_id, storage_path)
-        return jsonify({"error": "firmware artifact file is missing"}), 404
-
-    return build_firmware_artifact_chunk_response_payload(
-        Response,
-        artifact,
-        storage_path,
-        request.args.get("offset", 0, type=int),
-        request.args.get("size", 1024, type=int),
-    )
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -12159,108 +12125,6 @@ def admin_device_firmware_upload(device_id):
         success=success,
         search_query=search_query,
         device_summary=device_summary,
-    )
-
-
-@app.route("/admin/customers/<device_id>/firmware/cloud-upgrade", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_device_firmware_cloud_upgrade(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    error = None
-    success = None
-
-    if not normalized_device_id:
-        error = "Choose a valid device before starting a cloud firmware upgrade."
-    else:
-        requested_role = request.form.get("firmware_role", "master_slave", type=str)
-        requested_include_slave = str(request.form.get("include_slave", "1")).strip().lower() not in {
-            "0",
-            "false",
-            "no",
-            "off",
-        }
-        try:
-            service_config = fetch_device_service_config(normalized_device_id)
-            firmware_install_profile = build_device_firmware_install_profile(service_config)
-            include_slave = requested_include_slave and bool(firmware_install_profile.get("requires_slave_firmware"))
-            snapshot = fetch_device_snapshot(normalized_device_id)
-            if not snapshot:
-                raise ValueError("No recent device telemetry is available. Wait for the device to sync before starting cloud firmware upgrade.")
-            seconds_since_sync = snapshot.get("seconds_since_sync")
-            if seconds_since_sync is None or seconds_since_sync > CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS:
-                raise ValueError(
-                    "Device telemetry is stale. Wait for a fresh cloud sync before starting cloud firmware upgrade."
-                )
-            if str(snapshot.get("command_service") or "").upper() != "ON":
-                raise ValueError("Command service is OFF on the latest device sync. Enable it before starting cloud firmware upgrade.")
-            if str(snapshot.get("ota_service") or "").upper() != "ON":
-                raise ValueError("OTA service is OFF on the latest device sync. Enable it before starting cloud firmware upgrade.")
-
-            target_role = "master" if include_slave else normalize_firmware_artifact_role(requested_role)
-            artifact = fetch_latest_firmware_artifact(normalized_device_id, role=target_role)
-            if not artifact:
-                raise ValueError(f"No {target_role} firmware upload is available for this device yet.")
-
-            master_download_url = url_for(
-                "device_firmware_artifact_chunk",
-                artifact_id=int(artifact["id"]),
-                device_id=normalized_device_id,
-                role=target_role,
-                _external=True,
-            )
-            slave_artifact = fetch_latest_firmware_artifact(normalized_device_id, role="slave") if include_slave else None
-            slave_download_url = ""
-            if include_slave:
-                if not slave_artifact:
-                    raise ValueError("No slave firmware upload is available for this device yet.")
-                slave_download_url = url_for(
-                    "device_firmware_artifact_chunk",
-                    artifact_id=int(slave_artifact["id"]),
-                    device_id=normalized_device_id,
-                    role="slave",
-                    _external=True,
-                )
-
-            command = (
-                f"OTA_BUNDLE:{master_download_url}|{slave_download_url}"
-                if slave_download_url
-                else f"OTA_URL:{master_download_url}"
-            )
-            queue_device_command(command, normalized_device_id)
-            log_audit_event(
-                actor=current_actor_username(),
-                action="queue_cloud_firmware_upgrade",
-                target_type="device",
-                target_id=normalized_device_id,
-                device_id=normalized_device_id,
-                details={
-                    "command": "OTA_BUNDLE" if slave_download_url else "OTA_URL",
-                    "role": "master_slave" if slave_download_url else target_role,
-                    "artifact_id": artifact.get("id"),
-                    "version_label": artifact.get("version_label"),
-                    "slave_artifact_id": slave_artifact.get("id") if slave_artifact else None,
-                    "slave_version_label": slave_artifact.get("version_label") if slave_artifact else None,
-                    "last_sync_at": snapshot.get("last_sync_at"),
-                    "seconds_since_sync": seconds_since_sync,
-                },
-            )
-            success = (
-                "Cloud firmware upgrade queued for master and slave. "
-                "The device will download it on its next cloud command poll."
-                if slave_download_url
-                else "Cloud firmware upgrade queued. The device will download it on its next cloud command poll."
-            )
-        except ValueError as exc:
-            error = str(exc)
-
-    return redirect(
-        url_for(
-            "device_detail_page",
-            device_id=normalized_device_id or device_id,
-            config_error=error or "",
-            config_message=success or "",
-        )
     )
 
 

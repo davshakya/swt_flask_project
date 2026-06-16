@@ -523,33 +523,43 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert '"__all_customers__"' not in mobile_firmware_routes
     assert "target_role" in server_source
     assert "target_device=target_device" in mobile_firmware_routes
+    assert "fetch_device_service_config=fetch_device_service_config" in server_source
+    assert 'service_config.get("local_firmware_upload_enabled")' in mobile_firmware_routes
+    assert "firmware_service_disabled_response" in mobile_firmware_routes
+    assert '"Local firmware upload", "local_firmware_upload_enabled"' in mobile_firmware_routes
+    assert '"/api/mobile/device/firmware/cloud-upgrade"' not in mobile_firmware_routes
 
 
-def test_device_detail_can_queue_cloud_firmware_upgrade():
+def test_device_detail_removes_cloud_firmware_upgrade():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    android_source = (
+        PROJECT_ROOT.parent
+        / "swt_android_app_project"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "smartwatertank"
+        / "app"
+        / "MainActivity.kt"
+    ).read_text(encoding="utf-8")
 
-    assert 'action="/admin/customers/{{ device_id }}/firmware/cloud-upgrade"' in device_template
+    assert 'action="/admin/customers/{{ device_id }}/firmware/cloud-upgrade"' not in device_template
     assert "url_for('admin_device_firmware_cloud_upgrade'" not in device_template
-    assert "Upgrade Master + Slave from Cloud" in device_template
-    assert "Upgrade Master from Cloud" in device_template
-    assert 'data-confirm-title="Queue cloud firmware upgrade?"' in device_template
-    assert 'name="include_slave" value="{{ \'1\' if cloud_upgrade_requires_slave else \'0\' }}"' in device_template
-    assert 'cloud_upgrade_requires_slave = firmware_install_profile.get("requires_slave_firmware")' in device_template
-    assert "cloud_upgrade_ready = master_firmware and ((not cloud_upgrade_requires_slave) or slave_firmware)" in device_template
-    assert "@app.route(\"/admin/customers/<device_id>/firmware/cloud-upgrade\", methods=[\"POST\"])" in server_source
-    assert "def admin_device_firmware_cloud_upgrade(device_id):" in server_source
-    assert "@app.route(\"/device/firmware/<int:artifact_id>/chunk\")" in server_source
-    assert "\"device_firmware_artifact_chunk\"" in server_source
-    assert "firmware_install_profile = build_device_firmware_install_profile(service_config)" in server_source
-    assert 'include_slave = requested_include_slave and bool(firmware_install_profile.get("requires_slave_firmware"))' in server_source
-    assert "CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS" in server_source
-    assert "Device telemetry is stale" in server_source
-    assert 'snapshot.get("command_service")' in server_source
-    assert 'snapshot.get("ota_service")' in server_source
-    assert "OTA_BUNDLE:" in server_source
-    assert "queue_device_command(command, normalized_device_id)" in server_source
-    assert 'action="queue_cloud_firmware_upgrade"' in server_source
+    assert "Upgrade Master + Slave from Cloud" not in device_template
+    assert "Upgrade Master from Cloud" not in device_template
+    assert 'data-confirm-title="Queue cloud firmware upgrade?"' not in device_template
+    assert "@app.route(\"/admin/customers/<device_id>/firmware/cloud-upgrade\", methods=[\"POST\"])" not in server_source
+    assert "def admin_device_firmware_cloud_upgrade(device_id):" not in server_source
+    assert "@app.route(\"/device/firmware/<int:artifact_id>/chunk\")" not in server_source
+    assert "\"device_firmware_artifact_chunk\"" not in server_source
+    assert "CLOUD_FIRMWARE_UPGRADE_FRESH_AFTER_SECONDS" not in server_source
+    assert "OTA_BUNDLE:" not in server_source
+    assert 'action="queue_cloud_firmware_upgrade"' not in server_source
+    assert "startCloudFirmwareUpgrade" not in android_source
+    assert "startAutomaticLocalFirmwareUpgrade()" in android_source
 
 
 def test_device_detail_install_profile_template_has_deploy_fallback():
