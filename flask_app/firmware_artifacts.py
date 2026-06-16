@@ -196,15 +196,20 @@ def build_firmware_artifact_payload(artifact, target_device=None, download_endpo
 
 
 def build_firmware_artifact_file_response(send_file_func, artifact, storage_path):
+    file_size = storage_path.stat().st_size
     response = send_file_func(
         str(storage_path),
         mimetype=artifact.get("content_type") or "application/octet-stream",
         as_attachment=False,
         download_name=artifact.get("original_filename") or storage_path.name,
-        conditional=False,
+        conditional=True,
         max_age=0,
     )
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Accept-Ranges"] = "bytes"
+    response.headers["Connection"] = "close"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Firmware-Size"] = str(file_size)
     response.headers["x-MD5"] = artifact.get("md5") or ""
     if artifact.get("version_label"):
         response.headers["X-Firmware-Version"] = artifact["version_label"]

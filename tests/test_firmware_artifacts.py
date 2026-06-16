@@ -1,6 +1,9 @@
+from types import SimpleNamespace
+
 import pytest
 
 from flask_app.firmware_artifacts import (
+    build_firmware_artifact_file_response,
     detect_firmware_binary_build_flags,
     detect_firmware_binary_role,
     validate_firmware_binary_build_flags,
@@ -66,3 +69,29 @@ def test_validate_firmware_binary_build_flags_allows_install_profile_mismatch():
 
     assert detected["SWT_ARCH_ID"] == "1"
     assert detected["SWT_DIRECT_PEER_ENABLED"] == "1"
+
+
+def test_firmware_artifact_download_response_is_ota_friendly(tmp_path):
+    firmware_path = tmp_path / "firmware.bin"
+    firmware_path.write_bytes(b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=master")
+
+    def fake_send_file(*args, **kwargs):
+        return SimpleNamespace(headers={})
+
+    response = build_firmware_artifact_file_response(
+        fake_send_file,
+        {
+            "id": 42,
+            "content_type": "application/octet-stream",
+            "original_filename": "firmware.bin",
+            "md5": "abc123",
+            "version_label": "26.1.276",
+        },
+        firmware_path,
+    )
+
+    assert response.headers["X-Firmware-Size"] == str(firmware_path.stat().st_size)
+    assert response.headers["Accept-Ranges"] == "bytes"
+    assert response.headers["Connection"] == "close"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["x-MD5"] == "abc123"
