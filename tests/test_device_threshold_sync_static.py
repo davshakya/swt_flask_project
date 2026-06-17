@@ -66,3 +66,23 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
     services_route_start = source.index('@app.route("/api/mobile/device/services", methods=["GET", "POST"])')
     services_route_source = source[services_route_start : source.index('\n\n@app.route("/api/mobile/device/thresholds", methods=["GET", "POST"])', services_route_start)]
     assert '"config": fetch_device_service_config(target_device, snapshot=snapshot),' in services_route_source
+
+
+def test_telemetry_snapshot_persists_live_auto_threshold_fields():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    process_start = source.index("def process_telemetry_payload(data, source_ip=None, transport=\"http\"):")
+    process_source = source[process_start : source.index("\n\ndef mysql_connection_config", process_start)]
+
+    assert 'cleaned.get("auto_start_pct")' in process_source
+    assert 'cleaned.get("auto_stop_pct")' in process_source
+    assert 'cleaned.get("auto_start_stable_ms")' in process_source
+    assert 'cleaned.get("auto_level_average_samples")' in process_source
+    assert "auto_start_pct, auto_stop_pct," in process_source
+    assert "auto_start_stable_ms, auto_level_average_samples," in process_source
+
+    schema_start = source.index("def ensure_tank_data_columns(cursor):")
+    schema_source = source[schema_start : source.index("\n\ndef ensure_tank_data_mysql_column_types", schema_start)]
+    assert '"auto_start_pct": "REAL"' in schema_source
+    assert '"auto_stop_pct": "REAL"' in schema_source
+    assert '"auto_start_stable_ms": "INTEGER"' in schema_source
+    assert '"auto_level_average_samples": "INTEGER"' in schema_source

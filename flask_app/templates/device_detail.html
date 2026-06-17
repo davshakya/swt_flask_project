@@ -1001,6 +1001,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const upperSource=infoValue(snapshot?.upper_sensor_source,usesSlave?"slave":"master");
   const autoStart=automationSettings?.auto_start_pct??snapshot?.auto_start_pct??snapshot?.auto_start_level_pct??snapshot?.lower_threshold_pct;
   const autoStop=automationSettings?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
+  const autoStartStableMs=Number(snapshot?.auto_start_stable_ms);
+  const autoLevelAverageSamples=Number(snapshot?.auto_level_average_samples);
   const sourceSensorLocationRaw=String(snapshot?.source_sensor_location??snapshot?.lower_sensor_location??"").trim();
   const sourceSensorLocation=sourceMonitoringEnabled
     ? infoValue(titleCase(sourceSensorLocationRaw),"Source Tank")
@@ -1025,6 +1027,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Source Height",value:sourceTankHeight,show:sourceMonitoringEnabled&&isReportedInfoValue(sourceTankHeight)},
     {label:"Auto Start Threshold",value:Number.isFinite(Number(autoStart))?`${formatCompactNumber(autoStart)}%`:"Not reported"},
     {label:"Auto Stop Threshold",value:Number.isFinite(Number(autoStop))?`${formatCompactNumber(autoStop)}%`:"Not reported"},
+    {label:"Auto Start Delay",value:formatDurationMs(autoStartStableMs)},
+    {label:"Level Average Samples",value:Number.isFinite(autoLevelAverageSamples)&&autoLevelAverageSamples>0?`${Math.round(autoLevelAverageSamples)}`:"Not reported"},
     {label:"Water Depth",value:waterDepth,show:true},
     {label:"Source Water Depth",value:lowerWaterDepth,show:sourceMonitoringEnabled},
     {label:"Upper Echo Distance",value:sensorDistance,show:mainSensorEnabled},
