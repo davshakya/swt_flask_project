@@ -3142,7 +3142,11 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
     refresh_operational_alerts_for_devices(merged.keys())
     for entry in merged.values():
         refresh_admin_entry_alerts(entry)
-    service_configs = list_device_service_configs(merged.keys(), accounts_by_device=accounts_by_device)
+    service_configs = list_device_service_configs(
+        merged.keys(),
+        accounts_by_device=accounts_by_device,
+        snapshots_by_device=merged,
+    )
     alert_summaries = fetch_active_alert_summaries(
         merged.keys(),
         updated_since=admin_alert_cutoff_timestamp(),
@@ -5657,8 +5661,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
-    ota_enabled = False
-    local_firmware_upload_enabled = True
+    ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
+    local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=True)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
@@ -5754,14 +5758,62 @@ def resolve_service_config_device_id(device_id=None, snapshot=None):
     return None
 
 
+def snapshot_device_service_flag(snapshot, *keys):
+    if not snapshot:
+        return None
+    for key in keys:
+        value = str(snapshot.get(key) or "").strip().upper()
+        if value in {"ON", "TRUE", "YES", "1", "ENABLED"}:
+            return True
+        if value in {"OFF", "FALSE", "NO", "0", "DISABLED"}:
+            return False
+    return None
+
+
+def snapshot_device_service_config(snapshot, device_id=None, account=None, existing=None):
+    if not snapshot_has_live_device_data(snapshot):
+        return None
+    resolved_device_id = resolve_service_config_device_id(device_id, snapshot=snapshot)
+    if not resolved_device_id:
+        return None
+
+    base_payload = dict(existing or default_device_service_config(resolved_device_id, account=account))
+    upper_sensor_source = str(
+        snapshot.get("upper_sensor_source")
+        or snapshot.get("upper_sensor_location")
+        or base_payload.get("upper_sensor_source")
+        or ""
+    ).strip().lower()
+    if upper_sensor_source in {"master", "slave"}:
+        slave_upper_sensor_enabled = upper_sensor_source == "slave"
+        base_payload["slave_device_enabled"] = slave_upper_sensor_enabled
+        base_payload["slave_upper_sensor_enabled"] = slave_upper_sensor_enabled
+        base_payload["master_upper_sensor_enabled"] = not slave_upper_sensor_enabled
+        base_payload["main_sensor_enabled"] = True
+
+    for snapshot_key, config_key in (
+        ("lower_tank_service", "source_tank_monitoring_enabled"),
+        ("relay_service", "relay_enabled"),
+        ("buzzer_service", "buzzer_enabled"),
+        ("led_display_service", "led_display_enabled"),
+        ("ota_service", "ota_enabled"),
+        ("local_firmware_upload_service", "local_firmware_upload_enabled"),
+    ):
+        live_flag = snapshot_device_service_flag(snapshot, snapshot_key)
+        if live_flag is not None:
+            base_payload[config_key] = live_flag
+
+    return serialize_device_service_config(resolved_device_id, base_payload, account=account)
+
+
 def resolve_device_service_config(device_id=None, account=None, snapshot=None):
     resolved_device_id = resolve_service_config_device_id(device_id, snapshot=snapshot)
     if not resolved_device_id:
         return default_device_service_config(device_id, account=account)
-    return fetch_device_service_config(resolved_device_id, account=account)
+    return fetch_device_service_config(resolved_device_id, account=account, snapshot=snapshot)
 
 
-def fetch_device_service_config(device_id, account=None):
+def fetch_device_service_config(device_id, account=None, snapshot=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return default_device_service_config(device_id, account=account)
@@ -5780,16 +5832,26 @@ def fetch_device_service_config(device_id, account=None):
             """,
             (normalized_device_id,),
         ).fetchone()
-    if not row:
-        return default_device_service_config(normalized_device_id, account=resolved_account)
-    return serialize_device_service_config(normalized_device_id, dict(row), account=resolved_account)
+    stored_config = (
+        serialize_device_service_config(normalized_device_id, dict(row), account=resolved_account)
+        if row
+        else default_device_service_config(normalized_device_id, account=resolved_account)
+    )
+    live_config = snapshot_device_service_config(
+        snapshot,
+        device_id=normalized_device_id,
+        account=resolved_account,
+        existing=stored_config,
+    )
+    return live_config or stored_config
 
 
-def list_device_service_configs(device_ids=None, accounts_by_device=None):
+def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):
     normalized_device_ids = [
         item for item in (normalize_device_id(value) for value in (device_ids or [])) if item
     ]
     accounts_by_device = accounts_by_device or {}
+    snapshots_by_device = snapshots_by_device or {}
     query = (
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
@@ -5824,6 +5886,32 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None):
                     normalized_device_id,
                     account=accounts_by_device.get(normalized_device_id),
                 ),
+            )
+            snapshot = snapshots_by_device.get(normalized_device_id)
+            if snapshot:
+                configs[normalized_device_id] = snapshot_device_service_config(
+                    snapshot,
+                    device_id=normalized_device_id,
+                    account=accounts_by_device.get(normalized_device_id),
+                    existing=configs[normalized_device_id],
+                ) or configs[normalized_device_id]
+    else:
+        for normalized_device_id, snapshot in snapshots_by_device.items():
+            if not snapshot:
+                continue
+            account = accounts_by_device.get(normalized_device_id)
+            existing = configs.get(normalized_device_id) or default_device_service_config(
+                normalized_device_id,
+                account=account,
+            )
+            configs[normalized_device_id] = (
+                snapshot_device_service_config(
+                    snapshot,
+                    device_id=normalized_device_id,
+                    account=account,
+                    existing=existing,
+                )
+                or existing
             )
     return configs
 
@@ -5888,8 +5976,14 @@ def upsert_device_service_config(
         ai_analysis_enabled,
         default=existing.get("ai_analysis_enabled", True),
     )
-    resolved_ota_enabled = False
-    resolved_local_firmware_upload_enabled = True
+    resolved_ota_enabled = boolish_enabled(
+        ota_enabled,
+        default=existing.get("ota_enabled", False),
+    )
+    resolved_local_firmware_upload_enabled = boolish_enabled(
+        local_firmware_upload_enabled,
+        default=existing.get("local_firmware_upload_enabled", True),
+    )
     resolved_buzzer_enabled = boolish_enabled(
         buzzer_enabled,
         default=existing.get("buzzer_enabled", True),
@@ -6181,7 +6275,11 @@ def authenticate_dashboard_user(username, password):
         return None
     if not check_password_hash(customer.get("password_hash", ""), password or ""):
         return None
-    service_config = fetch_device_service_config(normalized_username, account=customer)
+    service_config = fetch_device_service_config(
+        normalized_username,
+        account=customer,
+        snapshot=load_dashboard_snapshot(normalized_username),
+    )
     return {
         "role": "customer",
         "username": normalized_username,
@@ -6285,7 +6383,11 @@ def resolve_mobile_user():
                 device_id=device_id,
                 session_id=platform_session_id,
             )
-        service_config = fetch_device_service_config(device_id, account=customer)
+        service_config = fetch_device_service_config(
+            device_id,
+            account=customer,
+            snapshot=load_dashboard_snapshot(device_id),
+        )
         user = {
             "role": "customer",
             "username": device_id,
@@ -11445,7 +11547,7 @@ def mobile_device_services():
         return jsonify(
             {
                 "device_id": target_device,
-                "config": fetch_device_service_config(target_device),
+                "config": fetch_device_service_config(target_device, snapshot=snapshot),
                 "automation_settings": fetch_device_automation_settings(target_device, snapshot=snapshot),
                 "live_services": {
                     "source_tank_monitoring_enabled": bool(
@@ -13040,9 +13142,9 @@ def customer_dashboard():
 def device_detail_page(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
-    service_config = fetch_device_service_config(scoped_device_id, account=account)
-    firmware_install_profile = build_device_firmware_install_profile(service_config)
     snapshot = fetch_device_snapshot(scoped_device_id)
+    service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)
+    firmware_install_profile = build_device_firmware_install_profile(service_config)
     automation_settings = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
@@ -13277,7 +13379,12 @@ def admin_device_detail_mobile_logout(device_id):
 @csrf_protect
 def admin_device_detail_sensor_calibrate(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    service_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
+    snapshot = fetch_device_snapshot(scoped_device_id)
+    service_config = resolve_device_service_config(
+        scoped_device_id,
+        account=fetch_customer_account(scoped_device_id),
+        snapshot=snapshot,
+    )
     sensor = str(request.form.get("sensor") or "upper").strip().lower()
     lower_requested = sensor in {"lower", "source", "source_tank"}
     if lower_requested and not bool(service_config.get("source_tank_monitoring_enabled")):
@@ -13331,7 +13438,12 @@ def admin_device_detail_sensor_calibrate(device_id):
 @csrf_protect
 def admin_device_detail_sensor_configure(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    service_config = fetch_device_service_config(scoped_device_id, account=fetch_customer_account(scoped_device_id))
+    snapshot = fetch_device_snapshot(scoped_device_id)
+    service_config = resolve_device_service_config(
+        scoped_device_id,
+        account=fetch_customer_account(scoped_device_id),
+        snapshot=snapshot,
+    )
     sensor = str(request.values.get("sensor") or "upper").strip().lower()
     lower_requested = sensor in {"lower", "source", "source_tank"}
     height_cm = request.values.get("height_cm", type=float)
@@ -13567,7 +13679,7 @@ def device_detail_status(device_id):
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
-        "service_config": fetch_device_service_config(scoped_device_id),
+        "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
     }
     if include_alerts:
