@@ -44,5 +44,6 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert '"automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)' in route_source
 
     template_source = TEMPLATE_SOURCE.read_text(encoding="utf-8")
-    assert "Current Settings" in template_source
-    assert 'id="deviceConfigGrid"' in template_source
+    assert "Device Configuration" in template_source
+    assert 'id="deviceInfoGrid"' in template_source
+    assert "renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings);" in template_source

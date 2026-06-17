@@ -148,8 +148,8 @@ body{font-size:16px}
     <section class="panel">
         <div class="section-head">
             <div>
-                <div class="eyebrow">Device Information</div>
-                <p>Complete controller, relay, sensor, service, and network information from the latest sync.</p>
+                <div class="eyebrow">Device Configuration</div>
+                <p>Live tank setup, thresholds, services, peer link, and controller status from the latest sync.</p>
             </div>
         </div>
         <div class="info-grid" style="margin-top:16px">
@@ -165,16 +165,6 @@ body{font-size:16px}
             </div>
         </div>
         <div id="deviceInfoGrid" class="info-grid"></div>
-    </section>
-
-    <section class="panel">
-        <div class="section-head">
-            <div>
-                <div class="eyebrow">Current Settings</div>
-                <p>Live automation thresholds, runtime roles, peer links, and saved device configuration from the latest sync.</p>
-            </div>
-        </div>
-        <div id="deviceConfigGrid" class="info-grid" style="margin-top:16px"></div>
     </section>
 
     <section class="panel">
@@ -986,13 +976,15 @@ function updateSimulatorControls(snapshot,serviceConfig){
       : `Simulator is inactive. Enable queues one unified simulator command for ${mode}.`;
   }
 }
-function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig){
+function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings){
   const root=document.getElementById("deviceInfoGrid");
   if(!root)return;
   const relay=monitoringSummary.relay||{};
   const capacity=snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
+  const sourceCapacity=snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
   const heightNumber=Number(snapshot.tank_height_cm);
+  const sourceHeightNumber=Number(snapshot.lower_tank_height_cm);
   const levelNumber=Number(snapshot.level);
   const depthNumber=snapshot.water_depth_cm!==undefined&&snapshot.water_depth_cm!==null
     ?Number(snapshot.water_depth_cm)
@@ -1001,48 +993,18 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig)
   const lowerDistance=snapshot.lower_sensor_distance_cm!==undefined&&snapshot.lower_sensor_distance_cm!==null?`${snapshot.lower_sensor_distance_cm} cm`:"Distance not reported";
   const lowerWaterDepth=snapshot.lower_water_depth_cm!==undefined&&snapshot.lower_water_depth_cm!==null?`${Number(snapshot.lower_water_depth_cm).toFixed(1)} cm`:"--";
   const tankHeight=Number.isFinite(heightNumber)?`${heightNumber.toFixed(1)} cm`:"Not calibrated";
+  const sourceTankHeight=Number.isFinite(sourceHeightNumber)&&sourceHeightNumber>0?`${sourceHeightNumber.toFixed(1)} cm`:"Disabled";
   const usesSlave=Boolean(serviceConfig.slave_device_enabled);
   const sourceMonitoringEnabled=Boolean(serviceConfig.source_tank_monitoring_enabled)||isPositiveServiceValue(snapshot.lower_tank_service);
   const mainSensorEnabled=serviceConfig.main_sensor_enabled!==false;
   const slaveIp=infoValue(snapshot.direct_peer_remote_ip,"");
-  const items=[
-    {label:"Firmware",value:infoValue(snapshot.firmware_version)},
-    {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
-    {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
-    {label:"Simulator",value:simulatorStatusText(snapshot,serviceConfig),show:true},
-    {label:"Tank Capacity",value:formatLiters(capacity),show:isReportedInfoValue(capacity)},
-    {label:"Calibrated Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
-    {label:"Water Depth",value:waterDepth,show:true},
-    {label:"Command Service",value:yesNo(snapshot.command_service)},
-    {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
-    {label:"Upper Echo Distance",value:sensorDistance,show:mainSensorEnabled},
-    {label:"Main Sensor Message",value:infoValue(snapshot.sensor_info),show:mainSensorEnabled},
-    {label:"Lower Water Depth",value:lowerWaterDepth,show:sourceMonitoringEnabled},
-    {label:"Lower Sensor Distance",value:lowerDistance,show:sourceMonitoringEnabled},
-    {label:"Network Channel",value:infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")},
-    {label:"Local Device IP",value:infoValue(snapshot.device_local_url,"Local IP not reported")},
-    {label:"Slave Device IP",value:slaveIp,show:usesSlave&&isReportedInfoValue(slaveIp)},
-    {label:"Buzzer",value:yesNo(snapshot.buzzer_service),show:Boolean(serviceConfig.buzzer_enabled)||isPositiveServiceValue(snapshot.buzzer_service)},
-    {label:"LED Display",value:yesNo(snapshot.led_display_service),show:Boolean(serviceConfig.led_display_enabled)||isPositiveServiceValue(snapshot.led_display_service)},
-    {label:"Local Firmware Upload",value:yesNo(snapshot.local_firmware_upload_service),show:Boolean(serviceConfig.local_firmware_upload_enabled)||isPositiveServiceValue(snapshot.local_firmware_upload_service)},
-    {label:"Master Memory",value:formatHeapValue(snapshot.free_heap,"Heap not reported")},
-    {label:"Slave Memory",value:formatHeapValue(snapshot.slave_free_heap,"Slave heap not reported"),show:usesSlave},
-    {label:"Slave Uptime",value:infoValue(snapshot.slave_uptime_label,"Slave uptime not reported"),show:usesSlave},
-    {label:"Uptime",value:infoValue(snapshot.uptime_label,"Uptime not reported")},
-    {label:"Reset Reason",value:infoValue(snapshot.reset_reason,"Reset reason not reported")},
-    {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
-    {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
-    {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
-  ].filter((item)=>item.show!==false&&isReportedInfoValue(item.value));
-  setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
-}
-function renderDeviceConfiguration(snapshot,serviceConfig,automationSettings){
-  const root=document.getElementById("deviceConfigGrid");
-  if(!root)return;
-  const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
   const upperSource=infoValue(snapshot?.upper_sensor_source,usesSlave?"slave":"master");
   const autoStart=automationSettings?.auto_start_pct??snapshot?.auto_start_pct??snapshot?.auto_start_level_pct??snapshot?.lower_threshold_pct;
   const autoStop=automationSettings?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
+  const sourceSensorLocationRaw=String(snapshot?.source_sensor_location??snapshot?.lower_sensor_location??"").trim();
+  const sourceSensorLocation=sourceMonitoringEnabled
+    ? infoValue(titleCase(sourceSensorLocationRaw),"Source Tank")
+    : "Disabled";
   const simulatorParts=[
     snapshot?.simulator,
     snapshot?.upper_tank_simulator,
@@ -1050,38 +1012,48 @@ function renderDeviceConfiguration(snapshot,serviceConfig,automationSettings){
   ].map((value)=>String(value??"").trim().toUpperCase()).filter((value)=>value);
   const simulatorSummary=simulatorParts.length?Array.from(new Set(simulatorParts)).join(" / "):simulatorStatusText(snapshot,serviceConfig);
   const items=[
-    {label:"Firmware Role",value:infoValue(snapshot?.firmware_role,titleCase(snapshot?.node_role||""))},
-    {label:"Node Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
-    {label:"Device Type",value:infoValue(titleCase(snapshot?.device_type||""),"Not reported")},
+    {label:"Firmware",value:infoValue(snapshot.firmware_version)},
+    {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
+    {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
-    {label:"Firmware UI",value:infoValue(snapshot?.firmware_ui,"Not reported")},
-    {label:"Build Flags",value:infoValue(snapshot?.firmware_build_flags,"Not reported")},
+    {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
     {label:"Upper Sensor Source",value:upperSource},
-    {label:"Upper Sensor Location",value:infoValue(snapshot?.upper_sensor_location,"Not reported")},
-    {label:"Lower Sensor Location",value:infoValue(snapshot?.lower_sensor_location,"Not reported")},
-    {label:"Source Sensor Location",value:infoValue(snapshot?.source_sensor_location,"Not reported")},
+    {label:"Source Tank Sensor",value:sourceSensorLocation},
+    {label:"Tank Capacity",value:formatLiters(capacity),show:isReportedInfoValue(capacity)},
+    {label:"Tank Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
+    {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&isReportedInfoValue(sourceCapacity)},
+    {label:"Source Height",value:sourceTankHeight,show:sourceMonitoringEnabled&&isReportedInfoValue(sourceTankHeight)},
     {label:"Auto Start Threshold",value:Number.isFinite(Number(autoStart))?`${formatCompactNumber(autoStart)}%`:"Not reported"},
     {label:"Auto Stop Threshold",value:Number.isFinite(Number(autoStop))?`${formatCompactNumber(autoStop)}%`:"Not reported"},
-    {label:"Auto Start Stability",value:formatDurationMs(snapshot?.auto_start_stable_ms)},
-    {label:"Auto Level Samples",value:isReportedInfoValue(snapshot?.auto_level_average_samples)?`${snapshot.auto_level_average_samples}`:"Not reported"},
-    {label:"Max Pump Runtime",value:formatDurationSeconds(snapshot?.max_pump_runtime_s)},
-    {label:"Current Pump Runtime",value:formatDurationSeconds(snapshot?.current_pump_runtime_s)},
+    {label:"Water Depth",value:waterDepth,show:true},
+    {label:"Source Water Depth",value:lowerWaterDepth,show:sourceMonitoringEnabled},
+    {label:"Upper Echo Distance",value:sensorDistance,show:mainSensorEnabled},
+    {label:"Lower Sensor Distance",value:lowerDistance,show:sourceMonitoringEnabled},
+    {label:"Command Service",value:yesNo(snapshot.command_service)},
+    {label:"Telemetry Service",value:yesNo(snapshot.telemetry_service)},
+    {label:"Simulator",value:simulatorSummary,show:true},
     {label:"Peer Transport",value:infoValue(snapshot?.peer_transport,"Not reported")},
     {label:"Direct Peer",value:infoValue(snapshot?.direct_peer,"Not reported")},
-    {label:"Peer Port",value:isReportedInfoValue(snapshot?.direct_peer_port)?`${snapshot.direct_peer_port}`:"Not reported"},
     {label:"Peer Remote IP",value:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for peer")},
     {label:"Peer Packet Age",value:formatDurationSeconds(snapshot?.direct_peer_last_packet_age_s)},
     {label:"Cloud Feed Mode",value:infoValue(titleCase(serviceConfig?.cloud_feed_mode||""),"Not reported")},
-    {label:"Cloud Feed Enabled",value:Boolean(serviceConfig?.cloud_feed_enabled)?"Enabled":"Disabled"},
     {label:"AI Analysis",value:Boolean(serviceConfig?.effective_ai_analysis_enabled)?"Enabled":"Disabled"},
-    {label:"Slave Device",value:usesSlave?"Enabled":"Disabled"},
     {label:"Relay Control",value:Boolean(serviceConfig?.relay_enabled)?"Enabled":"Disabled"},
     {label:"Source Tank Monitoring",value:Boolean(serviceConfig?.source_tank_monitoring_enabled)?"Enabled":"Disabled"},
     {label:"Buzzer Service",value:Boolean(serviceConfig?.buzzer_enabled)?"Enabled":"Disabled"},
     {label:"LED Display Service",value:Boolean(serviceConfig?.led_display_enabled)?"Enabled":"Disabled"},
     {label:"Local Firmware Upload",value:Boolean(serviceConfig?.local_firmware_upload_enabled)?"Enabled":"Disabled"},
     {label:"Android SSO Limit",value:isReportedInfoValue(serviceConfig?.android_sso_session_limit)?`${serviceConfig.android_sso_session_limit}`:"Not reported"},
-    {label:"Simulator Services",value:simulatorSummary},
+    {label:"Network Channel",value:infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")},
+    {label:"Local Device IP",value:infoValue(snapshot.device_local_url,"Local IP not reported")},
+    {label:"Slave Device IP",value:slaveIp,show:usesSlave&&isReportedInfoValue(slaveIp)},
+    {label:"Master Memory",value:formatHeapValue(snapshot.free_heap,"Heap not reported")},
+    {label:"Slave Memory",value:formatHeapValue(snapshot.slave_free_heap,"Slave heap not reported"),show:usesSlave},
+    {label:"Uptime",value:infoValue(snapshot.uptime_label,"Uptime not reported")},
+    {label:"Slave Uptime",value:infoValue(snapshot.slave_uptime_label,"Slave uptime not reported"),show:usesSlave},
+    {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
+    {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
+    {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
   ].filter((item)=>isReportedInfoValue(item.value));
   setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
@@ -1237,8 +1209,7 @@ async function loadDevice({silent=false}={}){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
-  renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig);
-  renderDeviceConfiguration(snapshot,serviceConfig,automationSettings);
+  renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
   }
