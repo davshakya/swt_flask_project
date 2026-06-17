@@ -203,6 +203,7 @@ MAX_ANDROID_SSO_SESSION_LIMIT = 10
 DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
+DEVICE_LOCAL_WEB_PASSWORD_PREFIX = "device_local_web_password:"
 DEFAULT_DEVICE_AUTO_START_PCT = 25.0
 DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
@@ -3932,6 +3933,35 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         latest_row_id=latest_row_id,
         force=True,
     )
+    try:
+        upsert_device_service_config(
+            cleaned.get("device_id"),
+            tank_height_cm=cleaned.get("tank_height_cm"),
+            tank_capacity_liters=cleaned.get("tank_capacity_liters"),
+            upper_tank_height_cm=cleaned.get("tank_height_cm"),
+            upper_tank_capacity_liters=cleaned.get("tank_capacity_liters"),
+            lower_tank_height_cm=cleaned.get("lower_tank_height_cm"),
+            lower_tank_capacity_liters=(
+                cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters")
+            ),
+            auto_start_pct=cleaned.get("auto_start_pct"),
+            auto_stop_pct=cleaned.get("auto_stop_pct"),
+            telemetry_service_state=cleaned.get("telemetry_service"),
+            command_service_state=cleaned.get("command_service"),
+            relay_service_state=cleaned.get("relay_service"),
+            ota_service_state=cleaned.get("ota_service"),
+            local_firmware_upload_service_state=cleaned.get("local_firmware_upload_service"),
+            buzzer_service_state=cleaned.get("buzzer_service"),
+            led_display_service_state=cleaned.get("led_display_service"),
+            lower_tank_service_state=cleaned.get("lower_tank_service"),
+            slave_device_service_state=cleaned.get("slave_device_service"),
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to upsert persisted device configuration for %s: %s",
+            cleaned.get("device_id") or "unknown device",
+            exc,
+        )
     clear_runtime_caches(cleaned.get("device_id"))
     record_device_simulator_state(
         cleaned.get("device_id"),
@@ -4699,6 +4729,23 @@ def ensure_device_service_configs_table(cursor):
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
             android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
+            tank_height_cm REAL,
+            tank_capacity_liters REAL,
+            upper_tank_height_cm REAL,
+            upper_tank_capacity_liters REAL,
+            lower_tank_height_cm REAL,
+            lower_tank_capacity_liters REAL,
+            auto_start_pct REAL,
+            auto_stop_pct REAL,
+            telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            command_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            relay_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            ota_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            local_firmware_upload_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            buzzer_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            led_display_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            lower_tank_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
+            slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
@@ -4722,6 +4769,23 @@ def ensure_device_service_configs_columns(cursor):
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
         "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
+        "tank_height_cm": "REAL",
+        "tank_capacity_liters": "REAL",
+        "upper_tank_height_cm": "REAL",
+        "upper_tank_capacity_liters": "REAL",
+        "lower_tank_height_cm": "REAL",
+        "lower_tank_capacity_liters": "REAL",
+        "auto_start_pct": "REAL",
+        "auto_stop_pct": "REAL",
+        "telemetry_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "command_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "relay_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "ota_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "local_firmware_upload_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "buzzer_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "led_display_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "lower_tank_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
+        "slave_device_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
         "created_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
         "updated_at": "TEXT DEFAULT CURRENT_TIMESTAMP",
     }
@@ -5047,6 +5111,35 @@ def set_app_setting(key, value):
             """,
             (key, value),
         )
+
+
+def default_local_web_auth_password():
+    return os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip() or "lOpbDRMeXBokNcQ4Y7lfgWDzPretehDY"
+
+
+def device_local_web_password_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    return f"{DEVICE_LOCAL_WEB_PASSWORD_PREFIX}{normalized_device_id}" if normalized_device_id else None
+
+
+def fetch_device_local_web_password(device_id, default_to_env=True):
+    setting_key = device_local_web_password_key(device_id)
+    raw_value = get_app_setting(setting_key, "") if setting_key else ""
+    password = str(raw_value or "").strip()
+    if password:
+        return password
+    return default_local_web_auth_password() if default_to_env else ""
+
+
+def save_device_local_web_password(device_id, password):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    resolved_password = str(password or "").strip()
+    if len(resolved_password) < 6:
+        raise ValueError("Local web password must be at least 6 characters.")
+    set_app_setting(device_local_web_password_key(normalized_device_id), resolved_password)
+    return resolved_password
 
 
 def increment_homepage_visitor_count():
@@ -5644,6 +5737,25 @@ def build_device_firmware_install_profile(service_config):
     }
 
 
+def normalize_optional_config_float(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return None
+
+
+def normalize_optional_service_state(value, default="UNKNOWN"):
+    if value is None:
+        return default
+    if isinstance(value, str) and not value.strip():
+        return default
+    return normalize_service_state(value)
+
+
 def serialize_device_service_config(device_id, payload=None, account=None):
     payload = payload or {}
     normalized_device_id = normalize_device_id(device_id or payload.get("device_id"))
@@ -5680,6 +5792,29 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
+    tank_height_cm = normalize_optional_config_float(payload.get("tank_height_cm"))
+    tank_capacity_liters = normalize_optional_config_float(payload.get("tank_capacity_liters"))
+    upper_tank_height_cm = normalize_optional_config_float(
+        payload.get("upper_tank_height_cm") if "upper_tank_height_cm" in payload else tank_height_cm
+    )
+    upper_tank_capacity_liters = normalize_optional_config_float(
+        payload.get("upper_tank_capacity_liters") if "upper_tank_capacity_liters" in payload else tank_capacity_liters
+    )
+    lower_tank_height_cm = normalize_optional_config_float(payload.get("lower_tank_height_cm"))
+    lower_tank_capacity_liters = normalize_optional_config_float(payload.get("lower_tank_capacity_liters"))
+    auto_start_pct = normalize_optional_config_float(payload.get("auto_start_pct"))
+    auto_stop_pct = normalize_optional_config_float(payload.get("auto_stop_pct"))
+    telemetry_service_state = normalize_optional_service_state(payload.get("telemetry_service_state"))
+    command_service_state = normalize_optional_service_state(payload.get("command_service_state"))
+    relay_service_state = normalize_optional_service_state(payload.get("relay_service_state"))
+    ota_service_state = normalize_optional_service_state(payload.get("ota_service_state"))
+    local_firmware_upload_service_state = normalize_optional_service_state(
+        payload.get("local_firmware_upload_service_state")
+    )
+    buzzer_service_state = normalize_optional_service_state(payload.get("buzzer_service_state"))
+    led_display_service_state = normalize_optional_service_state(payload.get("led_display_service_state"))
+    lower_tank_service_state = normalize_optional_service_state(payload.get("lower_tank_service_state"))
+    slave_device_service_state = normalize_optional_service_state(payload.get("slave_device_service_state"))
     effective_cloud_feed_enabled = cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF and account_cloud_feed_enabled
     effective_ai_analysis_enabled = (
         ai_analysis_enabled
@@ -5721,6 +5856,23 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "buzzer_enabled": buzzer_enabled,
         "led_display_enabled": led_display_enabled,
         "android_sso_session_limit": android_sso_session_limit,
+        "tank_height_cm": tank_height_cm,
+        "tank_capacity_liters": tank_capacity_liters,
+        "upper_tank_height_cm": upper_tank_height_cm,
+        "upper_tank_capacity_liters": upper_tank_capacity_liters,
+        "lower_tank_height_cm": lower_tank_height_cm,
+        "lower_tank_capacity_liters": lower_tank_capacity_liters,
+        "auto_start_pct": auto_start_pct,
+        "auto_stop_pct": auto_stop_pct,
+        "telemetry_service_state": telemetry_service_state,
+        "command_service_state": command_service_state,
+        "relay_service_state": relay_service_state,
+        "ota_service_state": ota_service_state,
+        "local_firmware_upload_service_state": local_firmware_upload_service_state,
+        "buzzer_service_state": buzzer_service_state,
+        "led_display_service_state": led_display_service_state,
+        "lower_tank_service_state": lower_tank_service_state,
+        "slave_device_service_state": slave_device_service_state,
         "android_sso_session_limit_label": f"{android_sso_session_limit} Android device{'s' if android_sso_session_limit != 1 else ''}",
         "android_sso_session_limit_max": MAX_ANDROID_SSO_SESSION_LIMIT,
         "hardware_enabled_count": hardware_enabled_count,
@@ -5758,6 +5910,15 @@ def default_device_service_config(device_id=None, account=None):
             "buzzer_enabled": True,
             "led_display_enabled": True,
             "android_sso_session_limit": DEFAULT_ANDROID_SSO_SESSION_LIMIT,
+            "telemetry_service_state": "UNKNOWN",
+            "command_service_state": "UNKNOWN",
+            "relay_service_state": "UNKNOWN",
+            "ota_service_state": "UNKNOWN",
+            "local_firmware_upload_service_state": "UNKNOWN",
+            "buzzer_service_state": "UNKNOWN",
+            "led_display_service_state": "UNKNOWN",
+            "lower_tank_service_state": "UNKNOWN",
+            "slave_device_service_state": "UNKNOWN",
         },
         account=account,
     )
@@ -5817,6 +5978,35 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         if live_flag is not None:
             base_payload[config_key] = live_flag
 
+    for snapshot_key, config_key in (
+        ("tank_height_cm", "tank_height_cm"),
+        ("tank_capacity_liters", "tank_capacity_liters"),
+        ("tank_height_cm", "upper_tank_height_cm"),
+        ("tank_capacity_liters", "upper_tank_capacity_liters"),
+        ("lower_tank_height_cm", "lower_tank_height_cm"),
+        ("source_tank_capacity_liters", "lower_tank_capacity_liters"),
+        ("auto_start_pct", "auto_start_pct"),
+        ("auto_stop_pct", "auto_stop_pct"),
+    ):
+        if snapshot_key in snapshot:
+            normalized_value = normalize_optional_config_float(snapshot.get(snapshot_key))
+            if normalized_value is not None:
+                base_payload[config_key] = normalized_value
+
+    for snapshot_key, config_key in (
+        ("telemetry_service", "telemetry_service_state"),
+        ("command_service", "command_service_state"),
+        ("relay_service", "relay_service_state"),
+        ("ota_service", "ota_service_state"),
+        ("local_firmware_upload_service", "local_firmware_upload_service_state"),
+        ("buzzer_service", "buzzer_service_state"),
+        ("led_display_service", "led_display_service_state"),
+        ("lower_tank_service", "lower_tank_service_state"),
+        ("slave_device_service", "slave_device_service_state"),
+    ):
+        if snapshot_key in snapshot:
+            base_payload[config_key] = normalize_optional_service_state(snapshot.get(snapshot_key))
+
     return serialize_device_service_config(resolved_device_id, base_payload, account=account)
 
 
@@ -5840,6 +6030,14 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
                    source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                   tank_height_cm, tank_capacity_liters,
+                   upper_tank_height_cm, upper_tank_capacity_liters,
+                   lower_tank_height_cm, lower_tank_capacity_liters,
+                   auto_start_pct, auto_stop_pct,
+                   telemetry_service_state, command_service_state, relay_service_state,
+                   ota_service_state, local_firmware_upload_service_state,
+                   buzzer_service_state, led_display_service_state,
+                   lower_tank_service_state, slave_device_service_state,
                    created_at, updated_at
             FROM device_service_configs
             WHERE device_id = ?
@@ -5873,6 +6071,14 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, android_sso_session_limit,
+               tank_height_cm, tank_capacity_liters,
+               upper_tank_height_cm, upper_tank_capacity_liters,
+               lower_tank_height_cm, lower_tank_capacity_liters,
+               auto_start_pct, auto_stop_pct,
+               telemetry_service_state, command_service_state, relay_service_state,
+               ota_service_state, local_firmware_upload_service_state,
+               buzzer_service_state, led_display_service_state,
+               lower_tank_service_state, slave_device_service_state,
                created_at, updated_at
         FROM device_service_configs
         """
@@ -5945,6 +6151,24 @@ def upsert_device_service_config(
     buzzer_enabled=None,
     led_display_enabled=None,
     android_sso_session_limit=None,
+    tank_height_cm=None,
+    tank_capacity_liters=None,
+    upper_tank_height_cm=None,
+    upper_tank_capacity_liters=None,
+    lower_tank_height_cm=None,
+    lower_tank_capacity_liters=None,
+    auto_start_pct=None,
+    auto_stop_pct=None,
+    telemetry_service_state=None,
+    command_service_state=None,
+    relay_service_state=None,
+    ota_service_state=None,
+    local_firmware_upload_service_state=None,
+    buzzer_service_state=None,
+    led_display_service_state=None,
+    lower_tank_service_state=None,
+    slave_device_service_state=None,
+    local_web_password=None,
 ):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -6014,6 +6238,70 @@ def upsert_device_service_config(
         cloud_feed_mode,
         default=existing.get("cloud_feed_mode", DEVICE_SERVICE_CLOUD_FEED_FULL),
     )
+    resolved_tank_height_cm = normalize_optional_config_float(tank_height_cm)
+    if resolved_tank_height_cm is None:
+        resolved_tank_height_cm = normalize_optional_config_float(existing.get("tank_height_cm"))
+    resolved_tank_capacity_liters = normalize_optional_config_float(tank_capacity_liters)
+    if resolved_tank_capacity_liters is None:
+        resolved_tank_capacity_liters = normalize_optional_config_float(existing.get("tank_capacity_liters"))
+    resolved_upper_tank_height_cm = normalize_optional_config_float(upper_tank_height_cm)
+    if resolved_upper_tank_height_cm is None:
+        resolved_upper_tank_height_cm = normalize_optional_config_float(existing.get("upper_tank_height_cm"))
+    if resolved_upper_tank_height_cm is None:
+        resolved_upper_tank_height_cm = resolved_tank_height_cm
+    resolved_upper_tank_capacity_liters = normalize_optional_config_float(upper_tank_capacity_liters)
+    if resolved_upper_tank_capacity_liters is None:
+        resolved_upper_tank_capacity_liters = normalize_optional_config_float(existing.get("upper_tank_capacity_liters"))
+    if resolved_upper_tank_capacity_liters is None:
+        resolved_upper_tank_capacity_liters = resolved_tank_capacity_liters
+    resolved_lower_tank_height_cm = normalize_optional_config_float(lower_tank_height_cm)
+    if resolved_lower_tank_height_cm is None:
+        resolved_lower_tank_height_cm = normalize_optional_config_float(existing.get("lower_tank_height_cm"))
+    resolved_lower_tank_capacity_liters = normalize_optional_config_float(lower_tank_capacity_liters)
+    if resolved_lower_tank_capacity_liters is None:
+        resolved_lower_tank_capacity_liters = normalize_optional_config_float(existing.get("lower_tank_capacity_liters"))
+    resolved_auto_start_pct = normalize_optional_config_float(auto_start_pct)
+    if resolved_auto_start_pct is None:
+        resolved_auto_start_pct = normalize_optional_config_float(existing.get("auto_start_pct"))
+    resolved_auto_stop_pct = normalize_optional_config_float(auto_stop_pct)
+    if resolved_auto_stop_pct is None:
+        resolved_auto_stop_pct = normalize_optional_config_float(existing.get("auto_stop_pct"))
+    resolved_telemetry_service_state = normalize_optional_service_state(
+        telemetry_service_state,
+        default=existing.get("telemetry_service_state", "UNKNOWN"),
+    )
+    resolved_command_service_state = normalize_optional_service_state(
+        command_service_state,
+        default=existing.get("command_service_state", "UNKNOWN"),
+    )
+    resolved_relay_service_state = normalize_optional_service_state(
+        relay_service_state,
+        default=existing.get("relay_service_state", "UNKNOWN"),
+    )
+    resolved_ota_service_state = normalize_optional_service_state(
+        ota_service_state,
+        default=existing.get("ota_service_state", "UNKNOWN"),
+    )
+    resolved_local_firmware_upload_service_state = normalize_optional_service_state(
+        local_firmware_upload_service_state,
+        default=existing.get("local_firmware_upload_service_state", "UNKNOWN"),
+    )
+    resolved_buzzer_service_state = normalize_optional_service_state(
+        buzzer_service_state,
+        default=existing.get("buzzer_service_state", "UNKNOWN"),
+    )
+    resolved_led_display_service_state = normalize_optional_service_state(
+        led_display_service_state,
+        default=existing.get("led_display_service_state", "UNKNOWN"),
+    )
+    resolved_lower_tank_service_state = normalize_optional_service_state(
+        lower_tank_service_state,
+        default=existing.get("lower_tank_service_state", "UNKNOWN"),
+    )
+    resolved_slave_device_service_state = normalize_optional_service_state(
+        slave_device_service_state,
+        default=existing.get("slave_device_service_state", "UNKNOWN"),
+    )
 
     with get_db() as db:
         db.execute(
@@ -6024,9 +6312,17 @@ def upsert_device_service_config(
                 source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                tank_height_cm, tank_capacity_liters,
+                upper_tank_height_cm, upper_tank_capacity_liters,
+                lower_tank_height_cm, lower_tank_capacity_liters,
+                auto_start_pct, auto_stop_pct,
+                telemetry_service_state, command_service_state, relay_service_state,
+                ota_service_state, local_firmware_upload_service_state,
+                buzzer_service_state, led_display_service_state,
+                lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -6041,6 +6337,23 @@ def upsert_device_service_config(
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
                 android_sso_session_limit=excluded.android_sso_session_limit,
+                tank_height_cm=excluded.tank_height_cm,
+                tank_capacity_liters=excluded.tank_capacity_liters,
+                upper_tank_height_cm=excluded.upper_tank_height_cm,
+                upper_tank_capacity_liters=excluded.upper_tank_capacity_liters,
+                lower_tank_height_cm=excluded.lower_tank_height_cm,
+                lower_tank_capacity_liters=excluded.lower_tank_capacity_liters,
+                auto_start_pct=excluded.auto_start_pct,
+                auto_stop_pct=excluded.auto_stop_pct,
+                telemetry_service_state=excluded.telemetry_service_state,
+                command_service_state=excluded.command_service_state,
+                relay_service_state=excluded.relay_service_state,
+                ota_service_state=excluded.ota_service_state,
+                local_firmware_upload_service_state=excluded.local_firmware_upload_service_state,
+                buzzer_service_state=excluded.buzzer_service_state,
+                led_display_service_state=excluded.led_display_service_state,
+                lower_tank_service_state=excluded.lower_tank_service_state,
+                slave_device_service_state=excluded.slave_device_service_state,
                 updated_at=CURRENT_TIMESTAMP
             """,
             (
@@ -6058,8 +6371,31 @@ def upsert_device_service_config(
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
                 resolved_android_sso_session_limit,
+                resolved_tank_height_cm,
+                resolved_tank_capacity_liters,
+                resolved_upper_tank_height_cm,
+                resolved_upper_tank_capacity_liters,
+                resolved_lower_tank_height_cm,
+                resolved_lower_tank_capacity_liters,
+                resolved_auto_start_pct,
+                resolved_auto_stop_pct,
+                resolved_telemetry_service_state,
+                resolved_command_service_state,
+                resolved_relay_service_state,
+                resolved_ota_service_state,
+                resolved_local_firmware_upload_service_state,
+                resolved_buzzer_service_state,
+                resolved_led_display_service_state,
+                resolved_lower_tank_service_state,
+                resolved_slave_device_service_state,
             ),
         )
+
+    persisted_local_web_password = str(local_web_password or "").strip()
+    if persisted_local_web_password:
+        save_device_local_web_password(normalized_device_id, persisted_local_web_password)
+    elif not fetch_device_local_web_password(normalized_device_id, default_to_env=False):
+        save_device_local_web_password(normalized_device_id, default_local_web_auth_password())
 
     if account:
         desired_cloud_feed_enabled = 1 if resolved_cloud_feed_mode != DEVICE_SERVICE_CLOUD_FEED_OFF else 0
@@ -6167,6 +6503,11 @@ def save_device_automation_settings(device_id, auto_start_pct, auto_stop_pct, so
         source,
         now_utc().strftime(TIMESTAMP_FORMAT),
     )
+    upsert_device_service_config(
+        normalized_device_id,
+        auto_start_pct=settings["auto_start_pct"],
+        auto_stop_pct=settings["auto_stop_pct"],
+    )
     setting_key = device_automation_settings_key(normalized_device_id)
     set_app_setting(setting_key, json.dumps(settings, separators=(",", ":")))
     return settings
@@ -6176,16 +6517,10 @@ def fetch_device_automation_settings(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id)
     live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
     if live_settings:
-        setting_key = device_automation_settings_key(normalized_device_id)
-        raw_value = get_app_setting(setting_key, "") if setting_key else ""
-        try:
-            stored = json.loads(raw_value) if raw_value else {}
-        except (TypeError, ValueError, json.JSONDecodeError):
-            stored = {}
+        stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
         if (
-            not stored
-            or safe_float(stored.get("auto_start_pct"), -1) != live_settings["auto_start_pct"]
-            or safe_float(stored.get("auto_stop_pct"), -1) != live_settings["auto_stop_pct"]
+            safe_float((stored_service_config or {}).get("auto_start_pct"), -1) != live_settings["auto_start_pct"]
+            or safe_float((stored_service_config or {}).get("auto_stop_pct"), -1) != live_settings["auto_stop_pct"]
         ):
             save_device_automation_settings(
                 normalized_device_id,
@@ -6194,6 +6529,18 @@ def fetch_device_automation_settings(device_id, snapshot=None):
                 source="telemetry_sync",
             )
         return live_settings
+
+    stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
+    stored_auto_start_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_start_pct"))
+    stored_auto_stop_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_stop_pct"))
+    if stored_auto_start_pct is not None and stored_auto_stop_pct is not None:
+        return build_device_automation_settings(
+            normalized_device_id,
+            stored_auto_start_pct,
+            stored_auto_stop_pct,
+            "device_service_config",
+            (stored_service_config or {}).get("updated_at"),
+        )
 
     setting_key = device_automation_settings_key(normalized_device_id)
     raw_value = get_app_setting(setting_key, "") if setting_key else ""
@@ -6206,6 +6553,11 @@ def fetch_device_automation_settings(device_id, snapshot=None):
             auto_start_pct = _coerce_optional_threshold_value(payload.get("auto_start_pct"))
             auto_stop_pct = _coerce_optional_threshold_value(payload.get("auto_stop_pct"))
             if auto_start_pct is not None and auto_stop_pct is not None:
+                upsert_device_service_config(
+                    normalized_device_id,
+                    auto_start_pct=auto_start_pct,
+                    auto_stop_pct=auto_stop_pct,
+                )
                 return build_device_automation_settings(
                     normalized_device_id,
                     auto_start_pct,
@@ -6215,6 +6567,60 @@ def fetch_device_automation_settings(device_id, snapshot=None):
                 )
 
     return default_device_automation_settings(normalized_device_id)
+
+
+def build_current_saved_config(device_id, account=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return {
+            "device_id": "",
+            "configuration_source": "db_upsert",
+            "service_config": default_device_service_config(device_id, account=account),
+            "automation_settings": default_device_automation_settings(device_id),
+        }
+
+    resolved_account = account if account is not None else fetch_customer_account(normalized_device_id)
+    saved_service_config = fetch_device_service_config(normalized_device_id, account=resolved_account, snapshot=None)
+    saved_automation_settings = fetch_device_automation_settings(normalized_device_id, snapshot=None)
+    updated_candidates = [
+        str(saved_service_config.get("updated_at") or "").strip(),
+        str(saved_automation_settings.get("updated_at") or "").strip(),
+    ]
+    updated_at = next((value for value in updated_candidates if value), "")
+    auto_start_pct = _coerce_optional_threshold_value(
+        saved_automation_settings.get("auto_start_pct") if saved_automation_settings else None
+    )
+    if auto_start_pct is None:
+        auto_start_pct = _coerce_optional_threshold_value(saved_service_config.get("auto_start_pct"))
+    auto_stop_pct = _coerce_optional_threshold_value(
+        saved_automation_settings.get("auto_stop_pct") if saved_automation_settings else None
+    )
+    if auto_stop_pct is None:
+        auto_stop_pct = _coerce_optional_threshold_value(saved_service_config.get("auto_stop_pct"))
+    return {
+        "device_id": normalized_device_id,
+        "configuration_source": "db_upsert",
+        "updated_at": updated_at,
+        "tank_height_cm": saved_service_config.get("tank_height_cm"),
+        "tank_capacity_liters": saved_service_config.get("tank_capacity_liters"),
+        "upper_tank_height_cm": saved_service_config.get("upper_tank_height_cm"),
+        "upper_tank_capacity_liters": saved_service_config.get("upper_tank_capacity_liters"),
+        "lower_tank_height_cm": saved_service_config.get("lower_tank_height_cm"),
+        "lower_tank_capacity_liters": saved_service_config.get("lower_tank_capacity_liters"),
+        "auto_start_pct": auto_start_pct,
+        "auto_stop_pct": auto_stop_pct,
+        "telemetry_service_state": saved_service_config.get("telemetry_service_state"),
+        "command_service_state": saved_service_config.get("command_service_state"),
+        "relay_service_state": saved_service_config.get("relay_service_state"),
+        "ota_service_state": saved_service_config.get("ota_service_state"),
+        "local_firmware_upload_service_state": saved_service_config.get("local_firmware_upload_service_state"),
+        "buzzer_service_state": saved_service_config.get("buzzer_service_state"),
+        "led_display_service_state": saved_service_config.get("led_display_service_state"),
+        "lower_tank_service_state": saved_service_config.get("lower_tank_service_state"),
+        "slave_device_service_state": saved_service_config.get("slave_device_service_state"),
+        "service_config": saved_service_config,
+        "automation_settings": saved_automation_settings,
+    }
 
 
 def upsert_device_automation_settings(device_id, auto_start_pct=None, auto_stop_pct=None, snapshot=None, source="cloud"):
@@ -9904,7 +10310,7 @@ def fetch_local_device_status(base_url, device_id=None):
         raise ValueError("local device URL is not configured")
 
     username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip() or "swtadmin"
-    password = os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip() or "lOpbDRMeXBokNcQ4Y7lfgWDzPretehDY"
+    password = fetch_device_local_web_password(device_id)
     timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
     auth = (username, password) if username and password else None
     response = requests.get(status_url, auth=auth, timeout=timeout)
@@ -11304,6 +11710,7 @@ def mobile_bootstrap():
         "viewer": viewer,
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
+        "current_saved_config": build_current_saved_config(scoped_device_id),
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
@@ -11509,6 +11916,13 @@ def mobile_sensor_configure():
     if isinstance(result, tuple):
         payload, status_code = result
         return jsonify(payload), status_code
+    upsert_device_service_config(
+        target_device,
+        tank_height_cm=height_cm,
+        tank_capacity_liters=capacity_liters,
+        upper_tank_height_cm=height_cm,
+        upper_tank_capacity_liters=capacity_liters,
+    )
     payload = dict(result)
     if height_cm is not None:
         payload["height_cm"] = round(height_cm, 1)
@@ -11539,6 +11953,7 @@ def mobile_device_status():
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
+        "current_saved_config": build_current_saved_config(scoped_device_id),
         "viewer": resolve_mobile_user(),
     })
 
@@ -11567,6 +11982,7 @@ def mobile_device_services():
                 "device_id": target_device,
                 "config": fetch_device_service_config(target_device, snapshot=snapshot),
                 "automation_settings": fetch_device_automation_settings(target_device, snapshot=snapshot),
+                "current_saved_config": build_current_saved_config(target_device),
                 "live_services": {
                     "source_tank_monitoring_enabled": bool(
                         snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
@@ -11620,6 +12036,7 @@ def mobile_device_services():
         "message": f"Service settings saved for {target_device}.",
         "device_id": target_device,
         "config": updated_config,
+        "current_saved_config": build_current_saved_config(target_device),
         "queued_command": command,
     }
     if isinstance(queue_result, tuple):
@@ -11649,6 +12066,7 @@ def mobile_device_thresholds():
             {
                 "device_id": target_device,
                 "settings": fetch_device_automation_settings(target_device, snapshot=snapshot),
+                "current_saved_config": build_current_saved_config(target_device),
             }
         )
 
@@ -11698,6 +12116,7 @@ def mobile_device_thresholds():
         ),
         "device_id": target_device,
         "settings": updated_settings,
+        "current_saved_config": build_current_saved_config(target_device),
         "queued_command": command,
     }
     if isinstance(queue_result, tuple):
@@ -13161,9 +13580,10 @@ def device_detail_page(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
-    service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)
+    current_saved_config = build_current_saved_config(scoped_device_id, account=account)
+    service_config = current_saved_config.get("service_config") or default_device_service_config(scoped_device_id, account=account)
     firmware_install_profile = build_device_firmware_install_profile(service_config)
-    automation_settings = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)
+    automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     if simulator_state in {"on", "off"}:
@@ -13175,6 +13595,7 @@ def device_detail_page(device_id):
         customer_account=account,
         service_config=service_config,
         automation_settings=automation_settings,
+        current_saved_config=current_saved_config,
         android_sso_active_session_count=active_platform_session_count(
             SESSION_PLATFORM_ANDROID,
             "customer",
@@ -13522,6 +13943,20 @@ def admin_device_detail_sensor_configure(device_id):
                 config_error=payload.get("error") or "Unable to queue tank capacity command.",
             )
         )
+    if lower_requested:
+        upsert_device_service_config(
+            scoped_device_id,
+            lower_tank_height_cm=height_cm,
+            lower_tank_capacity_liters=capacity_liters,
+        )
+    else:
+        upsert_device_service_config(
+            scoped_device_id,
+            tank_height_cm=height_cm,
+            tank_capacity_liters=capacity_liters,
+            upper_tank_height_cm=height_cm,
+            upper_tank_capacity_liters=capacity_liters,
+        )
     log_audit_event(
         actor=current_actor_username(),
         action="queue_device_tank_capacity",
@@ -13699,6 +14134,7 @@ def device_detail_status(device_id):
         "snapshot": snapshot_payload,
         "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
+        "current_saved_config": build_current_saved_config(scoped_device_id),
     }
     if include_alerts:
         payload["alerts"] = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
