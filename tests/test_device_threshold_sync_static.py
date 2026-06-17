@@ -14,7 +14,7 @@ def test_mobile_threshold_route_saves_shared_device_settings():
     assert "fetch_device_automation_settings(target_device, snapshot=snapshot)" in route_source
     assert "upsert_device_automation_settings(" in route_source
     assert "build_device_automation_command(updated_settings)" in route_source
-    assert '"admin access required"' in route_source
+    assert '"mobile access required"' in route_source
 
 
 def test_device_detail_page_exposes_shared_threshold_settings():

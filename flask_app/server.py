@@ -11653,8 +11653,8 @@ def mobile_device_thresholds():
         )
 
     user = resolve_mobile_user()
-    if not user or user.get("role") != "admin":
-        return jsonify({"error": "admin access required"}), 403
+    if not user or user.get("role") not in {"customer", "admin"}:
+        return jsonify({"error": "mobile access required"}), 403
 
     try:
         updated_settings = upsert_device_automation_settings(
