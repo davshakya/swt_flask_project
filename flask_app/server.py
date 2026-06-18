@@ -13696,6 +13696,12 @@ def device_detail_page(device_id):
     account = fetch_customer_account(scoped_device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     current_saved_config = build_current_saved_config(scoped_device_id, account=account)
+    peer_channel_input_value = (
+        current_saved_config.get("direct_peer_wifi_channel")
+        or (snapshot or {}).get("direct_peer_config_channel")
+        or (snapshot or {}).get("direct_peer_wifi_channel")
+        or 6
+    )
     service_config = current_saved_config.get("service_config") or default_device_service_config(scoped_device_id, account=account)
     firmware_install_profile = build_device_firmware_install_profile(service_config)
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
@@ -13712,6 +13718,7 @@ def device_detail_page(device_id):
         service_config=service_config,
         automation_settings=automation_settings,
         current_saved_config=current_saved_config,
+        peer_channel_input_value=peer_channel_input_value,
         android_sso_active_session_count=active_platform_session_count(
             SESSION_PLATFORM_ANDROID,
             "customer",
