@@ -240,6 +240,17 @@ body{font-size:16px}
                 <button class="btn btn-admin" type="submit"><span>Save Tank Thresholds</span></button>
             </form>
 
+            <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_peer_channel', device_id=device_id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <h3>Peer Channel</h3>
+                <div class="form-group">
+                    <label for="direct_peer_wifi_channel">ESP-NOW / 2.4 GHz Channel</label>
+                    <input id="direct_peer_wifi_channel" name="direct_peer_wifi_channel" type="number" min="1" max="13" step="1" inputmode="numeric" value="{{ current_saved_config.get('direct_peer_wifi_channel') or snapshot.get('direct_peer_config_channel') or snapshot.get('direct_peer_wifi_channel') or 6 }}">
+                </div>
+                <div class="helper-text">Use the same channel on the slave and the master's 2.4 GHz router link. Saving here queues a PEER_CHANNEL update for the controller pair.</div>
+                <button class="btn btn-admin" type="submit"><span>Save Peer Channel</span></button>
+            </form>
+
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Customer Name</h3>

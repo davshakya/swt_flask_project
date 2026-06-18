@@ -4737,6 +4737,7 @@ def ensure_device_service_configs_table(cursor):
             lower_tank_capacity_liters REAL,
             auto_start_pct REAL,
             auto_stop_pct REAL,
+            direct_peer_wifi_channel INTEGER,
             telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
             command_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
             relay_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
@@ -4777,6 +4778,7 @@ def ensure_device_service_configs_columns(cursor):
         "lower_tank_capacity_liters": "REAL",
         "auto_start_pct": "REAL",
         "auto_stop_pct": "REAL",
+        "direct_peer_wifi_channel": "INTEGER",
         "telemetry_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
         "command_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
         "relay_service_state": "TEXT NOT NULL DEFAULT 'UNKNOWN'",
@@ -5804,6 +5806,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     lower_tank_capacity_liters = normalize_optional_config_float(payload.get("lower_tank_capacity_liters"))
     auto_start_pct = normalize_optional_config_float(payload.get("auto_start_pct"))
     auto_stop_pct = normalize_optional_config_float(payload.get("auto_stop_pct"))
+    direct_peer_wifi_channel = _coerce_optional_peer_channel_value(payload.get("direct_peer_wifi_channel"))
     telemetry_service_state = normalize_optional_service_state(payload.get("telemetry_service_state"))
     command_service_state = normalize_optional_service_state(payload.get("command_service_state"))
     relay_service_state = normalize_optional_service_state(payload.get("relay_service_state"))
@@ -5864,6 +5867,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "lower_tank_capacity_liters": lower_tank_capacity_liters,
         "auto_start_pct": auto_start_pct,
         "auto_stop_pct": auto_stop_pct,
+        "direct_peer_wifi_channel": direct_peer_wifi_channel,
         "telemetry_service_state": telemetry_service_state,
         "command_service_state": command_service_state,
         "relay_service_state": relay_service_state,
@@ -5992,6 +5996,14 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
             normalized_value = normalize_optional_config_float(snapshot.get(snapshot_key))
             if normalized_value is not None:
                 base_payload[config_key] = normalized_value
+
+    peer_channel_value = snapshot.get("direct_peer_config_channel", snapshot.get("direct_peer_wifi_channel"))
+    try:
+        normalized_peer_channel = _coerce_optional_peer_channel_value(peer_channel_value)
+    except ValueError:
+        normalized_peer_channel = None
+    if normalized_peer_channel is not None:
+        base_payload["direct_peer_wifi_channel"] = normalized_peer_channel
 
     for snapshot_key, config_key in (
         ("telemetry_service", "telemetry_service_state"),
@@ -6159,6 +6171,7 @@ def upsert_device_service_config(
     lower_tank_capacity_liters=None,
     auto_start_pct=None,
     auto_stop_pct=None,
+    direct_peer_wifi_channel=None,
     telemetry_service_state=None,
     command_service_state=None,
     relay_service_state=None,
@@ -6266,6 +6279,9 @@ def upsert_device_service_config(
     resolved_auto_stop_pct = normalize_optional_config_float(auto_stop_pct)
     if resolved_auto_stop_pct is None:
         resolved_auto_stop_pct = normalize_optional_config_float(existing.get("auto_stop_pct"))
+    resolved_direct_peer_wifi_channel = _coerce_optional_peer_channel_value(direct_peer_wifi_channel)
+    if resolved_direct_peer_wifi_channel is None:
+        resolved_direct_peer_wifi_channel = _coerce_optional_peer_channel_value(existing.get("direct_peer_wifi_channel"))
     resolved_telemetry_service_state = normalize_optional_service_state(
         telemetry_service_state,
         default=existing.get("telemetry_service_state", "UNKNOWN"),
@@ -6315,14 +6331,14 @@ def upsert_device_service_config(
                 tank_height_cm, tank_capacity_liters,
                 upper_tank_height_cm, upper_tank_capacity_liters,
                 lower_tank_height_cm, lower_tank_capacity_liters,
-                auto_start_pct, auto_stop_pct,
+                auto_start_pct, auto_stop_pct, direct_peer_wifi_channel,
                 telemetry_service_state, command_service_state, relay_service_state,
                 ota_service_state, local_firmware_upload_service_state,
                 buzzer_service_state, led_display_service_state,
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -6345,6 +6361,7 @@ def upsert_device_service_config(
                 lower_tank_capacity_liters=excluded.lower_tank_capacity_liters,
                 auto_start_pct=excluded.auto_start_pct,
                 auto_stop_pct=excluded.auto_stop_pct,
+                direct_peer_wifi_channel=excluded.direct_peer_wifi_channel,
                 telemetry_service_state=excluded.telemetry_service_state,
                 command_service_state=excluded.command_service_state,
                 relay_service_state=excluded.relay_service_state,
@@ -6379,6 +6396,7 @@ def upsert_device_service_config(
                 resolved_lower_tank_capacity_liters,
                 resolved_auto_start_pct,
                 resolved_auto_stop_pct,
+                resolved_direct_peer_wifi_channel,
                 resolved_telemetry_service_state,
                 resolved_command_service_state,
                 resolved_relay_service_state,
@@ -6469,6 +6487,20 @@ def _resolve_threshold_value(payload, *keys):
         if key in (payload or {}):
             return payload.get(key)
     return None
+
+
+def _coerce_optional_peer_channel_value(value):
+    if value is None:
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        resolved = int(float(value))
+    except (TypeError, ValueError):
+        raise ValueError("Peer channel must be a number between 1 and 13.")
+    if resolved < 1 or resolved > 13:
+        raise ValueError("Peer channel must be between 1 and 13.")
+    return resolved
 
 
 def snapshot_device_automation_settings(snapshot, device_id=None):
@@ -6609,6 +6641,7 @@ def build_current_saved_config(device_id, account=None):
         "lower_tank_capacity_liters": saved_service_config.get("lower_tank_capacity_liters"),
         "auto_start_pct": auto_start_pct,
         "auto_stop_pct": auto_stop_pct,
+        "direct_peer_wifi_channel": saved_service_config.get("direct_peer_wifi_channel"),
         "telemetry_service_state": saved_service_config.get("telemetry_service_state"),
         "command_service_state": saved_service_config.get("command_service_state"),
         "relay_service_state": saved_service_config.get("relay_service_state"),
@@ -6658,6 +6691,13 @@ def build_device_automation_command(settings):
         start=f"{auto_start_pct:g}",
         stop=f"{auto_stop_pct:g}",
     )
+
+
+def build_device_peer_channel_command(channel):
+    resolved_channel = _coerce_optional_peer_channel_value(channel)
+    if resolved_channel is None:
+        raise ValueError("Peer channel is required.")
+    return f"PEER_CHANNEL:{resolved_channel}"
 
 
 def paired_slave_device_id(master_device_id):
@@ -12127,6 +12167,81 @@ def mobile_device_thresholds():
     return jsonify(response_payload)
 
 
+@app.route("/api/mobile/device/peer-channel", methods=["GET", "POST"])
+@mobile_auth_required
+def mobile_device_peer_channel():
+    source_payload = request.get_json(silent=True) or {}
+    requested_device_id = (
+        source_payload.get("device_id")
+        if request.method == "POST"
+        else request.args.get("device_id", type=str)
+    )
+    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+
+    snapshot = fetch_device_snapshot(target_device)
+    if request.method == "GET":
+        return jsonify(
+            {
+                "device_id": target_device,
+                "direct_peer_wifi_channel": (
+                    build_current_saved_config(target_device).get("direct_peer_wifi_channel")
+                    or (snapshot or {}).get("direct_peer_config_channel")
+                    or (snapshot or {}).get("direct_peer_wifi_channel")
+                ),
+                "current_saved_config": build_current_saved_config(target_device),
+            }
+        )
+
+    user = resolve_mobile_user()
+    if not user or user.get("role") not in {"customer", "admin"}:
+        return jsonify({"error": "mobile access required"}), 403
+
+    try:
+        requested_channel = _coerce_optional_peer_channel_value(
+            source_payload.get("direct_peer_wifi_channel", source_payload.get("peer_channel"))
+        )
+        if requested_channel is None:
+            raise ValueError("Peer channel is required.")
+        updated_config = upsert_device_service_config(
+            target_device,
+            direct_peer_wifi_channel=requested_channel,
+        )
+        queued_command = build_device_peer_channel_command(requested_channel)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    queue_result = queue_command(queued_command, target_device=target_device)
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="update_device_peer_channel_mobile",
+        target_type="device",
+        target_id=target_device,
+        device_id=target_device,
+        details={
+            "direct_peer_wifi_channel": requested_channel,
+            "service_config": updated_config,
+            "queued_command": queued_command,
+            "source": "mobile_api",
+        },
+    )
+    response_payload = {
+        "message": f"Peer channel saved for {target_device}. Channel {requested_channel} will apply on the next device command poll.",
+        "device_id": target_device,
+        "direct_peer_wifi_channel": requested_channel,
+        "service_config": updated_config,
+        "current_saved_config": build_current_saved_config(target_device),
+        "queued_command": queued_command,
+    }
+    if isinstance(queue_result, tuple):
+        error_payload, status_code = queue_result
+        response_payload.update({"queue_error": error_payload.get("error")})
+        return jsonify(response_payload), status_code
+    response_payload.update(queue_result)
+    return jsonify(response_payload)
+
+
 register_mobile_firmware_routes(
     app,
     mobile_auth_required=mobile_auth_required,
@@ -13771,6 +13886,51 @@ def admin_device_detail_thresholds(device_id):
         f"Tank thresholds saved for {scoped_device_id}. "
         f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
         "Device changes apply on the next command poll."
+    )
+    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+
+
+@app.route("/devices/<device_id>/peer-channel", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_peer_channel(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    try:
+        requested_channel = _coerce_optional_peer_channel_value(
+            request.form.get("direct_peer_wifi_channel") or request.form.get("peer_channel")
+        )
+        if requested_channel is None:
+            raise ValueError("Peer channel is required.")
+        updated_config = upsert_device_service_config(
+            scoped_device_id,
+            direct_peer_wifi_channel=requested_channel,
+        )
+        queued_command = build_device_peer_channel_command(requested_channel)
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+    queue_result = queue_command(queued_command, target_device=scoped_device_id)
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        error = error_payload.get("error") or "Unable to queue peer channel update."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="update_device_detail_peer_channel",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "direct_peer_wifi_channel": requested_channel,
+            "service_config": updated_config,
+            "queued_command": queued_command,
+            "source": "admin_dashboard",
+        },
+    )
+    message = (
+        f"Peer channel saved for {scoped_device_id}. "
+        f"Channel {requested_channel} will apply on the next device command poll."
     )
     return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
 
