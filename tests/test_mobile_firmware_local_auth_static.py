@@ -85,7 +85,7 @@ def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
 
     assert auth["device_id"] == "swt-000-000-000-001"
     assert auth["artifact_id"] == 42
-    assert auth["expires_at"] == 1_800_000_600
+    assert auth["expires_at"] == 1_800_003_600
     message = "\n".join(
         (
             auth["device_id"],

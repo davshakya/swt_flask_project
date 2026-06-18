@@ -8,7 +8,7 @@ from flask import jsonify, request, url_for
 from flask_app.firmware_artifacts import normalize_firmware_artifact_role
 
 
-OTA_AUTH_TTL_SECONDS = 10 * 60
+OTA_AUTH_TTL_SECONDS = 60 * 60
 
 
 def build_ota_authorization(device_id, artifact, device_key, now=None):
