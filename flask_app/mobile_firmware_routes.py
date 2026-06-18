@@ -114,7 +114,8 @@ def register_mobile_firmware_routes(
                 {
                     "error": (
                         f"OTA authorization is not configured for {local_upload_device_id}. "
-                        "Add the MCU device ID and key to SWT_DEVICE_KEYS, then retry."
+                        "Configure the matching raw key in SWT_DEVICE_KEYS, or set SWT_DEVICE_API_KEY "
+                        "when all SWT devices intentionally share that key, then restart Flask."
                     )
                 }
             ), 503

@@ -1035,7 +1035,18 @@ def find_matching_device_key_rule(device_id):
 
 def configured_device_key_for_id(device_id):
     matched_rule = find_matching_device_key_rule(device_id)
-    return matched_rule.get("key") if matched_rule else None
+    if matched_rule:
+        return matched_rule.get("key")
+
+    normalized_device_id = normalize_device_id(device_id)
+    shared_swt_key = os.environ.get("SWT_DEVICE_API_KEY", "").strip()
+    if (
+        normalized_device_id.startswith("swt-")
+        and shared_swt_key
+        and not device_config_value_is_placeholder(shared_swt_key)
+    ):
+        return shared_swt_key
+    return None
 
 
 def hash_device_api_key(device_key):

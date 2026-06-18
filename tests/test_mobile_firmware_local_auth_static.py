@@ -43,6 +43,19 @@ def test_mobile_firmware_routes_always_use_authenticated_device_scope():
     assert "fetch_firmware_artifact(artifact_id, device_id=target_device, role=target_role)" in route_source
 
 
+def test_ota_key_resolution_can_use_shared_swt_key_when_registry_is_absent():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    function_start = server_source.index("def configured_device_key_for_id")
+    function_body = server_source[
+        function_start : server_source.index("\ndef hash_device_api_key", function_start)
+    ]
+
+    assert 'os.environ.get("SWT_DEVICE_API_KEY", "").strip()' in function_body
+    assert 'normalized_device_id.startswith("swt-")' in function_body
+    assert "not device_config_value_is_placeholder(shared_swt_key)" in function_body
+    assert "return shared_swt_key" in function_body
+
+
 def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
     artifact = {
         "id": 42,
