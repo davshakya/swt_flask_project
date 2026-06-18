@@ -13707,6 +13707,7 @@ def device_detail_page(device_id):
         "device_detail.html",
         device_id=scoped_device_id,
         is_admin=True,
+        snapshot=snapshot or {},
         customer_account=account,
         service_config=service_config,
         automation_settings=automation_settings,
