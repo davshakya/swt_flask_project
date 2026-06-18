@@ -7024,12 +7024,14 @@ def mobile_auth_required(view):
 def current_mobile_scope_device_id(requested_device_id=None):
     mobile_user = resolve_mobile_user()
     normalized_requested = normalize_device_id(requested_device_id)
-    if not mobile_user or mobile_user.get("role") == "admin":
-        return normalized_requested or None
+    if not mobile_user or mobile_user.get("role") != "customer":
+        abort(401, description="Authenticated customer account required.")
     scoped_device_id = normalize_device_id(mobile_user.get("device_id"))
-    if normalized_requested and scoped_device_id and normalized_requested != scoped_device_id:
-        abort(403)
-    return scoped_device_id or normalized_requested or None
+    if not scoped_device_id:
+        abort(403, description="The logged-in account has no assigned device.")
+    if normalized_requested and normalized_requested != scoped_device_id:
+        abort(403, description="The requested device is not assigned to the logged-in account.")
+    return scoped_device_id
 
 
 def mobile_customer_cloud_feed_block_response():
@@ -12173,7 +12175,7 @@ def mobile_device_services():
         if request.method == "POST"
         else request.args.get("device_id", type=str)
     )
-    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    target_device = current_mobile_scope_device_id(requested_device_id)
     if not target_device:
         return jsonify({"error": "device not found"}), 404
 
@@ -12258,7 +12260,7 @@ def mobile_device_thresholds():
         if request.method == "POST"
         else request.args.get("device_id", type=str)
     )
-    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    target_device = current_mobile_scope_device_id(requested_device_id)
     if not target_device:
         return jsonify({"error": "device not found"}), 404
 
@@ -12338,7 +12340,7 @@ def mobile_device_peer_channel():
         if request.method == "POST"
         else request.args.get("device_id", type=str)
     )
-    target_device = current_mobile_scope_device_id(requested_device_id) or latest_device_id()
+    target_device = current_mobile_scope_device_id(requested_device_id)
     if not target_device:
         return jsonify({"error": "device not found"}), 404
 
