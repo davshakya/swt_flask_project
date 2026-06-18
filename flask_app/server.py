@@ -12413,6 +12413,8 @@ register_mobile_firmware_routes(
     fetch_device_service_config=fetch_device_service_config,
     build_firmware_artifact_payload=build_firmware_artifact_payload,
     configured_device_key_for_id=configured_device_key_for_id,
+    fetch_device_local_web_password=fetch_device_local_web_password,
+    default_local_web_auth_password=default_local_web_auth_password,
     firmware_artifact_storage_path=firmware_artifact_storage_path,
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
     logger=logger,
