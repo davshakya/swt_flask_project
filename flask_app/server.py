@@ -6700,6 +6700,145 @@ def build_device_peer_channel_command(channel):
     return f"PEER_CHANNEL:{resolved_channel}"
 
 
+def runtime_sync_float_matches(live_value, saved_value, tolerance=0.11):
+    saved_number = normalize_optional_config_float(saved_value)
+    if saved_number is None:
+        return True
+    live_number = normalize_optional_config_float(live_value)
+    if live_number is None:
+        return False
+    return abs(live_number - saved_number) <= tolerance
+
+
+def runtime_sync_service_enabled(snapshot, key):
+    return str((snapshot or {}).get(key) or "").strip().upper() == "ON"
+
+
+def build_runtime_sync_command(device_id, snapshot=None, account=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+
+    live_snapshot = snapshot or fetch_device_snapshot(normalized_device_id)
+    if not snapshot_has_live_device_data(live_snapshot):
+        return None
+
+    saved_config = build_current_saved_config(normalized_device_id, account=account)
+    service_config = saved_config.get("service_config") or {}
+    automation_settings = saved_config.get("automation_settings") or {}
+
+    desired_slave_enabled = bool(service_config.get("slave_device_enabled", True)) and bool(
+        service_config.get("slave_upper_sensor_enabled", service_config.get("slave_device_enabled", True))
+    )
+    desired_master_upper_enabled = bool(service_config.get("master_upper_sensor_enabled", not desired_slave_enabled))
+    if not desired_slave_enabled:
+        desired_master_upper_enabled = True
+
+    live_upper_source = str(live_snapshot.get("upper_sensor_source") or "").strip().lower()
+    live_slave_enabled = live_upper_source == "slave"
+    service_drift = any(
+        (
+            live_slave_enabled != desired_slave_enabled,
+            runtime_sync_service_enabled(live_snapshot, "lower_tank_service")
+            != bool(service_config.get("source_tank_monitoring_enabled")),
+            runtime_sync_service_enabled(live_snapshot, "relay_service")
+            != bool(service_config.get("relay_enabled", True)),
+            runtime_sync_service_enabled(live_snapshot, "buzzer_service")
+            != bool(service_config.get("buzzer_enabled", True)),
+            runtime_sync_service_enabled(live_snapshot, "led_display_service")
+            != bool(service_config.get("led_display_enabled", True)),
+            runtime_sync_service_enabled(live_snapshot, "local_firmware_upload_service")
+            != bool(service_config.get("local_firmware_upload_enabled", True)),
+        )
+    )
+    if desired_master_upper_enabled and live_upper_source != "master" and not desired_slave_enabled:
+        service_drift = True
+    if service_drift:
+        return {"command": build_device_service_command(service_config), "reason": "service_config"}
+
+    saved_start = _coerce_optional_threshold_value(
+        automation_settings.get("auto_start_pct") if automation_settings else saved_config.get("auto_start_pct")
+    )
+    saved_stop = _coerce_optional_threshold_value(
+        automation_settings.get("auto_stop_pct") if automation_settings else saved_config.get("auto_stop_pct")
+    )
+    live_start = _coerce_optional_threshold_value(
+        live_snapshot.get("auto_start_pct", live_snapshot.get("auto_start_level_pct"))
+    )
+    live_stop = _coerce_optional_threshold_value(
+        live_snapshot.get("auto_stop_pct", live_snapshot.get("auto_stop_level_pct"))
+    )
+    if (
+        saved_start is not None
+        and saved_stop is not None
+        and (
+            live_start is None
+            or live_stop is None
+            or abs(live_start - saved_start) > 0.11
+            or abs(live_stop - saved_stop) > 0.11
+        )
+    ):
+        return {
+            "command": build_device_automation_command(
+                {"auto_start_pct": saved_start, "auto_stop_pct": saved_stop}
+            ),
+            "reason": "automation_thresholds",
+        }
+
+    desired_upper_height = saved_config.get("tank_height_cm")
+    desired_upper_capacity = saved_config.get("tank_capacity_liters")
+    live_upper_height = live_snapshot.get("tank_height_cm")
+    live_upper_capacity = live_snapshot.get("tank_capacity_liters", live_snapshot.get("capacity_liters"))
+    if (
+        normalize_optional_config_float(desired_upper_height) is not None
+        and normalize_optional_config_float(desired_upper_capacity) is not None
+        and (
+            not runtime_sync_float_matches(live_upper_height, desired_upper_height)
+            or not runtime_sync_float_matches(live_upper_capacity, desired_upper_capacity)
+        )
+    ):
+        return {
+            "command": "CONFIG_UPPER:{height}:{capacity}".format(
+                height=f"{normalize_optional_config_float(desired_upper_height):.1f}",
+                capacity=f"{normalize_optional_config_float(desired_upper_capacity):.1f}",
+            ),
+            "reason": "upper_tank_setup",
+        }
+
+    desired_lower_height = saved_config.get("lower_tank_height_cm")
+    desired_lower_capacity = saved_config.get("lower_tank_capacity_liters")
+    live_lower_height = live_snapshot.get("lower_tank_height_cm")
+    live_lower_capacity = live_snapshot.get("lower_tank_capacity_liters", live_snapshot.get("source_tank_capacity_liters"))
+    if (
+        bool(service_config.get("source_tank_monitoring_enabled"))
+        and normalize_optional_config_float(desired_lower_height) is not None
+        and normalize_optional_config_float(desired_lower_capacity) is not None
+        and (
+            not runtime_sync_float_matches(live_lower_height, desired_lower_height)
+            or not runtime_sync_float_matches(live_lower_capacity, desired_lower_capacity)
+        )
+    ):
+        return {
+            "command": "CONFIG_LOWER:{height}:{capacity}".format(
+                height=f"{normalize_optional_config_float(desired_lower_height):.1f}",
+                capacity=f"{normalize_optional_config_float(desired_lower_capacity):.1f}",
+            ),
+            "reason": "lower_tank_setup",
+        }
+
+    desired_peer_channel = _coerce_optional_peer_channel_value(saved_config.get("direct_peer_wifi_channel"))
+    live_peer_channel = _coerce_optional_peer_channel_value(
+        live_snapshot.get("direct_peer_config_channel", live_snapshot.get("direct_peer_wifi_channel"))
+    )
+    if desired_peer_channel is not None and desired_peer_channel != live_peer_channel:
+        return {
+            "command": build_device_peer_channel_command(desired_peer_channel),
+            "reason": "peer_channel",
+        }
+
+    return None
+
+
 def paired_slave_device_id(master_device_id):
     normalized_device_id = normalize_device_id(master_device_id)
     parts = normalized_device_id.split("-")
@@ -10831,9 +10970,32 @@ def peek_queued_command(device_id):
             """,
             (normalized_device_id,),
         ).fetchone()
-        if not row:
-            return None
-    return {"id": row["id"], "command": row["command"]}
+        if row:
+            return {"id": row["id"], "command": row["command"]}
+
+    sync_command = build_runtime_sync_command(normalized_device_id)
+    if sync_command and sync_command.get("command"):
+        queue_device_command(sync_command["command"], normalized_device_id)
+        logger.info(
+            "Queued runtime sync command for %s: %s (%s)",
+            normalized_device_id,
+            sync_command["command"],
+            sync_command.get("reason") or "runtime_sync",
+        )
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT id, command
+                FROM device_command_queue
+                WHERE target_device = ? AND delivered_at IS NULL
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (normalized_device_id,),
+            ).fetchone()
+            if row:
+                return {"id": row["id"], "command": row["command"]}
+    return None
 
 
 def acknowledge_queued_command_id(device_id, command_id):
@@ -12250,6 +12412,7 @@ register_mobile_firmware_routes(
     fetch_firmware_artifact=fetch_firmware_artifact,
     fetch_device_service_config=fetch_device_service_config,
     build_firmware_artifact_payload=build_firmware_artifact_payload,
+    configured_device_key_for_id=configured_device_key_for_id,
     firmware_artifact_storage_path=firmware_artifact_storage_path,
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
     logger=logger,

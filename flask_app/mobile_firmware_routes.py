@@ -13,10 +13,17 @@ def register_mobile_firmware_routes(
     fetch_firmware_artifact,
     fetch_device_service_config,
     build_firmware_artifact_payload,
+    configured_device_key_for_id,
     firmware_artifact_storage_path,
     build_firmware_artifact_file_response,
     logger,
 ):
+    def firmware_role_device_id(device_id, role):
+        normalized_device_id = str(device_id or "").strip().lower()
+        if role == "slave" and normalized_device_id.startswith("swt-000-"):
+            return "swt-100-" + normalized_device_id[len("swt-000-") :]
+        return normalized_device_id
+
     def firmware_service_disabled_response(service_name, field_name):
         return jsonify(
             {
@@ -53,15 +60,21 @@ def register_mobile_firmware_routes(
             device_id=target_device,
             role=target_role,
         )
+        artifact_payload = build_firmware_artifact_payload(
+            artifact,
+            target_device=target_device,
+            download_endpoint=download_url,
+        )
+        local_upload_device_id = firmware_role_device_id(target_device, target_role)
+        local_upload_device_key = configured_device_key_for_id(local_upload_device_id) or configured_device_key_for_id(target_device)
+        if artifact_payload is not None:
+            artifact_payload["upload_device_id"] = local_upload_device_id
+            artifact_payload["upload_device_key"] = local_upload_device_key or ""
         return jsonify(
             {
                 "device_id": target_device,
                 "role": target_role,
-                "artifact": build_firmware_artifact_payload(
-                    artifact,
-                    target_device=target_device,
-                    download_endpoint=download_url,
-                ),
+                "artifact": artifact_payload,
                 "delivery": f"device_specific_{target_role}",
             }
         )
