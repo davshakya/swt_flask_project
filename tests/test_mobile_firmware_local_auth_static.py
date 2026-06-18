@@ -56,6 +56,16 @@ def test_ota_key_resolution_can_use_shared_swt_key_when_registry_is_absent():
     assert "return shared_swt_key" in function_body
 
 
+def test_health_exposes_signed_ota_contract_version():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    health_start = server_source.index("def health():")
+    health_body = server_source[health_start : server_source.index("\n\n@app.route", health_start)]
+
+    assert "OTA_CONTRACT_VERSION = 2" in server_source
+    assert '"ota_contract_version": OTA_CONTRACT_VERSION' in health_body
+    assert '"ota_authorization": "artifact_hmac_sha256"' in health_body
+
+
 def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
     artifact = {
         "id": 42,

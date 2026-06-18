@@ -614,6 +614,7 @@ def build_swt_version():
 
 SWT_VERSION = build_swt_version()
 API_VERSION = SWT_VERSION
+OTA_CONTRACT_VERSION = 2
 DEVICE = os.environ.get("DEVICE_URL", "").strip()
 DEFAULT_CUSTOMER_PASSWORD = os.environ.get("DEFAULT_CUSTOMER_PASSWORD", "").strip()
 SEED_DEFAULT_CUSTOMERS = os.environ.get("SEED_DEFAULT_CUSTOMERS", "false").lower() in {"1", "true", "yes"}
@@ -8536,6 +8537,8 @@ def build_system_status_payload(snapshot, device_id=None):
         "device_status_code": device_state["status_code"],
         "api_version": API_VERSION,
         "swt_version": SWT_VERSION,
+        "ota_contract_version": OTA_CONTRACT_VERSION,
+        "ota_authorization": "artifact_hmac_sha256",
         "control_policy": CONTROL_POLICY,
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
         "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
@@ -14616,6 +14619,8 @@ def health():
         "database_backend": DB_BACKEND,
         "version": API_VERSION,
         "swt_version": SWT_VERSION,
+        "ota_contract_version": OTA_CONTRACT_VERSION,
+        "ota_authorization": "artifact_hmac_sha256",
         "capacity_liters": round(TANK_CAPACITY_LITERS, 1),
         "control_policy": CONTROL_POLICY,
         "device_source_mode": get_device_source_mode(),
