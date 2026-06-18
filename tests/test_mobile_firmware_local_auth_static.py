@@ -66,6 +66,15 @@ def test_health_exposes_signed_ota_contract_version():
     assert '"ota_authorization": "artifact_hmac_sha256"' in health_body
 
 
+def test_firmware_events_compare_each_role_against_its_own_reported_version():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'cleaned.get("slave_firmware_version")' in server_source
+    assert '"slave_firmware_version": "TEXT"' in server_source
+    assert 'current_slave_firmware = str((latest_snapshot or {}).get("slave_firmware_version")' in server_source
+    assert 'current_firmware = current_slave_firmware if target_role == "slave" else current_master_firmware' in server_source
+
+
 def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
     artifact = {
         "id": 42,

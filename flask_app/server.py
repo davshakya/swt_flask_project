@@ -3882,6 +3882,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("lower_sensor_distance_cm"),
         cleaned.get("device_id"),
         cleaned.get("firmware_version"),
+        cleaned.get("slave_firmware_version"),
         cleaned.get("reset_reason"),
         source_ip or transport,
         cleaned.get("device_local_url"),
@@ -3926,7 +3927,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 slave_free_heap, slave_cpu_utilization_pct, slave_uptime_s,
                 uptime_s,
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
-                device_id, firmware_version, reset_reason, source_ip, device_local_url,
+                device_id, firmware_version, slave_firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
                 arch_id, node_role, device_type,
@@ -4368,6 +4369,7 @@ def ensure_tank_data_columns(cursor):
         "lower_sensor_distance_cm": "REAL",
         "device_id": "TEXT",
         "firmware_version": "TEXT",
+        "slave_firmware_version": "TEXT",
         "reset_reason": "TEXT",
         "source_ip": "TEXT",
         "device_local_url": "TEXT",
@@ -4471,6 +4473,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_sensor_distance_cm REAL,
             device_id TEXT,
             firmware_version TEXT,
+            slave_firmware_version TEXT,
             reset_reason TEXT,
             source_ip TEXT,
             device_local_url TEXT,
@@ -5045,6 +5048,7 @@ def init_db():
                 lower_sensor_distance_cm REAL,
                 device_id TEXT,
                 firmware_version TEXT,
+                slave_firmware_version TEXT,
                 reset_reason TEXT,
                 source_ip TEXT,
                 device_local_url TEXT,
@@ -8467,6 +8471,7 @@ def build_empty_snapshot_payload(device_id=None):
         "telemetry_status": "no-data",
         "device_id": normalize_device_id(device_id) or None,
         "firmware_version": None,
+        "slave_firmware_version": None,
         "reset_reason": None,
         "source_ip": None,
         "device_local_url": None,
@@ -8549,6 +8554,7 @@ def build_system_status_payload(snapshot, device_id=None):
         "signal_quality": snapshot.get("signal_quality") if snapshot else "Unknown",
         "device_id": snapshot.get("device_id") if snapshot else None,
         "firmware_version": snapshot.get("firmware_version") if snapshot else None,
+        "slave_firmware_version": snapshot.get("slave_firmware_version") if snapshot else None,
         "reset_reason": snapshot.get("reset_reason") if snapshot else None,
         "channel_mode": snapshot.get("channel_mode") if snapshot else "unknown",
         "telemetry_service": snapshot.get("telemetry_service") if snapshot else "UNKNOWN",
@@ -8589,6 +8595,7 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "device_source": snapshot.get("device_source") if snapshot else get_device_source_mode(),
             "device_source_mode": get_device_source_mode(),
             "firmware_version": snapshot.get("firmware_version") if snapshot else None,
+            "slave_firmware_version": snapshot.get("slave_firmware_version") if snapshot else None,
             "reset_reason": snapshot.get("reset_reason") if snapshot else None,
             "last_sync_at": snapshot.get("last_sync_at") if snapshot else None,
             "seconds_since_sync": snapshot.get("seconds_since_sync") if snapshot else None,
@@ -9189,7 +9196,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     source_clause, source_params = device_source_where_clause()
     query = """
         SELECT id, device_id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
-               pump_failure, dry_run, sensor, wifi, wifi_rssi, firmware_version,
+               pump_failure, dry_run, sensor, wifi, wifi_rssi, firmware_version, slave_firmware_version,
                reset_reason, free_heap, uptime_s, lower_tank_level, lower_sensor,
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
@@ -9660,7 +9667,8 @@ def build_ota_events(limit=20, device_id=None):
         rows = db.execute(query, tuple(params)).fetchall()
 
     latest_snapshot = fetch_device_snapshot(normalized_device_id) if normalized_device_id else None
-    current_firmware = str((latest_snapshot or {}).get("firmware_version") or "").strip()
+    current_master_firmware = str((latest_snapshot or {}).get("firmware_version") or "").strip()
+    current_slave_firmware = str((latest_snapshot or {}).get("slave_firmware_version") or "").strip()
     events = []
     now = now_utc()
     ota_failure_after_seconds = 24 * 60 * 60
@@ -9668,6 +9676,7 @@ def build_ota_events(limit=20, device_id=None):
         version_label = str(row["version_label"] or row["original_filename"] or "firmware").strip()
         target_device = normalize_device_id(row["target_device"]) or normalized_device_id
         target_role = normalize_firmware_artifact_role(row["target_role"] or "master")
+        current_firmware = current_slave_firmware if target_role == "slave" else current_master_firmware
         target_label = f"{target_device} {target_role}"
         created_at = parse_timestamp(row["created_at"])
         age_seconds = int((now - created_at).total_seconds()) if created_at else None
