@@ -1,8 +1,10 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-05-23`
+Last refreshed: `2026-06-19`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
+
+The backend is only the remote dashboard and command layer. The field devices keep their local control loops on the ESP8266, so they continue working if this Flask deployment is offline.
 
 Use this file together with:
 
