@@ -38,6 +38,8 @@ def test_admin_device_detail_template_has_threshold_save_form():
     assert "name=\"auto_start_pct\"" in source
     assert "name=\"auto_stop_pct\"" in source
     assert "shared across Flask, Android, and firmware" in source
+    assert "name=\"auto_mode_enabled\"" in source
+    assert "Auto Start/Stop" in source
 
 
 def test_device_detail_status_and_template_include_live_configuration_grid():
@@ -70,6 +72,8 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
     assert '("source_tank_capacity_liters", "lower_tank_capacity_liters")' in function_source
     assert '("telemetry_service", "telemetry_service_state")' in function_source
     assert '("slave_device_service", "slave_device_service_state")' in function_source
+    assert "snapshot_device_auto_mode_enabled(snapshot)" in function_source
+    assert 'base_payload["auto_mode_enabled"] = live_auto_mode_enabled' in function_source
 
     services_route_start = source.index('@app.route("/api/mobile/device/services", methods=["GET", "POST"])')
     services_route_source = source[services_route_start : source.index('\n\n@app.route("/api/mobile/device/thresholds", methods=["GET", "POST"])', services_route_start)]
@@ -107,6 +111,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "lower_tank_height_cm REAL" in table_source
     assert "auto_start_pct REAL" in table_source
     assert "auto_stop_pct REAL" in table_source
+    assert "auto_mode_enabled INTEGER NOT NULL DEFAULT 0" in table_source
     assert "telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'" in table_source
     assert "slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'" in table_source
 
@@ -115,10 +120,17 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "tank_height_cm=None," in upsert_source
     assert "lower_tank_capacity_liters=None," in upsert_source
     assert "local_web_password=None," in upsert_source
+    assert "auto_mode_enabled=None," in upsert_source
     assert "tank_height_cm=excluded.tank_height_cm" in upsert_source
     assert "auto_stop_pct=excluded.auto_stop_pct" in upsert_source
+    assert "auto_mode_enabled=excluded.auto_mode_enabled" in upsert_source
     assert "slave_device_service_state=excluded.slave_device_service_state" in upsert_source
     assert "save_device_local_web_password(normalized_device_id, default_local_web_auth_password())" in upsert_source
+
+    build_start = source.index("def build_device_service_command(service_config):")
+    build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
+    assert "SERVICECFG5:" in build_source
+    assert "auto_mode_enabled" in build_source
 
 
 def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_db_password():

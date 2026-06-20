@@ -4743,6 +4743,7 @@ def ensure_device_service_configs_table(cursor):
             local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 1,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
+            auto_mode_enabled INTEGER NOT NULL DEFAULT 0,
             android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
             tank_height_cm REAL,
             tank_capacity_liters REAL,
@@ -4771,6 +4772,7 @@ def ensure_device_service_configs_table(cursor):
 
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
+    added_auto_mode_enabled = False
     required = {
         "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "master_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
@@ -4784,6 +4786,7 @@ def ensure_device_service_configs_columns(cursor):
         "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 1",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "auto_mode_enabled": "INTEGER NOT NULL DEFAULT 0",
         "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
         "tank_height_cm": "REAL",
         "tank_capacity_liters": "REAL",
@@ -4809,6 +4812,16 @@ def ensure_device_service_configs_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE device_service_configs ADD COLUMN {column} {definition}")
+            if column == "auto_mode_enabled":
+                added_auto_mode_enabled = True
+    if added_auto_mode_enabled:
+        cursor.execute(
+            """
+            UPDATE device_service_configs
+            SET auto_mode_enabled = 1
+            WHERE auto_mode_enabled IS NULL OR auto_mode_enabled = 0
+            """
+        )
 
 
 def ensure_registered_devices_table(cursor):
@@ -5809,6 +5822,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=True)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
+    auto_mode_enabled = boolish_enabled(payload.get("auto_mode_enabled"), default=False)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
     tank_height_cm = normalize_optional_config_float(payload.get("tank_height_cm"))
     tank_capacity_liters = normalize_optional_config_float(payload.get("tank_capacity_liters"))
@@ -5870,6 +5884,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "cloud_feed_mode_label": DEVICE_SERVICE_CLOUD_MODE_LABELS.get(cloud_feed_mode, "Unknown"),
         "cloud_feed_enabled": effective_cloud_feed_enabled,
         "cloud_note": cloud_note,
+        "auto_mode_enabled": auto_mode_enabled,
+        "auto_mode_label": "Enabled" if auto_mode_enabled else "Disabled",
         "ota_enabled": ota_enabled,
         "local_firmware_upload_enabled": local_firmware_upload_enabled,
         "buzzer_enabled": buzzer_enabled,
@@ -5922,6 +5938,7 @@ def default_device_service_config(device_id=None, account=None):
             "source_tank_monitoring_enabled": True,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
+            "auto_mode_enabled": False,
             "cloud_feed_mode": (
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
             ),
@@ -5962,6 +5979,28 @@ def snapshot_device_service_flag(snapshot, *keys):
             return True
         if value in {"OFF", "FALSE", "NO", "0", "DISABLED"}:
             return False
+    return None
+
+
+def snapshot_device_auto_mode_enabled(snapshot):
+    if not snapshot:
+        return None
+
+    direct_flag = snapshot_device_service_flag(snapshot, "auto_mode_enabled", "auto_control_enabled", "automation_enabled")
+    if direct_flag is not None:
+        return direct_flag
+
+    mode = str(snapshot.get("mode") or "").strip().upper()
+    if mode == "AUTO":
+        return True
+    if mode == "MANUAL":
+        return False
+
+    auto_status = str(snapshot.get("auto_status") or "").strip().lower()
+    if "manual" in auto_status:
+        return False
+    if "auto" in auto_status:
+        return True
     return None
 
 
@@ -6035,6 +6074,10 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         if snapshot_key in snapshot:
             base_payload[config_key] = normalize_optional_service_state(snapshot.get(snapshot_key))
 
+    live_auto_mode_enabled = snapshot_device_auto_mode_enabled(snapshot)
+    if live_auto_mode_enabled is not None:
+        base_payload["auto_mode_enabled"] = live_auto_mode_enabled
+
     return serialize_device_service_config(resolved_device_id, base_payload, account=account)
 
 
@@ -6057,7 +6100,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
                    slave_device_enabled, slave_upper_sensor_enabled,
                    source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                   buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                   buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
                    upper_tank_height_cm, upper_tank_capacity_liters,
                    lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6098,7 +6141,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                slave_device_enabled, slave_upper_sensor_enabled,
                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-               buzzer_enabled, led_display_enabled, android_sso_session_limit,
+               buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
                upper_tank_height_cm, upper_tank_capacity_liters,
                lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6178,6 +6221,7 @@ def upsert_device_service_config(
     local_firmware_upload_enabled=None,
     buzzer_enabled=None,
     led_display_enabled=None,
+    auto_mode_enabled=None,
     android_sso_session_limit=None,
     tank_height_cm=None,
     tank_capacity_liters=None,
@@ -6258,6 +6302,10 @@ def upsert_device_service_config(
     resolved_led_display_enabled = boolish_enabled(
         led_display_enabled,
         default=existing.get("led_display_enabled", True),
+    )
+    resolved_auto_mode_enabled = boolish_enabled(
+        auto_mode_enabled,
+        default=existing.get("auto_mode_enabled", False),
     )
     resolved_android_sso_session_limit = normalize_android_sso_session_limit(
         android_sso_session_limit,
@@ -6343,7 +6391,7 @@ def upsert_device_service_config(
                 slave_device_enabled, slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
                 upper_tank_height_cm, upper_tank_capacity_liters,
                 lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6368,6 +6416,7 @@ def upsert_device_service_config(
                 local_firmware_upload_enabled=excluded.local_firmware_upload_enabled,
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
+                auto_mode_enabled=excluded.auto_mode_enabled,
                 android_sso_session_limit=excluded.android_sso_session_limit,
                 tank_height_cm=excluded.tank_height_cm,
                 tank_capacity_liters=excluded.tank_capacity_liters,
@@ -6403,6 +6452,7 @@ def upsert_device_service_config(
                 1 if resolved_local_firmware_upload_enabled else 0,
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
+                1 if resolved_auto_mode_enabled else 0,
                 resolved_android_sso_session_limit,
                 resolved_tank_height_cm,
                 resolved_tank_capacity_liters,
@@ -6451,7 +6501,8 @@ def build_device_service_command(service_config):
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
     relay_enabled = bool(config.get("relay_enabled", True))
-    return "SERVICECFG4:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}".format(
+    auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
+    return "SERVICECFG5:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -6460,6 +6511,7 @@ def build_device_service_command(service_config):
         led=1 if bool(config.get("led_display_enabled")) else 0,
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
+        auto_mode=1 if auto_mode_enabled else 0,
     )
 
 
@@ -9973,7 +10025,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         details.update(
             {
                 "label": "Runtime service configuration",
@@ -14009,6 +14061,7 @@ def admin_device_detail_configuration(device_id):
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
             ai_analysis_enabled=("ai_analysis_enabled" in request.form),
+            auto_mode_enabled=("auto_mode_enabled" in request.form),
             cloud_feed_mode=(
                 DEVICE_SERVICE_CLOUD_FEED_OFF
                 if "cloud_feed_disabled" in request.form
