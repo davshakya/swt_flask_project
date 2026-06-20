@@ -134,6 +134,14 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "auto_mode_enabled" in build_source
 
 
+def test_mysql_schema_translation_maps_device_service_state_defaults_for_mysql():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert '"telemetry_service_state TEXT NOT NULL DEFAULT \'UNKNOWN\'": "telemetry_service_state VARCHAR(32) NOT NULL DEFAULT \'UNKNOWN\'"' in source
+    assert '"command_service_state TEXT NOT NULL DEFAULT \'UNKNOWN\'": "command_service_state VARCHAR(32) NOT NULL DEFAULT \'UNKNOWN\'"' in source
+    assert '"slave_device_service_state TEXT NOT NULL DEFAULT \'UNKNOWN\'": "slave_device_service_state VARCHAR(32) NOT NULL DEFAULT \'UNKNOWN\'"' in source
+
+
 def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     route_start = source.index("def admin_device_detail_configuration(device_id):")

@@ -17,6 +17,16 @@ ANDROID_SOURCE = (
     / "app"
     / "MainActivity.kt"
 )
+ANDROID_STRINGS_SOURCE = (
+    PROJECT_ROOT.parent
+    / "swt_android_app_project"
+    / "app"
+    / "src"
+    / "main"
+    / "res"
+    / "values"
+    / "strings.xml"
+)
 
 
 def test_mobile_local_sync_route_exists_for_android_bridge():
@@ -66,6 +76,23 @@ def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
     assert "local_firmware_upgrade_requested_from_flask" in android_source
     assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true)" in android_source
     assert '"START_FIRMWARE_UPGRADE"' in android_source
+
+
+def test_mobile_pump_slider_requires_hold_confirmation_before_sending_command():
+    android_source = ANDROID_SOURCE.read_text(encoding="utf-8")
+    strings_source = ANDROID_STRINGS_SOURCE.read_text(encoding="utf-8")
+
+    assert "pumpCommandHoldAnimator" in android_source
+    assert "pumpCommandHoldAction" in android_source
+    assert "pumpSliderConfirmProgress" in android_source
+    assert "startPumpCommandHoldConfirmation(renderedPumpButtonAction)" in android_source
+    assert "startPumpCommandHoldConfirmation(DeviceAction.OFF)" in android_source
+    assert "PUMP_COMMAND_CONFIRM_DELAY_MS = 1500L" in android_source
+    assert "PUMP_SLIDER_COMPLETE_PROGRESS = 0.9f" in android_source
+    assert "pump_hold_confirm_start" in strings_source
+    assert "pump_hold_confirm_stop" in strings_source
+    assert "pump_command_starting" in strings_source
+    assert "pump_command_stopping" in strings_source
 
 
 def test_dashboard_local_sync_route_polls_private_lan_device():
