@@ -49,6 +49,25 @@ def test_mobile_simulator_route_queues_firmware_simulator_commands():
     assert 'f"{command_prefix}_{state_suffix}"' in server_source
 
 
+def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    android_source = ANDROID_SOURCE.read_text(encoding="utf-8")
+
+    assert "device_mobile_action_queue" in server_source
+    assert 'CREATE TABLE IF NOT EXISTS device_mobile_action_queue' in server_source
+    assert "idx_device_mobile_action_queue_target_pending" in server_source
+    assert '"mobile_action": pop_device_mobile_action(scoped_device_id)' in server_source
+    assert '@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])' in server_source
+    assert "def admin_device_detail_mobile_firmware_upgrade(device_id):" in server_source
+    assert '"message": "Flask requested a firmware upgrade."' in server_source
+    assert "scheduleRemoteFirmwareUpgradeIfRequested(payload)" in android_source
+    assert 'optJSONObject("mobile_action")' in android_source
+    assert 'optString("message")' in android_source
+    assert "local_firmware_upgrade_requested_from_flask" in android_source
+    assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true)" in android_source
+    assert '"START_FIRMWARE_UPGRADE"' in android_source
+
+
 def test_dashboard_local_sync_route_polls_private_lan_device():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     dashboard_source = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

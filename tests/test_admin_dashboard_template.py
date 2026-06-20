@@ -304,6 +304,18 @@ def test_device_detail_exposes_mobile_logout_button():
     assert "def admin_device_detail_mobile_logout(device_id):" in server_source
 
 
+def test_device_detail_exposes_android_firmware_upgrade_trigger():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'url_for(\'admin_device_detail_mobile_firmware_upgrade\', device_id=device_id)' in device_template
+    assert "Android App OTA Trigger" in device_template
+    assert "Queue Android OTA" in device_template
+    assert 'data-confirm-title="Queue Android firmware upgrade?"' in device_template
+    assert '@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])' in server_source
+    assert "def admin_device_detail_mobile_firmware_upgrade(device_id):" in server_source
+
+
 def test_device_detail_shows_android_sso_server_session_diagnostic():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")

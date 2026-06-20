@@ -1490,6 +1490,7 @@ def purge_configured_virtual_device_records():
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
+        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1508,6 +1509,12 @@ def purge_configured_virtual_device_records():
             )
             deleted_counts["device_command_queue"] += int(
                 db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["device_mobile_action_queue"] += int(
+                db.execute(
+                    "DELETE FROM device_mobile_action_queue WHERE target_device = ?",
+                    (normalized_device_id,),
+                ).rowcount or 0
             )
             deleted_counts["ops_alerts"] += int(
                 db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -1536,6 +1543,7 @@ def delete_known_device(device_id):
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
+        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1553,6 +1561,9 @@ def delete_known_device(device_id):
         )
         deleted_counts["device_command_queue"] = int(
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["device_mobile_action_queue"] = int(
+            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
         )
         deleted_counts["ops_alerts"] = int(
             db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -4536,6 +4547,21 @@ def ensure_device_command_queue_table(cursor):
     )
 
 
+def ensure_device_mobile_action_queue_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_mobile_action_queue(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_device TEXT NOT NULL,
+            action TEXT NOT NULL,
+            payload_json TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            delivered_at TEXT
+        )
+        """
+    )
+
+
 def ensure_firmware_artifacts_table(cursor):
     cursor.execute(
         """
@@ -4880,6 +4906,8 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
         "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
         "CREATE INDEX idx_device_command_queue_target_command ON device_command_queue(target_device, delivered_at, command, id DESC)",
+        "CREATE INDEX idx_device_mobile_action_queue_target_pending ON device_mobile_action_queue(target_device, delivered_at, id DESC)",
+        "CREATE INDEX idx_device_mobile_action_queue_target_action ON device_mobile_action_queue(target_device, delivered_at, action, id DESC)",
         "CREATE INDEX idx_relay_queue_next_attempt ON relay_queue(next_attempt_at, id)",
         "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
         "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
@@ -5089,6 +5117,7 @@ def init_db():
         remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
+        ensure_device_mobile_action_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_firmware_artifacts_columns(cursor)
         ensure_android_app_releases_table(cursor)
@@ -6701,6 +6730,8 @@ def build_current_saved_config(device_id, account=None):
         "device_id": normalized_device_id,
         "configuration_source": "db_upsert",
         "updated_at": updated_at,
+        "auto_mode_enabled": saved_service_config.get("auto_mode_enabled"),
+        "auto_mode_label": saved_service_config.get("auto_mode_label"),
         "tank_height_cm": saved_service_config.get("tank_height_cm"),
         "tank_capacity_liters": saved_service_config.get("tank_capacity_liters"),
         "upper_tank_height_cm": saved_service_config.get("upper_tank_height_cm"),
@@ -11185,6 +11216,111 @@ def queue_command(command, target_device=None):
     return result
 
 
+MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE = "START_FIRMWARE_UPGRADE"
+
+
+def normalize_mobile_device_action(action):
+    normalized_action = str(action or "").strip().upper().replace("-", "_").replace(" ", "_")
+    if normalized_action in {"START_FIRMWARE_UPGRADE", "FIRMWARE_UPGRADE", "START_OTA", "OTA_UPGRADE"}:
+        return MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+    raise ValueError("Unsupported mobile action")
+
+
+def queue_device_mobile_action(action, target_device, payload=None):
+    normalized_target_device = normalize_device_id(target_device)
+    if not normalized_target_device:
+        return {
+            "status": "error",
+            "error": "No target device is available for this mobile action yet.",
+            "action": action,
+        }, 400
+
+    try:
+        normalized_action = normalize_mobile_device_action(action)
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "error": str(exc),
+            "action": action,
+            "target_device": normalized_target_device,
+        }, 400
+
+    payload_json = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"))
+    with get_db() as db:
+        db.execute(
+            """
+            DELETE FROM device_mobile_action_queue
+            WHERE target_device = ? AND delivered_at IS NULL AND UPPER(action) = ?
+            """,
+            (normalized_target_device, normalized_action),
+        )
+        db.execute(
+            """
+            INSERT INTO device_mobile_action_queue (target_device, action, payload_json)
+            VALUES (?, ?, ?)
+            """,
+            (normalized_target_device, normalized_action, payload_json),
+        )
+        db.execute(
+            """
+            DELETE FROM device_mobile_action_queue
+            WHERE delivered_at IS NOT NULL
+              AND delivered_at < datetime('now', '-7 day')
+            """
+        )
+
+    return {
+        "status": "queued",
+        "action": normalized_action,
+        "target_device": normalized_target_device,
+        "payload": payload or {},
+        "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    }
+
+
+def pop_device_mobile_action(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT id, action, payload_json, created_at
+            FROM device_mobile_action_queue
+            WHERE target_device = ? AND delivered_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+        if not row:
+            return None
+        db.execute(
+            """
+            UPDATE device_mobile_action_queue
+            SET delivered_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (row["id"],),
+        )
+
+    payload = {}
+    try:
+        payload = json.loads(row["payload_json"] or "{}")
+        if not isinstance(payload, dict):
+            payload = {"value": payload}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        payload = {}
+    return {
+        "id": row["id"],
+        "action": row["action"],
+        "payload": payload,
+        "queued_at": row["created_at"],
+        "delivered_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    }
+
+
 def home_automation_device_label(device_id, account=None):
     if account and str(account.get("display_name") or "").strip():
         return str(account.get("display_name")).strip()
@@ -11990,6 +12126,7 @@ def mobile_bootstrap():
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
+        "mobile_action": pop_device_mobile_action(scoped_device_id),
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
@@ -12233,6 +12370,7 @@ def mobile_device_status():
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
+        "mobile_action": pop_device_mobile_action(scoped_device_id),
         "viewer": resolve_mobile_user(),
     })
 
@@ -13802,6 +13940,63 @@ def admin_device_reboot(device_id):
     )
 
 
+@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_mobile_firmware_upgrade(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    config_error = None
+    config_message = None
+
+    if not scoped_device_id:
+        config_error = "Choose a valid device before queueing an Android OTA trigger."
+    else:
+        service_config = fetch_device_service_config(scoped_device_id)
+        if not service_config.get("cloud_feed_enabled", True):
+            config_error = "Enable Cloud Feed before queueing an Android OTA trigger."
+        elif not service_config.get("local_firmware_upload_enabled", False):
+            config_error = "Enable Local firmware upload before queueing an Android OTA trigger."
+        else:
+            queue_result = queue_device_mobile_action(
+                MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
+                scoped_device_id,
+                payload={
+                    "message": "Flask requested a firmware upgrade.",
+                    "device_id": scoped_device_id,
+                    "source": "device_detail",
+                },
+            )
+            if isinstance(queue_result, tuple):
+                payload, _status_code = queue_result
+                config_error = payload.get("error") or f"Unable to queue an Android OTA trigger for {scoped_device_id}."
+            else:
+                log_audit_event(
+                    actor=current_actor_username(),
+                    action="queue_android_firmware_upgrade",
+                    target_type="device",
+                    target_id=scoped_device_id,
+                    device_id=scoped_device_id,
+                    details={
+                        "action": queue_result.get("action"),
+                        "queued_at": queue_result.get("queued_at"),
+                        "payload": queue_result.get("payload"),
+                    },
+                )
+                config_message = (
+                    f"Android OTA trigger queued for {scoped_device_id}. "
+                    "The Android app will start its next firmware upgrade sync on the next cloud refresh."
+                )
+
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id or device_id,
+            config_error=config_error or "",
+            config_message=config_message or "",
+        )
+    )
+
+
 @app.route("/admin/customers/<device_id>/delete", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -14076,7 +14271,16 @@ def admin_device_detail_configuration(device_id):
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
         queued_command = build_device_service_command(updated_config)
-        queue_command(queued_command, target_device=scoped_device_id)
+        queue_result = queue_command(queued_command, target_device=scoped_device_id)
+        if isinstance(queue_result, tuple):
+            error_payload, _status_code = queue_result
+            return redirect(
+                url_for(
+                    "device_detail_page",
+                    device_id=scoped_device_id,
+                    config_error=error_payload.get("error") or "Unable to queue runtime configuration update.",
+                )
+            )
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
@@ -14089,7 +14293,11 @@ def admin_device_detail_configuration(device_id):
                 "android_sessions_preserved": True,
             },
         )
-        message = "Configuration saved. Device changes apply on the next command poll."
+        auto_mode_label = "Enabled" if updated_config.get("auto_mode_enabled") else "Disabled"
+        message = (
+            f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
+            "Device changes apply on the next command poll."
+        )
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))

@@ -55,6 +55,7 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert "Device Configuration" in template_source
     assert 'id="deviceInfoGrid"' in template_source
     assert "renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);" in template_source
+    assert "const autoModeEnabled=savedConfig.auto_mode_enabled??savedServiceConfig?.auto_mode_enabled;" in template_source
 
 
 def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
@@ -133,6 +134,17 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "auto_mode_enabled" in build_source
 
 
+def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index("def admin_device_detail_configuration(device_id):")
+    route_source = source[route_start : source.index('\n\n@app.route("/devices/<device_id>/thresholds", methods=["POST"])', route_start)]
+
+    assert 'queue_result = queue_command(queued_command, target_device=scoped_device_id)' in route_source
+    assert 'isinstance(queue_result, tuple)' in route_source
+    assert 'config_error=error_payload.get("error") or "Unable to queue runtime configuration update."' in route_source
+    assert "Auto Start/Stop is {auto_mode_label}" in route_source
+
+
 def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_db_password():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     automation_start = source.index("def fetch_device_automation_settings(device_id, snapshot=None):")
@@ -148,6 +160,7 @@ def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_d
     saved_config_start = source.index("def build_current_saved_config(device_id, account=None):")
     saved_config_source = source[saved_config_start : source.index("\n\ndef upsert_device_automation_settings", saved_config_start)]
     assert '"configuration_source": "db_upsert"' in saved_config_source
+    assert '"auto_mode_enabled": saved_service_config.get("auto_mode_enabled")' in saved_config_source
     assert '"service_config": saved_service_config' in saved_config_source
     assert '"automation_settings": saved_automation_settings' in saved_config_source
 
