@@ -8618,7 +8618,12 @@ def load_dashboard_snapshot(device_id=None):
 
 
 def snapshot_has_live_device_data(snapshot):
-    return bool(snapshot and snapshot.get("device_id"))
+    if not snapshot:
+        return False
+    telemetry_status = str(snapshot.get("telemetry_status") or "").strip().lower()
+    if telemetry_status in {"", "no-data", "unknown"}:
+        return False
+    return bool(snapshot.get("device_id"))
 
 
 def build_system_status_payload(snapshot, device_id=None):
@@ -14742,7 +14747,10 @@ def device_detail_status(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
-        return jsonify({"error": "device not found"}), 404
+        # Newly registered devices can have saved configuration before the first
+        # telemetry packet arrives, so return an empty snapshot shell instead of
+        # failing the detail page.
+        snapshot = build_empty_snapshot_payload(scoped_device_id)
     include_history = request.args.get("history", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_events = request.args.get("events", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_alerts = request.args.get("alerts", "1").strip().lower() not in {"0", "false", "no", "off"}

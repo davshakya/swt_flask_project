@@ -50,6 +50,8 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert '"service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot)' in route_source
     assert '"automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)' in route_source
     assert '"current_saved_config": build_current_saved_config(scoped_device_id)' in route_source
+    assert 'snapshot = build_empty_snapshot_payload(scoped_device_id)' in route_source
+    assert 'return jsonify({"error": "device not found"}), 404' not in route_source
 
     template_source = TEMPLATE_SOURCE.read_text(encoding="utf-8")
     assert "Device Configuration" in template_source

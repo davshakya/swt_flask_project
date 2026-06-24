@@ -272,6 +272,17 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
 
 
+def test_customer_dashboard_motor_chart_shows_run_durations():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "function buildMotorActivitySegments" in customer_template
+    assert "function drawMotorActivityTimeline" in customer_template
+    assert "drawMotorActivityTimeline(charts.motor.canvas,\"Motor State\",motorSeriesRaw.time,motorSeriesRaw.values" in customer_template
+    assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
+    assert "pumpActivity?.avg_run_seconds" in customer_template
+    assert "Run durations appear on the ON spans." in customer_template
+
+
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
@@ -614,6 +625,40 @@ def test_android_app_update_check_compares_installed_version_code():
     assert '"currentVersionCode" to installedAppVersionCode().toString()' in android_source
     assert "latestVersionCode > currentVersionCode" in android_source
     assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
+
+
+def test_android_cloud_pump_activity_chart_uses_duration_timeline():
+    android_source = (
+        PROJECT_ROOT.parent
+        / "swt_android_app_project"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "smartwatertank"
+        / "app"
+        / "MainActivity.kt"
+    ).read_text(encoding="utf-8")
+    chart_view_source = (
+        PROJECT_ROOT.parent
+        / "swt_android_app_project"
+        / "app"
+        / "src"
+        / "main"
+        / "java"
+        / "com"
+        / "smartwatertank"
+        / "app"
+        / "DashboardChartView.kt"
+    ).read_text(encoding="utf-8")
+
+    assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
+    assert "Run duration blocks show when the pump was ON and OFF during this period." in android_source
+    assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
+    assert "private fun drawTimelineChart" in chart_view_source
+    assert "formatDurationLabel" in chart_view_source
+    assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
 
 
 def test_release_versions_use_year_train_increment_syntax():

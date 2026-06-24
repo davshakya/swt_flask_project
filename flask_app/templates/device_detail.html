@@ -1015,6 +1015,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const savedConfig=currentSavedConfig||{};
   const savedServiceConfig=savedConfig.service_config||serviceConfig||{};
   const savedAutomationSettings=savedConfig.automation_settings||automationSettings||{};
+  const telemetryStatus=String(snapshot?.telemetry_status||systemStatus?.telemetry_status||"").trim().toLowerCase();
+  const showAllDetails=telemetryStatus==="no-data";
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sourceCapacity=savedConfig.lower_tank_capacity_liters??savedServiceConfig.lower_tank_capacity_liters??snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
@@ -1058,10 +1060,10 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Upper Sensor Source",value:upperSource},
     {label:"Source Tank Sensor",value:sourceSensorLocation},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
-    {label:"Tank Capacity",value:formatLiters(capacity),show:isReportedInfoValue(capacity)},
-    {label:"Tank Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
-    {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&isReportedInfoValue(sourceCapacity)},
-    {label:"Source Height",value:sourceTankHeight,show:sourceMonitoringEnabled&&isReportedInfoValue(sourceTankHeight)},
+    {label:"Tank Capacity",value:formatLiters(capacity),show:showAllDetails||isReportedInfoValue(capacity)},
+    {label:"Tank Height",value:tankHeight,show:showAllDetails||isReportedInfoValue(tankHeight)},
+    {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&(showAllDetails||isReportedInfoValue(sourceCapacity))},
+    {label:"Source Height",value:sourceTankHeight,show:sourceMonitoringEnabled&&(showAllDetails||isReportedInfoValue(sourceTankHeight))},
     {label:"Auto Start Threshold",value:Number.isFinite(Number(autoStart))?`${formatCompactNumber(autoStart)}%`:"Not reported"},
     {label:"Auto Stop Threshold",value:Number.isFinite(Number(autoStop))?`${formatCompactNumber(autoStop)}%`:"Not reported"},
     {label:"Auto Start Delay",value:formatDurationMs(autoStartStableMs)},
@@ -1087,7 +1089,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Android SSO Limit",value:isReportedInfoValue(savedServiceConfig?.android_sso_session_limit)?`${savedServiceConfig.android_sso_session_limit}`:"Not reported"},
     {label:"Network Channel",value:infoValue(titleCase(snapshot.channel_mode||""),"Channel not reported")},
     {label:"Local Device IP",value:infoValue(snapshot.device_local_url,"Local IP not reported")},
-    {label:"Slave Device IP",value:slaveIp,show:usesSlave&&isReportedInfoValue(slaveIp)},
+    {label:"Slave Device IP",value:slaveIp,show:usesSlave&&(showAllDetails||isReportedInfoValue(slaveIp))},
     {label:"Master Memory",value:formatHeapValue(snapshot.free_heap,"Heap not reported")},
     {label:"Slave Memory",value:formatHeapValue(snapshot.slave_free_heap,"Slave heap not reported"),show:usesSlave},
     {label:"Uptime",value:infoValue(snapshot.uptime_label,"Uptime not reported")},
@@ -1095,7 +1097,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
-  ].filter((item)=>isReportedInfoValue(item.value));
+  ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
   setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
 function uniqueFeedItems(items){
@@ -1224,6 +1226,7 @@ async function loadDevice({silent=false}={}){
   const automationSettings=data.automation_settings||{};
   const currentSavedConfig=data.current_saved_config||{};
   const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
+  const noTelemetry=String(telemetry).trim().toLowerCase()==="no-data";
   const lastSync=snapshot.last_sync_at;
   const level=formatPercent(snapshot.level);
   const availableWater=formatLiters(snapshot.remaining_liters);
@@ -1232,20 +1235,37 @@ async function loadDevice({silent=false}={}){
   const sourceMonitoringConfigured=Boolean(serviceConfig.source_tank_monitoring_enabled)||String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON";
   const sourceMonitoringActive=sourceMonitoringConfigured&&(String(snapshot.lower_tank_service||systemStatus.lower_tank_service||"").toUpperCase()==="ON"||snapshot.lower_tank_level!==undefined&&snapshot.lower_tank_level!==null);
 
-  setText("headline",`${telemetryLabel(telemetry)} status | Last update ${formatLocaleDateTime(lastSync)} | Sensor ${snapshot.sensor||"--"} | Signal ${signal}`);
-  setText("level",level);
-  setText("levelNote",snapshot.level!==undefined&&snapshot.level!==null?`${formatLiters(snapshot.remaining_liters)} available right now.`:"Waiting for water-level telemetry.");
-  setText("availableWater",availableWater);
-  setText("availableWaterNote",capacityLiters!==undefined&&capacityLiters!==null?`Out of ${formatLiters(capacityLiters)} total tank capacity.`:"Capacity information unavailable.");
-  setText("motor",titleCase(snapshot.motor));
-  setText("pumpNote",String(snapshot.motor||"").toUpperCase()==="ON"?"The pump is currently running.":"The pump is currently stopped.");
-  setText("mode",titleCase(snapshot.mode));
-  setText("modeNote",String(snapshot.mode||"").toUpperCase()==="MANUAL"?"Manual control is active.":"Automatic control is active.");
-  setText("connection",telemetryLabel(telemetry));
-  setText("connectionNote",`Last updated ${formatLocaleDateTime(lastSync)}.`);
+  if(noTelemetry){
+    const savedAutoModeEnabled=Boolean(currentSavedConfig.auto_mode_enabled??serviceConfig.auto_mode_enabled);
+    setText("headline","Waiting for telemetry | Saved configuration loaded | Signal "+signal);
+    setText("level","--");
+    setText("levelNote","Waiting for water-level telemetry.");
+    setText("availableWater","--");
+    setText("availableWaterNote","Capacity information will appear here after the first telemetry sync.");
+    setText("motor","--");
+    setText("pumpNote","Current motor state will appear after telemetry arrives.");
+    setText("mode",savedAutoModeEnabled?"Auto":"Manual");
+    setText("modeNote",savedAutoModeEnabled?"Automatic control is enabled in saved configuration.":"Automatic control is disabled in saved configuration.");
+    setText("connection",telemetryLabel(telemetry));
+    setText("connectionNote","Awaiting the first telemetry packet from this device.");
+    setText("healthStatus","--");
+    setText("healthReason","No telemetry received yet.");
+  }else{
+    setText("headline",`${telemetryLabel(telemetry)} status | Last update ${formatLocaleDateTime(lastSync)} | Sensor ${snapshot.sensor||"--"} | Signal ${signal}`);
+    setText("level",level);
+    setText("levelNote",snapshot.level!==undefined&&snapshot.level!==null?`${formatLiters(snapshot.remaining_liters)} available right now.`:"Waiting for water-level telemetry.");
+    setText("availableWater",availableWater);
+    setText("availableWaterNote",capacityLiters!==undefined&&capacityLiters!==null?`Out of ${formatLiters(capacityLiters)} total tank capacity.`:"Capacity information unavailable.");
+    setText("motor",titleCase(snapshot.motor));
+    setText("pumpNote",String(snapshot.motor||"").toUpperCase()==="ON"?"The pump is currently running.":"The pump is currently stopped.");
+    setText("mode",titleCase(snapshot.mode));
+    setText("modeNote",String(snapshot.mode||"").toUpperCase()==="MANUAL"?"Manual control is active.":"Automatic control is active.");
+    setText("connection",telemetryLabel(telemetry));
+    setText("connectionNote",`Last updated ${formatLocaleDateTime(lastSync)}.`);
 
-  setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
-  setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
+    setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
+    setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
+  }
   setVisible("sourceCard",sourceMonitoringActive);
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
