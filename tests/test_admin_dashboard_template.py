@@ -281,6 +281,8 @@ def test_customer_dashboard_motor_chart_shows_run_durations():
     assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
     assert "pumpActivity?.avg_run_seconds" in customer_template
     assert "Run durations appear on the ON spans." in customer_template
+    assert "ctx.strokeStyle=segment.state===1?themeVar(\"--chart-motor\"):themeVar(\"--chart-ticks\")" in customer_template
+    assert "ctx.lineWidth=4" in customer_template
 
 
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
@@ -659,6 +661,8 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     assert "private fun drawTimelineChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
     assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
+    assert "waveformPaint" in chart_view_source
+    assert "canvas.drawPath(waveformPath, waveformPaint)" in chart_view_source
 
 
 def test_release_versions_use_year_train_increment_syntax():
