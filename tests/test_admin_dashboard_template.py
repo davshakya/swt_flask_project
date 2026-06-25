@@ -282,9 +282,11 @@ def test_customer_dashboard_motor_chart_shows_run_durations():
     assert "pumpActivity?.avg_run_seconds" in customer_template
     assert "Run durations appear on the ON spans." in customer_template
     assert 'xLabelMode:"duration"' in customer_template
+    assert 'const highY=box.top+Math.max(18,box.plotHeight*0.26)' in customer_template
+    assert 'const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78)' in customer_template
     assert 'ctx.fillText("0s",box.left,axisLabelY)' in customer_template
     assert 'ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY)' in customer_template
-    assert "ctx.strokeStyle=segment.state===1?themeVar(\"--chart-motor\"):themeVar(\"--chart-ticks\")" in customer_template
+    assert 'ctx.strokeStyle=themeVar("--chart-motor")' in customer_template
     assert "ctx.lineWidth=4" in customer_template
 
 
@@ -666,7 +668,10 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     assert "private fun drawTimelineChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
     assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
+    assert "val waveformFillPaint = Paint(fillPaint)" in chart_view_source
+    assert "val highY = top + max(18f * density, height * 0.26f)" in chart_view_source
     assert "waveformPaint" in chart_view_source
+    assert "canvas.drawPath(fillPath, waveformFillPaint)" in chart_view_source
     assert "canvas.drawPath(waveformPath, waveformPaint)" in chart_view_source
 
 

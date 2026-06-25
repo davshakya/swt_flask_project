@@ -724,108 +724,72 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     const xForTime=(ms)=>box.left+((ms-minTime)/timeSpan)*box.plotWidth;
     const useTimeLabels=xLabelMode==="time";
     const useDurationLabels=xLabelMode==="duration";
-    const laneGap=Math.max(8,Math.min(14,box.plotHeight*0.08));
-    const laneHeight=Math.max(28,Math.min(54,(box.plotHeight-laneGap-8)/2));
-    const onLaneTop=box.top+14;
-    const offLaneTop=onLaneTop+laneHeight+laneGap;
-    const onLaneCenter=onLaneTop+laneHeight/2;
-    const offLaneCenter=offLaneTop+laneHeight/2;
-    const laneRadius=12;
-    const fillRoundRect=(x,y,w,h,fillStyle,alpha=1)=>{
-        if(w<=0||h<=0)return;
-        ctx.save();
-        ctx.globalAlpha=alpha;
-        ctx.fillStyle=fillStyle;
-        ctx.beginPath();
-        if(typeof ctx.roundRect==="function")ctx.roundRect(x,y,w,h,laneRadius);
-        else ctx.rect(x,y,w,h);
-        ctx.fill();
-        ctx.restore();
-    };
+    const highY=box.top+Math.max(18,box.plotHeight*0.26);
+    const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78);
+    const stateY=(state)=>state===1?highY:lowY;
 
     ctx.fillStyle=themeVar("--chart-ticks");
     ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="right";
-    ctx.fillText("ON",box.left-10,onLaneCenter+4);
-    ctx.fillText("OFF",box.left-10,offLaneCenter+4);
-    fillRoundRect(box.left,onLaneTop,box.plotWidth,laneHeight,themeVar("--button-lite-bg")||themeVar("--chart-grid"),0.26);
-    fillRoundRect(box.left,offLaneTop,box.plotWidth,laneHeight,themeVar("--chart-grid"),0.14);
+    ctx.fillText("ON",box.left-10,highY+4);
+    ctx.fillText("OFF",box.left-10,lowY+4);
 
-    const points=[];
-    segments.forEach((segment,index)=>{
+    const stepPoints=[];
+    finiteSegments.forEach((segment,index)=>{
         const startX=xForTime(segment.startMs);
         const endX=xForTime(segment.endMs);
-        const segmentWidth=Math.max(1,endX-startX);
-        const laneTop=segment.state===1?onLaneTop:offLaneTop;
-        const laneCenter=segment.state===1?onLaneCenter:offLaneCenter;
-        const stateLabel=segment.state===1?"ON":"OFF";
-        const durationLabel=formatDurationSeconds(segment.durationSeconds);
-        const labelText=`${stateLabel} ${durationLabel}`;
-        const hoverActive=hoverIndex===index;
-        const fillColor=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-grid");
-        fillRoundRect(startX,laneTop,segmentWidth,laneHeight,fillColor,segment.state===1?(hoverActive?0.9:0.62):(hoverActive?0.78:0.36));
-        if(hoverActive){
-            ctx.save();
-            ctx.strokeStyle=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-ticks");
-            ctx.globalAlpha=0.95;
-            ctx.lineWidth=2;
-            ctx.beginPath();
-            if(typeof ctx.roundRect==="function")ctx.roundRect(startX+1,laneTop+1,Math.max(0,segmentWidth-2),laneHeight-2,laneRadius-2);
-            else ctx.rect(startX+1,laneTop+1,Math.max(0,segmentWidth-2),laneHeight-2);
-            ctx.stroke();
-            ctx.restore();
-        }
-        ctx.save();
-        ctx.strokeStyle=themeVar("--text-strong")||themeVar("--panel-strong")||themeVar("--bg");
-        ctx.globalAlpha=0.82;
-        ctx.lineWidth=7;
-        ctx.lineCap="round";
-        ctx.lineJoin="round";
-        ctx.beginPath();
+        const y=stateY(segment.state);
         if(index===0){
-            ctx.moveTo(startX,laneCenter);
-        }else{
-            const previous=segments[index-1];
-            const previousCenter=previous.state===1?onLaneCenter:offLaneCenter;
-            ctx.lineTo(startX,previousCenter);
-            if(previousCenter!==laneCenter)ctx.lineTo(startX,laneCenter);
+            stepPoints.push([startX,y]);
         }
-        ctx.lineTo(endX,laneCenter);
-        ctx.stroke();
-        ctx.restore();
-        ctx.save();
-        ctx.strokeStyle=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-ticks");
-        ctx.globalAlpha=0.92;
-        ctx.lineWidth=4;
-        ctx.lineCap="round";
-        ctx.lineJoin="round";
-        ctx.beginPath();
-        if(index===0){
-            ctx.moveTo(startX,laneCenter);
-        }else{
-            const previous=segments[index-1];
-            const previousCenter=previous.state===1?onLaneCenter:offLaneCenter;
-            ctx.lineTo(startX,previousCenter);
-            if(previousCenter!==laneCenter)ctx.lineTo(startX,laneCenter);
+        stepPoints.push([endX,y]);
+        const next=finiteSegments[index+1]||null;
+        if(next){
+            const nextY=stateY(next.state);
+            if(nextY!==y){
+                stepPoints.push([endX,nextY]);
+            }
         }
-        ctx.lineTo(endX,laneCenter);
-        ctx.stroke();
-        ctx.restore();
-        ctx.save();
-        ctx.fillStyle=segment.state===1?(themeVar("--panel-strong")||themeVar("--text")):"var(--text-strong)";
-        ctx.font='700 12px "Trebuchet MS","Segoe UI",sans-serif';
-        ctx.textAlign="center";
-        ctx.textBaseline="middle";
-        const textWidth=ctx.measureText(labelText).width;
-        const labelY=laneTop+Math.max(16,Math.min(24,laneHeight*0.34));
-        if(segmentWidth>textWidth+12){
-            ctx.fillText(labelText,startX+segmentWidth/2,labelY);
-        }else if(segmentWidth>30){
-            const shortLabel=stateLabel;
-            if(ctx.measureText(shortLabel).width+8<segmentWidth)ctx.fillText(shortLabel,startX+segmentWidth/2,labelY);
-        }
-        ctx.restore();
-        points.push({x:startX+segmentWidth/2,y:laneCenter,index,value:segment.state,label:segment.startLabel,endLabel:segment.endLabel,durationSeconds:segment.durationSeconds,ongoing:segment.ongoing,stateLabel});
+    });
+
+    if(!stepPoints.length){
+        drawCanvasEmpty(canvas,title,"No motor activity recorded yet. Wait for the next sync.");
+        return;
+    }
+
+    ctx.save();
+    ctx.fillStyle=themeVar("--chart-motor");
+    ctx.globalAlpha=0.12;
+    ctx.beginPath();
+    ctx.moveTo(stepPoints[0][0],lowY);
+    ctx.lineTo(stepPoints[0][0],stepPoints[0][1]);
+    stepPoints.forEach((point,index)=>{
+        if(index>0)ctx.lineTo(point[0],point[1]);
+    });
+    ctx.lineTo(stepPoints[stepPoints.length-1][0],lowY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.strokeStyle=themeVar("--chart-motor");
+    ctx.globalAlpha=0.96;
+    ctx.lineWidth=4;
+    ctx.lineCap="round";
+    ctx.lineJoin="round";
+    ctx.beginPath();
+    stepPoints.forEach((point,index)=>{
+        if(index===0)ctx.moveTo(point[0],point[1]);
+        else ctx.lineTo(point[0],point[1]);
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    const points=finiteSegments.map((segment,index)=>{
+        const startX=xForTime(segment.startMs);
+        const endX=xForTime(segment.endMs);
+        const laneY=stateY(segment.state);
+        return {x:startX+(endX-startX)/2,y:laneY,index,value:segment.state,label:segment.startLabel,endLabel:segment.endLabel,durationSeconds:segment.durationSeconds,ongoing:segment.ongoing,stateLabel:segment.state===1?"ON":"OFF"};
     });
 
     const summaryParts=[];
@@ -861,8 +825,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     canvas.__swtChartRender=(nextHoverIndex=null)=>drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime,pumpActivity,xLabelMode,hoverIndex:nextHoverIndex});
     const hoverPoint=points[hoverIndex]||null;
     if(hoverPoint){
-        const endText=hoverPoint.ongoing?"Now":chartTooltipTimeLabel(hoverPoint.endLabel);
-        const label=`${hoverPoint.stateLabel} ${chartTooltipTimeLabel(hoverPoint.label)} -> ${endText}`;
+        const label=`${hoverPoint.stateLabel} ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`;
         const valueText=hoverPoint.stateLabel==="ON"?`Run duration ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`:`Idle duration ${formatDurationSeconds(hoverPoint.durationSeconds)}`;
         drawChartTooltip(ctx,width,height,box,hoverPoint,{label,valueText,color:hoverPoint.value===1?themeVar("--chart-motor"):themeVar("--chart-grid")});
     }
