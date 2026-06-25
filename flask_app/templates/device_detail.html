@@ -284,12 +284,12 @@ body{font-size:16px}
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>
                 </form>
-                <form method="post" action="{{ url_for('admin_device_detail_ping', device_id=device_id) }}" data-ajax-form>
+                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="target" value="master">
                     <button class="btn btn-admin btn-full" type="submit"><span>Ping Master</span></button>
                 </form>
-                <form method="post" action="{{ url_for('admin_device_detail_ping', device_id=device_id) }}" data-ajax-form>
+                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="target" value="slave">
                     <button class="btn btn-admin btn-full" type="submit"><span>Ping Slave</span></button>
