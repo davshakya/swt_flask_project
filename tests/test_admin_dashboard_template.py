@@ -279,13 +279,15 @@ def test_customer_dashboard_motor_chart_shows_run_durations():
     assert "function drawMotorActivityTimeline" in customer_template
     assert "drawMotorActivityTimeline(charts.motor.canvas,\"Motor State\",motorSeriesRaw.time,motorSeriesRaw.values" in customer_template
     assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
+    assert "function formatDurationSeconds(value)" in customer_template
     assert "pumpActivity?.avg_run_seconds" in customer_template
-    assert "Run durations appear on the ON spans." in customer_template
-    assert 'xLabelMode:"duration"' in customer_template
+    assert "ON spans are labeled with run duration." in customer_template
+    assert 'xLabelMode:"time"' in customer_template
     assert 'const highY=box.top+Math.max(18,box.plotHeight*0.26)' in customer_template
     assert 'const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78)' in customer_template
-    assert 'ctx.fillText("0s",box.left,axisLabelY)' in customer_template
-    assert 'ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY)' in customer_template
+    assert 'const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});' in customer_template
+    assert 'const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});' in customer_template
+    assert 'const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`' in customer_template
     assert 'ctx.strokeStyle=themeVar("--chart-motor")' in customer_template
     assert "ctx.lineWidth=4" in customer_template
 
@@ -661,9 +663,9 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     ).read_text(encoding="utf-8")
 
     assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
-    assert "Run duration waveform shows when the pump was ON and OFF during this period." in android_source
-    assert "formatOverviewDurationSeconds(0.0)" in android_source
-    assert "pumpActivityDurationLabel" in android_source
+    assert "ON spans are labeled with their run duration." in android_source
+    assert "section.pumpActivity.startLabel" in android_source
+    assert "section.pumpActivity.endLabel" in android_source
     assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
     assert "private fun drawTimelineChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
@@ -673,6 +675,7 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     assert "waveformPaint" in chart_view_source
     assert "canvas.drawPath(fillPath, waveformFillPaint)" in chart_view_source
     assert "canvas.drawPath(waveformPath, waveformPaint)" in chart_view_source
+    assert 'val badgeText = "ON ${formatDurationLabel(segment.endTime - segment.startTime)}"' in chart_view_source
 
 
 def test_release_versions_use_year_train_increment_syntax():

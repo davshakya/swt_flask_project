@@ -629,6 +629,7 @@ function hasMeaningfulAnalyticsData(data){
 }
 function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
 function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
+function formatDurationSeconds(value){const number=Number(value);if(!Number.isFinite(number)||number<0)return"--";if(number===0)return"0s";const seconds=Math.round(number);const hours=Math.floor(seconds/3600);const minutes=Math.floor((seconds%3600)/60);const remainingSeconds=seconds%60;const parts=[];if(hours)parts.push(`${hours}h`);if(minutes)parts.push(`${minutes}m`);if(remainingSeconds||!parts.length)parts.push(`${remainingSeconds}s`);return parts.join(" ");}
 function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",timeStyle:"short"}){
     const tools=window.swtLocale||localeTools||{};
     if(typeof tools.formatDateTime==="function")return tools.formatDateTime(value,fallback,options);
@@ -784,6 +785,39 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     });
     ctx.stroke();
     ctx.restore();
+    ctx.save();
+    ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
+    ctx.strokeStyle=themeVar("--chart-motor");
+    ctx.globalAlpha=0.96;
+    ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';
+    ctx.textAlign="center";
+    ctx.textBaseline="middle";
+    finiteSegments.forEach((segment)=>{
+        if(segment.state!==1)return;
+        const startX=xForTime(segment.startMs);
+        const endX=xForTime(segment.endMs);
+        const segmentWidth=endX-startX;
+        if(segmentWidth<=28)return;
+        const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`;
+        const textWidth=ctx.measureText(labelText).width;
+        const badgeWidth=textWidth+14;
+        if(segmentWidth<badgeWidth+6)return;
+        const badgeHeight=18;
+        const badgeX=startX+(segmentWidth-badgeWidth)/2;
+        const badgeY=Math.max(box.top+2,highY-badgeHeight-8);
+        ctx.globalAlpha=0.94;
+        ctx.beginPath();
+        if(typeof ctx.roundRect==="function")ctx.roundRect(badgeX,badgeY,badgeWidth,badgeHeight,9);
+        else ctx.rect(badgeX,badgeY,badgeWidth,badgeHeight);
+        ctx.fill();
+        ctx.globalAlpha=0.4;
+        ctx.stroke();
+        ctx.globalAlpha=1;
+        ctx.fillStyle=themeVar("--chart-motor");
+        ctx.fillText(labelText,badgeX+badgeWidth/2,badgeY+badgeHeight/2+0.5);
+        ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
+    });
+    ctx.restore();
 
     const points=finiteSegments.map((segment,index)=>{
         const startX=xForTime(segment.startMs);
@@ -799,7 +833,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     if(Number.isFinite(completedRuns)&&completedRuns>0)summaryParts.push(`${Math.round(completedRuns)} runs`);
     if(Number.isFinite(avgRunSeconds)&&avgRunSeconds>0)summaryParts.push(`Avg run ${formatDurationSeconds(avgRunSeconds)}`);
     if(Number.isFinite(dutyCycle)&&dutyCycle>0)summaryParts.push(`Duty ${dutyCycle.toFixed(1)}%`);
-    const summaryText=summaryParts.length?summaryParts.join(" | "):"Run durations appear on the ON spans.";
+    const summaryText=summaryParts.length?summaryParts.join(" | "):"ON spans are labeled with run duration.";
     ctx.fillStyle=themeVar("--chart-ticks");
     ctx.font='600 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="right";
@@ -1666,7 +1700,7 @@ function drawAnalyticsCharts(data){
     drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
-    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"duration"});
+    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"time"});
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
