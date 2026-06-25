@@ -723,6 +723,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     const timeSpan=maxTime-minTime;
     const xForTime=(ms)=>box.left+((ms-minTime)/timeSpan)*box.plotWidth;
     const useTimeLabels=xLabelMode==="time";
+    const useDurationLabels=xLabelMode==="duration";
     const laneGap=Math.max(8,Math.min(14,box.plotHeight*0.08));
     const laneHeight=Math.max(28,Math.min(54,(box.plotHeight-laneGap-8)/2));
     const onLaneTop=box.top+14;
@@ -747,8 +748,8 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     ctx.textAlign="right";
     ctx.fillText("ON",box.left-10,onLaneCenter+4);
     ctx.fillText("OFF",box.left-10,offLaneCenter+4);
-    fillRoundRect(box.left,onLaneTop,box.plotWidth,laneHeight,themeVar("--button-lite-bg")||themeVar("--chart-grid"),0.32);
-    fillRoundRect(box.left,offLaneTop,box.plotWidth,laneHeight,themeVar("--chart-grid"),0.18);
+    fillRoundRect(box.left,onLaneTop,box.plotWidth,laneHeight,themeVar("--button-lite-bg")||themeVar("--chart-grid"),0.26);
+    fillRoundRect(box.left,offLaneTop,box.plotWidth,laneHeight,themeVar("--chart-grid"),0.14);
 
     const points=[];
     segments.forEach((segment,index)=>{
@@ -762,7 +763,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         const labelText=`${stateLabel} ${durationLabel}`;
         const hoverActive=hoverIndex===index;
         const fillColor=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-grid");
-        fillRoundRect(startX,laneTop,segmentWidth,laneHeight,fillColor,segment.state===1?(hoverActive?0.96:0.82):(hoverActive?0.82:0.54));
+        fillRoundRect(startX,laneTop,segmentWidth,laneHeight,fillColor,segment.state===1?(hoverActive?0.9:0.62):(hoverActive?0.78:0.36));
         if(hoverActive){
             ctx.save();
             ctx.strokeStyle=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-ticks");
@@ -774,6 +775,24 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
             ctx.stroke();
             ctx.restore();
         }
+        ctx.save();
+        ctx.strokeStyle=themeVar("--text-strong")||themeVar("--panel-strong")||themeVar("--bg");
+        ctx.globalAlpha=0.82;
+        ctx.lineWidth=7;
+        ctx.lineCap="round";
+        ctx.lineJoin="round";
+        ctx.beginPath();
+        if(index===0){
+            ctx.moveTo(startX,laneCenter);
+        }else{
+            const previous=segments[index-1];
+            const previousCenter=previous.state===1?onLaneCenter:offLaneCenter;
+            ctx.lineTo(startX,previousCenter);
+            if(previousCenter!==laneCenter)ctx.lineTo(startX,laneCenter);
+        }
+        ctx.lineTo(endX,laneCenter);
+        ctx.stroke();
+        ctx.restore();
         ctx.save();
         ctx.strokeStyle=segment.state===1?themeVar("--chart-motor"):themeVar("--chart-ticks");
         ctx.globalAlpha=0.92;
@@ -798,11 +817,12 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         ctx.textAlign="center";
         ctx.textBaseline="middle";
         const textWidth=ctx.measureText(labelText).width;
+        const labelY=laneTop+Math.max(16,Math.min(24,laneHeight*0.34));
         if(segmentWidth>textWidth+12){
-            ctx.fillText(labelText,startX+segmentWidth/2,laneCenter);
+            ctx.fillText(labelText,startX+segmentWidth/2,labelY);
         }else if(segmentWidth>30){
             const shortLabel=stateLabel;
-            if(ctx.measureText(shortLabel).width+8<segmentWidth)ctx.fillText(shortLabel,startX+segmentWidth/2,laneCenter);
+            if(ctx.measureText(shortLabel).width+8<segmentWidth)ctx.fillText(shortLabel,startX+segmentWidth/2,labelY);
         }
         ctx.restore();
         points.push({x:startX+segmentWidth/2,y:laneCenter,index,value:segment.state,label:segment.startLabel,endLabel:segment.endLabel,durationSeconds:segment.durationSeconds,ongoing:segment.ongoing,stateLabel});
@@ -820,13 +840,22 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     ctx.font='600 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="right";
     ctx.fillText(summaryText,width-8,14);
-    const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});
-    const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});
+    const axisLabelY=Math.min(height-6,box.top+box.plotHeight+20);
     ctx.fillStyle=themeVar("--chart-ticks");
-    ctx.textAlign="left";
-    ctx.fillText(startLabel,box.left,Math.min(height-6,box.top+box.plotHeight+20));
-    ctx.textAlign="right";
-    ctx.fillText(endLabel,box.left+box.plotWidth,Math.min(height-6,box.top+box.plotHeight+20));
+    if(useDurationLabels){
+        const totalDurationSeconds=(maxTime-minTime)/1000;
+        ctx.textAlign="left";
+        ctx.fillText("0s",box.left,axisLabelY);
+        ctx.textAlign="right";
+        ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY);
+    }else{
+        const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});
+        const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});
+        ctx.textAlign="left";
+        ctx.fillText(startLabel,box.left,axisLabelY);
+        ctx.textAlign="right";
+        ctx.fillText(endLabel,box.left+box.plotWidth,axisLabelY);
+    }
     ctx.textAlign="left";
     canvas.__swtChartPoints=points;
     canvas.__swtChartRender=(nextHoverIndex=null)=>drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime,pumpActivity,xLabelMode,hoverIndex:nextHoverIndex});
@@ -1674,7 +1703,7 @@ function drawAnalyticsCharts(data){
     drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
-    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:todayAxis?"time":"auto"});
+    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"duration"});
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}

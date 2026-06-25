@@ -281,6 +281,9 @@ def test_customer_dashboard_motor_chart_shows_run_durations():
     assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
     assert "pumpActivity?.avg_run_seconds" in customer_template
     assert "Run durations appear on the ON spans." in customer_template
+    assert 'xLabelMode:"duration"' in customer_template
+    assert 'ctx.fillText("0s",box.left,axisLabelY)' in customer_template
+    assert 'ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY)' in customer_template
     assert "ctx.strokeStyle=segment.state===1?themeVar(\"--chart-motor\"):themeVar(\"--chart-ticks\")" in customer_template
     assert "ctx.lineWidth=4" in customer_template
 
@@ -656,7 +659,9 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     ).read_text(encoding="utf-8")
 
     assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
-    assert "Run duration blocks show when the pump was ON and OFF during this period." in android_source
+    assert "Run duration waveform shows when the pump was ON and OFF during this period." in android_source
+    assert "formatOverviewDurationSeconds(0.0)" in android_source
+    assert "pumpActivityDurationLabel" in android_source
     assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
     assert "private fun drawTimelineChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
