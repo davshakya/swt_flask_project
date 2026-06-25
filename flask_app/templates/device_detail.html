@@ -284,12 +284,12 @@ body{font-size:16px}
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>
                 </form>
-                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form>
+                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form data-loading-text="Pinging...">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="target" value="master">
                     <button class="btn btn-admin btn-full" type="submit"><span>Ping Master</span></button>
                 </form>
-                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form>
+                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form data-loading-text="Pinging...">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="target" value="slave">
                     <button class="btn btn-admin btn-full" type="submit"><span>Ping Slave</span></button>
@@ -601,7 +601,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     document.body.appendChild(modal);
     try{modal.querySelector("[data-confirm-accept]").focus({preventScroll:true});}catch(error){}
   }
-  function showResultModal(title,message,isError=false){
+  function showResultModal(title,message,isError=false,details=[]){
     closeResultModal();
     const modal=document.createElement("div");
     modal.className="result-modal";
@@ -612,7 +612,9 @@ document.addEventListener("DOMContentLoaded",()=>{
     modal.innerHTML=`<div class="result-dialog"><div class="result-head"><div><div class="eyebrow">Result</div><h2 id="device_result_title"></h2></div><button class="result-close" type="button" data-result-close>Close</button></div><div class="message"></div></div>`;
     modal.querySelector("#device_result_title").textContent=title||"Upload result";
     const messageNode=modal.querySelector(".message");
-    messageNode.textContent=message||"No upload result message was returned.";
+    const detailLines=Array.isArray(details)?details.filter(Boolean):[];
+    messageNode.style.whiteSpace="pre-line";
+    messageNode.textContent=[message||"No result message was returned.",...detailLines].filter(Boolean).join("\n");
     messageNode.classList.add(isError?"error":"success");
     modal.querySelector("[data-result-close]").addEventListener("click",closeResultModal);
     document.body.appendChild(modal);
@@ -697,7 +699,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       const scrollY=window.scrollY||0;
       if(button){
         button.disabled=true;
-        button.textContent="Saving...";
+        button.textContent=form.dataset.loadingText||"Saving...";
       }
       try{
         const formData=new FormData(form);
@@ -707,7 +709,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         if(contentType.includes("application/json")){
           const payload=await response.json();
           const failed=payload?.ok===false||!response.ok;
-          showResultModal(failed?"Action failed":"Action saved",payload?.error||payload?.message||"Request completed.",failed);
+          showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
@@ -906,6 +908,9 @@ function peerChannelValue(value,fallback="Not reported"){
   const number=Number(value);
   return Number.isFinite(number)&&number>0?`${Math.round(number)}`:fallback;
 }
+function firstReportedValue(...values){
+  return values.find((value)=>isReportedInfoValue(value));
+}
 function reachabilityTone(value){
   const normalized=String(value||"").trim().toLowerCase();
   if(["online","reachable","ok","success"].includes(normalized))return"ok";
@@ -913,7 +918,7 @@ function reachabilityTone(value){
   if(["warning","warn","stale"].includes(normalized))return"warn";
   return"info";
 }
-function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={}){
+function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={},currentSavedConfig={}){
   const root=document.getElementById("peerDiagnostics");
   if(!root)return;
   const directPeer=String(snapshot.direct_peer||"").trim().toLowerCase();
@@ -923,7 +928,13 @@ function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={}){
   const packetAge=Number.isFinite(ageNumber)&&ageNumber>=0?ageNumber:null;
   const configChannel=snapshot.direct_peer_config_channel;
   const activeChannel=snapshot.direct_peer_wifi_channel;
-  const savedChannel=serviceConfig.direct_peer_wifi_channel;
+  const savedChannel=firstReportedValue(
+    currentSavedConfig.direct_peer_wifi_channel,
+    serviceConfig.direct_peer_wifi_channel,
+    document.getElementById("direct_peer_wifi_channel")?.value,
+    configChannel,
+    activeChannel
+  );
   let status="Disabled";
   let tone="info";
   if(peerEnabled){
@@ -960,13 +971,13 @@ function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={}){
     {label:"Master Reachability",value:masterReachability,note:"Based on latest master telemetry freshness.",tone:reachabilityTone(systemStatus.master_status_tone||masterReachability)},
     {label:"Slave Reachability",value:slaveReachability,note:"Based on accepted direct peer/slave telemetry.",tone:reachabilityTone(systemStatus.slave_status_tone||slaveReachability)},
     {label:"Current Slave Peer Status",value:status,note:diagnosis,alert:true,tone},
-    {label:"Saved Peer Channel",value:peerChannelValue(savedChannel),note:"Cloud/runtime target channel."},
-    {label:"Configured Peer Channel",value:peerChannelValue(configChannel),note:"Channel master reports for direct peer."},
-    {label:"Master Wi-Fi Channel",value:peerChannelValue(activeChannel),note:"Actual 2.4 GHz router channel seen by master."},
+    {label:"Saved Peer Channel",value:peerChannelValue(savedChannel,"6"),note:"Cloud/runtime target channel. Falls back to the form/default value if not returned by API."},
+    {label:"Configured Peer Channel",value:peerChannelValue(configChannel,"Firmware not reporting"),note:"Channel master reports for direct peer."},
+    {label:"Master Wi-Fi Channel",value:peerChannelValue(activeChannel,"Firmware not reporting"),note:"Actual 2.4 GHz router channel seen by master."},
     {label:"Last Slave Packet",value:packetAge===null?"No accepted packet":`${formatDurationSeconds(packetAge)} ago`,note:`Stale after ${DIRECT_PEER_STALE_AFTER_SECONDS}s.`},
     {label:"Peer Sync",value:formatPeerSyncStatus(snapshot),note:"Pending means master still needs to apply peer channel."},
-    {label:"Peer Remote MAC",value:infoValue(snapshot.direct_peer_remote_mac,"Waiting for peer"),note:"MAC appears only after peer is known."},
-    {label:"Peer Remote IP",value:infoValue(snapshot.direct_peer_remote_ip,"Waiting for peer"),note:"IP appears only if slave reports it."},
+    {label:"Peer Remote MAC",value:infoValue(snapshot.direct_peer_remote_mac,"Unknown until peer packet"),note:"MAC appears only after peer is known."},
+    {label:"Peer Remote IP",value:infoValue(snapshot.direct_peer_remote_ip,"Unknown until peer packet"),note:"IP appears only if slave reports it."},
   ];
   setStableHtml(root,cards.map((card)=>`
     <div class="peer-diagnostic-card${card.alert?" alert":""}">
@@ -1402,7 +1413,7 @@ async function loadDevice({silent=false}={}){
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
-  renderPeerDiagnostics(snapshot,serviceConfig,systemStatus);
+  renderPeerDiagnostics(snapshot,serviceConfig,systemStatus,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
   }

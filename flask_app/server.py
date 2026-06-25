@@ -10368,6 +10368,12 @@ def build_device_ping_result(device_id, target):
     peer_age = snapshot.get("direct_peer_last_packet_age_s")
     peer_age_text = ping_age_label(peer_age)
     last_sync_at = snapshot.get("last_sync_at")
+    config_channel = snapshot.get("direct_peer_config_channel")
+    active_channel = snapshot.get("direct_peer_wifi_channel")
+
+    def ping_detail_value(value, fallback="Not reported"):
+        text = str(value if value is not None else "").strip()
+        return text if text else fallback
 
     details = {
         "device_id": normalized_device_id,
@@ -10407,6 +10413,25 @@ def build_device_ping_result(device_id, target):
     else:
         message = "Ping slave unreachable: master has not accepted a slave packet yet."
 
+    detail_lines = [
+        f"Target: {target_label}",
+        f"Result: {status_label}",
+        f"Master reachability: {node_status.get('master_status_label') or 'Unreachable'}",
+        f"Slave reachability: {node_status.get('slave_status_label') or 'Unreachable'}",
+        f"Telemetry: {telemetry_status_value or 'not available'}",
+        f"Last sync: {ping_detail_value(last_sync_at)}",
+    ]
+    if normalized_target == "slave":
+        detail_lines.extend(
+            [
+                f"Last slave packet: {peer_age_text if peer_age_text != '--' else 'No accepted packet'}",
+                f"Configured peer channel: {ping_detail_value(config_channel)}",
+                f"Master Wi-Fi channel: {ping_detail_value(active_channel)}",
+                f"Peer MAC: {ping_detail_value(snapshot.get('direct_peer_remote_mac'), 'Unknown until peer packet')}",
+                f"Peer IP: {ping_detail_value(snapshot.get('direct_peer_remote_ip'), 'Unknown until peer packet')}",
+            ]
+        )
+
     event = {
         "time": now_utc().strftime(TIMESTAMP_FORMAT),
         "severity": severity,
@@ -10419,7 +10444,9 @@ def build_device_ping_result(device_id, target):
         "reachable": reachable,
         "disabled": disabled,
         "status": status_label,
+        "title": f"Ping {target_label} Result",
         "message": message,
+        "detail_lines": detail_lines,
         "event": event,
     }
 
@@ -14919,7 +14946,9 @@ def admin_device_detail_ping(device_id):
     return jsonify(
         {
             "ok": True,
+            "title": ping_result["title"],
             "message": ping_result["message"],
+            "detail_lines": ping_result["detail_lines"],
             "target": ping_result["target"],
             "status": ping_result["status"],
             "reachable": ping_result["reachable"],
