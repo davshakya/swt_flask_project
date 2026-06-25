@@ -865,6 +865,16 @@ function formatDurationMs(value){
   if(!Number.isFinite(number)||number<0)return"--";
   return formatDurationSeconds(number/1000);
 }
+function formatPeerSyncStatus(snapshot){
+  if(!snapshot)return"Not reported";
+  const pending=Boolean(snapshot.direct_peer_sync_pending);
+  const syncChannel=Number(snapshot.direct_peer_sync_channel);
+  const lastOk=formatDurationSeconds(snapshot.direct_peer_sync_last_ok_age_s);
+  if(pending){
+    return Number.isFinite(syncChannel)&&syncChannel>0?`Pending channel ${syncChannel}`:"Pending";
+  }
+  return lastOk&&lastOk!=="--"?`Last OK ${lastOk} ago`:"Not pending";
+}
 function memoryRole(row,snapshot,serviceConfig){
   const role=String(row?.node_role||row?.device_type||"").trim().toLowerCase();
   if(role.includes("slave"))return"slave";
@@ -1077,7 +1087,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Simulator",value:simulatorSummary,show:true},
     {label:"Peer Transport",value:infoValue(snapshot?.peer_transport,"Not reported")},
     {label:"Direct Peer",value:infoValue(snapshot?.direct_peer,"Not reported")},
+    {label:"Peer Config Channel",value:isReportedInfoValue(snapshot?.direct_peer_config_channel)?`${snapshot.direct_peer_config_channel}`:"Not reported"},
+    {label:"Peer Active Channel",value:isReportedInfoValue(snapshot?.direct_peer_wifi_channel)?`${snapshot.direct_peer_wifi_channel}`:"Not reported"},
+    {label:"Peer Sync",value:formatPeerSyncStatus(snapshot)},
     {label:"Peer Remote IP",value:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for peer")},
+    {label:"Peer Remote MAC",value:infoValue(snapshot?.direct_peer_remote_mac,"Waiting for peer")},
     {label:"Peer Packet Age",value:formatDurationSeconds(snapshot?.direct_peer_last_packet_age_s)},
     {label:"Cloud Feed Mode",value:infoValue(titleCase(savedServiceConfig?.cloud_feed_mode||""),"Not reported")},
     {label:"AI Analysis",value:Boolean(savedServiceConfig?.effective_ai_analysis_enabled)?"Enabled":"Disabled"},
@@ -1139,6 +1153,15 @@ function activityMeta(entry){
   const parts=[];
   if(entry.kind)parts.push(titleCase(entry.kind));
   if(entry.device_id||entry.details?.device_id)parts.push(entry.device_id||entry.details.device_id);
+  const details=entry.details||{};
+  if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
+  if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Active ch ${details.direct_peer_wifi_channel}`);
+  if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
+  if(details.direct_peer_remote_mac)parts.push(`MAC ${details.direct_peer_remote_mac}`);
+  if(details.direct_peer_remote_ip)parts.push(`IP ${details.direct_peer_remote_ip}`);
+  if(details.direct_peer_sync_pending)parts.push(`Sync pending${details.direct_peer_sync_channel?` ch ${details.direct_peer_sync_channel}`:""}`);
+  if(details.command_summary)parts.push(details.command_summary);
+  if(details.command)parts.push(`Command ${details.command}`);
   return parts.join(" | ");
 }
 function setButtonDisabled(id,disabled){

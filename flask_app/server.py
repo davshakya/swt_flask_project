@@ -3043,8 +3043,14 @@ def build_admin_device_entry(device_id, snapshot=None):
         "device_type": payload.get("device_type"),
         "direct_peer": payload.get("direct_peer"),
         "direct_peer_remote_ip": payload.get("direct_peer_remote_ip"),
+        "direct_peer_remote_mac": payload.get("direct_peer_remote_mac"),
+        "direct_peer_config_channel": payload.get("direct_peer_config_channel"),
+        "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
+        "direct_peer_sync_pending": payload.get("direct_peer_sync_pending"),
+        "direct_peer_sync_channel": payload.get("direct_peer_sync_channel"),
+        "direct_peer_sync_last_ok_age_s": payload.get("direct_peer_sync_last_ok_age_s"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -3910,8 +3916,14 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_type"),
         cleaned.get("direct_peer"),
         cleaned.get("direct_peer_remote_ip"),
+        cleaned.get("direct_peer_remote_mac"),
+        cleaned.get("direct_peer_config_channel"),
+        cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
+        cleaned.get("direct_peer_sync_pending"),
+        cleaned.get("direct_peer_sync_channel"),
+        cleaned.get("direct_peer_sync_last_ok_age_s"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -3942,8 +3954,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
                 arch_id, node_role, device_type,
-                direct_peer, direct_peer_remote_ip, direct_peer_last_packet_age_s,
-                direct_peer_last_packet_bytes,
+                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
+                direct_peer_config_channel, direct_peer_wifi_channel,
+                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_sync_pending, direct_peer_sync_channel,
+                direct_peer_sync_last_ok_age_s,
                 created_at
             )
             VALUES ({placeholders})
@@ -3979,6 +3994,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
             led_display_service_state=cleaned.get("led_display_service"),
             lower_tank_service_state=cleaned.get("lower_tank_service"),
             slave_device_service_state=cleaned.get("slave_device_service"),
+            direct_peer_wifi_channel=(
+                cleaned.get("direct_peer_config_channel")
+                if cleaned.get("direct_peer_config_channel") not in (None, "")
+                else cleaned.get("direct_peer_wifi_channel")
+            ),
         )
     except Exception as exc:
         logger.warning(
@@ -4406,8 +4426,14 @@ def ensure_tank_data_columns(cursor):
         "device_type": "TEXT",
         "direct_peer": "TEXT",
         "direct_peer_remote_ip": "TEXT",
+        "direct_peer_remote_mac": "TEXT",
+        "direct_peer_config_channel": "INTEGER",
+        "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
+        "direct_peer_sync_pending": "INTEGER",
+        "direct_peer_sync_channel": "INTEGER",
+        "direct_peer_sync_last_ok_age_s": "INTEGER",
     }
 
     for column, definition in required.items():
@@ -4510,8 +4536,14 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             device_type TEXT,
             direct_peer TEXT,
             direct_peer_remote_ip TEXT,
+            direct_peer_remote_mac TEXT,
+            direct_peer_config_channel INTEGER,
+            direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
             direct_peer_last_packet_bytes INTEGER,
+            direct_peer_sync_pending INTEGER,
+            direct_peer_sync_channel INTEGER,
+            direct_peer_sync_last_ok_age_s INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -5115,8 +5147,14 @@ def init_db():
                 device_type TEXT,
                 direct_peer TEXT,
                 direct_peer_remote_ip TEXT,
+                direct_peer_remote_mac TEXT,
+                direct_peer_config_channel INTEGER,
+                direct_peer_wifi_channel INTEGER,
                 direct_peer_last_packet_age_s INTEGER,
                 direct_peer_last_packet_bytes INTEGER,
+                direct_peer_sync_pending INTEGER,
+                direct_peer_sync_channel INTEGER,
+                direct_peer_sync_last_ok_age_s INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -7496,11 +7534,20 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["local_firmware_upload_service"] = normalize_service_state(data.get("local_firmware_upload_service"))
     data["direct_peer"] = str(data.get("direct_peer") or "").strip().lower()
     data["direct_peer_remote_ip"] = str(data.get("direct_peer_remote_ip") or "").strip()
-    for key in ("direct_peer_last_packet_age_s", "direct_peer_last_packet_bytes"):
+    data["direct_peer_remote_mac"] = str(data.get("direct_peer_remote_mac") or "").strip()
+    for key in (
+        "direct_peer_config_channel",
+        "direct_peer_wifi_channel",
+        "direct_peer_last_packet_age_s",
+        "direct_peer_last_packet_bytes",
+        "direct_peer_sync_channel",
+        "direct_peer_sync_last_ok_age_s",
+    ):
         try:
             data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
         except (TypeError, ValueError):
             data[key] = None
+    data["direct_peer_sync_pending"] = bool_flag(data.get("direct_peer_sync_pending"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -8577,8 +8624,14 @@ def build_empty_snapshot_payload(device_id=None):
         "local_firmware_upload_service": "UNKNOWN",
         "direct_peer": "",
         "direct_peer_remote_ip": "",
+        "direct_peer_remote_mac": "",
+        "direct_peer_config_channel": None,
+        "direct_peer_wifi_channel": None,
         "direct_peer_last_packet_age_s": None,
         "direct_peer_last_packet_bytes": None,
+        "direct_peer_sync_pending": False,
+        "direct_peer_sync_channel": None,
+        "direct_peer_sync_last_ok_age_s": None,
         "uptime_label": "--",
         "free_heap_label": "--",
         "cpu_utilization_pct_label": "--",
@@ -9298,7 +9351,13 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
                local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
-               node_role, device_type, created_at
+               node_role, device_type,
+               direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
+               direct_peer_config_channel, direct_peer_wifi_channel,
+               direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_sync_pending, direct_peer_sync_channel,
+               direct_peer_sync_last_ok_age_s,
+               created_at
         FROM tank_data
         WHERE 
     """
@@ -9312,6 +9371,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         rows = db.execute(query, tuple(params)).fetchall()
 
     timeline = []
+    latest_peer_row = dict(rows[0]) if rows else None
     previous = None
     pump_started_at = None
     pump_started_level = None
@@ -9367,6 +9427,65 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
             "duration_label": format_compact_uptime(duration_seconds),
         }
 
+    def peer_channel_label(value):
+        try:
+            channel = int(value)
+        except (TypeError, ValueError):
+            return "--"
+        return str(channel) if 1 <= channel <= 13 else "--"
+
+    def peer_packet_age(current):
+        try:
+            return int(current.get("direct_peer_last_packet_age_s"))
+        except (TypeError, ValueError):
+            return None
+
+    def peer_link_state(current):
+        if str(current.get("direct_peer") or "").strip().lower() in {"", "disabled", "off"}:
+            return "disabled"
+        age = peer_packet_age(current)
+        if age is None or age < 0:
+            return "waiting"
+        if age <= DIRECT_PEER_STALE_AFTER_SECONDS:
+            return "reachable"
+        return "stale"
+
+    def peer_event_details(current, extra=None):
+        details = {
+            "direct_peer": current.get("direct_peer"),
+            "direct_peer_config_channel": current.get("direct_peer_config_channel"),
+            "direct_peer_wifi_channel": current.get("direct_peer_wifi_channel"),
+            "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
+            "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
+            "direct_peer_remote_ip": current.get("direct_peer_remote_ip"),
+            "direct_peer_remote_mac": current.get("direct_peer_remote_mac"),
+            "direct_peer_sync_pending": bool_flag(current.get("direct_peer_sync_pending")),
+            "direct_peer_sync_channel": current.get("direct_peer_sync_channel"),
+            "direct_peer_sync_last_ok_age_s": current.get("direct_peer_sync_last_ok_age_s"),
+        }
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
+    def peer_status_message(current, state):
+        config_channel = peer_channel_label(current.get("direct_peer_config_channel"))
+        active_channel = peer_channel_label(current.get("direct_peer_wifi_channel"))
+        age = peer_packet_age(current)
+        channel_note = f"configured channel {config_channel}, active channel {active_channel}"
+        if state == "reachable":
+            return f"Slave peer reachable: {channel_note}, last packet {age}s ago."
+        if state == "stale":
+            return f"Slave peer stale: {channel_note}, last packet {age}s ago."
+        if state == "waiting":
+            return f"Slave peer waiting for accepted packet: {channel_note}."
+        return f"Direct peer disabled: {channel_note}."
+
+    def peer_status_severity(state):
+        if state == "reachable":
+            return "success"
+        if state in {"waiting", "stale"}:
+            return "warning"
+        return "info"
+
     for row in reversed(rows):
         current = dict(row)
         current_time = parse_timestamp(current.get("created_at"))
@@ -9375,6 +9494,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         previous_level = safe_float(previous.get("level"), level) if previous else level
         source_level = safe_float(current.get("lower_tank_level"), None)
         previous_source_level = safe_float(previous.get("lower_tank_level"), None) if previous else None
+        peer_state = peer_link_state(current)
+        previous_peer_state = peer_link_state(previous) if previous else None
 
         if previous is None:
             add_event(
@@ -9384,6 +9505,14 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                 "telemetry_feed_active",
                 {"level": round(level, 2)},
             )
+            if peer_state != "disabled":
+                add_event(
+                    current,
+                    peer_status_severity(peer_state),
+                    peer_status_message(current, peer_state),
+                    f"slave_peer_{peer_state}",
+                    peer_event_details(current, {"state": peer_state}),
+                )
         elif current_time and previous_time:
             gap_seconds = int((current_time - previous_time).total_seconds())
             if gap_seconds > STALE_AFTER_SECONDS:
@@ -9393,6 +9522,59 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                     f"Device checked in after a {format_compact_uptime(gap_seconds)} telemetry gap.",
                     "telemetry_recovered",
                     {"gap_seconds": gap_seconds},
+                )
+
+        if previous is not None and peer_state != previous_peer_state and peer_state != "disabled":
+            add_event(
+                current,
+                peer_status_severity(peer_state),
+                peer_status_message(current, peer_state),
+                f"slave_peer_{peer_state}",
+                peer_event_details(current, {"state": peer_state, "previous_state": previous_peer_state}),
+            )
+
+        if previous is not None:
+            for peer_field, peer_label in (
+                ("direct_peer_config_channel", "Configured peer channel"),
+                ("direct_peer_wifi_channel", "Active peer channel"),
+            ):
+                current_channel = current.get(peer_field)
+                previous_channel = previous.get(peer_field)
+                if current_channel in (None, "") or current_channel == previous_channel:
+                    continue
+                add_event(
+                    current,
+                    "info",
+                    f"{peer_label} changed to {current_channel}.",
+                    "peer_channel_changed",
+                    peer_event_details(
+                        current,
+                        {
+                            "field": peer_field,
+                            "value": current_channel,
+                            "previous_value": previous_channel,
+                        },
+                    ),
+                )
+
+            current_sync_pending = bool_flag(current.get("direct_peer_sync_pending"))
+            previous_sync_pending = bool_flag(previous.get("direct_peer_sync_pending"))
+            if current_sync_pending and not previous_sync_pending:
+                sync_channel = peer_channel_label(current.get("direct_peer_sync_channel"))
+                add_event(
+                    current,
+                    "warning",
+                    f"Peer channel sync is pending for channel {sync_channel}.",
+                    "peer_channel_sync_pending",
+                    peer_event_details(current, {"state": "pending"}),
+                )
+            elif previous_sync_pending and not current_sync_pending:
+                add_event(
+                    current,
+                    "success",
+                    "Peer channel sync completed.",
+                    "peer_channel_sync_completed",
+                    peer_event_details(current, {"state": "completed"}),
                 )
 
         if previous is None or current.get("motor") != previous.get("motor"):
@@ -9654,6 +9836,24 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
 
         previous = current
 
+    if latest_peer_row:
+        latest_peer_state = peer_link_state(latest_peer_row)
+        if latest_peer_state != "disabled":
+            add_event(
+                latest_peer_row,
+                peer_status_severity(latest_peer_state),
+                peer_status_message(latest_peer_row, latest_peer_state),
+                "peer_current_status",
+                peer_event_details(
+                    latest_peer_row,
+                    {
+                        "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:peer_current_status",
+                        "state": latest_peer_state,
+                        "current_status": True,
+                    },
+                ),
+            )
+
     timeline.extend(build_command_events(limit=40, device_id=normalized_device_id))
     timeline.extend(build_ota_events(limit=20, device_id=normalized_device_id))
     timeline.sort(key=lambda item: parse_timestamp(item.get("time")) or datetime.min, reverse=True)
@@ -9693,10 +9893,12 @@ def build_command_events(limit=20, device_id=None):
                 "message": command_activity["queued_message"],
                 "kind": f"{command_activity['kind_suffix']}_queued",
                 "details": {
+                    "event_group": "command_queued",
                     "source_table": "device_command_queue",
                     "source_row_id": row["id"],
                     "command": command,
                     "command_label": command_activity["label"],
+                    "command_summary": command_activity.get("summary"),
                     "device_id": target_device,
                     "command_id": row["id"],
                 },
@@ -9710,10 +9912,12 @@ def build_command_events(limit=20, device_id=None):
                     "message": command_activity["ack_message"],
                     "kind": f"{command_activity['kind_suffix']}_acknowledged",
                     "details": {
+                        "event_group": "command_acknowledged",
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
                         "command_label": command_activity["label"],
+                        "command_summary": command_activity.get("summary"),
                         "device_id": target_device,
                         "command_id": row["id"],
                     },
@@ -9736,10 +9940,12 @@ def build_command_events(limit=20, device_id=None):
                     "message": message,
                     "kind": kind,
                     "details": {
+                        "event_group": "command_delivery_failed" if severity == "warning" else "command_delivery_pending",
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
                         "command_label": command_activity["label"],
+                        "command_summary": command_activity.get("summary"),
                         "device_id": target_device,
                         "command_id": row["id"],
                         "age_seconds": age_seconds,
@@ -9847,6 +10053,9 @@ def normalize_device_event_time(value):
 def device_event_key(event, default_device_id=None):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     device_id = normalize_device_id(details.get("device_id") or default_device_id) or ""
+    explicit_key = str(details.get("event_key") or "").strip()
+    if explicit_key:
+        return hashlib.sha256(f"{device_id}|{explicit_key}".encode("utf-8")).hexdigest()[:40]
     source_table = str(details.get("source_table") or "").strip()
     source_row_id = str(details.get("source_row_id") or "").strip()
     event_kind = str(event.get("kind") or "event").strip().lower()
@@ -10070,14 +10279,52 @@ def describe_command_activity(command):
         )
         return details
 
+    if normalized.startswith("PEER_CHANNEL:"):
+        _prefix, _sep, channel_text = normalized.partition(":")
+        channel_note = f"channel {channel_text.strip()}" if channel_text.strip() else "peer channel"
+        details.update(
+            {
+                "label": "Peer channel update",
+                "queued_message": f"Peer channel update requested: {channel_note}.",
+                "ack_message": f"Peer channel update acknowledged by device: {channel_note}.",
+                "pending_message": f"Peer channel update is waiting for device acknowledgement: {channel_note}.",
+                "failed_message": f"Peer channel update has not been acknowledged yet: {channel_note}.",
+                "kind_suffix": "peer_channel_update",
+            }
+        )
+        return details
+
     if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+        values = normalized.split(":")[1:]
+        labels = (
+            "master upper",
+            "slave upper",
+            "source tank",
+            "relay",
+            "buzzer",
+            "LED",
+            "OTA",
+            "local upload",
+            "auto mode",
+        )
+
+        def service_state_label(value):
+            return "ON" if str(value or "").strip().upper() in {"1", "ON", "TRUE", "ENABLED"} else "OFF"
+
+        service_summary = ", ".join(
+            f"{label} {service_state_label(value)}"
+            for label, value in zip(labels, values)
+            if str(value or "").strip()
+        )
+        summary_note = f": {service_summary}" if service_summary else ""
         details.update(
             {
                 "label": "Runtime service configuration",
-                "queued_message": "Runtime service configuration update requested.",
-                "ack_message": "Runtime service configuration acknowledged by device.",
-                "pending_message": "Runtime service configuration is waiting for device acknowledgement.",
-                "failed_message": "Runtime service configuration has not been acknowledged yet.",
+                "summary": service_summary,
+                "queued_message": f"Runtime service configuration update requested{summary_note}.",
+                "ack_message": f"Runtime service configuration acknowledged by device{summary_note}.",
+                "pending_message": f"Runtime service configuration is waiting for device acknowledgement{summary_note}.",
+                "failed_message": f"Runtime service configuration has not been acknowledged yet{summary_note}.",
                 "kind_suffix": "service_config_update",
             }
         )
