@@ -703,6 +703,19 @@ document.addEventListener("DOMContentLoaded",()=>{
         const formData=new FormData(form);
         if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");
         const response=await fetch(form.action,{method:"POST",body:formData,credentials:"same-origin",redirect:"follow",headers:{"X-Requested-With":"XMLHttpRequest"}});
+        const contentType=String(response.headers.get("content-type")||"").toLowerCase();
+        if(contentType.includes("application/json")){
+          const payload=await response.json();
+          const failed=payload?.ok===false||!response.ok;
+          showResultModal(failed?"Action failed":"Action saved",payload?.error||payload?.message||"Request completed.",failed);
+          if(!failed){
+            syncRuntimeConfigurationOptions();
+            syncLowerSensorSetupVisibility();
+            preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+            if(form.querySelector('input[type="password"]'))form.reset();
+          }
+          return;
+        }
         const finalUrl=new URL(response.url||window.location.href,window.location.href);
         const message=finalUrl.searchParams.get("config_message");
         const error=finalUrl.searchParams.get("config_error");

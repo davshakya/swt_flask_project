@@ -14891,29 +14891,40 @@ def admin_device_detail_ping(device_id):
     target = request.form.get("target") or request.form.get("node") or request.form.get("ping_target")
     try:
         ping_result = build_device_ping_result(scoped_device_id, target)
-    except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+    except Exception as exc:
+        logger.exception("Device ping failed for %s target=%s", scoped_device_id, target)
+        return jsonify({"ok": False, "error": str(exc) or "Unable to ping device node."}), 200
 
-    persist_device_events([ping_result["event"]], default_device_id=scoped_device_id)
-    log_audit_event(
-        actor=current_actor_username(),
-        action="ping_device_node",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "ping_target": ping_result["target"],
-            "ping_status": ping_result["status"],
+    try:
+        persist_device_events([ping_result["event"]], default_device_id=scoped_device_id)
+    except Exception as exc:
+        logger.warning("Unable to persist ping event for %s: %s", scoped_device_id, exc)
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="ping_device_node",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "ping_target": ping_result["target"],
+                "ping_status": ping_result["status"],
+                "reachable": ping_result["reachable"],
+                "disabled": ping_result["disabled"],
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log ping audit event for %s: %s", scoped_device_id, exc)
+
+    return jsonify(
+        {
+            "ok": True,
+            "message": ping_result["message"],
+            "target": ping_result["target"],
+            "status": ping_result["status"],
             "reachable": ping_result["reachable"],
             "disabled": ping_result["disabled"],
-        },
-    )
-    return redirect(
-        url_for(
-            "device_detail_page",
-            device_id=scoped_device_id,
-            config_message=ping_result["message"],
-        )
+        }
     )
 
 
