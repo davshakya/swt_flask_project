@@ -8679,11 +8679,16 @@ def snapshot_has_live_device_data(snapshot):
     return bool(snapshot.get("device_id"))
 
 
-def build_system_status_payload(snapshot, device_id=None):
+def build_system_status_payload(snapshot, device_id=None, service_config=None):
     if snapshot_has_live_device_data(snapshot):
         evaluate_snapshot_alerts(snapshot)
     device_state = device_status_from_snapshot(snapshot if snapshot_has_live_device_data(snapshot) else None)
     active_alerts = fetch_active_alerts(limit=6, device_id=device_id)
+    normalized_device_id = normalize_device_id(device_id or ((snapshot or {}).get("device_id") if snapshot else None))
+    resolved_service_config = service_config
+    if resolved_service_config is None and normalized_device_id:
+        resolved_service_config = fetch_device_service_config(normalized_device_id, snapshot=snapshot)
+    node_status = admin_node_status_fields(snapshot or {}, resolved_service_config or {})
 
     return {
         "server": "online",
@@ -8714,6 +8719,10 @@ def build_system_status_payload(snapshot, device_id=None):
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
         "local_firmware_upload_service": snapshot.get("local_firmware_upload_service") if snapshot else "UNKNOWN",
+        "master_status_label": node_status.get("master_status_label"),
+        "master_status_tone": node_status.get("master_status_tone"),
+        "slave_status_label": node_status.get("slave_status_label"),
+        "slave_status_tone": node_status.get("slave_status_tone"),
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -9399,6 +9408,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         ("tank_height_cm", "Tank height"),
         ("tank_capacity_liters", "Tank capacity"),
     )
+    event_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
 
     def add_event(current, severity, message, kind, details=None):
         timeline.append(
@@ -9486,6 +9496,35 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
             return "warning"
         return "info"
 
+    def node_reachability(current):
+        return admin_node_status_fields(current or {}, event_service_config)
+
+    def node_reachability_message(status):
+        master_label = str(status.get("master_status_label") or "--").strip()
+        slave_label = str(status.get("slave_status_label") or "--").strip()
+        if master_label == "--":
+            return f"Slave {slave_label.lower()}."
+        return f"Master {master_label.lower()}, slave {slave_label.lower()}."
+
+    def node_reachability_severity(status):
+        master_label = str(status.get("master_status_label") or "").strip().lower()
+        slave_label = str(status.get("slave_status_label") or "").strip().lower()
+        if "unreachable" in {master_label, slave_label}:
+            return "warning"
+        if master_label == "reachable" and slave_label in {"reachable", "disabled"}:
+            return "success"
+        return "info"
+
+    def node_reachability_details(status, extra=None):
+        details = {
+            "master_status_label": status.get("master_status_label"),
+            "master_status_tone": status.get("master_status_tone"),
+            "slave_status_label": status.get("slave_status_label"),
+            "slave_status_tone": status.get("slave_status_tone"),
+        }
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
     for row in reversed(rows):
         current = dict(row)
         current_time = parse_timestamp(current.get("created_at"))
@@ -9496,6 +9535,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         previous_source_level = safe_float(previous.get("lower_tank_level"), None) if previous else None
         peer_state = peer_link_state(current)
         previous_peer_state = peer_link_state(previous) if previous else None
+        node_status = node_reachability(current)
+        previous_node_status = node_reachability(previous) if previous else None
 
         if previous is None:
             add_event(
@@ -9513,6 +9554,13 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                     f"slave_peer_{peer_state}",
                     peer_event_details(current, {"state": peer_state}),
                 )
+            add_event(
+                current,
+                node_reachability_severity(node_status),
+                node_reachability_message(node_status),
+                "node_reachability_status",
+                node_reachability_details(node_status),
+            )
         elif current_time and previous_time:
             gap_seconds = int((current_time - previous_time).total_seconds())
             if gap_seconds > STALE_AFTER_SECONDS:
@@ -9532,6 +9580,30 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                 f"slave_peer_{peer_state}",
                 peer_event_details(current, {"state": peer_state, "previous_state": previous_peer_state}),
             )
+
+        if previous_node_status is not None:
+            current_node_key = (
+                node_status.get("master_status_label"),
+                node_status.get("slave_status_label"),
+            )
+            previous_node_key = (
+                previous_node_status.get("master_status_label"),
+                previous_node_status.get("slave_status_label"),
+            )
+            if current_node_key != previous_node_key:
+                add_event(
+                    current,
+                    node_reachability_severity(node_status),
+                    node_reachability_message(node_status),
+                    "node_reachability_changed",
+                    node_reachability_details(
+                        node_status,
+                        {
+                            "previous_master_status_label": previous_node_status.get("master_status_label"),
+                            "previous_slave_status_label": previous_node_status.get("slave_status_label"),
+                        },
+                    ),
+                )
 
         if previous is not None:
             for peer_field, peer_label in (
@@ -9837,6 +9909,20 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         previous = current
 
     if latest_peer_row:
+        latest_node_status = node_reachability(latest_peer_row)
+        add_event(
+            latest_peer_row,
+            node_reachability_severity(latest_node_status),
+            node_reachability_message(latest_node_status),
+            "node_current_status",
+            node_reachability_details(
+                latest_node_status,
+                {
+                    "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:node_current_status",
+                    "current_status": True,
+                },
+            ),
+        )
         latest_peer_state = peer_link_state(latest_peer_row)
         if latest_peer_state != "disabled":
             add_event(
@@ -10059,6 +10145,8 @@ def device_event_key(event, default_device_id=None):
     source_table = str(details.get("source_table") or "").strip()
     source_row_id = str(details.get("source_row_id") or "").strip()
     event_kind = str(event.get("kind") or "event").strip().lower()
+    if source_table and source_row_id:
+        return hashlib.sha256(f"{device_id}|{event_kind}|{source_table}|{source_row_id}".encode("utf-8")).hexdigest()[:40]
     event_at = normalize_device_event_time(event.get("time"))
     basis = "|".join(
         (
@@ -10094,6 +10182,20 @@ def persist_device_events(events, default_device_id=None):
             except (TypeError, ValueError):
                 duration_seconds = None
             event_key = device_event_key(event, default_device_id=device_id)
+            source_table = str(details.get("source_table") or "").strip() or None
+            source_row_id = str(details.get("source_row_id") or "").strip() or None
+            if source_table and source_row_id:
+                db.execute(
+                    """
+                    DELETE FROM device_events
+                    WHERE device_id = ?
+                      AND event_kind = ?
+                      AND source_table = ?
+                      AND source_row_id = ?
+                      AND event_key <> ?
+                    """,
+                    (device_id, event_kind, source_table, source_row_id, event_key),
+                )
             db.execute(
                 """
                 INSERT INTO device_events(
@@ -10123,8 +10225,8 @@ def persist_device_events(events, default_device_id=None):
                     severity,
                     message,
                     json.dumps(details, separators=(",", ":"), sort_keys=True),
-                    str(details.get("source_table") or "").strip() or None,
-                    str(details.get("source_row_id") or "").strip() or None,
+                    source_table,
+                    source_row_id,
                     normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
                     normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
                     duration_seconds,
@@ -10149,7 +10251,35 @@ def fetch_device_events(limit=12, device_id=None):
         placeholders = ",".join("?" for _ in activity_device_ids)
         query += f" AND device_id IN ({placeholders})"
         params.extend(activity_device_ids)
-    query += " ORDER BY event_at DESC, id DESC LIMIT ?"
+    query += """
+        ORDER BY event_at DESC,
+                 CASE
+                   WHEN event_kind IN (
+                     'node_current_status',
+                     'node_reachability_status',
+                     'node_reachability_changed',
+                     'master_ping_reachable',
+                     'master_ping_unreachable',
+                     'slave_ping_reachable',
+                     'slave_ping_unreachable',
+                     'slave_ping_disabled',
+                     'peer_current_status',
+                     'slave_peer_waiting',
+                     'slave_peer_stale',
+                     'slave_peer_reachable',
+                     'peer_channel_changed',
+                     'peer_channel_sync_pending',
+                     'peer_channel_sync_completed',
+                     'peer_channel_update_queued',
+                     'peer_channel_update_acknowledged',
+                     'peer_channel_update_delivery_pending',
+                     'peer_channel_update_delivery_failed'
+                   ) THEN 0
+                   ELSE 1
+                 END,
+                 id DESC
+        LIMIT ?
+    """
     params.append(max(1, int(limit or 12)))
 
     with get_db() as db:
@@ -10192,6 +10322,106 @@ def sync_device_events(device_id=None):
 def build_events(limit=12, device_id=None):
     sync_device_events(device_id=device_id)
     return fetch_device_events(limit=limit, device_id=device_id)
+
+
+def ping_age_label(value):
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return "--"
+    if seconds < 0:
+        return "--"
+    return format_compact_uptime(seconds)
+
+
+def build_device_ping_result(device_id, target):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("Device id is required.")
+
+    normalized_target = str(target or "").strip().lower()
+    if normalized_target not in {"master", "slave"}:
+        raise ValueError("Ping target must be master or slave.")
+
+    snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
+    service_config = resolve_device_service_config(normalized_device_id, snapshot=snapshot)
+    status_payload = build_system_status_payload(
+        snapshot,
+        device_id=normalized_device_id,
+        service_config=service_config,
+    )
+    node_status = {
+        "master_status_label": status_payload.get("master_status_label"),
+        "master_status_tone": status_payload.get("master_status_tone"),
+        "slave_status_label": status_payload.get("slave_status_label"),
+        "slave_status_tone": status_payload.get("slave_status_tone"),
+    }
+    target_label = normalized_target.title()
+    status_label = str(status_payload.get(f"{normalized_target}_status_label") or "Unreachable").strip()
+    status_tone = str(status_payload.get(f"{normalized_target}_status_tone") or "offline").strip()
+    status_normalized = status_label.lower()
+    reachable = status_normalized == "reachable"
+    disabled = status_normalized == "disabled"
+    severity = "success" if reachable else "info" if disabled else "warning"
+    telemetry_status_value = str(snapshot.get("telemetry_status") or "no-data").strip()
+    seconds_since_sync = snapshot.get("seconds_since_sync")
+    peer_age = snapshot.get("direct_peer_last_packet_age_s")
+    peer_age_text = ping_age_label(peer_age)
+    last_sync_at = snapshot.get("last_sync_at")
+
+    details = {
+        "device_id": normalized_device_id,
+        "ping_target": normalized_target,
+        "ping_status": status_label,
+        "ping_status_tone": status_tone,
+        "telemetry_status": telemetry_status_value,
+        "last_sync_at": last_sync_at,
+        "seconds_since_sync": seconds_since_sync,
+        "direct_peer": snapshot.get("direct_peer"),
+        "direct_peer_config_channel": snapshot.get("direct_peer_config_channel"),
+        "direct_peer_wifi_channel": snapshot.get("direct_peer_wifi_channel"),
+        "direct_peer_last_packet_age_s": peer_age,
+        "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
+        "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
+        **node_status,
+    }
+
+    if normalized_target == "master":
+        sync_text = ping_age_label(seconds_since_sync)
+        if reachable:
+            reason = f"latest master telemetry is {telemetry_status_value}"
+            if sync_text != "--":
+                reason += f", last seen {sync_text} ago"
+            message = f"Ping master reachable: {reason}."
+        else:
+            reason = f"latest master telemetry is {telemetry_status_value or 'not available'}"
+            if sync_text != "--":
+                reason += f", last seen {sync_text} ago"
+            message = f"Ping master unreachable: {reason}."
+    elif disabled:
+        message = "Ping slave disabled: slave device is disabled in runtime configuration."
+    elif reachable:
+        message = f"Ping slave reachable: last accepted peer packet {peer_age_text} ago."
+    elif peer_age_text != "--":
+        message = f"Ping slave unreachable: last accepted peer packet {peer_age_text} ago."
+    else:
+        message = "Ping slave unreachable: master has not accepted a slave packet yet."
+
+    event = {
+        "time": now_utc().strftime(TIMESTAMP_FORMAT),
+        "severity": severity,
+        "message": message,
+        "kind": f"{normalized_target}_ping_{status_normalized.replace(' ', '_')}",
+        "details": details,
+    }
+    return {
+        "target": normalized_target,
+        "reachable": reachable,
+        "disabled": disabled,
+        "status": status_label,
+        "message": message,
+        "event": event,
+    }
 
 
 def describe_command_activity(command):
@@ -14653,6 +14883,40 @@ def admin_device_detail_peer_channel(device_id):
     return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
 
 
+@app.route("/devices/<device_id>/ping", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_ping(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    target = request.form.get("target") or request.form.get("node") or request.form.get("ping_target")
+    try:
+        ping_result = build_device_ping_result(scoped_device_id, target)
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+    persist_device_events([ping_result["event"]], default_device_id=scoped_device_id)
+    log_audit_event(
+        actor=current_actor_username(),
+        action="ping_device_node",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "ping_target": ping_result["target"],
+            "ping_status": ping_result["status"],
+            "reachable": ping_result["reachable"],
+            "disabled": ping_result["disabled"],
+        },
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=ping_result["message"],
+        )
+    )
+
+
 @app.route("/devices/<device_id>/mobile/logout", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -15008,9 +15272,14 @@ def device_detail_status(device_id):
     snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
     if simulator_enabled and not simulator_payload_enabled(snapshot_payload):
         snapshot_payload["simulator"] = "ON"
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     payload = {
         "device_id": scoped_device_id,
-        "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+        "system_status": build_system_status_payload(
+            snapshot,
+            device_id=scoped_device_id,
+            service_config=service_config,
+        ),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
         "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),

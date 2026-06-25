@@ -13,6 +13,7 @@
 }
 *{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:var(--link-blue);text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);text-underline-offset:3px;font-weight:800;transition:color .18s ease,text-decoration-color .18s ease}a:hover{color:var(--link-blue-hover);text-decoration-color:currentColor}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:24px 0 36px;display:grid;gap:14px}.panel{background:linear-gradient(180deg,var(--panel),color-mix(in srgb,var(--panel) 84%,rgba(19,137,165,.08)));border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}.panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:30px;line-height:1.1}.hero-title p{margin:7px 0 0;color:var(--muted);line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit;min-width:0;width:auto}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:auto}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}.summary-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.22);transition:transform .18s ease,border-color .18s ease}.summary-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.summary-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:7px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45}.content-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:13px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.2);transition:transform .18s ease,border-color .18s ease}.detail-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:7px;font-size:19px;font-weight:800;line-height:1.2}.detail-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}.info-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:14px}.info-item{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.2);min-width:0}.info-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.info-value{display:block;margin-top:5px;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.45}.list{list-style:none;padding:0;margin:0;display:grid;gap:9px}.list li{padding:12px 13px;border-radius:14px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}.admin-form{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.2);min-width:0;align-content:start}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700;min-width:0}.service-option input{width:auto}.flag-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}.flag-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.2);font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;min-width:0}.hidden-section{display:none!important}
 .activity-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.activity-page-size{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;font-weight:800}.activity-page-size select{min-height:40px;padding:0 34px 0 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:800 13px "Trebuchet MS","Segoe UI",sans-serif}.activity-count{color:var(--muted);font-size:12px;font-weight:800}.activity-table-wrap{margin-top:12px;border:1px solid var(--line);border-radius:16px;overflow:auto;background:var(--list-bg)}.activity-table{width:100%;border-collapse:collapse;min-width:760px}.activity-table th,.activity-table td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.activity-table th{position:sticky;top:0;background:color-mix(in srgb,var(--panel) 92%,var(--bg) 8%);color:var(--muted);font-size:10px;letter-spacing:.13em;text-transform:uppercase;z-index:1}.activity-table tbody tr:last-child td{border-bottom:0}.activity-message{font-weight:800;line-height:1.35}.activity-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}.activity-node{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary);font-size:12px;font-weight:800}.activity-pagination{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}.activity-page-status{min-width:118px;text-align:center;color:var(--muted);font-size:12px;font-weight:800}
+.peer-diagnostics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:14px}.peer-diagnostic-card{padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.2);min-width:0}.peer-diagnostic-card.alert{grid-column:1/-1;background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,var(--line))}.peer-diagnostic-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.peer-diagnostic-value{display:block;margin-top:6px;font-size:14px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.peer-diagnostic-note{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}
 @media (max-width:960px){.content-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 .btn{min-height:40px;min-width:0;padding:0 14px;border-radius:11px;background:rgba(255,255,255,.24);line-height:1.15;font-size:13px;cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease,filter .16s ease}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.34)}.btn:disabled{cursor:not-allowed;opacity:.56;filter:saturate(.65);transform:none}.hero-actions{align-items:center}.hero-actions form{display:flex}.hero-actions .btn{width:auto;height:40px;background:linear-gradient(135deg,#34b9d6,#1c89a3);border:0;color:#fff;box-shadow:0 8px 18px rgba(19,137,165,.16)}.hero-actions .btn:hover,.hero-actions .btn:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.admin-form .btn{width:auto;height:42px}.btn-admin{animation:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);background-size:auto;box-shadow:0 8px 18px rgba(19,137,165,.16);color:#fff}.btn-admin::after{display:none}.btn-admin:hover,.btn-admin:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.btn-admin:disabled,.btn-admin:disabled:hover,.btn-admin:disabled:focus-visible{background:linear-gradient(135deg,#7aa6b2,#6f8790);box-shadow:none;color:#eef8fb}.btn-danger{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ed6b7e,#c93c56);color:#fff;box-shadow:0 10px 22px rgba(218,79,99,.22);filter:brightness(1.03)}.admin-form form{display:grid}.form-group input[type=file]{min-height:44px;padding:8px 10px;background:rgba(255,255,255,.58)}.form-group input[type=file]::file-selector-button{height:28px;margin-right:10px;border:0;border-radius:9px;padding:0 12px;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font:800 12px "Trebuchet MS","Segoe UI",sans-serif;cursor:pointer}
@@ -283,6 +284,16 @@ body{font-size:16px}
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>
                 </form>
+                <form method="post" action="{{ url_for('admin_device_detail_ping', device_id=device_id) }}" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="target" value="master">
+                    <button class="btn btn-admin btn-full" type="submit"><span>Ping Master</span></button>
+                </form>
+                <form method="post" action="{{ url_for('admin_device_detail_ping', device_id=device_id) }}" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="target" value="slave">
+                    <button class="btn btn-admin btn-full" type="submit"><span>Ping Slave</span></button>
+                </form>
                 <form method="post" action="/devices/{{ device_id }}/mobile/logout" data-ajax-form data-confirm-title="Log out mobile devices?" data-confirm-message="Sign out all Android app sessions for customer {{ device_id }}? The customer can sign in again on any phone after this." data-confirm-button="Log Out Mobile Devices">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-admin btn-full" type="submit"><span>Log Out Mobile Devices</span></button>
@@ -292,6 +303,7 @@ body{font-size:16px}
                     <button class="btn btn-danger btn-full" type="submit">Delete Device</button>
                 </form>
                 <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>
+                <div class="helper-text">Ping checks use the latest cloud telemetry and direct peer packet age; no local LAN access is required.</div>
                 <div class="helper-text">Delete returns to the admin fleet table because the device detail record is removed.</div>
             </div>
 
@@ -433,6 +445,7 @@ body{font-size:16px}
                 <p>Showing master and slave activity logs for this device pair.</p>
             </div>
         </div>
+        <div id="peerDiagnostics" class="peer-diagnostics" aria-live="polite"></div>
         <div class="activity-toolbar">
             <label class="activity-page-size" for="activityPageSize">Display
                 <select id="activityPageSize">
@@ -482,6 +495,7 @@ let activityPage=1;
 let activityPageSize=10;
 const ACTIVITY_REFRESH_MS=5000;
 const DEVICE_REFRESH_MS=30000;
+const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 function setStableHtml(node,html){
   if(!node)return;
   const next=html??"";
@@ -875,6 +889,80 @@ function formatPeerSyncStatus(snapshot){
   }
   return lastOk&&lastOk!=="--"?`Last OK ${lastOk} ago`:"Not pending";
 }
+function peerChannelValue(value,fallback="Not reported"){
+  const number=Number(value);
+  return Number.isFinite(number)&&number>0?`${Math.round(number)}`:fallback;
+}
+function reachabilityTone(value){
+  const normalized=String(value||"").trim().toLowerCase();
+  if(["online","reachable","ok","success"].includes(normalized))return"ok";
+  if(["offline","unreachable","bad","error"].includes(normalized))return"bad";
+  if(["warning","warn","stale"].includes(normalized))return"warn";
+  return"info";
+}
+function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={}){
+  const root=document.getElementById("peerDiagnostics");
+  if(!root)return;
+  const directPeer=String(snapshot.direct_peer||"").trim().toLowerCase();
+  const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
+  const peerEnabled=usesSlave&&!["","disabled","off"].includes(directPeer);
+  const ageNumber=Number(snapshot.direct_peer_last_packet_age_s);
+  const packetAge=Number.isFinite(ageNumber)&&ageNumber>=0?ageNumber:null;
+  const configChannel=snapshot.direct_peer_config_channel;
+  const activeChannel=snapshot.direct_peer_wifi_channel;
+  const savedChannel=serviceConfig.direct_peer_wifi_channel;
+  let status="Disabled";
+  let tone="info";
+  if(peerEnabled){
+    if(packetAge===null){
+      status="Waiting for accepted slave packet";
+      tone="warn";
+    }else if(packetAge<=DIRECT_PEER_STALE_AFTER_SECONDS){
+      status="Reachable";
+      tone="ok";
+    }else{
+      status="Stale";
+      tone="warn";
+    }
+  }
+  const configNumber=Number(configChannel);
+  const activeNumber=Number(activeChannel);
+  const channelMismatch=Number.isFinite(configNumber)&&Number.isFinite(activeNumber)&&configNumber>0&&activeNumber>0&&configNumber!==activeNumber;
+  let diagnosis=peerEnabled
+    ?"Master is configured for slave peer communication."
+    :"Slave peer is disabled in saved/runtime configuration.";
+  if(channelMismatch){
+    diagnosis=`Possible channel mismatch: peer configured on channel ${Math.round(configNumber)}, but master Wi-Fi is on channel ${Math.round(activeNumber)}.`;
+    tone="warn";
+  }else if(peerEnabled&&packetAge===null){
+    diagnosis="Master is online, but it has not accepted a slave packet yet. Check slave firmware/device id, ESP-NOW channel, and slave power/reset.";
+  }else if(peerEnabled&&packetAge!==null&&packetAge>DIRECT_PEER_STALE_AFTER_SECONDS){
+    diagnosis=`Slave packet is stale. Last accepted packet was ${formatDurationSeconds(packetAge)} ago.`;
+  }else if(peerEnabled){
+    diagnosis=`Slave peer is reachable. Last packet was ${formatDurationSeconds(packetAge)} ago.`;
+  }
+  const masterReachability=infoValue(systemStatus.master_status_label,"Unreachable");
+  const slaveReachability=infoValue(systemStatus.slave_status_label,usesSlave?"Unreachable":"Disabled");
+  const cards=[
+    {label:"Master Reachability",value:masterReachability,note:"Based on latest master telemetry freshness.",tone:reachabilityTone(systemStatus.master_status_tone||masterReachability)},
+    {label:"Slave Reachability",value:slaveReachability,note:"Based on accepted direct peer/slave telemetry.",tone:reachabilityTone(systemStatus.slave_status_tone||slaveReachability)},
+    {label:"Current Slave Peer Status",value:status,note:diagnosis,alert:true,tone},
+    {label:"Saved Peer Channel",value:peerChannelValue(savedChannel),note:"Cloud/runtime target channel."},
+    {label:"Configured Peer Channel",value:peerChannelValue(configChannel),note:"Channel master reports for direct peer."},
+    {label:"Master Wi-Fi Channel",value:peerChannelValue(activeChannel),note:"Actual 2.4 GHz router channel seen by master."},
+    {label:"Last Slave Packet",value:packetAge===null?"No accepted packet":`${formatDurationSeconds(packetAge)} ago`,note:`Stale after ${DIRECT_PEER_STALE_AFTER_SECONDS}s.`},
+    {label:"Peer Sync",value:formatPeerSyncStatus(snapshot),note:"Pending means master still needs to apply peer channel."},
+    {label:"Peer Remote MAC",value:infoValue(snapshot.direct_peer_remote_mac,"Waiting for peer"),note:"MAC appears only after peer is known."},
+    {label:"Peer Remote IP",value:infoValue(snapshot.direct_peer_remote_ip,"Waiting for peer"),note:"IP appears only if slave reports it."},
+  ];
+  setStableHtml(root,cards.map((card)=>`
+    <div class="peer-diagnostic-card${card.alert?" alert":""}">
+      <span class="peer-diagnostic-label">${escapeHtml(card.label)}</span>
+      <strong class="peer-diagnostic-value ${card.tone?`tone-${card.tone}`:""}">${escapeHtml(card.value)}</strong>
+      <span class="peer-diagnostic-note">${escapeHtml(card.note)}</span>
+    </div>
+  `).join(""));
+}
 function memoryRole(row,snapshot,serviceConfig){
   const role=String(row?.node_role||row?.device_type||"").trim().toLowerCase();
   if(role.includes("slave"))return"slave";
@@ -1064,6 +1152,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const items=[
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
+    {label:"Master Reachability",value:infoValue(systemStatus?.master_status_label,"Unreachable"),show:true},
+    {label:"Slave Reachability",value:infoValue(systemStatus?.slave_status_label,usesSlave?"Unreachable":"Disabled"),show:true},
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
@@ -1154,6 +1244,10 @@ function activityMeta(entry){
   if(entry.kind)parts.push(titleCase(entry.kind));
   if(entry.device_id||entry.details?.device_id)parts.push(entry.device_id||entry.details.device_id);
   const details=entry.details||{};
+  if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
+  if(details.ping_status)parts.push(`Result ${details.ping_status}`);
+  if(details.master_status_label)parts.push(`Master ${details.master_status_label}`);
+  if(details.slave_status_label)parts.push(`Slave ${details.slave_status_label}`);
   if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
   if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Active ch ${details.direct_peer_wifi_channel}`);
   if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
@@ -1295,6 +1389,7 @@ async function loadDevice({silent=false}={}){
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
+  renderPeerDiagnostics(snapshot,serviceConfig,systemStatus);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
   }
