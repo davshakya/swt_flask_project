@@ -445,7 +445,6 @@ body{font-size:16px}
                 <p>Showing master and slave activity logs for this device pair.</p>
             </div>
         </div>
-        <div id="peerDiagnostics" class="peer-diagnostics" aria-live="polite"></div>
         <div class="activity-toolbar">
             <label class="activity-page-size" for="activityPageSize">Display
                 <select id="activityPageSize">
@@ -904,89 +903,6 @@ function formatPeerSyncStatus(snapshot){
   }
   return lastOk&&lastOk!=="--"?`Last OK ${lastOk} ago`:"Not pending";
 }
-function peerChannelValue(value,fallback="Not reported"){
-  const number=Number(value);
-  return Number.isFinite(number)&&number>0?`${Math.round(number)}`:fallback;
-}
-function firstReportedValue(...values){
-  return values.find((value)=>isReportedInfoValue(value));
-}
-function reachabilityTone(value){
-  const normalized=String(value||"").trim().toLowerCase();
-  if(["online","reachable","ok","success"].includes(normalized))return"ok";
-  if(["offline","unreachable","bad","error"].includes(normalized))return"bad";
-  if(["warning","warn","stale"].includes(normalized))return"warn";
-  return"info";
-}
-function renderPeerDiagnostics(snapshot={},serviceConfig={},systemStatus={},currentSavedConfig={}){
-  const root=document.getElementById("peerDiagnostics");
-  if(!root)return;
-  const directPeer=String(snapshot.direct_peer||"").trim().toLowerCase();
-  const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
-  const peerEnabled=usesSlave&&!["","disabled","off"].includes(directPeer);
-  const ageNumber=Number(snapshot.direct_peer_last_packet_age_s);
-  const packetAge=Number.isFinite(ageNumber)&&ageNumber>=0?ageNumber:null;
-  const configChannel=snapshot.direct_peer_config_channel;
-  const activeChannel=snapshot.direct_peer_wifi_channel;
-  const savedChannel=firstReportedValue(
-    currentSavedConfig.direct_peer_wifi_channel,
-    serviceConfig.direct_peer_wifi_channel,
-    document.getElementById("direct_peer_wifi_channel")?.value,
-    configChannel,
-    activeChannel
-  );
-  let status="Disabled";
-  let tone="info";
-  if(peerEnabled){
-    if(packetAge===null){
-      status="Waiting for accepted slave packet";
-      tone="warn";
-    }else if(packetAge<=DIRECT_PEER_STALE_AFTER_SECONDS){
-      status="Reachable";
-      tone="ok";
-    }else{
-      status="Stale";
-      tone="warn";
-    }
-  }
-  const configNumber=Number(configChannel);
-  const activeNumber=Number(activeChannel);
-  const channelMismatch=Number.isFinite(configNumber)&&Number.isFinite(activeNumber)&&configNumber>0&&activeNumber>0&&configNumber!==activeNumber;
-  let diagnosis=peerEnabled
-    ?"Master is configured for slave peer communication."
-    :"Slave peer is disabled in saved/runtime configuration.";
-  if(channelMismatch){
-    diagnosis=`Possible channel mismatch: peer configured on channel ${Math.round(configNumber)}, but master Wi-Fi is on channel ${Math.round(activeNumber)}.`;
-    tone="warn";
-  }else if(peerEnabled&&packetAge===null){
-    diagnosis="Master is online, but it has not accepted a slave packet yet. Check slave firmware/device id, ESP-NOW channel, and slave power/reset.";
-  }else if(peerEnabled&&packetAge!==null&&packetAge>DIRECT_PEER_STALE_AFTER_SECONDS){
-    diagnosis=`Slave packet is stale. Last accepted packet was ${formatDurationSeconds(packetAge)} ago.`;
-  }else if(peerEnabled){
-    diagnosis=`Slave peer is reachable. Last packet was ${formatDurationSeconds(packetAge)} ago.`;
-  }
-  const masterReachability=infoValue(systemStatus.master_status_label,"Unreachable");
-  const slaveReachability=infoValue(systemStatus.slave_status_label,usesSlave?"Unreachable":"Disabled");
-  const cards=[
-    {label:"Master Reachability",value:masterReachability,note:"Based on latest master telemetry freshness.",tone:reachabilityTone(systemStatus.master_status_tone||masterReachability)},
-    {label:"Slave Reachability",value:slaveReachability,note:"Based on accepted direct peer/slave telemetry.",tone:reachabilityTone(systemStatus.slave_status_tone||slaveReachability)},
-    {label:"Current Slave Peer Status",value:status,note:diagnosis,alert:true,tone},
-    {label:"Saved Peer Channel",value:peerChannelValue(savedChannel,"6"),note:"Cloud/runtime target channel. Falls back to the form/default value if not returned by API."},
-    {label:"Configured Peer Channel",value:peerChannelValue(configChannel,"Firmware not reporting"),note:"Channel master reports for direct peer."},
-    {label:"Master Wi-Fi Channel",value:peerChannelValue(activeChannel,"Firmware not reporting"),note:"Actual 2.4 GHz router channel seen by master."},
-    {label:"Last Slave Packet",value:packetAge===null?"No accepted packet":`${formatDurationSeconds(packetAge)} ago`,note:`Stale after ${DIRECT_PEER_STALE_AFTER_SECONDS}s.`},
-    {label:"Peer Sync",value:formatPeerSyncStatus(snapshot),note:"Pending means master still needs to apply peer channel."},
-    {label:"Peer Remote MAC",value:infoValue(snapshot.direct_peer_remote_mac,"Unknown until peer packet"),note:"MAC appears only after peer is known."},
-    {label:"Peer Remote IP",value:infoValue(snapshot.direct_peer_remote_ip,"Unknown until peer packet"),note:"IP appears only if slave reports it."},
-  ];
-  setStableHtml(root,cards.map((card)=>`
-    <div class="peer-diagnostic-card${card.alert?" alert":""}">
-      <span class="peer-diagnostic-label">${escapeHtml(card.label)}</span>
-      <strong class="peer-diagnostic-value ${card.tone?`tone-${card.tone}`:""}">${escapeHtml(card.value)}</strong>
-      <span class="peer-diagnostic-note">${escapeHtml(card.note)}</span>
-    </div>
-  `).join(""));
-}
 function memoryRole(row,snapshot,serviceConfig){
   const role=String(row?.node_role||row?.device_type||"").trim().toLowerCase();
   if(role.includes("slave"))return"slave";
@@ -1270,14 +1186,25 @@ function activityMeta(entry){
   const details=entry.details||{};
   if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
   if(details.ping_status)parts.push(`Result ${details.ping_status}`);
+  if(details.current_status)parts.push("Live snapshot");
+  if(details.telemetry_status)parts.push(`Telemetry ${details.telemetry_status}`);
   if(details.master_status_label)parts.push(`Master ${details.master_status_label}`);
   if(details.slave_status_label)parts.push(`Slave ${details.slave_status_label}`);
-  if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
-  if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Active ch ${details.direct_peer_wifi_channel}`);
-  if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
+  if(details.peer_state)parts.push(`Peer ${titleCase(details.peer_state)}`);
+  if(details.saved_peer_channel_label)parts.push(`Saved ch ${details.saved_peer_channel_label}`);
+  else if(details.saved_peer_channel!==undefined&&details.saved_peer_channel!==null)parts.push(`Saved ch ${details.saved_peer_channel}`);
+  if(details.direct_peer_config_channel_label)parts.push(`Configured ch ${details.direct_peer_config_channel_label}`);
+  else if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
+  if(details.direct_peer_wifi_channel_label)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel_label}`);
+  else if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel}`);
+  if(details.direct_peer_last_packet_age_label)parts.push(`Peer age ${details.direct_peer_last_packet_age_label}`);
+  else if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
+  if(details.direct_peer_last_packet_bytes!==undefined&&details.direct_peer_last_packet_bytes!==null)parts.push(`Peer bytes ${details.direct_peer_last_packet_bytes}`);
   if(details.direct_peer_remote_mac)parts.push(`MAC ${details.direct_peer_remote_mac}`);
   if(details.direct_peer_remote_ip)parts.push(`IP ${details.direct_peer_remote_ip}`);
+  if(details.direct_peer_sync_status)parts.push(`Sync ${details.direct_peer_sync_status}`);
   if(details.direct_peer_sync_pending)parts.push(`Sync pending${details.direct_peer_sync_channel?` ch ${details.direct_peer_sync_channel}`:""}`);
+  if(details.direct_peer_sync_last_ok_age_s!==undefined&&details.direct_peer_sync_last_ok_age_s!==null)parts.push(`Sync OK ${formatDurationSeconds(details.direct_peer_sync_last_ok_age_s)} ago`);
   if(details.command_summary)parts.push(details.command_summary);
   if(details.command)parts.push(`Command ${details.command}`);
   return parts.join(" | ");
@@ -1413,7 +1340,6 @@ async function loadDevice({silent=false}={}){
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
-  renderPeerDiagnostics(snapshot,serviceConfig,systemStatus,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
   }

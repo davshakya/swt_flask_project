@@ -2782,7 +2782,7 @@ def fetch_active_alert_device_ids(updated_since=None):
 
 
 def admin_device_is_online(device):
-    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent"}
+    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent", "fresh", "online"}
 
 
 def admin_telemetry_status_label(value):
@@ -9477,10 +9477,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         return details
 
     def peer_status_message(current, state):
-        config_channel = peer_channel_label(current.get("direct_peer_config_channel"))
-        active_channel = peer_channel_label(current.get("direct_peer_wifi_channel"))
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        active_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
         age = peer_packet_age(current)
-        channel_note = f"configured channel {config_channel}, active channel {active_channel}"
+        channel_note = f"configured channel {config_channel}, Wi-Fi channel {active_channel}"
         if state == "reachable":
             return f"Slave peer reachable: {channel_note}, last packet {age}s ago."
         if state == "stale":
@@ -9495,6 +9495,96 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         if state in {"waiting", "stale"}:
             return "warning"
         return "info"
+
+    def peer_channel_detail(value, fallback="not reported"):
+        label = peer_channel_label(value)
+        return label if label != "--" else fallback
+
+    def peer_age_detail(current):
+        age = peer_packet_age(current)
+        if age is None or age < 0:
+            return "no accepted packet"
+        return f"{age}s ago"
+
+    def saved_peer_channel(current):
+        for value in (
+            event_service_config.get("direct_peer_wifi_channel"),
+            current.get("direct_peer_config_channel"),
+            current.get("direct_peer_wifi_channel"),
+            6,
+        ):
+            if peer_channel_label(value) != "--":
+                return value
+        return None
+
+    def peer_sync_detail(current):
+        if bool_flag(current.get("direct_peer_sync_pending")):
+            sync_channel = peer_channel_detail(current.get("direct_peer_sync_channel"), "")
+            return f"pending channel {sync_channel}" if sync_channel else "pending"
+        try:
+            last_ok_age = int(current.get("direct_peer_sync_last_ok_age_s"))
+        except (TypeError, ValueError):
+            last_ok_age = None
+        if last_ok_age is not None and last_ok_age >= 0:
+            return f"last OK {last_ok_age}s ago"
+        return "not pending"
+
+    def live_node_status_message(current, status, state):
+        master_label = str(status.get("master_status_label") or "--").strip().lower()
+        slave_label = str(status.get("slave_status_label") or "--").strip().lower()
+        saved_channel = peer_channel_detail(saved_peer_channel(current), "not set")
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        wifi_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
+        age_text = peer_age_detail(current)
+        sync_text = peer_sync_detail(current)
+        if state == "reachable":
+            peer_text = f"peer reachable, last slave packet {age_text}"
+        elif state == "stale":
+            peer_text = f"peer stale, last slave packet {age_text}"
+        elif state == "waiting":
+            peer_text = "peer waiting for accepted slave packet"
+        else:
+            peer_text = "peer disabled"
+        remote_parts = []
+        remote_mac = str(current.get("direct_peer_remote_mac") or "").strip()
+        remote_ip = str(current.get("direct_peer_remote_ip") or "").strip()
+        if remote_mac:
+            remote_parts.append(f"MAC {remote_mac}")
+        if remote_ip:
+            remote_parts.append(f"IP {remote_ip}")
+        remote_text = f"; {', '.join(remote_parts)}" if remote_parts else ""
+        return (
+            f"Live node status: master {master_label}, slave {slave_label}; "
+            f"{peer_text}; saved ch {saved_channel}, configured ch {config_channel}, "
+            f"Wi-Fi ch {wifi_channel}; sync {sync_text}{remote_text}."
+        )
+
+    def live_node_status_details(current, status, state, extra=None):
+        saved_channel = saved_peer_channel(current)
+        details = node_reachability_details(status)
+        details.update(
+            peer_event_details(
+                current,
+                {
+                    "telemetry_status": current.get("telemetry_status"),
+                    "peer_state": state,
+                    "saved_peer_channel": saved_channel,
+                    "saved_peer_channel_label": peer_channel_detail(saved_channel, "not set"),
+                    "direct_peer_config_channel_label": peer_channel_detail(
+                        current.get("direct_peer_config_channel"),
+                        "firmware not reporting",
+                    ),
+                    "direct_peer_wifi_channel_label": peer_channel_detail(
+                        current.get("direct_peer_wifi_channel"),
+                        "firmware not reporting",
+                    ),
+                    "direct_peer_last_packet_age_label": peer_age_detail(current),
+                    "direct_peer_sync_status": peer_sync_detail(current),
+                },
+            )
+        )
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
 
     def node_reachability(current):
         return admin_node_status_fields(current or {}, event_service_config)
@@ -9913,10 +10003,16 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         add_event(
             latest_peer_row,
             node_reachability_severity(latest_node_status),
-            node_reachability_message(latest_node_status),
-            "node_current_status",
-            node_reachability_details(
+            live_node_status_message(
+                latest_peer_row,
                 latest_node_status,
+                peer_link_state(latest_peer_row),
+            ),
+            "node_current_status",
+            live_node_status_details(
+                latest_peer_row,
+                latest_node_status,
+                peer_link_state(latest_peer_row),
                 {
                     "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:node_current_status",
                     "current_status": True,
