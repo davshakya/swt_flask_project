@@ -712,6 +712,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
+            activityPage=1;
             preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
             if(form.querySelector('input[type="password"]'))form.reset();
           }
@@ -1187,7 +1188,18 @@ function activityMeta(entry){
   if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
   if(details.ping_status)parts.push(`Result ${details.ping_status}`);
   if(details.current_status)parts.push("Live snapshot");
+  if(details.status_checked_at)parts.push(`Checked ${formatIstDateTime(details.status_checked_at)}`);
   if(details.telemetry_status)parts.push(`Telemetry ${details.telemetry_status}`);
+  if(details.configuration_type)parts.push(`Config ${details.configuration_type}`);
+  if(details.upper_sensor_source)parts.push(`Upper ${titleCase(details.upper_sensor_source)}`);
+  if(details.slave_device_enabled_label)parts.push(`Slave ${details.slave_device_enabled_label}`);
+  if(details.source_tank_monitoring_label)parts.push(`Lower ${details.source_tank_monitoring_label}`);
+  if(details.relay_enabled_label)parts.push(`Relay ${details.relay_enabled_label}`);
+  if(details.auto_mode_enabled_label)parts.push(`Auto ${details.auto_mode_enabled_label}`);
+  if(details.cloud_feed_enabled_label)parts.push(`Cloud ${details.cloud_feed_enabled_label}`);
+  if(details.telemetry_service_label)parts.push(`Telemetry svc ${details.telemetry_service_label}`);
+  if(details.command_service_label)parts.push(`Command svc ${details.command_service_label}`);
+  if(details.ota_service_label)parts.push(`OTA svc ${details.ota_service_label}`);
   if(details.master_status_label)parts.push(`Master ${details.master_status_label}`);
   if(details.slave_status_label)parts.push(`Slave ${details.slave_status_label}`);
   if(details.peer_state)parts.push(`Peer ${titleCase(details.peer_state)}`);

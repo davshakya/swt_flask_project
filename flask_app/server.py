@@ -9410,10 +9410,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     )
     event_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
 
-    def add_event(current, severity, message, kind, details=None):
+    def add_event(current, severity, message, kind, details=None, event_time=None):
         timeline.append(
             {
-                "time": format_timestamp(current.get("created_at")),
+                "time": format_timestamp(event_time or current.get("created_at")),
                 "severity": severity,
                 "message": message,
                 "kind": kind,
@@ -9500,6 +9500,31 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         label = peer_channel_label(value)
         return label if label != "--" else fallback
 
+    def config_enabled(value, default=False):
+        if value is None:
+            return bool(default)
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on", "enabled", "full", "basic"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "disabled"}:
+            return False
+        return bool(value)
+
+    def config_on_off(value, default=False):
+        return "ON" if config_enabled(value, default=default) else "OFF"
+
+    def firmware_service_label(value):
+        normalized = str(value or "").strip().upper()
+        if normalized in {"ON", "OK", "ENABLED", "READY", "CONNECTED"}:
+            return "ON"
+        if normalized in {"OFF", "DISABLED"}:
+            return "OFF"
+        if normalized in {"", "UNKNOWN", "--", "N/A"}:
+            return "not reported"
+        return normalized
+
     def peer_age_detail(current):
         age = peer_packet_age(current)
         if age is None or age < 0:
@@ -9582,6 +9607,71 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                     "direct_peer_sync_status": peer_sync_detail(current),
                 },
             )
+        )
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
+    def live_config_status_message(current):
+        uses_slave = config_enabled(event_service_config.get("slave_device_enabled"), default=True)
+        slave_upper = uses_slave and config_enabled(
+            event_service_config.get("slave_upper_sensor_enabled"),
+            default=uses_slave,
+        )
+        config_type = "Master + Slave" if uses_slave else "Master Only"
+        upper_source = "Slave" if slave_upper else "Master"
+        source_monitoring = config_on_off(event_service_config.get("source_tank_monitoring_enabled"), default=True)
+        relay = config_on_off(event_service_config.get("relay_enabled"), default=True)
+        auto_mode = config_on_off(event_service_config.get("auto_mode_enabled"), default=False)
+        cloud_feed = config_on_off(event_service_config.get("cloud_feed_enabled"), default=True)
+        saved_channel = peer_channel_detail(saved_peer_channel(current), "not set")
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        wifi_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
+        return (
+            f"Live device config: {config_type}; upper sensor {upper_source}; lower sensor {source_monitoring}; "
+            f"relay {relay}; auto {auto_mode}; cloud {cloud_feed}; firmware telemetry "
+            f"{firmware_service_label(current.get('telemetry_service'))}, command "
+            f"{firmware_service_label(current.get('command_service'))}; saved ch {saved_channel}, "
+            f"configured ch {config_channel}, Wi-Fi ch {wifi_channel}."
+        )
+
+    def live_config_status_details(current, extra=None):
+        uses_slave = config_enabled(event_service_config.get("slave_device_enabled"), default=True)
+        slave_upper = uses_slave and config_enabled(
+            event_service_config.get("slave_upper_sensor_enabled"),
+            default=uses_slave,
+        )
+        saved_channel = saved_peer_channel(current)
+        details = peer_event_details(
+            current,
+            {
+                "configuration_type": "Master + Slave" if uses_slave else "Master Only",
+                "upper_sensor_source": "slave" if slave_upper else "master",
+                "slave_device_enabled_label": config_on_off(
+                    event_service_config.get("slave_device_enabled"),
+                    default=True,
+                ),
+                "source_tank_monitoring_label": config_on_off(
+                    event_service_config.get("source_tank_monitoring_enabled"),
+                    default=True,
+                ),
+                "relay_enabled_label": config_on_off(event_service_config.get("relay_enabled"), default=True),
+                "auto_mode_enabled_label": config_on_off(event_service_config.get("auto_mode_enabled"), default=False),
+                "cloud_feed_enabled_label": config_on_off(event_service_config.get("cloud_feed_enabled"), default=True),
+                "telemetry_service_label": firmware_service_label(current.get("telemetry_service")),
+                "command_service_label": firmware_service_label(current.get("command_service")),
+                "ota_service_label": firmware_service_label(current.get("ota_service")),
+                "saved_peer_channel": saved_channel,
+                "saved_peer_channel_label": peer_channel_detail(saved_channel, "not set"),
+                "direct_peer_config_channel_label": peer_channel_detail(
+                    current.get("direct_peer_config_channel"),
+                    "firmware not reporting",
+                ),
+                "direct_peer_wifi_channel_label": peer_channel_detail(
+                    current.get("direct_peer_wifi_channel"),
+                    "firmware not reporting",
+                ),
+                "config_summary": live_config_status_message(current),
+            },
         )
         details.update({key: value for key, value in (extra or {}).items() if value is not None})
         return details
@@ -9999,7 +10089,23 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         previous = current
 
     if latest_peer_row:
+        live_event_time = now_utc().strftime(TIMESTAMP_FORMAT)
         latest_node_status = node_reachability(latest_peer_row)
+        add_event(
+            latest_peer_row,
+            "info",
+            live_config_status_message(latest_peer_row),
+            "device_config_current_status",
+            live_config_status_details(
+                latest_peer_row,
+                {
+                    "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:device_config_current_status",
+                    "current_status": True,
+                    "status_checked_at": live_event_time,
+                },
+            ),
+            event_time=live_event_time,
+        )
         add_event(
             latest_peer_row,
             node_reachability_severity(latest_node_status),
@@ -10016,8 +10122,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                 {
                     "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:node_current_status",
                     "current_status": True,
+                    "status_checked_at": live_event_time,
                 },
             ),
+            event_time=live_event_time,
         )
         latest_peer_state = peer_link_state(latest_peer_row)
         if latest_peer_state != "disabled":
@@ -10032,13 +10140,26 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                         "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:peer_current_status",
                         "state": latest_peer_state,
                         "current_status": True,
+                        "status_checked_at": live_event_time,
                     },
                 ),
+                event_time=live_event_time,
             )
 
     timeline.extend(build_command_events(limit=40, device_id=normalized_device_id))
     timeline.extend(build_ota_events(limit=20, device_id=normalized_device_id))
-    timeline.sort(key=lambda item: parse_timestamp(item.get("time")) or datetime.min, reverse=True)
+    live_priority = {
+        "device_config_current_status": 0,
+        "node_current_status": 1,
+        "peer_current_status": 2,
+    }
+    timeline.sort(
+        key=lambda item: (
+            -live_priority.get(str(item.get("kind") or ""), 99),
+            parse_timestamp(item.get("time")) or datetime.min,
+        ),
+        reverse=True,
+    )
     return timeline[:limit]
 
 
@@ -10348,9 +10469,9 @@ def fetch_device_events(limit=12, device_id=None):
         query += f" AND device_id IN ({placeholders})"
         params.extend(activity_device_ids)
     query += """
-        ORDER BY event_at DESC,
-                 CASE
+        ORDER BY CASE
                    WHEN event_kind IN (
+                     'device_config_current_status',
                      'node_current_status',
                      'node_reachability_status',
                      'node_reachability_changed',
@@ -10373,6 +10494,7 @@ def fetch_device_events(limit=12, device_id=None):
                    ) THEN 0
                    ELSE 1
                  END,
+                 event_at DESC,
                  id DESC
         LIMIT ?
     """
@@ -10427,6 +10549,8 @@ def ping_age_label(value):
         return "--"
     if seconds < 0:
         return "--"
+    if seconds < 60:
+        return f"{seconds}s"
     return format_compact_uptime(seconds)
 
 
@@ -10459,6 +10583,8 @@ def build_device_ping_result(device_id, target):
     reachable = status_normalized == "reachable"
     disabled = status_normalized == "disabled"
     severity = "success" if reachable else "info" if disabled else "warning"
+    event_time = now_utc()
+    event_time_text = event_time.strftime(TIMESTAMP_FORMAT)
     telemetry_status_value = str(snapshot.get("telemetry_status") or "no-data").strip()
     seconds_since_sync = snapshot.get("seconds_since_sync")
     peer_age = snapshot.get("direct_peer_last_packet_age_s")
@@ -10471,18 +10597,40 @@ def build_device_ping_result(device_id, target):
         text = str(value if value is not None else "").strip()
         return text if text else fallback
 
+    def ping_channel_value(value, fallback="Not reported"):
+        try:
+            channel = int(value)
+        except (TypeError, ValueError):
+            return fallback
+        return str(channel) if 1 <= channel <= 13 else fallback
+
+    saved_channel = (
+        service_config.get("direct_peer_wifi_channel")
+        or snapshot.get("direct_peer_config_channel")
+        or snapshot.get("direct_peer_wifi_channel")
+        or 6
+    )
+
     details = {
+        "event_key": f"{normalized_device_id}:ping:{normalized_target}:{event_time.strftime('%Y%m%d%H%M%S%f')}",
         "device_id": normalized_device_id,
+        "current_status": True,
+        "status_checked_at": event_time_text,
         "ping_target": normalized_target,
         "ping_status": status_label,
         "ping_status_tone": status_tone,
         "telemetry_status": telemetry_status_value,
         "last_sync_at": last_sync_at,
         "seconds_since_sync": seconds_since_sync,
+        "saved_peer_channel": saved_channel,
+        "saved_peer_channel_label": ping_channel_value(saved_channel, "not set"),
         "direct_peer": snapshot.get("direct_peer"),
         "direct_peer_config_channel": snapshot.get("direct_peer_config_channel"),
+        "direct_peer_config_channel_label": ping_channel_value(config_channel, "firmware not reporting"),
         "direct_peer_wifi_channel": snapshot.get("direct_peer_wifi_channel"),
+        "direct_peer_wifi_channel_label": ping_channel_value(active_channel, "firmware not reporting"),
         "direct_peer_last_packet_age_s": peer_age,
+        "direct_peer_last_packet_age_label": peer_age_text if peer_age_text != "--" else "no accepted packet",
         "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
         "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
         **node_status,
@@ -10503,15 +10651,31 @@ def build_device_ping_result(device_id, target):
     elif disabled:
         message = "Ping slave disabled: slave device is disabled in runtime configuration."
     elif reachable:
-        message = f"Ping slave reachable: last accepted peer packet {peer_age_text} ago."
+        message = (
+            f"Ping slave reachable: last accepted peer packet {peer_age_text} ago; "
+            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
+            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
+            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+        )
     elif peer_age_text != "--":
-        message = f"Ping slave unreachable: last accepted peer packet {peer_age_text} ago."
+        message = (
+            f"Ping slave unreachable: last accepted peer packet {peer_age_text} ago; "
+            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
+            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
+            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+        )
     else:
-        message = "Ping slave unreachable: master has not accepted a slave packet yet."
+        message = (
+            "Ping slave unreachable: master has not accepted a slave packet yet; "
+            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
+            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
+            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+        )
 
     detail_lines = [
         f"Target: {target_label}",
         f"Result: {status_label}",
+        f"Checked at: {event_time_text}",
         f"Master reachability: {node_status.get('master_status_label') or 'Unreachable'}",
         f"Slave reachability: {node_status.get('slave_status_label') or 'Unreachable'}",
         f"Telemetry: {telemetry_status_value or 'not available'}",
@@ -10521,15 +10685,16 @@ def build_device_ping_result(device_id, target):
         detail_lines.extend(
             [
                 f"Last slave packet: {peer_age_text if peer_age_text != '--' else 'No accepted packet'}",
-                f"Configured peer channel: {ping_detail_value(config_channel)}",
-                f"Master Wi-Fi channel: {ping_detail_value(active_channel)}",
+                f"Saved peer channel: {ping_channel_value(saved_channel, 'not set')}",
+                f"Configured peer channel: {ping_channel_value(config_channel, 'Firmware not reporting')}",
+                f"Master Wi-Fi channel: {ping_channel_value(active_channel, 'Firmware not reporting')}",
                 f"Peer MAC: {ping_detail_value(snapshot.get('direct_peer_remote_mac'), 'Unknown until peer packet')}",
                 f"Peer IP: {ping_detail_value(snapshot.get('direct_peer_remote_ip'), 'Unknown until peer packet')}",
             ]
         )
 
     event = {
-        "time": now_utc().strftime(TIMESTAMP_FORMAT),
+        "time": event_time_text,
         "severity": severity,
         "message": message,
         "kind": f"{normalized_target}_ping_{status_normalized.replace(' ', '_')}",
