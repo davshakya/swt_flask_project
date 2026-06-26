@@ -3048,9 +3048,16 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
+        "direct_peer_last_pong_age_s": payload.get("direct_peer_last_pong_age_s"),
+        "direct_peer_last_pong_nonce": payload.get("direct_peer_last_pong_nonce"),
         "direct_peer_sync_pending": payload.get("direct_peer_sync_pending"),
         "direct_peer_sync_channel": payload.get("direct_peer_sync_channel"),
         "direct_peer_sync_last_ok_age_s": payload.get("direct_peer_sync_last_ok_age_s"),
+        "last_ping_target": payload.get("last_ping_target"),
+        "last_ping_status": payload.get("last_ping_status"),
+        "last_ping_response_ms": payload.get("last_ping_response_ms"),
+        "last_ping_age_s": payload.get("last_ping_age_s"),
+        "last_ping_nonce": payload.get("last_ping_nonce"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -3921,9 +3928,16 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
+        cleaned.get("direct_peer_last_pong_age_s"),
+        cleaned.get("direct_peer_last_pong_nonce"),
         cleaned.get("direct_peer_sync_pending"),
         cleaned.get("direct_peer_sync_channel"),
         cleaned.get("direct_peer_sync_last_ok_age_s"),
+        cleaned.get("last_ping_target"),
+        cleaned.get("last_ping_status"),
+        cleaned.get("last_ping_response_ms"),
+        cleaned.get("last_ping_age_s"),
+        cleaned.get("last_ping_nonce"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -3957,8 +3971,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
                 direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                 direct_peer_sync_pending, direct_peer_sync_channel,
                 direct_peer_sync_last_ok_age_s,
+                last_ping_target, last_ping_status, last_ping_response_ms,
+                last_ping_age_s, last_ping_nonce,
                 created_at
             )
             VALUES ({placeholders})
@@ -4431,9 +4448,16 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
+        "direct_peer_last_pong_age_s": "INTEGER",
+        "direct_peer_last_pong_nonce": "INTEGER",
         "direct_peer_sync_pending": "INTEGER",
         "direct_peer_sync_channel": "INTEGER",
         "direct_peer_sync_last_ok_age_s": "INTEGER",
+        "last_ping_target": "TEXT",
+        "last_ping_status": "TEXT",
+        "last_ping_response_ms": "INTEGER",
+        "last_ping_age_s": "INTEGER",
+        "last_ping_nonce": "INTEGER",
     }
 
     for column, definition in required.items():
@@ -4541,9 +4565,16 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
             direct_peer_last_packet_bytes INTEGER,
+            direct_peer_last_pong_age_s INTEGER,
+            direct_peer_last_pong_nonce INTEGER,
             direct_peer_sync_pending INTEGER,
             direct_peer_sync_channel INTEGER,
             direct_peer_sync_last_ok_age_s INTEGER,
+            last_ping_target TEXT,
+            last_ping_status TEXT,
+            last_ping_response_ms INTEGER,
+            last_ping_age_s INTEGER,
+            last_ping_nonce INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -5148,15 +5179,22 @@ def init_db():
                 direct_peer TEXT,
                 direct_peer_remote_ip TEXT,
                 direct_peer_remote_mac TEXT,
-                direct_peer_config_channel INTEGER,
-                direct_peer_wifi_channel INTEGER,
-                direct_peer_last_packet_age_s INTEGER,
-                direct_peer_last_packet_bytes INTEGER,
-                direct_peer_sync_pending INTEGER,
-                direct_peer_sync_channel INTEGER,
-                direct_peer_sync_last_ok_age_s INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+            direct_peer_config_channel INTEGER,
+            direct_peer_wifi_channel INTEGER,
+            direct_peer_last_packet_age_s INTEGER,
+            direct_peer_last_packet_bytes INTEGER,
+            direct_peer_last_pong_age_s INTEGER,
+            direct_peer_last_pong_nonce INTEGER,
+            direct_peer_sync_pending INTEGER,
+            direct_peer_sync_channel INTEGER,
+            direct_peer_sync_last_ok_age_s INTEGER,
+            last_ping_target TEXT,
+            last_ping_status TEXT,
+            last_ping_response_ms INTEGER,
+            last_ping_age_s INTEGER,
+            last_ping_nonce INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
             """
         )
         ensure_tank_data_columns(cursor)
@@ -6180,7 +6218,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
                    tank_height_cm, tank_capacity_liters,
                    upper_tank_height_cm, upper_tank_capacity_liters,
                    lower_tank_height_cm, lower_tank_capacity_liters,
-                   auto_start_pct, auto_stop_pct,
+                   auto_start_pct, auto_stop_pct, direct_peer_wifi_channel,
                    telemetry_service_state, command_service_state, relay_service_state,
                    ota_service_state, local_firmware_upload_service_state,
                    buzzer_service_state, led_display_service_state,
@@ -6221,7 +6259,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                tank_height_cm, tank_capacity_liters,
                upper_tank_height_cm, upper_tank_capacity_liters,
                lower_tank_height_cm, lower_tank_capacity_liters,
-               auto_start_pct, auto_stop_pct,
+               auto_start_pct, auto_stop_pct, direct_peer_wifi_channel,
                telemetry_service_state, command_service_state, relay_service_state,
                ota_service_state, local_firmware_upload_service_state,
                buzzer_service_state, led_display_service_state,
@@ -7535,13 +7573,20 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["direct_peer"] = str(data.get("direct_peer") or "").strip().lower()
     data["direct_peer_remote_ip"] = str(data.get("direct_peer_remote_ip") or "").strip()
     data["direct_peer_remote_mac"] = str(data.get("direct_peer_remote_mac") or "").strip()
+    data["last_ping_target"] = str(data.get("last_ping_target") or "").strip().lower()
+    data["last_ping_status"] = str(data.get("last_ping_status") or "").strip().lower()
     for key in (
         "direct_peer_config_channel",
         "direct_peer_wifi_channel",
         "direct_peer_last_packet_age_s",
         "direct_peer_last_packet_bytes",
+        "direct_peer_last_pong_age_s",
+        "direct_peer_last_pong_nonce",
         "direct_peer_sync_channel",
         "direct_peer_sync_last_ok_age_s",
+        "last_ping_response_ms",
+        "last_ping_age_s",
+        "last_ping_nonce",
     ):
         try:
             data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
@@ -8629,9 +8674,16 @@ def build_empty_snapshot_payload(device_id=None):
         "direct_peer_wifi_channel": None,
         "direct_peer_last_packet_age_s": None,
         "direct_peer_last_packet_bytes": None,
+        "direct_peer_last_pong_age_s": None,
+        "direct_peer_last_pong_nonce": None,
         "direct_peer_sync_pending": False,
         "direct_peer_sync_channel": None,
         "direct_peer_sync_last_ok_age_s": None,
+        "last_ping_target": "",
+        "last_ping_status": "",
+        "last_ping_response_ms": None,
+        "last_ping_age_s": None,
+        "last_ping_nonce": None,
         "uptime_label": "--",
         "free_heap_label": "--",
         "cpu_utilization_pct_label": "--",
@@ -9364,8 +9416,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                direct_peer_config_channel, direct_peer_wifi_channel,
                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                direct_peer_sync_pending, direct_peer_sync_channel,
                direct_peer_sync_last_ok_age_s,
+               last_ping_target, last_ping_status, last_ping_response_ms,
+               last_ping_age_s, last_ping_nonce,
                created_at
         FROM tank_data
         WHERE 
@@ -9467,11 +9522,18 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
             "direct_peer_wifi_channel": current.get("direct_peer_wifi_channel"),
             "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
             "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
+            "direct_peer_last_pong_age_s": current.get("direct_peer_last_pong_age_s"),
+            "direct_peer_last_pong_nonce": current.get("direct_peer_last_pong_nonce"),
             "direct_peer_remote_ip": current.get("direct_peer_remote_ip"),
             "direct_peer_remote_mac": current.get("direct_peer_remote_mac"),
             "direct_peer_sync_pending": bool_flag(current.get("direct_peer_sync_pending")),
             "direct_peer_sync_channel": current.get("direct_peer_sync_channel"),
             "direct_peer_sync_last_ok_age_s": current.get("direct_peer_sync_last_ok_age_s"),
+            "last_ping_target": current.get("last_ping_target"),
+            "last_ping_status": current.get("last_ping_status"),
+            "last_ping_response_ms": current.get("last_ping_response_ms"),
+            "last_ping_age_s": current.get("last_ping_age_s"),
+            "last_ping_nonce": current.get("last_ping_nonce"),
         }
         details.update({key: value for key, value in (extra or {}).items() if value is not None})
         return details
@@ -9553,6 +9615,40 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         if last_ok_age is not None and last_ok_age >= 0:
             return f"last OK {last_ok_age}s ago"
         return "not pending"
+
+    def ping_status_severity(status):
+        normalized = str(status or "").strip().lower()
+        if normalized in {"reachable", "success", "ok", "responded"}:
+            return "success"
+        if normalized in {"", "unknown", "not_reported"}:
+            return "info"
+        if normalized in {"queued", "pending", "sent"}:
+            return "info"
+        return "warning"
+
+    def ping_result_message(current, prefix="Device ping result"):
+        target = str(current.get("last_ping_target") or "peer").strip().lower() or "peer"
+        status = str(current.get("last_ping_status") or "not reported").strip().lower() or "not reported"
+        response_ms = current.get("last_ping_response_ms")
+        age_s = current.get("last_ping_age_s")
+        nonce = current.get("last_ping_nonce")
+        details = []
+        try:
+            response_value = int(response_ms)
+        except (TypeError, ValueError):
+            response_value = -1
+        if response_value >= 0:
+            details.append(f"response {response_value} ms")
+        try:
+            age_value = int(age_s)
+        except (TypeError, ValueError):
+            age_value = -1
+        if age_value >= 0:
+            details.append(f"reported {age_value}s ago")
+        if nonce not in (None, "", 0):
+            details.append(f"nonce {nonce}")
+        detail_text = f" ({', '.join(details)})" if details else ""
+        return f"{prefix}: {target} {status}{detail_text}."
 
     def live_node_status_message(current, status, state):
         master_label = str(status.get("master_status_label") or "--").strip().lower()
@@ -9828,6 +9924,25 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                     "peer_channel_sync_completed",
                     peer_event_details(current, {"state": "completed"}),
                 )
+
+        current_ping_key = (
+            current.get("last_ping_target"),
+            current.get("last_ping_status"),
+            current.get("last_ping_nonce"),
+        )
+        previous_ping_key = (
+            previous.get("last_ping_target"),
+            previous.get("last_ping_status"),
+            previous.get("last_ping_nonce"),
+        ) if previous else None
+        if current.get("last_ping_status") and (previous is None or current_ping_key != previous_ping_key):
+            add_event(
+                current,
+                ping_status_severity(current.get("last_ping_status")),
+                ping_result_message(current, "Device reported ping"),
+                "device_ping_reported",
+                peer_event_details(current, {"event_group": "ping_result"}),
+            )
 
         if previous is None or current.get("motor") != previous.get("motor"):
             if current.get("motor") == "ON":
@@ -10106,6 +10221,23 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
             ),
             event_time=live_event_time,
         )
+        if latest_peer_row.get("last_ping_status"):
+            add_event(
+                latest_peer_row,
+                ping_status_severity(latest_peer_row.get("last_ping_status")),
+                ping_result_message(latest_peer_row, "Last device ping result"),
+                "device_ping_current_status",
+                peer_event_details(
+                    latest_peer_row,
+                    {
+                        "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:device_ping_current_status",
+                        "current_status": True,
+                        "status_checked_at": live_event_time,
+                        "event_group": "ping_result",
+                    },
+                ),
+                event_time=live_event_time,
+            )
         add_event(
             latest_peer_row,
             node_reachability_severity(latest_node_status),
@@ -10150,8 +10282,9 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     timeline.extend(build_ota_events(limit=20, device_id=normalized_device_id))
     live_priority = {
         "device_config_current_status": 0,
-        "node_current_status": 1,
-        "peer_current_status": 2,
+        "device_ping_current_status": 1,
+        "node_current_status": 2,
+        "peer_current_status": 3,
     }
     timeline.sort(
         key=lambda item: (
@@ -10472,6 +10605,8 @@ def fetch_device_events(limit=12, device_id=None):
         ORDER BY CASE
                    WHEN event_kind IN (
                      'device_config_current_status',
+                     'device_ping_current_status',
+                     'device_ping_reported',
                      'node_current_status',
                      'node_reachability_status',
                      'node_reachability_changed',
@@ -10480,6 +10615,14 @@ def fetch_device_events(limit=12, device_id=None):
                      'slave_ping_reachable',
                      'slave_ping_unreachable',
                      'slave_ping_disabled',
+                     'master_ping_command_queued',
+                     'master_ping_command_acknowledged',
+                     'master_ping_command_delivery_pending',
+                     'master_ping_command_delivery_failed',
+                     'slave_ping_command_queued',
+                     'slave_ping_command_acknowledged',
+                     'slave_ping_command_delivery_pending',
+                     'slave_ping_command_delivery_failed',
                      'peer_current_status',
                      'slave_peer_waiting',
                      'slave_peer_stale',
@@ -10565,6 +10708,13 @@ def build_device_ping_result(device_id, target):
 
     snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
     service_config = resolve_device_service_config(normalized_device_id, snapshot=snapshot)
+    expected_ping_nonce = secrets.randbelow(2147483646) + 1
+    queued_command = f"PING_{normalized_target.upper()}:{expected_ping_nonce}"
+    queue_result = queue_command(queued_command, target_device=normalized_device_id)
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        raise ValueError(error_payload.get("error") or "Unable to queue ping command.")
+
     status_payload = build_system_status_payload(
         snapshot,
         device_id=normalized_device_id,
@@ -10577,12 +10727,10 @@ def build_device_ping_result(device_id, target):
         "slave_status_tone": status_payload.get("slave_status_tone"),
     }
     target_label = normalized_target.title()
-    status_label = str(status_payload.get(f"{normalized_target}_status_label") or "Unreachable").strip()
-    status_tone = str(status_payload.get(f"{normalized_target}_status_tone") or "offline").strip()
-    status_normalized = status_label.lower()
-    reachable = status_normalized == "reachable"
-    disabled = status_normalized == "disabled"
-    severity = "success" if reachable else "info" if disabled else "warning"
+    observed_status_label = str(status_payload.get(f"{normalized_target}_status_label") or "Unreachable").strip()
+    observed_status_tone = str(status_payload.get(f"{normalized_target}_status_tone") or "offline").strip()
+    disabled = observed_status_label.lower() == "disabled"
+    severity = "info"
     event_time = now_utc()
     event_time_text = event_time.strftime(TIMESTAMP_FORMAT)
     telemetry_status_value = str(snapshot.get("telemetry_status") or "no-data").strip()
@@ -10612,13 +10760,19 @@ def build_device_ping_result(device_id, target):
     )
 
     details = {
-        "event_key": f"{normalized_device_id}:ping:{normalized_target}:{event_time.strftime('%Y%m%d%H%M%S%f')}",
+        "event_key": f"{normalized_device_id}:ping_command:{normalized_target}:{queue_result.get('command_id') or event_time.strftime('%Y%m%d%H%M%S%f')}",
         "device_id": normalized_device_id,
         "current_status": True,
         "status_checked_at": event_time_text,
+        "event_group": "ping_command",
         "ping_target": normalized_target,
-        "ping_status": status_label,
-        "ping_status_tone": status_tone,
+        "ping_status": "Queued",
+        "ping_status_tone": "pending",
+        "queued_command": queued_command,
+        "command": queued_command,
+        "command_id": queue_result.get("command_id"),
+        "expected_ping_nonce": expected_ping_nonce,
+        "target_device": normalized_device_id,
         "telemetry_status": telemetry_status_value,
         "last_sync_at": last_sync_at,
         "seconds_since_sync": seconds_since_sync,
@@ -10631,51 +10785,42 @@ def build_device_ping_result(device_id, target):
         "direct_peer_wifi_channel_label": ping_channel_value(active_channel, "firmware not reporting"),
         "direct_peer_last_packet_age_s": peer_age,
         "direct_peer_last_packet_age_label": peer_age_text if peer_age_text != "--" else "no accepted packet",
+        "direct_peer_last_pong_age_s": snapshot.get("direct_peer_last_pong_age_s"),
+        "direct_peer_last_pong_nonce": snapshot.get("direct_peer_last_pong_nonce"),
+        "last_ping_target": snapshot.get("last_ping_target"),
+        "last_ping_status": snapshot.get("last_ping_status"),
+        "last_ping_response_ms": snapshot.get("last_ping_response_ms"),
+        "last_ping_age_s": snapshot.get("last_ping_age_s"),
+        "last_ping_nonce": snapshot.get("last_ping_nonce"),
         "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
         "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
         **node_status,
     }
 
     if normalized_target == "master":
-        sync_text = ping_age_label(seconds_since_sync)
-        if reachable:
-            reason = f"latest master telemetry is {telemetry_status_value}"
-            if sync_text != "--":
-                reason += f", last seen {sync_text} ago"
-            message = f"Ping master reachable: {reason}."
-        else:
-            reason = f"latest master telemetry is {telemetry_status_value or 'not available'}"
-            if sync_text != "--":
-                reason += f", last seen {sync_text} ago"
-            message = f"Ping master unreachable: {reason}."
-    elif disabled:
-        message = "Ping slave disabled: slave device is disabled in runtime configuration."
-    elif reachable:
         message = (
-            f"Ping slave reachable: last accepted peer packet {peer_age_text} ago; "
-            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
-            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
-            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+            f"Ping master command queued for {normalized_device_id}. "
+            "The master will execute it on its next command poll and acknowledge it."
         )
-    elif peer_age_text != "--":
+    elif disabled:
         message = (
-            f"Ping slave unreachable: last accepted peer packet {peer_age_text} ago; "
-            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
-            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
-            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+            f"Ping slave command queued, but saved configuration currently marks slave as disabled. "
+            f"The command is still queued as {queued_command}; enable slave runtime config if this is unexpected."
         )
     else:
         message = (
-            "Ping slave unreachable: master has not accepted a slave packet yet; "
-            f"saved ch {ping_channel_value(saved_channel, 'not set')}, configured ch "
-            f"{ping_channel_value(config_channel, 'firmware not reporting')}, Wi-Fi ch "
-            f"{ping_channel_value(active_channel, 'firmware not reporting')}."
+            f"Ping slave command queued for {normalized_device_id}. "
+            "The master will send an ESP-NOW ping to the slave on its next command poll."
         )
 
     detail_lines = [
         f"Target: {target_label}",
-        f"Result: {status_label}",
-        f"Checked at: {event_time_text}",
+        "Result: Command queued",
+        f"Queued command: {queued_command}",
+        f"Command id: {queue_result.get('command_id') or '--'}",
+        f"Ping nonce: {expected_ping_nonce}",
+        f"Queued at: {event_time_text}",
+        "Execution: waiting for master command poll",
         f"Master reachability: {node_status.get('master_status_label') or 'Unreachable'}",
         f"Slave reachability: {node_status.get('slave_status_label') or 'Unreachable'}",
         f"Telemetry: {telemetry_status_value or 'not available'}",
@@ -10688,6 +10833,8 @@ def build_device_ping_result(device_id, target):
                 f"Saved peer channel: {ping_channel_value(saved_channel, 'not set')}",
                 f"Configured peer channel: {ping_channel_value(config_channel, 'Firmware not reporting')}",
                 f"Master Wi-Fi channel: {ping_channel_value(active_channel, 'Firmware not reporting')}",
+                f"Last peer pong: {ping_age_label(snapshot.get('direct_peer_last_pong_age_s')) if ping_age_label(snapshot.get('direct_peer_last_pong_age_s')) != '--' else 'No pong reported yet'}",
+                f"Last firmware ping result: {ping_detail_value(snapshot.get('last_ping_status'), 'Not reported yet')}",
                 f"Peer MAC: {ping_detail_value(snapshot.get('direct_peer_remote_mac'), 'Unknown until peer packet')}",
                 f"Peer IP: {ping_detail_value(snapshot.get('direct_peer_remote_ip'), 'Unknown until peer packet')}",
             ]
@@ -10697,17 +10844,21 @@ def build_device_ping_result(device_id, target):
         "time": event_time_text,
         "severity": severity,
         "message": message,
-        "kind": f"{normalized_target}_ping_{status_normalized.replace(' ', '_')}",
+        "kind": f"{normalized_target}_ping_command_queued",
         "details": details,
     }
     return {
         "target": normalized_target,
-        "reachable": reachable,
+        "reachable": False,
         "disabled": disabled,
-        "status": status_label,
-        "title": f"Ping {target_label} Result",
+        "status": "Queued",
+        "title": f"Ping {target_label} Queued",
         "message": message,
         "detail_lines": detail_lines,
+        "saved_peer_channel": saved_channel,
+        "queued_command": queued_command,
+        "command_id": queue_result.get("command_id"),
+        "expected_ping_nonce": expected_ping_nonce,
         "event": event,
     }
 
@@ -10732,6 +10883,39 @@ def describe_command_activity(command):
                 "pending_message": "Pump start is waiting for device acknowledgement.",
                 "failed_message": "Pump start has not been acknowledged yet.",
                 "kind_suffix": "pump_start",
+            }
+        )
+        return details
+
+    if normalized in {"PING_MASTER", "PING:MASTER", "PING_MASTER_NODE"} or normalized.startswith("PING_MASTER:"):
+        details.update(
+            {
+                "label": "Ping master",
+                "queued_message": "Ping master requested: real command queued for the master controller.",
+                "ack_message": "Ping master command acknowledged by device.",
+                "pending_message": "Ping master is waiting for the master command poll.",
+                "failed_message": "Ping master has not been acknowledged yet by the device.",
+                "kind_suffix": "master_ping_command",
+                "summary": "Master local ping command. Result is confirmed after device acknowledgement/telemetry.",
+            }
+        )
+        return details
+
+    if (
+        normalized in {"PING_SLAVE", "PING:SLAVE", "PING_PEER", "PEER_PING", "PING_SLAVE_NODE"}
+        or normalized.startswith("PING_SLAVE:")
+        or normalized.startswith("PING_PEER:")
+        or normalized.startswith("PEER_PING:")
+    ):
+        details.update(
+            {
+                "label": "Ping slave",
+                "queued_message": "Ping slave requested: real ESP-NOW ping command queued for the master controller.",
+                "ack_message": "Ping slave command acknowledged by device.",
+                "pending_message": "Ping slave is waiting for the master command poll.",
+                "failed_message": "Ping slave has not been acknowledged yet by the device.",
+                "kind_suffix": "slave_ping_command",
+                "summary": "Master will send an ESP-NOW ping to the slave; result appears after telemetry reports it.",
             }
         )
         return details
@@ -11817,20 +12001,21 @@ def resolve_command_target(target_device=None):
 
 
 def queue_device_command(command, target_device):
+    normalized_command = str(command or "").strip().upper()
     with get_db() as db:
         db.execute(
             """
             DELETE FROM device_command_queue
-            WHERE target_device = ? AND delivered_at IS NULL
+            WHERE target_device = ? AND delivered_at IS NULL AND UPPER(command) = ?
             """,
-            (target_device,),
+            (target_device, normalized_command),
         )
-        db.execute(
+        cursor = db.execute(
             """
             INSERT INTO device_command_queue (target_device, command)
             VALUES (?, ?)
             """,
-            (target_device, command),
+            (target_device, normalized_command),
         )
         db.execute(
             """
@@ -11839,6 +12024,7 @@ def queue_device_command(command, target_device):
               AND delivered_at < datetime('now', '-7 day')
             """
         )
+        return cursor.lastrowid
 
 
 def peek_queued_command(device_id):
@@ -11852,7 +12038,7 @@ def peek_queued_command(device_id):
             SELECT id, command
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id DESC
+            ORDER BY id ASC
             LIMIT 1
             """,
             (normalized_device_id,),
@@ -11875,7 +12061,7 @@ def peek_queued_command(device_id):
                 SELECT id, command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id DESC
+                ORDER BY id ASC
                 LIMIT 1
                 """,
                 (normalized_device_id,),
@@ -11982,11 +12168,12 @@ def queue_command(command, target_device=None):
         }, 400
 
     normalized_command = str(command or "").strip().upper()
-    queue_device_command(normalized_command, device_command_target)
+    command_id = queue_device_command(normalized_command, device_command_target)
     mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
         "command": normalized_command,
+        "command_id": command_id,
         "target_device": device_command_target,
         "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "control_policy": CONTROL_POLICY,
@@ -12047,6 +12234,7 @@ def queue_device_mobile_action(action, target_device, payload=None):
               AND delivered_at < datetime('now', '-7 day')
             """
         )
+        return cursor.lastrowid
 
     return {
         "status": "queued",
@@ -15199,6 +15387,8 @@ def admin_device_detail_ping(device_id):
                 "ping_status": ping_result["status"],
                 "reachable": ping_result["reachable"],
                 "disabled": ping_result["disabled"],
+                "queued_command": ping_result.get("queued_command"),
+                "command_id": ping_result.get("command_id"),
             },
         )
     except Exception as exc:
@@ -15210,10 +15400,14 @@ def admin_device_detail_ping(device_id):
             "title": ping_result["title"],
             "message": ping_result["message"],
             "detail_lines": ping_result["detail_lines"],
+            "saved_peer_channel": ping_result.get("saved_peer_channel"),
             "target": ping_result["target"],
             "status": ping_result["status"],
             "reachable": ping_result["reachable"],
             "disabled": ping_result["disabled"],
+            "queued_command": ping_result.get("queued_command"),
+            "command_id": ping_result.get("command_id"),
+            "expected_ping_nonce": ping_result.get("expected_ping_nonce"),
         }
     )
 

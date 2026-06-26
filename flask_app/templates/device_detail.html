@@ -492,6 +492,7 @@ let latestHistory=[];
 let latestEvents=[];
 let activityPage=1;
 let activityPageSize=10;
+let pingWatchToken=0;
 const ACTIVITY_REFRESH_MS=5000;
 const DEVICE_REFRESH_MS=30000;
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
@@ -618,6 +619,106 @@ document.addEventListener("DOMContentLoaded",()=>{
     modal.querySelector("[data-result-close]").addEventListener("click",closeResultModal);
     document.body.appendChild(modal);
   }
+  const sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
+  function pingStatusSucceeded(status){
+    return ["reachable","success","ok","responded"].includes(String(status||"").trim().toLowerCase());
+  }
+  function pingDisplayValue(value,fallback="Not reported"){
+    const text=String(value??"").trim();
+    return text?text:fallback;
+  }
+  function pingAgeDisplay(value,fallback="Not reported"){
+    const number=Number(value);
+    return Number.isFinite(number)&&number>=0?`${formatDurationSeconds(number)} ago`:fallback;
+  }
+  function pingChannelDisplay(value,fallback="Not reported"){
+    const number=Number(value);
+    return Number.isFinite(number)&&number>=1&&number<=13?`${Math.round(number)}`:fallback;
+  }
+  function pingResultDetailLines(snapshot={},payload={}){
+    const target=String(payload.target||snapshot.last_ping_target||"device").trim().toLowerCase();
+    const responseMs=Number(snapshot.last_ping_response_ms);
+    const lines=[
+      `Target: ${titleCase(target)}`,
+      `Reported result: ${pingDisplayValue(snapshot.last_ping_status)}`,
+      Number.isFinite(responseMs)&&responseMs>=0?`Response time: ${Math.round(responseMs)} ms`:"Response time: Not reported",
+      `Ping nonce: ${pingDisplayValue(snapshot.last_ping_nonce||payload.expected_ping_nonce)}`,
+      `Command id: ${pingDisplayValue(payload.command_id)}`,
+      `Queued command: ${pingDisplayValue(payload.queued_command)}`,
+      `Ping telemetry age: ${pingAgeDisplay(snapshot.last_ping_age_s)}`,
+      `Telemetry status: ${pingDisplayValue(snapshot.telemetry_status)}`,
+      `Last sync: ${pingDisplayValue(snapshot.last_sync_at)}`,
+    ];
+    if(target==="slave"){
+      lines.push(`Saved peer channel: ${pingChannelDisplay(payload.saved_peer_channel)}`);
+      lines.push(`Configured peer channel: ${pingChannelDisplay(snapshot.direct_peer_config_channel)}`);
+      lines.push(`Master Wi-Fi channel: ${pingChannelDisplay(snapshot.direct_peer_wifi_channel)}`);
+      lines.push(`Last slave packet: ${pingAgeDisplay(snapshot.direct_peer_last_packet_age_s,"No accepted packet")}`);
+      lines.push(`Last peer pong: ${pingAgeDisplay(snapshot.direct_peer_last_pong_age_s,"No pong reported yet")}`);
+      lines.push(`Peer MAC: ${pingDisplayValue(snapshot.direct_peer_remote_mac,"Waiting for peer")}`);
+      lines.push(`Peer IP: ${pingDisplayValue(snapshot.direct_peer_remote_ip,"Waiting for peer")}`);
+    }
+    return lines;
+  }
+  async function fetchLightDeviceStatus(){
+    const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
+    statusUrl.searchParams.set("history","0");
+    statusUrl.searchParams.set("events","0");
+    statusUrl.searchParams.set("alerts","0");
+    statusUrl.searchParams.set("audit","0");
+    const response=await fetch(statusUrl.toString(),{cache:"no-store"});
+    const data=await response.json();
+    if(!response.ok)throw new Error(data?.error||`HTTP ${response.status}`);
+    return data;
+  }
+  async function waitForPingTelemetry(payload){
+    const expectedNonce=Number(payload?.expected_ping_nonce);
+    if(!Number.isFinite(expectedNonce)||expectedNonce<=0)return;
+    const watchToken=++pingWatchToken;
+    const target=String(payload?.target||"device").trim().toLowerCase();
+    const targetLabel=titleCase(target||"device");
+    let lastSnapshot={};
+    for(let attempt=0;attempt<15;attempt+=1){
+      await sleep(attempt===0?2500:4000);
+      if(watchToken!==pingWatchToken)return;
+      try{
+        const data=await fetchLightDeviceStatus();
+        const snapshot=data.snapshot||{};
+        lastSnapshot=snapshot;
+        const reportedNonce=Number(snapshot.last_ping_nonce);
+        const reportedStatus=String(snapshot.last_ping_status||"").trim();
+        if(Number.isFinite(reportedNonce)&&reportedNonce===expectedNonce&&reportedStatus){
+          const succeeded=pingStatusSucceeded(reportedStatus);
+          showResultModal(
+            `Ping ${targetLabel} Result`,
+            `Device reported ping ${targetLabel.toLowerCase()} result: ${reportedStatus}.`,
+            !succeeded,
+            pingResultDetailLines(snapshot,payload)
+          );
+          activityPage=1;
+          preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+          return;
+        }
+      }catch(error){
+        console.log("ping result watch error",error);
+      }
+    }
+    if(watchToken!==pingWatchToken)return;
+    showResultModal(
+      `Ping ${targetLabel} Pending`,
+      `No firmware ping result has been reported yet for nonce ${expectedNonce}.`,
+      true,
+      [
+        `Command id: ${pingDisplayValue(payload.command_id)}`,
+        `Queued command: ${pingDisplayValue(payload.queued_command)}`,
+        "Execution: command may still be waiting for the master poll/ack.",
+        "If this stays pending, deploy the updated master firmware so it can execute PING_MASTER/PING_SLAVE and report last_ping_status telemetry.",
+        ...pingResultDetailLines(lastSnapshot,payload),
+      ]
+    );
+    activityPage=1;
+    preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+  }
   document.addEventListener("keydown",(event)=>{
     if(event.key==="Escape")closeResultModal();
   });
@@ -709,6 +810,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           const payload=await response.json();
           const failed=payload?.ok===false||!response.ok;
           showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
+          if(!failed&&payload?.expected_ping_nonce)waitForPingTelemetry(payload);
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
@@ -1187,6 +1289,11 @@ function activityMeta(entry){
   const details=entry.details||{};
   if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
   if(details.ping_status)parts.push(`Result ${details.ping_status}`);
+  if(details.last_ping_target)parts.push(`Reported ping ${titleCase(details.last_ping_target)}`);
+  if(details.last_ping_status)parts.push(`Reported ${details.last_ping_status}`);
+  if(details.last_ping_response_ms!==undefined&&details.last_ping_response_ms!==null)parts.push(`Response ${details.last_ping_response_ms} ms`);
+  if(details.last_ping_age_s!==undefined&&details.last_ping_age_s!==null)parts.push(`Ping age ${formatDurationSeconds(details.last_ping_age_s)}`);
+  if(details.last_ping_nonce!==undefined&&details.last_ping_nonce!==null)parts.push(`Ping nonce ${details.last_ping_nonce}`);
   if(details.current_status)parts.push("Live snapshot");
   if(details.status_checked_at)parts.push(`Checked ${formatIstDateTime(details.status_checked_at)}`);
   if(details.telemetry_status)parts.push(`Telemetry ${details.telemetry_status}`);
@@ -1212,6 +1319,8 @@ function activityMeta(entry){
   if(details.direct_peer_last_packet_age_label)parts.push(`Peer age ${details.direct_peer_last_packet_age_label}`);
   else if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
   if(details.direct_peer_last_packet_bytes!==undefined&&details.direct_peer_last_packet_bytes!==null)parts.push(`Peer bytes ${details.direct_peer_last_packet_bytes}`);
+  if(details.direct_peer_last_pong_age_s!==undefined&&details.direct_peer_last_pong_age_s!==null)parts.push(`Pong age ${formatDurationSeconds(details.direct_peer_last_pong_age_s)}`);
+  if(details.direct_peer_last_pong_nonce!==undefined&&details.direct_peer_last_pong_nonce!==null)parts.push(`Pong nonce ${details.direct_peer_last_pong_nonce}`);
   if(details.direct_peer_remote_mac)parts.push(`MAC ${details.direct_peer_remote_mac}`);
   if(details.direct_peer_remote_ip)parts.push(`IP ${details.direct_peer_remote_ip}`);
   if(details.direct_peer_sync_status)parts.push(`Sync ${details.direct_peer_sync_status}`);
