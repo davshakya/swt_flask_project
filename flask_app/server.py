@@ -12818,16 +12818,92 @@ def resolve_command_target(target_device=None):
     return None
 
 
+def device_command_family(command):
+    normalized_command = str(command or "").strip().upper()
+    compact = normalized_command.replace("-", "_").replace(" ", "_")
+    if compact in {"ON", "OFF"}:
+        return "pump"
+    if compact == "REBOOT" or compact.startswith("RESTART"):
+        return "reboot"
+    if compact.startswith("SERVICECFG"):
+        return "service_config"
+    if compact.startswith("THRESHOLDS:") or compact.startswith("CONFIG_THRESHOLDS:") or compact.startswith("CONFIG_AUTO:"):
+        return "thresholds"
+    if (
+        compact.startswith("CONFIG_AUTO_START")
+        or compact.startswith("AUTO_START")
+        or compact.startswith("START_LEVEL")
+    ):
+        return "threshold_start"
+    if (
+        compact.startswith("CONFIG_AUTO_STOP")
+        or compact.startswith("AUTO_STOP")
+        or compact.startswith("STOP_LEVEL")
+    ):
+        return "threshold_stop"
+    if compact.startswith("PEER_CHANNEL:") or compact.startswith("CONFIG_PEER_CHANNEL:"):
+        return "peer_channel"
+    if (
+        compact.startswith("CONFIG_UPPER:")
+        or compact.startswith("CONFIG:")
+        or compact.startswith("CONFIG_HEIGHT:")
+        or compact.startswith("CONFIG_CAPACITY:")
+    ):
+        return "upper_tank_setup"
+    if (
+        compact.startswith("CONFIG_LOWER:")
+        or compact.startswith("CONFIG_SOURCE:")
+        or compact.startswith("CONFIG_LOWER_HEIGHT:")
+        or compact.startswith("CONFIG_SOURCE_HEIGHT:")
+        or compact.startswith("CONFIG_LOWER_CAPACITY:")
+        or compact.startswith("CONFIG_SOURCE_CAPACITY:")
+    ):
+        return "lower_tank_setup"
+    if compact in {"CALIBRATE", "CALIBRATE_UPPER"}:
+        return "upper_calibration"
+    if compact == "CALIBRATE_LOWER":
+        return "lower_calibration"
+    if compact.startswith("PING_MASTER") or compact.startswith("PING:MASTER") or compact.startswith("MASTER_PING"):
+        return "ping_master"
+    if (
+        compact.startswith("PING_SLAVE")
+        or compact.startswith("PING:SLAVE")
+        or compact.startswith("PING_PEER")
+        or compact.startswith("PEER_PING")
+    ):
+        return "ping_slave"
+    if compact.startswith("SIMULATOR") or compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
+        return "simulator"
+    return f"command:{compact}"
+
+
 def queue_device_command(command, target_device):
     normalized_command = str(command or "").strip().upper()
+    normalized_family = device_command_family(normalized_command)
     with get_db() as db:
-        db.execute(
+        pending_rows = db.execute(
             """
-            DELETE FROM device_command_queue
+            SELECT id, command
+            FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
+            ORDER BY id ASC
             """,
             (target_device,),
-        )
+        ).fetchall()
+        duplicate_ids = [
+            row["id"]
+            for row in pending_rows
+            if device_command_family(row["command"]) == normalized_family
+        ]
+        if duplicate_ids:
+            placeholders = ",".join("?" for _ in duplicate_ids)
+            db.execute(
+                f"""
+                DELETE FROM device_command_queue
+                WHERE target_device = ? AND delivered_at IS NULL AND id IN ({placeholders})
+                """,
+                (target_device, *duplicate_ids),
+            )
         cursor = db.execute(
             """
             INSERT INTO device_command_queue (target_device, command)
@@ -12905,19 +12981,12 @@ def peek_queued_command(device_id):
             SELECT id, command
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id DESC
+            ORDER BY id ASC
             LIMIT 1
             """,
             (normalized_device_id,),
         ).fetchone()
         if row:
-            db.execute(
-                """
-                DELETE FROM device_command_queue
-                WHERE target_device = ? AND delivered_at IS NULL AND id <> ?
-                """,
-                (normalized_device_id, row["id"]),
-            )
             return {"id": row["id"], "command": row["command"]}
 
     with get_db() as db:
@@ -12940,7 +13009,7 @@ def peek_queued_command(device_id):
                 SELECT id, command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id DESC
+                ORDER BY id ASC
                 LIMIT 1
                 """,
                 (normalized_device_id,),

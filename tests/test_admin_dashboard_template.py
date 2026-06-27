@@ -360,14 +360,18 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}" in device_template
     assert ".config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}" in device_template
     assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:16px;align-items:start}" in device_template
-    assert ".admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.firmware-upload-grid .btn{width:auto;max-width:none;justify-self:start}" in device_template
+    assert ".admin-form>form{display:grid;gap:10px;width:100%}" in device_template
+    assert ".admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}" in device_template
+    assert ".admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}" in device_template
     assert ".sensor-setup-card{align-content:start}" in device_template
-    assert ".tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}" in device_template
+    assert ".tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}" in device_template
+    assert ".tank-setup-actions .btn{width:100%;justify-self:stretch}" in device_template
     assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
     assert ".hero-actions form,.hero-actions .btn{width:auto}" in device_template
     assert 'document.querySelectorAll("[data-ajax-form]")' in device_template
     assert ".activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}" in device_template
     assert ".confirm-actions .btn{min-width:0}" in device_template
+    assert ".admin-form .btn,.config-form>.btn{width:100%;justify-self:stretch;max-width:none}" in device_template
 
 
 def test_device_detail_upload_result_uses_closable_popup():

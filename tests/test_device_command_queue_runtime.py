@@ -1,7 +1,7 @@
 from flask_app import server
 
 
-def test_device_command_queue_serves_latest_pending_command_and_prunes_stale_rows():
+def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():
     device_id = "swt-999-999-999-996"
 
     with server.get_db() as db:
@@ -10,36 +10,59 @@ def test_device_command_queue_serves_latest_pending_command_and_prunes_stale_row
     try:
         first = server.queue_command("SERVICECFG5:1:0:1:1:0:0:0:1:1", target_device=device_id)
         second = server.queue_command("THRESHOLDS:35:95", target_device=device_id)
+        third = server.queue_command("PEER_CHANNEL:6", target_device=device_id)
+        replacement_threshold = server.queue_command("THRESHOLDS:40:90", target_device=device_id)
 
         assert first["command"] == "SERVICECFG5:1:0:1:1:0:0:0:1:1"
         assert second["command"] == "THRESHOLDS:35:95"
+        assert third["command"] == "PEER_CHANNEL:6"
+        assert replacement_threshold["command"] == "THRESHOLDS:40:90"
 
         with server.get_db() as db:
             pending_rows = db.execute(
                 """
-                SELECT command
+                SELECT id, command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id DESC
+                ORDER BY id ASC
                 """,
                 (device_id,),
             ).fetchall()
 
-        assert [row["command"] for row in pending_rows] == ["THRESHOLDS:35:95"]
+        assert [row["command"] for row in pending_rows] == [
+            "SERVICECFG5:1:0:1:1:0:0:0:1:1",
+            "PEER_CHANNEL:6",
+            "THRESHOLDS:40:90",
+        ]
+
+        queued = server.peek_queued_command(device_id)
+        assert queued["command"] == "SERVICECFG5:1:0:1:1:0:0:0:1:1"
+        assert server.acknowledge_queued_command_id(device_id, queued["id"]) is True
+        queued = server.peek_queued_command(device_id)
+        assert queued["command"] == "PEER_CHANNEL:6"
+        assert server.acknowledge_queued_command_id(device_id, queued["id"]) is True
+        queued = server.peek_queued_command(device_id)
+        assert queued["command"] == "THRESHOLDS:40:90"
 
         with server.get_db() as db:
-            db.execute(
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+            first_row = db.execute(
                 "INSERT INTO device_command_queue(target_device, command) VALUES (?, ?)",
                 (device_id, "PEER_CHANNEL:1"),
             )
-            db.execute(
+            second_row = db.execute(
                 "INSERT INTO device_command_queue(target_device, command) VALUES (?, ?)",
                 (device_id, "CONFIG_UPPER:60.0:1000.0"),
             )
 
         queued = server.peek_queued_command(device_id)
+        assert queued["command"] == "PEER_CHANNEL:1"
+        assert queued["id"] == first_row.lastrowid
 
+        assert server.acknowledge_queued_command_id(device_id, queued["id"]) is True
+        queued = server.peek_queued_command(device_id)
         assert queued["command"] == "CONFIG_UPPER:60.0:1000.0"
+        assert queued["id"] == second_row.lastrowid
 
         with server.get_db() as db:
             pending_rows = db.execute(
@@ -47,7 +70,7 @@ def test_device_command_queue_serves_latest_pending_command_and_prunes_stale_row
                 SELECT command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id DESC
+                ORDER BY id ASC
                 """,
                 (device_id,),
             ).fetchall()
