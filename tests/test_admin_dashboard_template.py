@@ -408,6 +408,12 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "admin_upper_tank_capacity_liters" in device_template
     assert "admin_lower_tank_height_cm" in device_template
     assert "admin_lower_tank_capacity_liters" in device_template
+    assert '{% set upper_tank_height_value = current_saved_config.get("upper_tank_height_cm")' in device_template
+    assert '{% set lower_tank_capacity_value = current_saved_config.get("lower_tank_capacity_liters")' in device_template
+    assert 'value="{{ upper_tank_height_value }}" placeholder="60.0"' in device_template
+    assert 'value="{{ upper_tank_capacity_value }}" placeholder="1000"' in device_template
+    assert 'value="{{ lower_tank_height_value }}" placeholder="60.0"' in device_template
+    assert 'value="{{ lower_tank_capacity_value }}" placeholder="1000"' in device_template
     assert "upperTankSetupCalibrateButton" in device_template
     assert "lowerTankSetupCalibrateButton" in device_template
     assert 'class="tank-setup-actions"' in device_template
@@ -434,7 +440,8 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
-    assert 'config_error="Tank height is required before calibration."' in server_source
+    assert 'error="Tank height is required before calibration."' in server_source
+    assert "device_detail_action_response(" in server_source
     assert 'calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert "The master will forward upper calibration to the slave MCU" in server_source

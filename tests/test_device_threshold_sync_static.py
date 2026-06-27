@@ -112,6 +112,10 @@ def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     assert 'cleaned.get("auto_level_average_samples")' in process_source
     assert "auto_start_pct, auto_stop_pct," in process_source
     assert "auto_start_stable_ms, auto_level_average_samples," in process_source
+    assert "saved_telemetry_config = fetch_device_service_config(cleaned.get(\"device_id\"), snapshot=None)" in process_source
+    assert "telemetry_config_float_seed(" in process_source
+    assert "auto_start_pct=telemetry_config_float_seed(" in process_source
+    assert "direct_peer_wifi_channel=telemetry_config_peer_channel_seed(" in process_source
 
     schema_start = source.index("def ensure_tank_data_columns(cursor):")
     schema_source = source[schema_start : source.index("\n\ndef ensure_tank_data_mysql_column_types", schema_start)]
@@ -166,9 +170,10 @@ def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
     route_start = source.index("def admin_device_detail_configuration(device_id):")
     route_source = source[route_start : source.index('\n\n@app.route("/devices/<device_id>/thresholds", methods=["POST"])', route_start)]
 
-    assert 'queue_result = queue_command(queued_command, target_device=scoped_device_id)' in route_source
-    assert 'isinstance(queue_result, tuple)' in route_source
-    assert 'config_error=error_payload.get("error") or "Unable to queue runtime configuration update."' in route_source
+    assert "safe_queue_device_detail_command(" in route_source
+    assert '"Unable to queue runtime configuration update"' in route_source
+    assert "Configuration saved in Flask" in route_source
+    assert "device_detail_action_response(" in route_source
     assert "Auto Start/Stop is {auto_mode_label}" in route_source
 
 
@@ -179,6 +184,9 @@ def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_d
     assert 'stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}' in automation_source
     assert '"device_service_config"' in automation_source
     assert "upsert_device_service_config(" in automation_source
+    assert automation_source.index("stored_auto_start_pct") < automation_source.index("live_settings = snapshot_device_automation_settings")
+    assert 'source="telemetry_seed"' in automation_source
+    assert 'source="telemetry_sync"' not in automation_source
 
     local_status_start = source.index("def fetch_local_device_status(base_url, device_id=None):")
     local_status_source = source[local_status_start : source.index("\n\ndef is_loopback_device_target", local_status_start)]
@@ -205,3 +213,9 @@ def test_sensor_configuration_routes_upsert_expected_tank_dimensions():
     assert "lower_tank_height_cm=height_cm" in admin_route_source
     assert "lower_tank_capacity_liters=capacity_liters" in admin_route_source
     assert "upper_tank_capacity_liters=capacity_liters" in admin_route_source
+    assert "saved_config = upsert_device_service_config(" in admin_route_source
+    assert "safe_queue_device_detail_command(" in admin_route_source
+    assert admin_route_source.index("saved_config = upsert_device_service_config(") < admin_route_source.index(
+        "safe_queue_device_detail_command("
+    )
+    assert "Tank setup saved in Flask" in admin_route_source

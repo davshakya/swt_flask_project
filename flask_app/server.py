@@ -3990,18 +3990,54 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         force=True,
     )
     try:
+        saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
+        reported_peer_channel = (
+            cleaned.get("direct_peer_config_channel")
+            if cleaned.get("direct_peer_config_channel") not in (None, "")
+            else cleaned.get("direct_peer_wifi_channel")
+        )
         upsert_device_service_config(
             cleaned.get("device_id"),
-            tank_height_cm=cleaned.get("tank_height_cm"),
-            tank_capacity_liters=cleaned.get("tank_capacity_liters"),
-            upper_tank_height_cm=cleaned.get("tank_height_cm"),
-            upper_tank_capacity_liters=cleaned.get("tank_capacity_liters"),
-            lower_tank_height_cm=cleaned.get("lower_tank_height_cm"),
-            lower_tank_capacity_liters=(
-                cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters")
+            tank_height_cm=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "tank_height_cm",
+                cleaned.get("tank_height_cm"),
             ),
-            auto_start_pct=cleaned.get("auto_start_pct"),
-            auto_stop_pct=cleaned.get("auto_stop_pct"),
+            tank_capacity_liters=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "tank_capacity_liters",
+                cleaned.get("tank_capacity_liters"),
+            ),
+            upper_tank_height_cm=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "upper_tank_height_cm",
+                cleaned.get("tank_height_cm"),
+            ),
+            upper_tank_capacity_liters=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "upper_tank_capacity_liters",
+                cleaned.get("tank_capacity_liters"),
+            ),
+            lower_tank_height_cm=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "lower_tank_height_cm",
+                cleaned.get("lower_tank_height_cm"),
+            ),
+            lower_tank_capacity_liters=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "lower_tank_capacity_liters",
+                cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
+            ),
+            auto_start_pct=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "auto_start_pct",
+                cleaned.get("auto_start_pct"),
+            ),
+            auto_stop_pct=telemetry_config_float_seed(
+                saved_telemetry_config,
+                "auto_stop_pct",
+                cleaned.get("auto_stop_pct"),
+            ),
             telemetry_service_state=cleaned.get("telemetry_service"),
             command_service_state=cleaned.get("command_service"),
             relay_service_state=cleaned.get("relay_service"),
@@ -4011,10 +4047,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
             led_display_service_state=cleaned.get("led_display_service"),
             lower_tank_service_state=cleaned.get("lower_tank_service"),
             slave_device_service_state=cleaned.get("slave_device_service"),
-            direct_peer_wifi_channel=(
-                cleaned.get("direct_peer_config_channel")
-                if cleaned.get("direct_peer_config_channel") not in (None, "")
-                else cleaned.get("direct_peer_wifi_channel")
+            direct_peer_wifi_channel=telemetry_config_peer_channel_seed(
+                saved_telemetry_config,
+                reported_peer_channel,
             ),
         )
     except Exception as exc:
@@ -6685,6 +6720,21 @@ def _coerce_optional_peer_channel_value(value):
     return resolved
 
 
+def telemetry_config_float_seed(saved_config, config_key, reported_value):
+    if normalize_optional_config_float((saved_config or {}).get(config_key)) is not None:
+        return None
+    return reported_value
+
+
+def telemetry_config_peer_channel_seed(saved_config, reported_value):
+    try:
+        if _coerce_optional_peer_channel_value((saved_config or {}).get("direct_peer_wifi_channel")) is not None:
+            return None
+    except ValueError:
+        pass
+    return reported_value
+
+
 def snapshot_device_automation_settings(snapshot, device_id=None):
     if not snapshot:
         return None
@@ -6729,21 +6779,6 @@ def save_device_automation_settings(device_id, auto_start_pct, auto_stop_pct, so
 
 def fetch_device_automation_settings(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id)
-    live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
-    if live_settings:
-        stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
-        if (
-            safe_float((stored_service_config or {}).get("auto_start_pct"), -1) != live_settings["auto_start_pct"]
-            or safe_float((stored_service_config or {}).get("auto_stop_pct"), -1) != live_settings["auto_stop_pct"]
-        ):
-            save_device_automation_settings(
-                normalized_device_id,
-                live_settings["auto_start_pct"],
-                live_settings["auto_stop_pct"],
-                source="telemetry_sync",
-            )
-        return live_settings
-
     stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
     stored_auto_start_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_start_pct"))
     stored_auto_stop_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_stop_pct"))
@@ -6779,6 +6814,18 @@ def fetch_device_automation_settings(device_id, snapshot=None):
                     payload.get("source") or "saved_cloud",
                     payload.get("updated_at"),
                 )
+
+    live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
+    if live_settings:
+        seed_device_id = normalized_device_id or live_settings.get("device_id")
+        if not seed_device_id:
+            return live_settings
+        return save_device_automation_settings(
+            seed_device_id,
+            live_settings["auto_start_pct"],
+            live_settings["auto_stop_pct"],
+            source="telemetry_seed",
+        )
 
     return default_device_automation_settings(normalized_device_id)
 
@@ -15802,6 +15849,52 @@ def device_simulator_enabled(device_id, snapshot=None):
     return simulator_payload_enabled(snapshot)
 
 
+def device_detail_ajax_request():
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def device_detail_action_response(
+    device_id,
+    message="",
+    *,
+    error="",
+    title="",
+    status_code=200,
+    detail_lines=None,
+    **extra,
+):
+    normalized_device_id = normalize_device_id(device_id)
+    resolved_message = str(message or "").strip()
+    resolved_error = str(error or "").strip()
+    if device_detail_ajax_request():
+        payload = {
+            "ok": not bool(resolved_error),
+            "title": title or ("Action failed" if resolved_error else "Action saved"),
+            "message": resolved_message or ("Request completed." if not resolved_error else ""),
+            "error": resolved_error,
+            "detail_lines": [line for line in (detail_lines or []) if line],
+        }
+        payload.update(extra)
+        return jsonify(payload), status_code
+
+    query_key = "config_error" if resolved_error else "config_message"
+    query_value = resolved_error or resolved_message or "Request completed."
+    return redirect(url_for("device_detail_page", device_id=normalized_device_id, **{query_key: query_value}))
+
+
+def safe_queue_device_detail_command(command, device_id, failure_message):
+    try:
+        queue_result = queue_command(command, target_device=device_id)
+    except Exception as exc:
+        logger.exception("Unable to queue device detail command for %s: %s", normalize_device_id(device_id), exc)
+        return None, f"{failure_message}: {exc}"
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        error_text = (error_payload or {}).get("error") if isinstance(error_payload, dict) else ""
+        return None, error_text or failure_message
+    return queue_result, ""
+
+
 @app.route("/devices/<device_id>/configuration", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -15846,17 +15939,23 @@ def admin_device_detail_configuration(device_id):
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
-        queued_command = build_device_service_command(updated_config)
-        queue_result = queue_command(queued_command, target_device=scoped_device_id)
-        if isinstance(queue_result, tuple):
-            error_payload, _status_code = queue_result
-            return redirect(
-                url_for(
-                    "device_detail_page",
-                    device_id=scoped_device_id,
-                    config_error=error_payload.get("error") or "Unable to queue runtime configuration update.",
-                )
-            )
+    except ValueError as exc:
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save runtime configuration for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save runtime configuration: {exc}",
+            status_code=500,
+        )
+
+    queued_command = build_device_service_command(updated_config)
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue runtime configuration update",
+    )
+    try:
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
@@ -15866,17 +15965,36 @@ def admin_device_detail_configuration(device_id):
             details={
                 "service_config": updated_config,
                 "queued_command": queued_command,
+                "queue_error": queue_error,
                 "android_sessions_preserved": True,
             },
         )
-        auto_mode_label = "Enabled" if updated_config.get("auto_mode_enabled") else "Disabled"
-        message = (
-            f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
-            "Device changes apply on the next command poll."
+    except Exception as exc:
+        logger.warning("Unable to log runtime configuration audit event for %s: %s", scoped_device_id, exc)
+    auto_mode_label = "Enabled" if updated_config.get("auto_mode_enabled") else "Disabled"
+    if queue_error:
+        return device_detail_action_response(
+            scoped_device_id,
+            (
+                f"Configuration saved in Flask. Auto Start/Stop is {auto_mode_label}. "
+                "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+            ),
+            title="Configuration saved in Flask",
+            detail_lines=[queue_error],
+            service_config=updated_config,
+            queued_command=queued_command,
         )
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
-    except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+    message = (
+        f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
+        "Device changes apply on the next command poll."
+    )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        service_config=updated_config,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
 
 
 @app.route("/devices/<device_id>/thresholds", methods=["POST"])
@@ -15894,33 +16012,57 @@ def admin_device_detail_thresholds(device_id):
             source="admin_dashboard",
         )
     except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save tank thresholds for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save tank thresholds: {exc}",
+            status_code=500,
+        )
 
     queued_command = build_device_automation_command(updated_settings)
-    queue_result = queue_command(queued_command, target_device=scoped_device_id)
-    if isinstance(queue_result, tuple):
-        error_payload, _status_code = queue_result
-        error = error_payload.get("error") or "Unable to queue threshold update."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
-
-    log_audit_event(
-        actor=current_actor_username(),
-        action="update_device_detail_thresholds",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "automation_settings": updated_settings,
-            "queued_command": queued_command,
-            "source": "admin_dashboard",
-        },
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue threshold update",
     )
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_detail_thresholds",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "automation_settings": updated_settings,
+                "queued_command": queued_command,
+                "queue_error": queue_error,
+                "source": "admin_dashboard",
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log threshold audit event for %s: %s", scoped_device_id, exc)
     message = (
         f"Tank thresholds saved for {scoped_device_id}. "
         f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
         "Device changes apply on the next command poll."
     )
-    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+    if queue_error:
+        message = (
+            f"Tank thresholds saved in Flask for {scoped_device_id}. "
+            f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
+            "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+        )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        title="Tank thresholds saved in Flask" if queue_error else "Action saved",
+        detail_lines=[queue_error] if queue_error else [],
+        automation_settings=updated_settings,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
 
 
 @app.route("/devices/<device_id>/peer-channel", methods=["POST"])
@@ -15940,32 +16082,56 @@ def admin_device_detail_peer_channel(device_id):
         )
         queued_command = build_device_peer_channel_command(requested_channel)
     except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save peer channel for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save peer channel: {exc}",
+            status_code=500,
+        )
 
-    queue_result = queue_command(queued_command, target_device=scoped_device_id)
-    if isinstance(queue_result, tuple):
-        error_payload, _status_code = queue_result
-        error = error_payload.get("error") or "Unable to queue peer channel update."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
-
-    log_audit_event(
-        actor=current_actor_username(),
-        action="update_device_detail_peer_channel",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "direct_peer_wifi_channel": requested_channel,
-            "service_config": updated_config,
-            "queued_command": queued_command,
-            "source": "admin_dashboard",
-        },
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue peer channel update",
     )
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_detail_peer_channel",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "direct_peer_wifi_channel": requested_channel,
+                "service_config": updated_config,
+                "queued_command": queued_command,
+                "queue_error": queue_error,
+                "source": "admin_dashboard",
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log peer channel audit event for %s: %s", scoped_device_id, exc)
     message = (
         f"Peer channel saved for {scoped_device_id}. "
         f"Channel {requested_channel} will apply on the next device command poll."
     )
-    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+    if queue_error:
+        message = (
+            f"Peer channel {requested_channel} saved in Flask for {scoped_device_id}. "
+            "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+        )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        title="Peer channel saved in Flask" if queue_error else "Action saved",
+        detail_lines=[queue_error] if queue_error else [],
+        service_config=updated_config,
+        direct_peer_wifi_channel=requested_channel,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
 
 
 @app.route("/devices/<device_id>/ping", methods=["POST"])
@@ -16135,128 +16301,135 @@ def admin_device_detail_sensor_configure(device_id):
     capacity_liters = request.values.get("capacity_liters", type=float)
     action = str(request.values.get("action") or "save").strip().lower()
     if lower_requested and not bool(service_config.get("source_tank_monitoring_enabled")):
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Lower/source tank setup is not available because lower sensor service is disabled.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Lower/source tank setup is not available because lower sensor service is disabled.",
+            status_code=400,
         )
     if capacity_liters is None:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank capacity is required.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank capacity is required.",
+            status_code=400,
         )
     if action in {"save_calibrate", "save_and_calibrate", "calibrate"} and height_cm is None:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank height is required before calibration.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank height is required before calibration.",
+            status_code=400,
         )
     if height_cm is not None and (height_cm < 2.1 or height_cm > 500):
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank height must be between 2.1 and 500 cm.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank height must be between 2.1 and 500 cm.",
+            status_code=400,
         )
     if capacity_liters < 50 or capacity_liters > 50000:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank capacity must be between 50 and 50000 liters.",
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank capacity must be between 50 and 50000 liters.",
+            status_code=400,
+        )
+
+    try:
+        if lower_requested:
+            saved_config = upsert_device_service_config(
+                scoped_device_id,
+                lower_tank_height_cm=height_cm,
+                lower_tank_capacity_liters=capacity_liters,
             )
+        else:
+            saved_config = upsert_device_service_config(
+                scoped_device_id,
+                tank_height_cm=height_cm,
+                tank_capacity_liters=capacity_liters,
+                upper_tank_height_cm=height_cm,
+                upper_tank_capacity_liters=capacity_liters,
+            )
+    except Exception as exc:
+        logger.exception("Could not save tank setup for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save tank setup: {exc}",
+            status_code=500,
         )
 
     if height_cm is not None:
         command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}" if lower_requested else f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"
     else:
         command = f"CONFIG_LOWER_CAPACITY:{capacity_liters:.1f}" if lower_requested else f"CONFIG_CAPACITY:{capacity_liters:.1f}"
-    result = queue_command(command, target_device=scoped_device_id)
-    if isinstance(result, tuple):
-        payload, _status_code = result
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error=payload.get("error") or "Unable to queue tank capacity command.",
-            )
-        )
-    if lower_requested:
-        upsert_device_service_config(
-            scoped_device_id,
-            lower_tank_height_cm=height_cm,
-            lower_tank_capacity_liters=capacity_liters,
-        )
-    else:
-        upsert_device_service_config(
-            scoped_device_id,
-            tank_height_cm=height_cm,
-            tank_capacity_liters=capacity_liters,
-            upper_tank_height_cm=height_cm,
-            upper_tank_capacity_liters=capacity_liters,
-        )
-    log_audit_event(
-        actor=current_actor_username(),
-        action="queue_device_tank_capacity",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "command": result.get("command"),
-            "sensor": "lower" if lower_requested else "upper",
-            "height_cm": round(height_cm, 1) if height_cm is not None else None,
-            "capacity_liters": round(capacity_liters, 1),
-            "queued_at": result.get("queued_at"),
-        },
+    result, queue_error = safe_queue_device_detail_command(
+        command,
+        scoped_device_id,
+        "Unable to queue tank capacity command",
     )
-    calibration_result = None
-    if action in {"save_calibrate", "save_and_calibrate", "calibrate"}:
-        calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
-        calibration_result = queue_command(calibration_command, target_device=scoped_device_id)
-        if isinstance(calibration_result, tuple):
-            payload, _status_code = calibration_result
-            return redirect(
-                url_for(
-                    "device_detail_page",
-                    device_id=scoped_device_id,
-                    config_error=payload.get("error") or "Tank setup saved, but unable to queue calibration.",
-                )
-            )
+    try:
         log_audit_event(
             actor=current_actor_username(),
-            action="queue_device_calibration",
+            action="queue_device_tank_capacity",
             target_type="device",
             target_id=scoped_device_id,
             device_id=scoped_device_id,
             details={
-                "command": calibration_result.get("command"),
+                "command": (result or {}).get("command") or command,
                 "sensor": "lower" if lower_requested else "upper",
-                "command_target": scoped_device_id,
-                "queued_at": calibration_result.get("queued_at"),
-                "queued_after_tank_setup": True,
+                "height_cm": round(height_cm, 1) if height_cm is not None else None,
+                "capacity_liters": round(capacity_liters, 1),
+                "queued_at": (result or {}).get("queued_at"),
+                "queue_error": queue_error,
             },
         )
+    except Exception as exc:
+        logger.warning("Unable to log tank setup audit event for %s: %s", scoped_device_id, exc)
+    calibration_result = None
+    calibration_queue_error = ""
+    if action in {"save_calibrate", "save_and_calibrate", "calibrate"}:
+        calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
+        calibration_result, calibration_queue_error = safe_queue_device_detail_command(
+            calibration_command,
+            scoped_device_id,
+            "Tank setup saved, but unable to queue calibration",
+        )
+        try:
+            log_audit_event(
+                actor=current_actor_username(),
+                action="queue_device_calibration",
+                target_type="device",
+                target_id=scoped_device_id,
+                device_id=scoped_device_id,
+                details={
+                    "command": (calibration_result or {}).get("command") or calibration_command,
+                    "sensor": "lower" if lower_requested else "upper",
+                    "command_target": scoped_device_id,
+                    "queued_at": (calibration_result or {}).get("queued_at"),
+                    "queued_after_tank_setup": True,
+                    "queue_error": calibration_queue_error,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Unable to log sensor calibration audit event for %s: %s", scoped_device_id, exc)
 
     sensor_label = "Lower/source" if lower_requested else "Upper"
-    config_parts = [f"{sensor_label} tank capacity command queued: {capacity_liters:.1f} L"]
+    config_parts = [f"{sensor_label} tank setup saved in Flask: {capacity_liters:.1f} L"]
     if height_cm is not None:
-        config_parts.insert(0, f"{sensor_label} tank height command queued: {height_cm:.1f} cm")
-    if calibration_result:
+        config_parts.insert(0, f"{sensor_label} tank height saved in Flask: {height_cm:.1f} cm")
+    if queue_error:
+        config_parts.append("The device setup command was not queued, so the controller will apply it after the next successful sync/queue.")
+    else:
+        config_parts.append(f"{sensor_label} tank setup command queued.")
+    if calibration_result and not calibration_queue_error:
         config_parts.append(f"{sensor_label} calibration command queued.")
-    return redirect(
-        url_for(
-            "device_detail_page",
-            device_id=scoped_device_id,
-            config_message=". ".join(config_parts),
-        )
+    elif calibration_queue_error:
+        config_parts.append("Calibration was not queued.")
+    detail_lines = [line for line in (queue_error, calibration_queue_error) if line]
+    return device_detail_action_response(
+        scoped_device_id,
+        ". ".join(config_parts),
+        title="Tank setup saved in Flask" if detail_lines else "Action saved",
+        detail_lines=detail_lines,
+        service_config=saved_config,
+        queued_command=command,
+        queue_result=result,
     )
 
 
