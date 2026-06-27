@@ -15707,14 +15707,9 @@ def device_detail_page(device_id):
     if simulator_state in {"on", "off"}:
         simulator_enabled = simulator_state == "on"
     system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
-    initial_events = build_snapshot_activity_events(
-        limit=20,
-        device_id=scoped_device_id,
-        snapshot=snapshot,
-        service_config=service_config,
-        automation_settings=automation_settings,
-        system_status=system_status,
-    )
+    # Keep the HTML render path cheap and safe. The browser can synthesize
+    # current activity rows from the snapshot below, then hydrate from /events.
+    initial_events = []
     initial_info_cards = build_device_detail_info_cards(
         snapshot,
         system_status,

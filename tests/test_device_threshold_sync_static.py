@@ -26,9 +26,8 @@ def test_device_detail_page_exposes_shared_threshold_settings():
     assert "current_saved_config = build_current_saved_config(scoped_device_id, account=account)" in function_source
     assert 'service_config = current_saved_config.get("service_config")' in function_source
     assert 'automation_settings = current_saved_config.get("automation_settings")' in function_source
-    assert "initial_events = build_snapshot_activity_events(" in function_source
-    assert "snapshot=snapshot," in function_source
-    assert "system_status=system_status," in function_source
+    assert "initial_events = []" in function_source
+    assert "Keep the HTML render path cheap and safe" in function_source
     assert "initial_info_cards = build_device_detail_info_cards(" in function_source
     assert "automation_settings=automation_settings," in function_source
     assert "current_saved_config=current_saved_config," in function_source
