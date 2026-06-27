@@ -176,7 +176,16 @@ body{font-size:16px}
             </div>
         </div>
         <div id="deviceInfoGrid" class="info-grid">
-            <div class="helper-text" style="grid-column:1/-1;margin-top:0">Live configuration details are ready and will expand from the latest synced snapshot.</div>
+            {% if initial_info_cards %}
+                {% for card in initial_info_cards %}
+                <div class="info-item">
+                    <span class="info-label">{{ card.label }}</span>
+                    <strong class="info-value">{{ card.value }}</strong>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="helper-text" style="grid-column:1/-1;margin-top:0">Live configuration details are ready and will expand from the latest synced snapshot.</div>
+            {% endif %}
         </div>
     </section>
 
@@ -561,7 +570,9 @@ if(!Array.isArray(latestEvents)||!latestEvents.length){
 let activityPage=1;
 let activityPageSize=10;
 let pingWatchToken=0;
-const ACTIVITY_REFRESH_MS=5000;
+const ACTIVITY_INITIAL_FETCH_LIMIT=50;
+const ACTIVITY_FETCH_LIMIT=100;
+const ACTIVITY_REFRESH_MS=15000;
 const DEVICE_REFRESH_MS=30000;
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 function setStableHtml(node,html){
@@ -1232,7 +1243,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const savedServiceConfig=savedConfig.service_config||serviceConfig||{};
   const savedAutomationSettings=savedConfig.automation_settings||automationSettings||{};
   const telemetryStatus=String(snapshot?.telemetry_status||systemStatus?.telemetry_status||"").trim().toLowerCase();
-  const showAllDetails=telemetryStatus==="no-data";
+  const showAllDetails=true;
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sourceCapacity=savedConfig.lower_tank_capacity_liters??savedServiceConfig.lower_tank_capacity_liters??snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
@@ -1446,13 +1457,13 @@ function setActivityPage(nextPage){
   activityPage=nextPage;
   renderActivityTable();
 }
-async function refreshActivityEvents(){
+async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
   if(activityRefreshInFlight)return;
   activityRefreshInFlight=true;
   try{
     const eventsUrl=new URL("/events",window.location.origin);
     eventsUrl.searchParams.set("device_id",DEVICE_ID);
-    eventsUrl.searchParams.set("limit","300");
+    eventsUrl.searchParams.set("limit",String(Math.max(10,Math.min(Number(limit)||ACTIVITY_FETCH_LIMIT,ACTIVITY_FETCH_LIMIT))));
     const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
     const data=await response.json();
     if(response.ok&&Array.isArray(data)){
@@ -1574,6 +1585,9 @@ document.getElementById("activityPageSize")?.addEventListener("change",(event)=>
   activityPageSize=Number(event.target.value)||10;
   activityPage=1;
   renderActivityTable();
+  if(activityPageSize>latestEvents.length){
+    refreshActivityEvents({limit:activityPageSize});
+  }
 });
 document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
   document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
@@ -1582,10 +1596,15 @@ document.getElementById("activityLast")?.addEventListener("click",()=>{
     setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
   });
 if(latestEvents.length)renderActivityTable();
-window.requestAnimationFrame?window.requestAnimationFrame(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();}):(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();})();
+function startInitialRefresh(){
+  loadDevice({silent:true,includeHistory:true,includeEvents:false});
+  window.setTimeout(()=>refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT}),400);
+}
+if(window.requestAnimationFrame)window.requestAnimationFrame(startInitialRefresh);
+else startInitialRefresh();
 activityRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
-  refreshActivityEvents();
+  refreshActivityEvents({limit:ACTIVITY_FETCH_LIMIT});
 },ACTIVITY_REFRESH_MS);
 deviceRefreshTimer=setInterval(()=>{
   if(document.hidden)return;

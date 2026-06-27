@@ -10678,6 +10678,13 @@ def device_event_sync_markers(device_id):
     if not normalized_device_id:
         return None, None
     source_clause, source_params = device_source_where_clause()
+    live_status_kinds = (
+        "device_config_current_status",
+        "device_ping_current_status",
+        "node_current_status",
+        "peer_current_status",
+    )
+    placeholders = ",".join("?" for _ in live_status_kinds)
     with get_db() as db:
         latest_telemetry = db.execute(
             f"""
@@ -10692,11 +10699,25 @@ def device_event_sync_markers(device_id):
         ).fetchone()
         if not latest_telemetry:
             return None, None
+        historical_event = db.execute(
+            f"""
+            SELECT id
+            FROM device_events
+            WHERE device_id = ?
+              AND source_table = 'tank_data'
+              AND event_kind NOT IN ({placeholders})
+            LIMIT 1
+            """,
+            (normalized_device_id, *live_status_kinds),
+        ).fetchone()
+        if not historical_event:
+            return str(latest_telemetry["created_at"] or "").strip() or None, None
         latest_event = db.execute(
             """
             SELECT event_at
             FROM device_events
             WHERE device_id = ?
+              AND source_table = 'tank_data'
             ORDER BY event_at DESC, id DESC
             LIMIT 1
             """,
@@ -10725,8 +10746,9 @@ def sync_device_events(device_id=None):
     return generated_events
 
 
-def build_events(limit=12, device_id=None):
-    sync_device_events(device_id=device_id)
+def build_events(limit=12, device_id=None, sync=True):
+    if sync:
+        sync_device_events(device_id=device_id)
     events = fetch_device_events(limit=limit, device_id=device_id)
     if events:
         return events
@@ -15190,6 +15212,205 @@ def customer_dashboard():
     return render_dashboard_page()
 
 
+def device_detail_card_display(value, fallback="Not reported"):
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text and text != "--" else fallback
+
+
+def device_detail_card_title(value, fallback="Not reported"):
+    text = device_detail_card_display(value, fallback="")
+    return text.replace("_", " ").replace("-", " ").title() if text else fallback
+
+
+def device_detail_card_bool(value, default=False):
+    return "Enabled" if boolish_enabled(value, default=default) else "Disabled"
+
+
+def device_detail_card_liters(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:.1f} L"
+
+
+def device_detail_card_cm(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:.1f} cm"
+
+
+def device_detail_card_percent(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:g}%"
+
+
+def device_detail_card_duration_ms(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number) or number < 0:
+        return fallback
+    if number >= 1000:
+        return format_compact_uptime(number / 1000.0)
+    return f"{number:g} ms"
+
+
+def device_detail_card_duration_seconds(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number) or number < 0:
+        return fallback
+    return format_compact_uptime(number)
+
+
+def device_detail_card_heap(value, fallback="Heap not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    if abs(number) >= 1024 * 1024:
+        return f"{number / (1024 * 1024):.1f} MB free"
+    if abs(number) >= 1024:
+        return f"{number / 1024:.1f} KB free"
+    return f"{int(number)} B free"
+
+
+def build_device_detail_info_cards(snapshot, system_status, service_config, automation_settings, current_saved_config):
+    snapshot = snapshot or {}
+    system_status = system_status or {}
+    service_config = service_config or {}
+    current_saved_config = current_saved_config or {}
+    saved_service_config = current_saved_config.get("service_config") or service_config
+    saved_automation_settings = current_saved_config.get("automation_settings") or automation_settings or {}
+    uses_slave = boolish_enabled(saved_service_config.get("slave_device_enabled"), default=True)
+    slave_upper = uses_slave and boolish_enabled(
+        saved_service_config.get("slave_upper_sensor_enabled"),
+        default=uses_slave,
+    )
+    source_monitoring = boolish_enabled(
+        saved_service_config.get("source_tank_monitoring_enabled"),
+        default=True,
+    )
+    upper_source = snapshot.get("upper_sensor_source") or ("slave" if slave_upper else "master")
+    auto_start = (
+        current_saved_config.get("auto_start_pct")
+        or saved_automation_settings.get("auto_start_pct")
+        or saved_service_config.get("auto_start_pct")
+        or snapshot.get("auto_start_pct")
+        or snapshot.get("auto_start_level_pct")
+        or snapshot.get("lower_threshold_pct")
+    )
+    auto_stop = (
+        current_saved_config.get("auto_stop_pct")
+        or saved_automation_settings.get("auto_stop_pct")
+        or saved_service_config.get("auto_stop_pct")
+        or snapshot.get("auto_stop_pct")
+        or snapshot.get("auto_stop_level_pct")
+        or snapshot.get("upper_threshold_pct")
+    )
+    tank_capacity = (
+        current_saved_config.get("tank_capacity_liters")
+        or saved_service_config.get("tank_capacity_liters")
+        or snapshot.get("capacity_liters")
+        or snapshot.get("tank_capacity_liters")
+        or system_status.get("capacity_liters")
+    )
+    tank_height = (
+        current_saved_config.get("tank_height_cm")
+        or saved_service_config.get("tank_height_cm")
+        or snapshot.get("tank_height_cm")
+    )
+    source_capacity = (
+        current_saved_config.get("lower_tank_capacity_liters")
+        or saved_service_config.get("lower_tank_capacity_liters")
+        or snapshot.get("lower_tank_capacity_liters")
+        or snapshot.get("source_tank_capacity_liters")
+    )
+    source_height = (
+        current_saved_config.get("lower_tank_height_cm")
+        or saved_service_config.get("lower_tank_height_cm")
+        or snapshot.get("lower_tank_height_cm")
+    )
+    card_values = [
+        ("Firmware", device_detail_card_display(snapshot.get("firmware_version"))),
+        ("Configuration", "Master + Slave" if uses_slave else "Master Only"),
+        ("Master Reachability", device_detail_card_display(system_status.get("master_status_label"), "Unreachable")),
+        ("Slave Reachability", device_detail_card_display(system_status.get("slave_status_label"), "Reachable" if uses_slave else "Disabled")),
+        ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
+        ("Architecture", f"Arch {snapshot.get('arch_id')}" if snapshot.get("arch_id") not in (None, "") else device_detail_card_display(snapshot.get("architecture_mode"))),
+        ("Source Mode", device_detail_card_title(snapshot.get("device_source") or system_status.get("device_source_mode"), "Real")),
+        ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
+        ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
+        ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
+        ("Tank Capacity", device_detail_card_liters(tank_capacity)),
+        ("Tank Height", device_detail_card_cm(tank_height)),
+        ("Auto Start Threshold", device_detail_card_percent(auto_start)),
+        ("Auto Stop Threshold", device_detail_card_percent(auto_stop)),
+        ("Auto Start Delay", device_detail_card_duration_ms(snapshot.get("auto_start_stable_ms"), "5s")),
+        ("Level Average Samples", device_detail_card_display(snapshot.get("auto_level_average_samples"), "5")),
+        ("Water Depth", device_detail_card_cm(snapshot.get("water_depth_cm"))),
+        ("Upper Echo Distance", device_detail_card_cm(snapshot.get("sensor_distance_cm"))),
+        ("Command Service", device_detail_card_title(snapshot.get("command_service"), "ON")),
+        ("Telemetry Service", device_detail_card_title(snapshot.get("telemetry_service"), "ON")),
+        ("Simulator", device_detail_card_title(snapshot.get("simulator") or snapshot.get("simulator_status"), "OFF")),
+        ("Direct Peer", device_detail_card_display(snapshot.get("direct_peer"), "enabled" if uses_slave else "disabled")),
+        ("Peer Config Channel", device_detail_card_display(snapshot.get("direct_peer_config_channel") or saved_service_config.get("direct_peer_wifi_channel"), "1")),
+        ("Peer Active Channel", device_detail_card_display(snapshot.get("direct_peer_wifi_channel"), "1")),
+        ("Peer Sync", "Sync OK" if not boolish_enabled(snapshot.get("direct_peer_sync_pending"), default=False) else "Pending"),
+        ("Peer Remote IP", device_detail_card_display(snapshot.get("direct_peer_remote_ip"), "Waiting for peer")),
+        ("Peer Remote MAC", device_detail_card_display(snapshot.get("direct_peer_remote_mac"), "Waiting for peer")),
+        ("Peer Packet Age", device_detail_card_duration_seconds(snapshot.get("direct_peer_last_packet_age_s"), "0s")),
+        ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
+        ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
+        ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
+        ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
+        ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
+        ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
+        ("Local Firmware Upload", device_detail_card_bool(saved_service_config.get("local_firmware_upload_enabled"), default=True)),
+        ("Android SSO Limit", device_detail_card_display(saved_service_config.get("android_sso_session_limit"), DEFAULT_ANDROID_SSO_SESSION_LIMIT)),
+        ("Network Channel", device_detail_card_title(snapshot.get("channel_mode"), "Cloud")),
+        ("Local Device IP", device_detail_card_display(snapshot.get("device_local_url"), "Local IP not reported")),
+        ("Master Memory", device_detail_card_heap(snapshot.get("free_heap"))),
+    ]
+    if uses_slave:
+        card_values.extend(
+            [
+                ("Slave Memory", device_detail_card_heap(snapshot.get("slave_free_heap"), "Slave heap not reported")),
+                ("Uptime", device_detail_card_display(snapshot.get("uptime_label"), "Uptime not reported")),
+                ("Slave Uptime", device_detail_card_display(snapshot.get("slave_uptime_label"), "Slave uptime not reported")),
+            ]
+        )
+    if source_monitoring:
+        card_values.extend(
+            [
+                ("Source Capacity", device_detail_card_liters(source_capacity)),
+                ("Source Height", device_detail_card_cm(source_height)),
+                ("Source Water Depth", device_detail_card_cm(snapshot.get("lower_water_depth_cm"))),
+                ("Lower Sensor Distance", device_detail_card_cm(snapshot.get("lower_sensor_distance_cm"))),
+            ]
+        )
+    return [{"label": label, "value": value} for label, value in card_values]
+
+
 @app.route("/devices/<device_id>")
 @admin_required
 def device_detail_page(device_id):
@@ -15210,7 +15431,15 @@ def device_detail_page(device_id):
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     if simulator_state in {"on", "off"}:
         simulator_enabled = simulator_state == "on"
-    initial_events = build_events(limit=20, device_id=scoped_device_id)
+    system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
+    initial_events = build_events(limit=20, device_id=scoped_device_id, sync=False)
+    initial_info_cards = build_device_detail_info_cards(
+        snapshot,
+        system_status,
+        service_config,
+        automation_settings,
+        current_saved_config,
+    )
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
@@ -15231,6 +15460,7 @@ def device_detail_page(device_id):
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
         initial_events=initial_events,
+        initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
@@ -15890,7 +16120,7 @@ def device_detail_status(device_id):
         payload["history"] = fetch_device_history(scoped_device_id, limit=48)
     if include_events:
         event_limit = max(10, min(request.args.get("event_limit", default=300, type=int), 500))
-        payload["events"] = build_events(limit=event_limit, device_id=scoped_device_id)
+        payload["events"] = build_events(limit=event_limit, device_id=scoped_device_id, sync=False)
     return jsonify(payload)
 
 
