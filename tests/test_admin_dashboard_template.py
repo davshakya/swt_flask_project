@@ -511,7 +511,8 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "fetch_device_history(scoped_device_id, limit=48)" in server_source
     assert 'doc["slave_free_heap"] = lastSlaveFreeHeap' in firmware_source
     assert 'doc["cpu_utilization_pct"] = cpuUtilizationPct' in firmware_source
-    assert 'doc["free_heap"] = ESP.getFreeHeap()' in firmware_source
+    assert "const uint32_t freeHeapBeforeStatusJson = ESP.getFreeHeap();" in firmware_source
+    assert 'doc["free_heap"] = freeHeapBeforeStatusJson' in firmware_source
 
 
 def test_android_release_upload_modal_is_detached_and_shows_progress():

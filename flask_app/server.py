@@ -652,7 +652,7 @@ AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
-DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
+DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
@@ -670,6 +670,13 @@ DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
+DB_RETENTION_DELETE_BATCH_ROWS = max(100, env_int("DB_RETENTION_DELETE_BATCH_ROWS", 5000))
+DB_RETENTION_DELETE_MAX_BATCHES = max(1, env_int("DB_RETENTION_DELETE_MAX_BATCHES", 4))
+DB_RETENTION_DELETE_FORCE_MAX_BATCHES = max(
+    DB_RETENTION_DELETE_MAX_BATCHES,
+    env_int("DB_RETENTION_DELETE_FORCE_MAX_BATCHES", 24),
+)
+DB_OPTIMIZE_AFTER_PRUNE_ROWS = max(0, env_int("DB_OPTIMIZE_AFTER_PRUNE_ROWS", 5000))
 TEMP_DB_SIZE_GUARD_ENABLED = env_flag("TEMP_DB_SIZE_GUARD_ENABLED", default=False)
 TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
 TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
@@ -801,6 +808,9 @@ db_maintenance_state = {
     "last_reason": None,
     "last_error": None,
     "last_total_bytes": 0,
+    "last_action": None,
+    "last_pruned_rows": 0,
+    "last_tables": [],
     "last_skip_at": 0.0,
     "last_skip_reason": None,
 }
@@ -3617,6 +3627,23 @@ def retention_maintenance_skip_reason(pruned_rows=0, force=False):
     return None
 
 
+def prune_delete_batches(cursor, delete_sql, params=(), batch_rows=None, max_batches=None):
+    batch_limit = max(1, int(batch_rows or DB_RETENTION_DELETE_BATCH_ROWS))
+    batch_count = max(1, int(max_batches or DB_RETENTION_DELETE_MAX_BATCHES))
+    total_deleted = 0
+    base_sql = str(delete_sql).strip().rstrip(";")
+    for _ in range(batch_count):
+        cursor.execute(
+            f"{base_sql}\nLIMIT ?",
+            tuple(params or ()) + (batch_limit,),
+        )
+        deleted = max(0, int(cursor.rowcount or 0))
+        total_deleted += deleted
+        if deleted < batch_limit:
+            break
+    return total_deleted
+
+
 def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
     cursor.execute(
         """
@@ -3684,33 +3711,36 @@ def maybe_prune_telemetry_size_cap(force=False):
     }
 
 
-def prune_tank_data_retention(cursor):
-    cursor.execute(
+def prune_tank_data_retention(cursor, max_batches=None):
+    return prune_delete_batches(
+        cursor,
         """
         DELETE FROM tank_data
         WHERE created_at < datetime('now', ?)
         """,
         (f"-{DATA_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    return max(0, int(cursor.rowcount or 0))
 
 
-def prune_device_events_retention(cursor):
-    cursor.execute(
+def prune_device_events_retention(cursor, max_batches=None):
+    return prune_delete_batches(
+        cursor,
         """
         DELETE FROM device_events
         WHERE event_at < datetime('now', ?)
         """,
         (f"-{DEVICE_EVENT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    return max(0, int(cursor.rowcount or 0))
 
 
-def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
+def prune_retained_rows(cursor, device_id=None, latest_row_id=None, force=False):
     pruned = {}
+    max_batches = DB_RETENTION_DELETE_FORCE_MAX_BATCHES if force else DB_RETENTION_DELETE_MAX_BATCHES
 
-    pruned["tank_data_retention"] = prune_tank_data_retention(cursor)
-    pruned["device_events_retention"] = prune_device_events_retention(cursor)
+    pruned["tank_data_retention"] = prune_tank_data_retention(cursor, max_batches=max_batches)
+    pruned["device_events_retention"] = prune_device_events_retention(cursor, max_batches=max_batches)
 
     normalized_device_id = normalize_device_id(device_id) or ""
     if latest_row_id is not None and not TELEMETRY_HISTORY_ENABLED:
@@ -3744,17 +3774,19 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         )
         pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["device_command_queue_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM device_command_queue
         WHERE delivered_at IS NOT NULL
           AND delivered_at < datetime('now', ?)
         """,
         (f"-{DEVICE_COMMAND_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["device_command_queue_retention"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["ops_audit_log_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM ops_audit_log
         WHERE created_at < datetime('now', ?)
@@ -3767,18 +3799,19 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
           )
         """,
         (f"-{OPS_AUDIT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["ops_audit_log_retention"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["ops_alerts_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM ops_alerts
         WHERE active = 0
           AND COALESCE(resolved_at, updated_at, created_at) < datetime('now', ?)
         """,
         (f"-{OPS_ALERT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["ops_alerts_retention"] = max(0, int(cursor.rowcount or 0))
     return pruned
 
 
@@ -3809,6 +3842,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
                 cursor,
                 device_id=device_id,
                 latest_row_id=latest_row_id,
+                force=force,
             )
 
         size_cap_result = maybe_prune_telemetry_size_cap(force=force)
@@ -3838,7 +3872,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
                 }
             )
             return pruned
-        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows)
+        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows, force=force)
         return pruned
     except Exception as exc:
         db_prune_state["last_error"] = str(exc)
@@ -3849,7 +3883,101 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
 
 
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
-    return False
+    now = time.time()
+    if not DB_MAINTENANCE_ENABLED:
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-disabled",
+            }
+        )
+        return False
+
+    if (
+        not force
+        and DB_MAINTENANCE_MIN_INTERVAL_SECONDS > 0
+        and (now - float(db_maintenance_state.get("last_run_at") or 0.0)) < DB_MAINTENANCE_MIN_INTERVAL_SECONDS
+    ):
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-interval",
+            }
+        )
+        return False
+
+    if not force and int(pruned_rows or 0) <= 0:
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-no-pruned-rows",
+            }
+        )
+        return False
+
+    if (
+        not force
+        and DB_OPTIMIZE_AFTER_PRUNE_ROWS > 0
+        and int(pruned_rows or 0) < DB_OPTIMIZE_AFTER_PRUNE_ROWS
+    ):
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-pruned-rows-under-threshold",
+            }
+        )
+        return False
+
+    if not db_maintenance_lock.acquire(blocking=False):
+        return False
+
+    optimized_tables = []
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            if USING_MYSQL:
+                for table_name in (
+                    "tank_data",
+                    "device_events",
+                    "device_command_queue",
+                    "ops_audit_log",
+                    "ops_alerts",
+                ):
+                    cursor.execute(f"OPTIMIZE TABLE {quote_mysql_identifier(table_name)}")
+                    optimized_tables.append(table_name)
+            else:
+                cursor.execute("PRAGMA optimize")
+                optimized_tables.append("sqlite")
+
+        file_sizes = collect_database_file_sizes()
+        db_maintenance_state.update(
+            {
+                "last_run_at": now,
+                "last_reason": reason,
+                "last_error": None,
+                "last_total_bytes": int(file_sizes.get("total_bytes") or 0),
+                "last_action": "optimize",
+                "last_pruned_rows": int(pruned_rows or 0),
+                "last_tables": optimized_tables,
+                "last_skip_reason": None,
+            }
+        )
+        return True
+    except Exception as exc:
+        db_maintenance_state.update(
+            {
+                "last_run_at": now,
+                "last_reason": reason,
+                "last_error": str(exc),
+                "last_action": "optimize-failed",
+                "last_pruned_rows": int(pruned_rows or 0),
+                "last_tables": optimized_tables,
+            }
+        )
+        logger.warning("Database maintenance failed: %s", exc)
+        return False
+    finally:
+        db_maintenance_lock.release()
 
 
 def process_telemetry_payload(data, source_ip=None, transport="http"):
@@ -3995,7 +4123,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     maybe_prune_retained_rows(
         device_id=cleaned.get("device_id"),
         latest_row_id=latest_row_id,
-        force=True,
+        force=False,
     )
     try:
         saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
@@ -9031,6 +9159,10 @@ def build_db_summary_payload():
             "target_size_bytes": DB_TARGET_SIZE_BYTES,
             "min_interval_seconds": DB_MAINTENANCE_MIN_INTERVAL_SECONDS,
             "wal_autocheckpoint_pages": DB_WAL_AUTOCHECKPOINT_PAGES,
+            "retention_delete_batch_rows": DB_RETENTION_DELETE_BATCH_ROWS,
+            "retention_delete_max_batches": DB_RETENTION_DELETE_MAX_BATCHES,
+            "retention_delete_force_max_batches": DB_RETENTION_DELETE_FORCE_MAX_BATCHES,
+            "optimize_after_prune_rows": DB_OPTIMIZE_AFTER_PRUNE_ROWS,
             "temporary_size_guard_enabled": TEMP_DB_SIZE_GUARD_ENABLED,
             "temporary_hard_size_cap_enabled": TEMP_HARD_DB_CAP_ENABLED,
             "hard_size_cap_batch_rows": TEMP_HARD_DB_CAP_BATCH_ROWS,
@@ -9043,6 +9175,9 @@ def build_db_summary_payload():
             "last_reason": db_maintenance_state.get("last_reason"),
             "last_error": db_maintenance_state.get("last_error"),
             "last_total_bytes": db_maintenance_state.get("last_total_bytes"),
+            "last_action": db_maintenance_state.get("last_action"),
+            "last_pruned_rows": db_maintenance_state.get("last_pruned_rows"),
+            "last_tables": db_maintenance_state.get("last_tables"),
             "last_skip_at_epoch": db_maintenance_state.get("last_skip_at"),
             "last_skip_reason": db_maintenance_state.get("last_skip_reason"),
             "last_size_cap_pruned_rows": db_prune_state.get("last_size_cap_rows"),
@@ -15793,6 +15928,26 @@ def admin_ops_bootstrap():
 @admin_required
 def admin_db_summary():
     return jsonify(build_db_summary_payload())
+
+
+@app.route("/admin/db-cleanup", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_db_cleanup():
+    pruned = maybe_prune_retained_rows(force=True)
+    pruned_rows = sum(int(value or 0) for value in pruned.values())
+    payload = build_db_summary_payload()
+    payload["cleanup"] = {
+        "pruned": pruned,
+        "pruned_rows": pruned_rows,
+        "maintenance": {
+            "last_action": db_maintenance_state.get("last_action"),
+            "last_error": db_maintenance_state.get("last_error"),
+            "last_reason": db_maintenance_state.get("last_reason"),
+            "last_tables": db_maintenance_state.get("last_tables"),
+        },
+    }
+    return jsonify(payload)
 
 
 @app.route("/admin/device-source-mode", methods=["GET", "POST"])
