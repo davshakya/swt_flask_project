@@ -1,6 +1,37 @@
 from flask_app import server
 
 
+def test_device_detail_template_renders_when_optional_json_context_is_missing():
+    with server.app.test_request_context("/devices/swt-999-999-999-997"):
+        html = server.render_template(
+            "device_detail.html",
+            device_id="swt-999-999-999-997",
+            is_admin=True,
+            snapshot={},
+            customer_account=None,
+            service_config={},
+            automation_settings={},
+            current_saved_config={},
+            peer_channel_input_value=1,
+            android_sso_active_session_count=0,
+            firmware_install_profile={"label": "Master + Slave"},
+            simulator_enabled=False,
+            simulator_state="",
+            initial_events=[],
+            initial_info_cards=[],
+            latest_firmware_artifacts={},
+            config_message="",
+            config_error="",
+            csrf_token="test",
+            master_upper_checked=False,
+            slave_upper_checked=True,
+            upper_setup_label="Slave Upper",
+        )
+
+    assert "const INITIAL_SYSTEM_STATUS={};" in html
+    assert "Live device activity is loading from the current Flask snapshot." in html
+
+
 def test_build_events_falls_back_to_current_status_when_device_has_no_activity():
     events = server.build_events(limit=5, device_id="swt-999-999-999-999")
 
