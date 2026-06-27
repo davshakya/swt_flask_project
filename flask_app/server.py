@@ -657,6 +657,11 @@ DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
+RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS = max(30, env_int("RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS", 600))
+RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
+    30,
+    env_int("RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS", 180),
+)
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
@@ -6967,7 +6972,7 @@ def build_runtime_sync_command(device_id, snapshot=None, account=None):
         return None
 
     live_snapshot = snapshot or fetch_device_snapshot(normalized_device_id)
-    if not snapshot_has_live_device_data(live_snapshot):
+    if not snapshot_is_fresh_enough_for_runtime_sync(live_snapshot):
         return None
 
     saved_config = build_current_saved_config(normalized_device_id, account=account)
@@ -8792,6 +8797,19 @@ def snapshot_has_live_device_data(snapshot):
     if telemetry_status in {"", "no-data", "unknown"}:
         return False
     return bool(snapshot.get("device_id"))
+
+
+def snapshot_is_fresh_enough_for_runtime_sync(snapshot):
+    if not snapshot_has_live_device_data(snapshot):
+        return False
+    telemetry_status = str(snapshot.get("telemetry_status") or "").strip().lower()
+    if telemetry_status in {"stale", "offline"}:
+        return False
+    seconds_since_sync = snapshot.get("seconds_since_sync")
+    try:
+        return seconds_since_sync is None or float(seconds_since_sync) <= STALE_AFTER_SECONDS
+    except (TypeError, ValueError):
+        return True
 
 
 def build_system_status_payload(snapshot, device_id=None, service_config=None):
@@ -12671,6 +12689,55 @@ def queue_device_command(command, target_device):
         return cursor.lastrowid
 
 
+def recent_device_command_row(db, device_id, seconds, command_prefixes=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id or seconds <= 0:
+        return None
+
+    params = [normalized_device_id, f"-{int(seconds)} seconds"]
+    command_clause = ""
+    if command_prefixes:
+        clauses = []
+        for prefix in command_prefixes:
+            clauses.append("command LIKE ?")
+            params.append(f"{str(prefix or '').strip().upper()}%")
+        command_clause = f" AND ({' OR '.join(clauses)})"
+
+    return db.execute(
+        f"""
+        SELECT id, command, created_at, delivered_at
+        FROM device_command_queue
+        WHERE target_device = ?
+          AND created_at >= datetime('now', ?)
+          {command_clause}
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        tuple(params),
+    ).fetchone()
+
+
+def runtime_sync_command_allowed(db, device_id):
+    if recent_device_command_row(db, device_id, RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS):
+        return False
+    if recent_device_command_row(
+        db,
+        device_id,
+        RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS,
+        command_prefixes=(
+            "SERVICECFG",
+            "THRESHOLDS:",
+            "PEER_CHANNEL:",
+            "CONFIG_UPPER:",
+            "CONFIG_LOWER:",
+            "CONFIG_CAPACITY:",
+            "CONFIG_LOWER_CAPACITY:",
+        ),
+    ):
+        return False
+    return True
+
+
 def peek_queued_command(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -12696,6 +12763,10 @@ def peek_queued_command(device_id):
                 (normalized_device_id, row["id"]),
             )
             return {"id": row["id"], "command": row["command"]}
+
+    with get_db() as db:
+        if not runtime_sync_command_allowed(db, normalized_device_id):
+            return None
 
     sync_command = build_runtime_sync_command(normalized_device_id)
     if sync_command and sync_command.get("command"):
