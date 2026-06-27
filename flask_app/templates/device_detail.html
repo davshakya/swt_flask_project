@@ -476,7 +476,14 @@ body{font-size:16px}
                     <option value="100">100 logs</option>
                 </select>
             </label>
-            <div id="activityCount" class="activity-count">Loading logs...</div>
+            {% set initial_activity_events = initial_events or [] %}
+            <div id="activityCount" class="activity-count">
+                {% if initial_activity_events %}
+                    Showing 1-{{ [initial_activity_events|length, 10]|min }} of {{ initial_activity_events|length }} logs
+                {% else %}
+                    Loading logs...
+                {% endif %}
+            </div>
         </div>
         <div class="activity-table-wrap">
             <table class="activity-table" aria-label="Master and slave activity log">
@@ -488,7 +495,24 @@ body{font-size:16px}
                         <th scope="col">Severity</th>
                     </tr>
                 </thead>
-                <tbody id="events"></tbody>
+                <tbody id="events">
+                    {% if initial_activity_events %}
+                        {% for event in initial_activity_events[:10] %}
+                            {% set event_details = event.get("details") or {} %}
+                            {% set event_severity = (event.get("severity") or "info")|lower %}
+                            {% set event_severity_class = "tone-ok" if event_severity in ["success", "ok"] else ("tone-warn" if event_severity in ["warning", "warn"] else ("tone-bad" if event_severity in ["danger", "error", "critical"] else "tone-info")) %}
+                            <tr>
+                                <td>{{ event.get("time") or "--" }}</td>
+                                <td><span class="activity-node">{{ event_details.get("device_id") or event.get("device_id") or "--" }}</span></td>
+                                <td>
+                                    <div class="activity-message">{{ event.get("message") or "Event" }}</div>
+                                    <div class="activity-meta">{{ event.get("kind", "event")|replace("_", " ")|title }}</div>
+                                </td>
+                                <td><span class="status-pill {{ event_severity_class }}">{{ (event.get("severity") or "info")|title }}</span></td>
+                            </tr>
+                        {% endfor %}
+                    {% endif %}
+                </tbody>
             </table>
         </div>
         <div class="activity-pagination" aria-label="Activity log pages">
@@ -512,7 +536,7 @@ let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
 let activityRefreshTimer=0;
 let latestHistory=[];
-let latestEvents=[];
+let latestEvents={{ initial_activity_events|tojson }};
 let activityPage=1;
 let activityPageSize=10;
 let pingWatchToken=0;
@@ -1503,7 +1527,13 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   renderMemoryHealth(latestHistory,snapshot,serviceConfig);
   updateSimulatorControls(snapshot,serviceConfig);
 
-  if(Array.isArray(data.events))latestEvents=data.events||[];
+  if(Array.isArray(data.events)){
+    if(data.events.length){
+      latestEvents=data.events;
+    }else if(!latestEvents.length){
+      latestEvents=[];
+    }
+  }
   renderActivityTable();
 
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
@@ -1520,9 +1550,10 @@ document.getElementById("activityPageSize")?.addEventListener("change",(event)=>
 document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
   document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
   document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));
-  document.getElementById("activityLast")?.addEventListener("click",()=>{
+document.getElementById("activityLast")?.addEventListener("click",()=>{
     setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
   });
+if(latestEvents.length)renderActivityTable();
 window.requestAnimationFrame?window.requestAnimationFrame(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();}):(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();})();
 activityRefreshTimer=setInterval(()=>{
   if(document.hidden)return;

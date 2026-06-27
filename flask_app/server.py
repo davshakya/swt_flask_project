@@ -15210,6 +15210,7 @@ def device_detail_page(device_id):
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     if simulator_state in {"on", "off"}:
         simulator_enabled = simulator_state == "on"
+    initial_events = build_events(limit=20, device_id=scoped_device_id)
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
@@ -15229,6 +15230,7 @@ def device_detail_page(device_id):
         firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
+        initial_events=initial_events,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
