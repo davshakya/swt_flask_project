@@ -9390,18 +9390,31 @@ def device_status_from_snapshot(snapshot):
     }
 
 
-def build_generated_device_events(limit=12, device_id=None, include_pair=True):
+def build_generated_device_events(limit=12, device_id=None, include_pair=True, row_limit=None):
     if not TELEMETRY_HISTORY_ENABLED:
         return []
 
     normalized_device_id = normalize_device_id(device_id)
+    requested_limit = max(1, int(limit or 12))
+    try:
+        requested_row_limit = int(row_limit) if row_limit is not None else requested_limit * 4
+    except (TypeError, ValueError):
+        requested_row_limit = requested_limit * 4
+    telemetry_row_limit = max(20, min(240, requested_row_limit))
     if include_pair and normalized_device_id:
         activity_device_ids = paired_activity_device_ids(normalized_device_id)
         if len(activity_device_ids) > 1:
             events = []
             for activity_device_id in activity_device_ids:
-                events.extend(build_generated_device_events(limit=limit, device_id=activity_device_id, include_pair=False))
-            combined_limit = max(1, int(limit or 12))
+                events.extend(
+                    build_generated_device_events(
+                        limit=limit,
+                        device_id=activity_device_id,
+                        include_pair=False,
+                        row_limit=telemetry_row_limit,
+                    )
+                )
+            combined_limit = requested_limit
             return sorted(events, key=lambda event: str(event.get("time") or ""), reverse=True)[:combined_limit]
 
     source_clause, source_params = device_source_where_clause()
@@ -9430,7 +9443,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     if normalized_device_id:
         query += " AND device_id = ?"
         params.append(normalized_device_id)
-    query += " ORDER BY created_at DESC, id DESC LIMIT 240"
+    query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+    params.append(telemetry_row_limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
 
@@ -10741,18 +10755,78 @@ def sync_device_events(device_id=None):
         return []
     if device_event_sync_is_current(normalized_device_id):
         return []
-    generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id)
+    generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id, row_limit=240)
     persist_device_events(generated_events, default_device_id=normalized_device_id)
     return generated_events
 
 
-def build_events(limit=12, device_id=None, sync=True):
+def activity_event_identity(event):
+    details = event.get("details") if isinstance(event, dict) and isinstance(event.get("details"), dict) else {}
+    explicit_key = str(details.get("event_key") or "").strip()
+    device_id = normalize_device_id(details.get("device_id") or event.get("device_id")) if isinstance(event, dict) else ""
+    event_kind = str((event or {}).get("kind") or "event").strip().lower()
+    if explicit_key:
+        return ("event_key", device_id, explicit_key)
+    source_table = str(details.get("source_table") or (event or {}).get("source_table") or "").strip()
+    source_row_id = str(details.get("source_row_id") or (event or {}).get("source_row_id") or "").strip()
+    if source_table and source_row_id:
+        return ("source", device_id, event_kind, source_table, source_row_id)
+    return (
+        "message",
+        device_id,
+        event_kind,
+        str((event or {}).get("time") or "").strip(),
+        str((event or {}).get("message") or "").strip(),
+    )
+
+
+def activity_event_sort_key(event):
+    live_priority = {
+        "device_config_current_status": 0,
+        "device_ping_current_status": 1,
+        "node_current_status": 2,
+        "peer_current_status": 3,
+    }
+    kind = str((event or {}).get("kind") or "").strip()
+    return (
+        -live_priority.get(kind, 99),
+        parse_timestamp((event or {}).get("time")) or datetime.min,
+        str((event or {}).get("message") or ""),
+    )
+
+
+def merge_activity_events(*event_lists, limit=12):
+    seen = set()
+    merged = []
+    for event_list in event_lists:
+        for event in event_list or []:
+            if not isinstance(event, dict):
+                continue
+            identity = activity_event_identity(event)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(event)
+    merged.sort(key=activity_event_sort_key, reverse=True)
+    return merged[: max(1, int(limit or 12))]
+
+
+def build_events(limit=12, device_id=None, sync=True, generated=True):
+    normalized_limit = max(1, int(limit or 12))
     if sync:
         sync_device_events(device_id=device_id)
-    events = fetch_device_events(limit=limit, device_id=device_id)
+    stored_events = fetch_device_events(limit=normalized_limit, device_id=device_id)
+    generated_events = []
+    if generated:
+        generated_events = build_generated_device_events(
+            limit=normalized_limit,
+            device_id=device_id,
+            row_limit=max(40, min(120, normalized_limit * 4)),
+        )
+    events = merge_activity_events(generated_events, stored_events, limit=normalized_limit)
     if events:
         return events
-    return build_snapshot_activity_events(limit=limit, device_id=device_id)
+    return build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)
 
 
 def build_snapshot_activity_events(limit=12, device_id=None):
@@ -16365,7 +16439,13 @@ def events():
     if response:
         return response
     limit = max(1, min(request.args.get("limit", default=12, type=int), 500))
-    return jsonify(build_events(limit, device_id=current_scope_device_id(request.args.get("device_id", type=str))))
+    return jsonify(
+        build_events(
+            limit,
+            device_id=current_scope_device_id(request.args.get("device_id", type=str)),
+            sync=False,
+        )
+    )
 
 
 @app.route("/dashboard/bootstrap")

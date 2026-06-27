@@ -102,7 +102,10 @@ def test_device_event_feed_uses_actionable_health_events():
     assert "def sync_device_events" in server_source
     assert "sync_device_events(device_id=cleaned.get(\"device_id\"))" in server_source
     assert "def build_snapshot_activity_events" in server_source
-    assert "build_snapshot_activity_events(limit=limit, device_id=device_id)" in server_source
+    assert "def merge_activity_events" in server_source
+    assert "build_generated_device_events(" in server_source
+    assert "merge_activity_events(generated_events, stored_events, limit=normalized_limit)" in server_source
+    assert "build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)" in server_source
 
     for event_kind in (
         "telemetry_recovered",
