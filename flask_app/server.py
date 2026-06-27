@@ -10843,41 +10843,220 @@ def build_snapshot_activity_events(limit=12, device_id=None):
         (snapshot or {}).get("telemetry_status") or system_status.get("telemetry_status") or "no-data"
     ).strip().lower()
     checked_at = now_utc().strftime(TIMESTAMP_FORMAT)
-    message = (
-        f"Current telemetry snapshot loaded for {normalized_device_id}."
-        if snapshot_has_live_device_data(snapshot)
-        else f"No historical activity yet for {normalized_device_id}. Showing the saved configuration."
+    event_time = (
+        format_timestamp(snapshot.get("created_at"))
+        or format_timestamp(snapshot.get("last_sync_at"))
+        or checked_at
+    )
+    live_data = snapshot_has_live_device_data(snapshot)
+    uses_slave = boolish_enabled(service_config.get("slave_device_enabled"), default=True)
+    source_monitoring = boolish_enabled(service_config.get("source_tank_monitoring_enabled"), default=True)
+    events = []
+
+    def add_event(kind, severity, message, details=None, node_role="master"):
+        events.append(
+            {
+                "time": event_time,
+                "severity": severity,
+                "message": message,
+                "kind": kind,
+                "details": {
+                    "event_key": f"{normalized_device_id}:snapshot:{kind}",
+                    "source_table": "live_snapshot",
+                    "source_row_id": normalized_device_id,
+                    "device_id": normalized_device_id,
+                    "node_role": node_role,
+                    "current_status": True,
+                    "status_checked_at": checked_at,
+                    "telemetry_status": telemetry_status,
+                    **(details or {}),
+                },
+            }
+        )
+
+    config_type = "Master + Slave" if uses_slave else "Master Only"
+    upper_source = "Slave" if uses_slave and boolish_enabled(service_config.get("slave_upper_sensor_enabled"), default=True) else "Master"
+    add_event(
+        "device_config_current_status",
+        "info",
+        (
+            f"Live device config: {config_type}; upper sensor {upper_source}; "
+            f"source tank {'enabled' if source_monitoring else 'disabled'}; "
+            f"relay {device_detail_card_bool(service_config.get('relay_enabled'), default=True)}; "
+            f"auto {device_detail_card_bool(service_config.get('auto_mode_enabled'), default=False)}."
+        ),
+        {
+            "device_state": system_status.get("device"),
+            "status_code": system_status.get("device_status_code"),
+            "master_status_label": system_status.get("master_status_label"),
+            "slave_status_label": system_status.get("slave_status_label"),
+            "configuration_type": config_type,
+            "upper_sensor_source": upper_source.lower(),
+            "auto_mode_enabled": service_config.get("auto_mode_enabled"),
+            "slave_device_enabled": service_config.get("slave_device_enabled"),
+            "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled"),
+            "relay_enabled": service_config.get("relay_enabled"),
+            "ai_analysis_enabled": service_config.get("ai_analysis_enabled"),
+            "cloud_feed_mode": service_config.get("cloud_feed_mode"),
+            "auto_start_pct": automation_settings.get("auto_start_pct"),
+            "auto_stop_pct": automation_settings.get("auto_stop_pct"),
+        },
     )
 
-    return [
-        {
-            "time": checked_at,
-            "severity": "info",
-            "message": message,
-            "kind": "device_config_current_status",
-            "details": {
-                "event_key": f"{normalized_device_id}:device_config_current_status",
-                "source_table": "device_service_configs",
-                "source_row_id": normalized_device_id,
-                "device_id": normalized_device_id,
-                "current_status": True,
-                "status_checked_at": checked_at,
-                "telemetry_status": telemetry_status,
-                "device_state": system_status.get("device"),
-                "status_code": system_status.get("device_status_code"),
-                "master_status_label": system_status.get("master_status_label"),
-                "slave_status_label": system_status.get("slave_status_label"),
-                "auto_mode_enabled": service_config.get("auto_mode_enabled"),
-                "slave_device_enabled": service_config.get("slave_device_enabled"),
-                "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled"),
-                "relay_enabled": service_config.get("relay_enabled"),
-                "ai_analysis_enabled": service_config.get("ai_analysis_enabled"),
-                "cloud_feed_mode": service_config.get("cloud_feed_mode"),
-                "auto_start_pct": automation_settings.get("auto_start_pct"),
-                "auto_stop_pct": automation_settings.get("auto_stop_pct"),
+    level = safe_float(snapshot.get("level"), None)
+    remaining_liters = safe_float(snapshot.get("remaining_liters"), None)
+    capacity_liters = safe_float(snapshot.get("capacity_liters"), None)
+    if level is not None:
+        water_parts = [f"Tank level is {level:.1f}%"]
+        if remaining_liters is not None:
+            water_parts.append(f"{remaining_liters:.1f} L available")
+        if capacity_liters is not None:
+            water_parts.append(f"out of {capacity_liters:.1f} L capacity")
+        add_event(
+            "tank_level_current_status",
+            "success" if level > 20 else "warning",
+            "; ".join(water_parts) + ".",
+            {
+                "level": round(level, 2),
+                "remaining_liters": round(remaining_liters, 2) if remaining_liters is not None else None,
+                "capacity_liters": round(capacity_liters, 2) if capacity_liters is not None else None,
+                "tank_health_status": snapshot.get("tank_health_status"),
             },
-        }
-    ][: max(1, int(limit or 12))]
+        )
+
+    motor = str(snapshot.get("motor") or "").strip().upper()
+    mode = str(snapshot.get("mode") or "").strip().upper()
+    if motor or mode:
+        add_event(
+            "pump_current_status",
+            "info",
+            f"Pump is {motor or 'not reported'} in {mode or 'unknown'} mode.",
+            {"motor": motor, "mode": mode},
+        )
+
+    master_status = system_status.get("master_status_label") or "Not reported"
+    slave_status = system_status.get("slave_status_label") or ("Not reported" if uses_slave else "Disabled")
+    add_event(
+        "node_current_status",
+        "success" if str(master_status).lower() == "reachable" and str(slave_status).lower() in {"reachable", "disabled"} else "warning",
+        f"Master {str(master_status).lower()}, slave {str(slave_status).lower()}.",
+        {
+            "master_status_label": master_status,
+            "slave_status_label": slave_status,
+            "master_status_tone": system_status.get("master_status_tone"),
+            "slave_status_tone": system_status.get("slave_status_tone"),
+        },
+    )
+
+    direct_peer = str(snapshot.get("direct_peer") or "").strip()
+    peer_age = safe_float(snapshot.get("direct_peer_last_packet_age_s"), None)
+    peer_channel = snapshot.get("direct_peer_wifi_channel") or snapshot.get("direct_peer_config_channel") or service_config.get("direct_peer_wifi_channel")
+    if uses_slave or direct_peer:
+        peer_parts = [f"Direct peer {direct_peer or 'not reported'}"]
+        if peer_channel not in (None, ""):
+            peer_parts.append(f"channel {peer_channel}")
+        if peer_age is not None:
+            peer_parts.append(f"last packet {format_compact_uptime(peer_age)} ago")
+        if snapshot.get("direct_peer_remote_mac"):
+            peer_parts.append(f"MAC {snapshot.get('direct_peer_remote_mac')}")
+        add_event(
+            "peer_current_status",
+            "success" if peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS else "warning",
+            "; ".join(peer_parts) + ".",
+            {
+                "direct_peer": direct_peer,
+                "direct_peer_config_channel": snapshot.get("direct_peer_config_channel"),
+                "direct_peer_wifi_channel": snapshot.get("direct_peer_wifi_channel"),
+                "direct_peer_last_packet_age_s": snapshot.get("direct_peer_last_packet_age_s"),
+                "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
+                "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
+            },
+        )
+
+    firmware_parts = []
+    if snapshot.get("firmware_version"):
+        firmware_parts.append(f"master {snapshot.get('firmware_version')}")
+    if snapshot.get("slave_firmware_version"):
+        firmware_parts.append(f"slave {snapshot.get('slave_firmware_version')}")
+    if firmware_parts:
+        add_event(
+            "firmware_current_status",
+            "info",
+            f"Firmware status: {', '.join(firmware_parts)}.",
+            {
+                "firmware_version": snapshot.get("firmware_version"),
+                "slave_firmware_version": snapshot.get("slave_firmware_version"),
+            },
+        )
+
+    heap_parts = []
+    if snapshot.get("free_heap") is not None:
+        heap_parts.append(f"master {device_detail_card_heap(snapshot.get('free_heap'))}")
+    if snapshot.get("slave_free_heap") is not None:
+        heap_parts.append(f"slave {device_detail_card_heap(snapshot.get('slave_free_heap'))}")
+    if heap_parts:
+        add_event(
+            "memory_current_status",
+            "info",
+            f"Memory status: {', '.join(heap_parts)}.",
+            {
+                "free_heap": snapshot.get("free_heap"),
+                "slave_free_heap": snapshot.get("slave_free_heap"),
+            },
+        )
+
+    source_level = safe_float(snapshot.get("lower_tank_level"), None)
+    if source_monitoring and source_level is not None:
+        add_event(
+            "source_tank_current_status",
+            "success" if source_level > 20 else "warning",
+            f"Source tank level is {source_level:.1f}%.",
+            {"source_tank_level": round(source_level, 2)},
+        )
+
+    service_parts = [
+        f"telemetry {device_detail_card_title(snapshot.get('telemetry_service'), 'not reported')}",
+        f"command {device_detail_card_title(snapshot.get('command_service'), 'not reported')}",
+        f"local firmware upload {device_detail_card_bool(service_config.get('local_firmware_upload_enabled'), default=True)}",
+        f"simulator {device_detail_card_title(snapshot.get('simulator') or snapshot.get('simulator_status'), 'OFF')}",
+    ]
+    add_event(
+        "services_current_status",
+        "info",
+        f"Service status: {'; '.join(service_parts)}.",
+        {
+            "telemetry_service_label": snapshot.get("telemetry_service"),
+            "command_service_label": snapshot.get("command_service"),
+            "local_firmware_upload_enabled": service_config.get("local_firmware_upload_enabled"),
+            "simulator": snapshot.get("simulator") or snapshot.get("simulator_status"),
+        },
+    )
+
+    if automation_settings or service_config:
+        add_event(
+            "thresholds_current_status",
+            "info",
+            (
+                "Auto thresholds: start at or below "
+                f"{device_detail_card_percent(automation_settings.get('auto_start_pct') or service_config.get('auto_start_pct'), 'not reported')}; "
+                "stop at or above "
+                f"{device_detail_card_percent(automation_settings.get('auto_stop_pct') or service_config.get('auto_stop_pct'), 'not reported')}."
+            ),
+            {
+                "auto_start_pct": automation_settings.get("auto_start_pct") or service_config.get("auto_start_pct"),
+                "auto_stop_pct": automation_settings.get("auto_stop_pct") or service_config.get("auto_stop_pct"),
+            },
+        )
+
+    if not live_data:
+        add_event(
+            "saved_config_current_status",
+            "info",
+            f"No historical activity yet for {normalized_device_id}. Showing saved configuration rows from Flask.",
+            {"live_data": False},
+        )
+
+    return merge_activity_events(events, limit=limit)
 
 
 def ping_age_label(value):

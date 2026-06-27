@@ -6,8 +6,9 @@ def test_build_events_falls_back_to_current_status_when_device_has_no_activity()
 
     assert events
     assert events[0]["kind"] == "device_config_current_status"
-    assert "No historical activity yet" in events[0]["message"]
+    assert "Live device config" in events[0]["message"]
     assert events[0]["details"]["device_id"] == "swt-999-999-999-999"
+    assert all("Activity log is ready" not in event["message"] for event in events)
 
 
 def test_build_events_generates_activity_from_telemetry_when_event_table_is_empty():
