@@ -95,3 +95,84 @@ def test_build_events_generates_activity_from_telemetry_when_event_table_is_empt
     assert events[0]["kind"] != "device_config_current_status" or "Live device config" in events[0]["message"]
     assert any(event["kind"] == "telemetry_feed_active" for event in events)
     assert all("Activity log is ready" not in event["message"] for event in events)
+
+
+def test_local_firmware_logs_become_activity_events(monkeypatch):
+    device_id = "swt-999-999-999-995"
+
+    def fake_fetch_local_device_logs(base_url, device_id=None):
+        assert base_url == "http://192.168.1.2"
+        return {
+            "device_id": device_id,
+            "firmware_role": "master",
+            "device_local_url": base_url,
+            "logs": [
+                {
+                    "line": (
+                        "[2026-06-27T11:21:04+05:30] [INFO] "
+                        "flask_command Command executed: THRESHOLDS:35:95"
+                    )
+                },
+                {
+                    "line": (
+                        "[2026-06-27T11:21:05+05:30] [WARNING] "
+                        "Peer channel sync is waiting for accepted slave packet"
+                    )
+                },
+            ],
+        }
+
+    monkeypatch.setattr(server, "fetch_local_device_logs", fake_fetch_local_device_logs)
+
+    events = server.build_local_firmware_log_events(
+        limit=5,
+        device_id=device_id,
+        snapshot={"device_local_url": "http://192.168.1.2"},
+    )
+
+    assert [event["kind"] for event in events] == [
+        "firmware_command_applied",
+        "firmware_peer_channel_log",
+    ]
+    assert events[0]["severity"] == "success"
+    assert events[0]["details"]["source_table"] == "firmware_local_log"
+    assert "THRESHOLDS:35:95" in events[0]["message"]
+
+
+def test_telemetry_pushed_firmware_logs_are_persisted_as_activity_events():
+    device_id = "swt-999-999-999-994"
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    try:
+        server.process_telemetry_payload(
+            {
+                "device_id": device_id,
+                "device_source": server.DEVICE_SOURCE_REAL,
+                "level": 64.0,
+                "motor": "OFF",
+                "mode": "AUTO",
+                "sensor": "OK",
+                "firmware_role": "master",
+                "firmware_logs": [
+                    {
+                        "line": (
+                            "[2026-06-27T11:21:06+05:30] [INFO] "
+                            "flask_command Command executed: SERVICECFG5:1:1:0:1:0:0:1:1:1"
+                        )
+                    }
+                ],
+            },
+            source_ip="unit-test",
+            transport="unit-test",
+        )
+        events = server.fetch_device_events(limit=20, device_id=device_id)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    assert any(event["kind"] == "firmware_command_applied" for event in events)
+    assert any("SERVICECFG5" in event["message"] for event in events)

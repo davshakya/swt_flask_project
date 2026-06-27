@@ -1486,6 +1486,9 @@ function activityMeta(entry){
   if(details.direct_peer_sync_last_ok_age_s!==undefined&&details.direct_peer_sync_last_ok_age_s!==null)parts.push(`Sync OK ${formatDurationSeconds(details.direct_peer_sync_last_ok_age_s)} ago`);
   if(details.command_summary)parts.push(details.command_summary);
   if(details.command)parts.push(`Command ${details.command}`);
+  if(details.firmware_log_level)parts.push(`Firmware ${details.firmware_log_level}`);
+  if(details.firmware_role)parts.push(`Role ${titleCase(details.firmware_role)}`);
+  if(details.device_local_url)parts.push(`Local ${details.device_local_url}`);
   return parts.join(" | ");
 }
 function setButtonDisabled(id,disabled){

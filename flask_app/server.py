@@ -3848,8 +3848,11 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 
 
 def process_telemetry_payload(data, source_ip=None, transport="http"):
-    cleaned = sanitize_payload(dict(data or {}))
+    raw_payload = dict(data or {})
+    raw_firmware_logs = raw_payload.get("firmware_logs")
+    cleaned = sanitize_payload(raw_payload)
     cleaned.pop("device_key", None)
+    cleaned.pop("firmware_logs", None)
     apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
@@ -4064,6 +4067,19 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         simulator_payload_enabled(cleaned),
         source=transport,
     )
+    try:
+        firmware_log_payload = dict(cleaned)
+        if isinstance(raw_firmware_logs, list):
+            firmware_log_payload["firmware_logs"] = raw_firmware_logs
+        firmware_log_events = build_firmware_log_events_from_payload(
+            firmware_log_payload,
+            limit=24,
+            device_id=cleaned.get("device_id"),
+        )
+        if firmware_log_events:
+            persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
+    except Exception as exc:
+        logger.warning("Firmware log event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     try:
         sync_device_events(device_id=cleaned.get("device_id"))
     except Exception as exc:
@@ -10452,6 +10468,138 @@ def build_command_events(limit=20, device_id=None):
     return events
 
 
+def persist_command_activity_events(device_id, limit=8):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return 0
+    try:
+        return persist_device_events(
+            build_command_events(limit=limit, device_id=normalized_device_id),
+            default_device_id=normalized_device_id,
+        )
+    except Exception as exc:
+        logger.warning("Unable to persist command activity for %s: %s", normalized_device_id, exc)
+        return 0
+
+
+FIRMWARE_LOG_LINE_PATTERN = re.compile(r"^\[(?P<timestamp>[^\]]+)\]\s+\[(?P<level>[^\]]+)\]\s*(?P<message>.*)$")
+
+
+def firmware_log_event_time(timestamp_text, fallback_time):
+    text = str(timestamp_text or "").strip()
+    fallback = format_timestamp(fallback_time) or now_utc().strftime(TIMESTAMP_FORMAT)
+    if not text or text.upper().startswith("NO TIME"):
+        return fallback
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = parse_timestamp(text)
+    if not parsed:
+        return fallback
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed.strftime(TIMESTAMP_FORMAT)
+
+
+def firmware_log_severity(level_text, message):
+    level = str(level_text or "").strip().upper()
+    lowered = str(message or "").lower()
+    if level == "ERROR" or any(token in lowered for token in ("failed", "error", "rejected")):
+        return "error"
+    if level in {"WARNING", "WARN"} or any(token in lowered for token in ("waiting", "stale", "unreachable", "not recognized")):
+        return "warning"
+    if any(token in lowered for token in ("command executed", "applied", "saved", "acknowledged")):
+        return "success"
+    return "info"
+
+
+def firmware_log_kind(message):
+    lowered = str(message or "").lower()
+    if "peer command applied" in lowered:
+        return "firmware_peer_command_applied"
+    if "command executed" in lowered or "flask_command" in lowered:
+        return "firmware_command_applied"
+    if "service config" in lowered or "runtime service" in lowered:
+        return "firmware_runtime_config_log"
+    if "threshold" in lowered:
+        return "firmware_threshold_log"
+    if "peer channel" in lowered:
+        return "firmware_peer_channel_log"
+    if "tank height" in lowered or "capacity" in lowered or "config_upper" in lowered or "config_lower" in lowered:
+        return "firmware_tank_setup_log"
+    return "firmware_log"
+
+
+def build_firmware_log_events_from_payload(payload, limit=24, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    payload = payload or {}
+    if not normalized_device_id:
+        normalized_device_id = normalize_device_id(payload.get("device_id"))
+    if not normalized_device_id:
+        return []
+    logs = payload.get("logs")
+    if logs is None:
+        logs = payload.get("firmware_logs")
+    if not isinstance(logs, list):
+        return []
+
+    fetched_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    role = str(payload.get("firmware_role") or "master").strip().lower() or "master"
+    events = []
+    for item in logs[-max(1, int(limit or 24)):]:
+        line = str((item or {}).get("line") if isinstance(item, dict) else item or "").strip()
+        if not line:
+            continue
+        match = FIRMWARE_LOG_LINE_PATTERN.match(line)
+        timestamp_text = match.group("timestamp") if match else None
+        level = match.group("level") if match else "INFO"
+        message = (match.group("message") if match else line).strip() or line
+        line_hash = hashlib.sha1(f"{role}|{line}".encode("utf-8")).hexdigest()[:24]
+        events.append(
+            {
+                "time": firmware_log_event_time(timestamp_text, fetched_at),
+                "severity": firmware_log_severity(level, message),
+                "message": f"Firmware {role} log: {message}",
+                "kind": firmware_log_kind(message),
+                "details": {
+                    "event_key": f"{normalized_device_id}:firmware_log:{line_hash}",
+                    "event_group": "firmware_local_log",
+                    "source_table": "firmware_local_log",
+                    "source_row_id": line_hash,
+                    "device_id": normalized_device_id,
+                    "node_role": role,
+                    "firmware_role": role,
+                    "firmware_log_level": str(level or "INFO").strip().upper(),
+                    "device_local_url": payload.get("device_local_url"),
+                    "raw_line": line,
+                    "fetched_at": fetched_at,
+                },
+            }
+        )
+    return events
+
+
+def build_local_firmware_log_events(limit=24, device_id=None, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+    snapshot = snapshot if snapshot is not None else fetch_device_snapshot(normalized_device_id)
+    snapshot = snapshot or {}
+    local_base_url = normalize_device_base_url(
+        snapshot.get("device_local_url") or snapshot.get("local_device_url") or snapshot.get("device_ip_url")
+    )
+    if not local_base_url:
+        return []
+
+    try:
+        payload = fetch_local_device_logs(local_base_url, device_id=normalized_device_id)
+    except (ValueError, requests.RequestException, json.JSONDecodeError) as exc:
+        logger.info("Local firmware logs unavailable for %s via %s: %s", normalized_device_id, local_base_url, exc)
+        return []
+
+    return build_firmware_log_events_from_payload(payload, limit=limit, device_id=normalized_device_id)
+
+
 def build_ota_events(limit=20, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
     query = """
@@ -10858,7 +11006,7 @@ def merge_activity_events(*event_lists, limit=12):
     return merged[: max(1, int(limit or 12))]
 
 
-def build_events(limit=12, device_id=None, sync=True, generated=True):
+def build_events(limit=12, device_id=None, sync=True, generated=True, include_local_logs=False):
     normalized_limit = max(1, int(limit or 12))
     if sync:
         sync_device_events(device_id=device_id)
@@ -10870,7 +11018,15 @@ def build_events(limit=12, device_id=None, sync=True, generated=True):
             device_id=device_id,
             row_limit=max(40, min(120, normalized_limit * 4)),
         )
-    events = merge_activity_events(generated_events, stored_events, limit=normalized_limit)
+    local_log_events = []
+    if include_local_logs:
+        local_log_events = build_local_firmware_log_events(limit=min(50, normalized_limit), device_id=device_id)
+        if local_log_events:
+            try:
+                persist_device_events(local_log_events, default_device_id=device_id)
+            except Exception as exc:
+                logger.warning("Unable to persist local firmware logs for %s: %s", normalize_device_id(device_id), exc)
+    events = merge_activity_events(generated_events, local_log_events, stored_events, limit=normalized_limit)
     if events:
         return events
     return build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)
@@ -11994,6 +12150,13 @@ def local_device_status_url(base_url):
     return f"{normalized}/status"
 
 
+def local_device_logs_url(base_url):
+    normalized = normalize_device_base_url(base_url)
+    if not normalized:
+        return None
+    return f"{normalized}/api/logs"
+
+
 def fetch_local_device_status(base_url, device_id=None):
     if not is_private_device_base_url(base_url):
         raise ValueError("local device URL must be a private LAN address")
@@ -12022,6 +12185,44 @@ def fetch_local_device_status(base_url, device_id=None):
     expected_device_id = normalize_device_id(device_id)
     returned_device_id = normalize_device_id(payload.get("device_id"))
     if expected_device_id and returned_device_id and returned_device_id != expected_device_id:
+        raise ValueError("local device_id does not match requested device")
+    payload["device_local_url"] = normalize_device_base_url(base_url)
+    return payload
+
+
+def fetch_local_device_logs(base_url, device_id=None):
+    if not is_private_device_base_url(base_url):
+        raise ValueError("local device URL must be a private LAN address")
+
+    logs_url = local_device_logs_url(base_url)
+    if not logs_url:
+        raise ValueError("local device URL is not configured")
+
+    normalized_device_id = normalize_device_id(device_id)
+    headers = {}
+    device_key = configured_device_key_for_id(normalized_device_id)
+    if normalized_device_id and device_key:
+        headers = {"X-Device-Id": normalized_device_id, "X-Device-Key": device_key}
+
+    username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip() or "swtadmin"
+    password = fetch_device_local_web_password(normalized_device_id)
+    timeout = max(0.25, env_float("LOCAL_DEVICE_LOG_TIMEOUT_SECONDS", 0.75))
+    auth = (username, password) if username and password else None
+    response = requests.get(logs_url, headers=headers, auth=auth, timeout=timeout)
+    if response.status_code in {401, 403} and username and password:
+        session_client = requests.Session()
+        session_client.post(
+            f"{normalize_device_base_url(base_url)}/login",
+            data={"username": username, "password": password},
+            timeout=timeout,
+        )
+        response = session_client.get(logs_url, headers=headers, auth=auth, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("local device returned invalid logs")
+    returned_device_id = normalize_device_id(payload.get("device_id"))
+    if normalized_device_id and returned_device_id and returned_device_id != normalized_device_id:
         raise ValueError("local device_id does not match requested device")
     payload["device_local_url"] = normalize_device_base_url(base_url)
     return payload
@@ -12499,6 +12700,7 @@ def peek_queued_command(device_id):
     sync_command = build_runtime_sync_command(normalized_device_id)
     if sync_command and sync_command.get("command"):
         queue_device_command(sync_command["command"], normalized_device_id)
+        persist_command_activity_events(normalized_device_id)
         logger.info(
             "Queued runtime sync command for %s: %s (%s)",
             normalized_device_id,
@@ -12554,6 +12756,7 @@ def acknowledge_queued_command_id(device_id, command_id):
             """,
             (row["id"],),
         )
+    persist_command_activity_events(normalized_device_id)
     return True
 
 
@@ -12584,6 +12787,7 @@ def acknowledge_queued_command(device_id, command):
             """,
             (row["id"],),
         )
+    persist_command_activity_events(normalized_device_id)
     return True
 
 
@@ -12619,6 +12823,7 @@ def queue_command(command, target_device=None):
 
     normalized_command = str(command or "").strip().upper()
     command_id = queue_device_command(normalized_command, device_command_target)
+    persist_command_activity_events(device_command_target)
     mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
@@ -16823,11 +17028,13 @@ def events():
     if response:
         return response
     limit = max(1, min(request.args.get("limit", default=12, type=int), 500))
+    include_local_logs = str(request.args.get("local_logs", "0")).strip().lower() in {"1", "true", "yes", "on"}
     return jsonify(
         build_events(
             limit,
             device_id=current_scope_device_id(request.args.get("device_id", type=str)),
             sync=False,
+            include_local_logs=include_local_logs,
         )
     )
 
