@@ -6572,7 +6572,7 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -8017,6 +8017,26 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
         "tank_health_reasons": ["No data has been received yet."],
         "device_id": normalized_device_id or None,
     }
+    live_snapshot_available = bool(snapshot and snapshot.get("device_id"))
+    snapshot_level = round(safe_float(snapshot.get("level"), 0), 2)
+    snapshot_motor = str(snapshot.get("motor") or "OFF").strip().upper()
+    snapshot_time = format_timestamp(snapshot.get("created_at")) or now_utc().strftime(TIMESTAMP_FORMAT)
+    snapshot_date = (parse_timestamp(snapshot_time) or now_utc()).strftime(DATE_ONLY_FORMAT)
+    level_times = [snapshot_time] if live_snapshot_available else []
+    level_values = [snapshot_level] if live_snapshot_available else []
+    motor_times = [snapshot_time] if live_snapshot_available else []
+    motor_values = [1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
+    daily_dates = [snapshot_date] if live_snapshot_available else []
+    daily_values = [0.0] if live_snapshot_available else []
+    fallback_alert = (
+        f"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."
+        if live_snapshot_available and normalized_device_id
+        else (
+            f"No telemetry available for device {normalized_device_id} in the selected range."
+            if normalized_device_id
+            else "No telemetry available for the selected range."
+        )
+    )
 
     payload = {
         "range": {
@@ -8047,10 +8067,10 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "status": snapshot.get("tank_health_status", "Healthy"),
             "reasons": snapshot.get("tank_health_reasons", ["No data has been received yet."])
         },
-        "daily": {"dates": [], "values": []},
+        "daily": {"dates": daily_dates, "values": daily_values},
         "pattern": {"hours": list(range(24)), "values": [0] * 24},
-        "levels": {"time": [], "values": []},
-        "motor": {"time": [], "values": []},
+        "levels": {"time": level_times, "values": level_values},
+        "motor": {"time": motor_times, "values": motor_values},
         "comparison": {
             "latest_day": "--",
             "latest_day_usage": 0,
@@ -8084,8 +8104,9 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             },
             "model": {
                 "family": "robust-rule-ml-hybrid",
-                "signals": [],
+                "signals": ["live_snapshot_fallback"] if live_snapshot_available else [],
             },
+            "live_snapshot_fallback": live_snapshot_available,
         },
         "events_analysis": {
             "event_count": 0,
@@ -8107,7 +8128,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "short_cycle_count": 0,
             "avg_off_seconds": 0,
         },
-        "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
+        "alerts": [fallback_alert]
     }
     payload["guidance"] = build_shared_guidance_payload(snapshot, payload)
     return payload
@@ -13840,7 +13861,14 @@ def mobile_analytics():
         start_dt, end_exclusive, label = resolve_date_window()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+    try:
+        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    except Exception as exc:
+        logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
+        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+    return jsonify(payload)
 
 
 @app.route("/api/mobile/local-sync", methods=["POST"])
@@ -17121,31 +17149,67 @@ def dashboard_bootstrap():
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    bootstrap_warnings = {}
 
-    return jsonify(
-        {
-            "snapshot": public_snapshot,
-            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
-            "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
-            "events": build_events(event_limit, device_id=scoped_device_id),
-            "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
-            "guidance": build_shared_guidance_payload(snapshot, None),
-            "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
-            "viewer": {
-                "role": current_user_role(),
-                "device_id": scoped_device_id,
-                "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
-                "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
-                "cloud_feed_mode": (
-                    (current_customer_service_config() or {}).get("cloud_feed_mode")
-                    if current_user_role() == "customer"
-                    else DEVICE_SERVICE_CLOUD_FEED_FULL
-                ),
-                "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
-            },
-        }
+    def safe_bootstrap_section(section_name, fallback, builder):
+        try:
+            return builder()
+        except Exception as exc:
+            logger.exception("Dashboard bootstrap %s failed for %s: %s", section_name, scoped_device_id, exc)
+            bootstrap_warnings[section_name] = str(exc)
+            return fallback
+
+    safe_bootstrap_section(
+        "operational_alerts",
+        None,
+        lambda: refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None),
     )
+
+    payload = {
+        "snapshot": public_snapshot,
+        "system_status": safe_bootstrap_section(
+            "system_status",
+            build_system_status_payload(public_snapshot, device_id=scoped_device_id),
+            lambda: build_system_status_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "monitoring_summary": safe_bootstrap_section(
+            "monitoring_summary",
+            {"alerts": [], "devices": [], "registered_devices": []},
+            lambda: build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "events": safe_bootstrap_section(
+            "events",
+            [],
+            lambda: build_events(event_limit, device_id=scoped_device_id),
+        ),
+        "audit": safe_bootstrap_section(
+            "audit",
+            [],
+            lambda: fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
+        ),
+        "guidance": safe_bootstrap_section(
+            "guidance",
+            build_shared_guidance_payload(public_snapshot, None),
+            lambda: build_shared_guidance_payload(snapshot, None),
+        ),
+        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+        "viewer": {
+            "role": current_user_role(),
+            "device_id": scoped_device_id,
+            "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
+            "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
+            "cloud_feed_mode": (
+                (current_customer_service_config() or {}).get("cloud_feed_mode")
+                if current_user_role() == "customer"
+                else DEVICE_SERVICE_CLOUD_FEED_FULL
+            ),
+            "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
+        },
+    }
+    if bootstrap_warnings:
+        payload["warnings"] = bootstrap_warnings
+
+    return jsonify(payload)
 
 
 @app.route("/dashboard/local-sync", methods=["POST"])
@@ -17208,7 +17272,14 @@ def analytics():
 
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
-    return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+    try:
+        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    except Exception as exc:
+        logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
+        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+    return jsonify(payload)
 
 
 @app.route("/analytics/export.csv")

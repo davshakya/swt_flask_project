@@ -87,8 +87,8 @@ def test_mobile_pump_slider_requires_hold_confirmation_before_sending_command():
     assert "pumpSliderConfirmProgress" in android_source
     assert "startPumpCommandHoldConfirmation(renderedPumpButtonAction)" in android_source
     assert "startPumpCommandHoldConfirmation(DeviceAction.OFF)" in android_source
-    assert "PUMP_COMMAND_CONFIRM_DELAY_MS = 1500L" in android_source
-    assert "PUMP_SLIDER_COMPLETE_PROGRESS = 0.9f" in android_source
+    assert "PUMP_COMMAND_CONFIRM_DELAY_MS = 2000L" in android_source
+    assert "PUMP_SLIDER_COMPLETE_PROGRESS = 0.95f" in android_source
     assert "pump_hold_confirm_start" in strings_source
     assert "pump_hold_confirm_stop" in strings_source
     assert "pump_command_starting" in strings_source
