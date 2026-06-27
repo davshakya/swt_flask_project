@@ -375,6 +375,9 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert 'modal.dataset.resultModal=""' in device_template
     assert 'request.setRequestHeader("X-Requested-With","XMLHttpRequest")' in device_template
     assert "showResultModal(ok?\"Upload successful\":\"Upload failed\"" in device_template
+    assert "const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};" in device_template
+    assert "const INITIAL_CONFIG_ERROR={{ config_error|tojson }};" in device_template
+    assert "function showInitialConfigResult()" in device_template
     assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
     assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
     assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template

@@ -481,7 +481,7 @@ body{font-size:16px}
                 {% if initial_activity_events %}
                     Showing 1-{{ [initial_activity_events|length, 10]|min }} of {{ initial_activity_events|length }} logs
                 {% else %}
-                    Loading logs...
+                    Showing latest device status
                 {% endif %}
             </div>
         </div>
@@ -511,6 +511,16 @@ body{font-size:16px}
                                 <td><span class="status-pill {{ event_severity_class }}">{{ (event.get("severity") or "info")|title }}</span></td>
                             </tr>
                         {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td>--</td>
+                            <td><span class="activity-node">{{ device_id }}</span></td>
+                            <td>
+                                <div class="activity-message">Activity log is ready and waiting for the latest event refresh.</div>
+                                <div class="activity-meta">Current Device Status</div>
+                            </td>
+                            <td><span class="status-pill tone-info">Info</span></td>
+                        </tr>
                     {% endif %}
                 </tbody>
             </table>
@@ -530,6 +540,8 @@ body{font-size:16px}
 const DEVICE_ID={{ device_id|tojson }};
 const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
+const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};
+const INITIAL_CONFIG_ERROR={{ config_error|tojson }};
 const localeTools=window.swtLocale||{};
 let deviceRefreshInFlight=false;
 let activityRefreshInFlight=false;
@@ -537,6 +549,15 @@ let deviceRefreshTimer=0;
 let activityRefreshTimer=0;
 let latestHistory=[];
 let latestEvents={{ initial_activity_events|tojson }};
+if(!Array.isArray(latestEvents)||!latestEvents.length){
+  latestEvents=[{
+    time:"",
+    severity:"info",
+    message:"Activity log is ready and waiting for the latest event refresh.",
+    kind:"device_config_current_status",
+    details:{device_id:DEVICE_ID,current_status:true}
+  }];
+}
 let activityPage=1;
 let activityPageSize=10;
 let pingWatchToken=0;
@@ -666,6 +687,13 @@ document.addEventListener("DOMContentLoaded",()=>{
     modal.querySelector("[data-result-close]").addEventListener("click",closeResultModal);
     document.body.appendChild(modal);
   }
+  function showInitialConfigResult(){
+    const error=String(INITIAL_CONFIG_ERROR||"").trim();
+    const message=String(INITIAL_CONFIG_MESSAGE||"").trim();
+    if(!error&&!message)return;
+    window.requestAnimationFrame(()=>showResultModal(error?"Action failed":"Action saved",error||message,Boolean(error)));
+  }
+  showInitialConfigResult();
   const sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
   function pingStatusSucceeded(status){
     return ["reachable","success","ok","responded"].includes(String(status||"").trim().toLowerCase());

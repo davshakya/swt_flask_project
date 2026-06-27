@@ -61,6 +61,7 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert "renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);" in template_source
     assert "const autoModeEnabled=savedConfig.auto_mode_enabled??savedServiceConfig?.auto_mode_enabled;" in template_source
     assert "let latestEvents={{ initial_activity_events|tojson }};" in template_source
+    assert 'message:"Activity log is ready and waiting for the latest event refresh."' in template_source
     assert "if(latestEvents.length)renderActivityTable();" in template_source
     assert "const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);" in template_source
     assert "loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();" in template_source
