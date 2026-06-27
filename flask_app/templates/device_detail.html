@@ -1404,8 +1404,12 @@ async function refreshActivityEvents(){
     const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
     const data=await response.json();
     if(response.ok&&Array.isArray(data)){
-      latestEvents=data;
-      renderActivityTable();
+      if(data.length){
+        latestEvents=data;
+        renderActivityTable();
+      }else if(!latestEvents.length){
+        renderActivityTable();
+      }
     }
   }catch(error){
     console.log("activity refresh error",error);
@@ -1413,17 +1417,22 @@ async function refreshActivityEvents(){
     activityRefreshInFlight=false;
   }
 }
-async function loadDevice({silent=false,includeHistory=null}={}){
+async function loadDevice({silent=false,includeHistory=null,includeEvents=null}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
   const includeHeavy=!silent&&!latestHistory.length;
   const shouldIncludeHistory=includeHistory===null?includeHeavy:Boolean(includeHistory);
+  const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);
   try{
   const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
   if(!shouldIncludeHistory){
     statusUrl.searchParams.set("history","0");
   }
-  statusUrl.searchParams.set("events","0");
+  if(shouldIncludeEvents){
+    statusUrl.searchParams.set("events","1");
+  }else{
+    statusUrl.searchParams.set("events","0");
+  }
   statusUrl.searchParams.set("alerts","0");
   statusUrl.searchParams.set("audit","0");
   if(shouldIncludeHistory){
@@ -1509,12 +1518,12 @@ document.getElementById("activityPageSize")?.addEventListener("change",(event)=>
   renderActivityTable();
 });
 document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
-document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
-document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));
-document.getElementById("activityLast")?.addEventListener("click",()=>{
-  setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
-});
-window.requestAnimationFrame?window.requestAnimationFrame(()=>{loadDevice({silent:true,includeHistory:true});refreshActivityEvents();}):(()=>{loadDevice({silent:true,includeHistory:true});refreshActivityEvents();})();
+  document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
+  document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));
+  document.getElementById("activityLast")?.addEventListener("click",()=>{
+    setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
+  });
+window.requestAnimationFrame?window.requestAnimationFrame(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();}):(()=>{loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();})();
 activityRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   refreshActivityEvents();

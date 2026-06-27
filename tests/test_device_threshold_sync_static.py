@@ -58,6 +58,8 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert 'id="deviceInfoGrid"' in template_source
     assert "renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);" in template_source
     assert "const autoModeEnabled=savedConfig.auto_mode_enabled??savedServiceConfig?.auto_mode_enabled;" in template_source
+    assert "const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);" in template_source
+    assert "loadDevice({silent:true,includeHistory:true,includeEvents:true});refreshActivityEvents();" in template_source
 
 
 def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
