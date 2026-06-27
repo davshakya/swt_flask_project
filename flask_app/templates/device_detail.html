@@ -71,6 +71,8 @@ body{font-size:16px}
 </style>
 </head>
 <body>
+    {% set live_snapshot = snapshot or {} %}
+    {% set source_monitoring_active = live_snapshot.get("lower_tank_level") is not none or live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") or service_config.get("source_tank_monitoring_enabled") %}
 <div class="shell">
     <div class="panel">
         <div class="eyebrow">Device Detail</div>
@@ -99,8 +101,6 @@ body{font-size:16px}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
     {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
-    {% set live_snapshot = snapshot or {} %}
-    {% set source_monitoring_active = live_snapshot.get("lower_tank_level") is not none or live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") or service_config.get("source_tank_monitoring_enabled") %}
     {% if firmware_install_profile is not defined %}
         {% if config_type == "master_slave" %}
             {% set firmware_install_profile = {
