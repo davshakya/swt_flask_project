@@ -525,7 +525,7 @@ body{font-size:16px}
                             <td>--</td>
                             <td><span class="activity-node">{{ device_id }}</span></td>
                             <td>
-                                <div class="activity-message">Activity log is ready and waiting for the latest event refresh.</div>
+                                <div class="activity-message">Live device activity is loading from the current Flask snapshot.</div>
                                 <div class="activity-meta">Current Device Status</div>
                             </td>
                             <td><span class="status-pill tone-info">Info</span></td>
@@ -551,30 +551,98 @@ const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};
 const INITIAL_CONFIG_ERROR={{ config_error|tojson }};
+const INITIAL_SNAPSHOT={{ live_snapshot|tojson }};
+const INITIAL_SYSTEM_STATUS={{ system_status|tojson }};
+const INITIAL_SERVICE_CONFIG={{ service_config|tojson }};
+const INITIAL_AUTOMATION_SETTINGS={{ automation_settings|tojson }};
 const localeTools=window.swtLocale||{};
+const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 let deviceRefreshInFlight=false;
 let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
 let activityRefreshTimer=0;
 let latestHistory=[];
-let latestEvents={{ initial_activity_events|tojson }};
-if(!Array.isArray(latestEvents)||!latestEvents.length){
-  latestEvents=[{
-    time:"",
-    severity:"info",
-    message:"Activity log is ready and waiting for the latest event refresh.",
-    kind:"device_config_current_status",
-    details:{device_id:DEVICE_ID,current_status:true}
-  }];
+function compactClientNumber(value,digits=1){
+  const number=Number(value);
+  return Number.isFinite(number)?number.toFixed(digits):"not reported";
+}
+function clientTruthy(value,defaultValue=false){
+  if(value===undefined||value===null||value==="")return Boolean(defaultValue);
+  if(typeof value==="boolean")return value;
+  const raw=String(value).trim().toLowerCase();
+  if(["1","true","yes","on","enabled","full","basic"].includes(raw))return true;
+  if(["0","false","no","off","disabled"].includes(raw))return false;
+  return Boolean(value);
+}
+function clientTitle(value,fallback="not reported"){
+  const text=String(value??"").trim();
+  if(!text||text==="--")return fallback;
+  return text.replace(/[_-]+/g," ").replace(/\b\w/g,(char)=>char.toUpperCase());
+}
+function clientHeap(value){
+  const number=Number(value);
+  if(!Number.isFinite(number))return"heap not reported";
+  if(Math.abs(number)>=1048576)return`${(number/1048576).toFixed(1)} MB free`;
+  if(Math.abs(number)>=1024)return`${(number/1024).toFixed(1)} KB free`;
+  return`${Math.round(number)} B free`;
+}
+function isPlaceholderActivityEvent(entry){
+  return String(entry?.message||"").toLowerCase().includes("activity log is ready");
+}
+function normalizeActivityEvents(events){
+  return Array.isArray(events)?events.filter((entry)=>entry&&!isPlaceholderActivityEvent(entry)):[];
+}
+function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceConfig={},automationSettings={}){
+  const time=snapshot.created_at||snapshot.last_sync_at||new Date().toISOString();
+  const telemetry=String(snapshot.telemetry_status||systemStatus.telemetry_status||"live").toLowerCase();
+  const usesSlave=clientTruthy(serviceConfig.slave_device_enabled,true);
+  const sourceMonitoring=clientTruthy(serviceConfig.source_tank_monitoring_enabled,true);
+  const configType=usesSlave?"Master + Slave":"Master Only";
+  const upperSource=usesSlave&&clientTruthy(serviceConfig.slave_upper_sensor_enabled,true)?"Slave":"Master";
+  const events=[];
+  const add=(kind,severity,message,details={})=>{
+    events.push({time,severity,message,kind,details:{device_id:DEVICE_ID,node_role:"master",current_status:true,telemetry_status:telemetry,...details}});
+  };
+  add("device_config_current_status","info",`Live device config: ${configType}; upper sensor ${upperSource}; source tank ${sourceMonitoring?"enabled":"disabled"}; relay ${clientTruthy(serviceConfig.relay_enabled,true)?"enabled":"disabled"}; auto ${clientTruthy(serviceConfig.auto_mode_enabled,false)?"enabled":"disabled"}.`,{configuration_type:configType,upper_sensor_source:upperSource.toLowerCase()});
+  if(snapshot.level!==undefined&&snapshot.level!==null){
+    const level=Number(snapshot.level);
+    const liters=snapshot.remaining_liters!==undefined&&snapshot.remaining_liters!==null?`; ${compactClientNumber(snapshot.remaining_liters)} L available`:"";
+    add("tank_level_current_status",Number.isFinite(level)&&level>20?"success":"warning",`Tank level is ${compactClientNumber(snapshot.level)}%${liters}.`,{level:snapshot.level,remaining_liters:snapshot.remaining_liters});
+  }
+  if(snapshot.motor||snapshot.mode){
+    add("pump_current_status","info",`Pump is ${String(snapshot.motor||"not reported").toUpperCase()} in ${String(snapshot.mode||"unknown").toUpperCase()} mode.`,{motor:snapshot.motor,mode:snapshot.mode});
+  }
+  const masterStatus=systemStatus.master_status_label||"Reachable";
+  const slaveStatus=systemStatus.slave_status_label||(usesSlave?"Reachable":"Disabled");
+  add("node_current_status",String(masterStatus).toLowerCase()==="reachable"&&["reachable","disabled"].includes(String(slaveStatus).toLowerCase())?"success":"warning",`Master ${String(masterStatus).toLowerCase()}, slave ${String(slaveStatus).toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
+  if(usesSlave||snapshot.direct_peer){
+    const age=snapshot.direct_peer_last_packet_age_s;
+    const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
+    const channel=snapshot.direct_peer_wifi_channel||snapshot.direct_peer_config_channel||serviceConfig.direct_peer_wifi_channel;
+    const channelText=channel!==undefined&&channel!==null?`; channel ${channel}`:"";
+    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac});
+  }
+  if(snapshot.firmware_version||snapshot.slave_firmware_version){
+    add("firmware_current_status","info",`Firmware status: master ${snapshot.firmware_version||"not reported"}; slave ${snapshot.slave_firmware_version||"not reported"}.`,{firmware_version:snapshot.firmware_version,slave_firmware_version:snapshot.slave_firmware_version});
+  }
+  if(snapshot.free_heap!==undefined&&snapshot.free_heap!==null||snapshot.slave_free_heap!==undefined&&snapshot.slave_free_heap!==null){
+    add("memory_current_status","info",`Memory status: master ${clientHeap(snapshot.free_heap)}; slave ${clientHeap(snapshot.slave_free_heap)}.`,{free_heap:snapshot.free_heap,slave_free_heap:snapshot.slave_free_heap});
+  }
+  add("services_current_status","info",`Service status: telemetry ${clientTitle(snapshot.telemetry_service,"not reported")}; command ${clientTitle(snapshot.command_service,"not reported")}; local firmware upload ${clientTruthy(serviceConfig.local_firmware_upload_enabled,true)?"enabled":"disabled"}; simulator ${clientTitle(snapshot.simulator||snapshot.simulator_status,"OFF")}.`,{telemetry_service_label:snapshot.telemetry_service,command_service_label:snapshot.command_service});
+  add("thresholds_current_status","info",`Auto thresholds: start at or below ${automationSettings.auto_start_pct??serviceConfig.auto_start_pct??"not reported"}%; stop at or above ${automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct??"not reported"}%.`,{auto_start_pct:automationSettings.auto_start_pct??serviceConfig.auto_start_pct,auto_stop_pct:automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct});
+  return events;
+}
+let latestEvents=normalizeActivityEvents({{ initial_activity_events|tojson }});
+if(!latestEvents.length){
+  latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
 }
 let activityPage=1;
 let activityPageSize=10;
 let pingWatchToken=0;
-const ACTIVITY_INITIAL_FETCH_LIMIT=50;
-const ACTIVITY_FETCH_LIMIT=100;
-const ACTIVITY_REFRESH_MS=15000;
+const ACTIVITY_INITIAL_FETCH_LIMIT=20;
+const ACTIVITY_FETCH_LIMIT=50;
+const ACTIVITY_REFRESH_MS=30000;
 const DEVICE_REFRESH_MS=30000;
-const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 function setStableHtml(node,html){
   if(!node)return;
   const next=html??"";
@@ -1467,10 +1535,12 @@ async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
     const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
     const data=await response.json();
     if(response.ok&&Array.isArray(data)){
-      if(data.length){
-        latestEvents=data;
+      const usableEvents=normalizeActivityEvents(data);
+      if(usableEvents.length){
+        latestEvents=usableEvents;
         renderActivityTable();
       }else if(!latestEvents.length){
+        latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
         renderActivityTable();
       }
     }
@@ -1567,11 +1637,14 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   updateSimulatorControls(snapshot,serviceConfig);
 
   if(Array.isArray(data.events)){
-    if(data.events.length){
-      latestEvents=data.events;
+    const usableEvents=normalizeActivityEvents(data.events);
+    if(usableEvents.length){
+      latestEvents=usableEvents;
     }else if(!latestEvents.length){
-      latestEvents=[];
+      latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
     }
+  }else if(!latestEvents.length){
+    latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
   }
   renderActivityTable();
 
@@ -1597,8 +1670,9 @@ document.getElementById("activityLast")?.addEventListener("click",()=>{
   });
 if(latestEvents.length)renderActivityTable();
 function startInitialRefresh(){
-  loadDevice({silent:true,includeHistory:true,includeEvents:false});
-  window.setTimeout(()=>refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT}),400);
+  loadDevice({silent:true,includeHistory:false,includeEvents:false});
+  window.setTimeout(()=>refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT}),700);
+  window.setTimeout(()=>loadDevice({silent:true,includeHistory:true,includeEvents:false}),1600);
 }
 if(window.requestAnimationFrame)window.requestAnimationFrame(startInitialRefresh);
 else startInitialRefresh();

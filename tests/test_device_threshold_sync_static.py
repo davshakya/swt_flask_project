@@ -26,7 +26,9 @@ def test_device_detail_page_exposes_shared_threshold_settings():
     assert "current_saved_config = build_current_saved_config(scoped_device_id, account=account)" in function_source
     assert 'service_config = current_saved_config.get("service_config")' in function_source
     assert 'automation_settings = current_saved_config.get("automation_settings")' in function_source
-    assert "initial_events = build_events(limit=20, device_id=scoped_device_id, sync=False)" in function_source
+    assert "initial_events = build_snapshot_activity_events(" in function_source
+    assert "snapshot=snapshot," in function_source
+    assert "system_status=system_status," in function_source
     assert "initial_info_cards = build_device_detail_info_cards(" in function_source
     assert "automation_settings=automation_settings," in function_source
     assert "current_saved_config=current_saved_config," in function_source
@@ -62,14 +64,17 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert 'id="deviceInfoGrid"' in template_source
     assert "renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);" in template_source
     assert "const autoModeEnabled=savedConfig.auto_mode_enabled??savedServiceConfig?.auto_mode_enabled;" in template_source
-    assert "let latestEvents={{ initial_activity_events|tojson }};" in template_source
+    assert "let latestEvents=normalizeActivityEvents({{ initial_activity_events|tojson }});" in template_source
     assert "{% if initial_info_cards %}" in template_source
-    assert 'message:"Activity log is ready and waiting for the latest event refresh."' in template_source
+    assert "function buildClientSnapshotActivityEvents(" in template_source
+    assert "isPlaceholderActivityEvent" in template_source
+    assert "Activity log is ready and waiting for the latest event refresh." not in template_source
     assert "if(latestEvents.length)renderActivityTable();" in template_source
     assert "const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);" in template_source
-    assert "const ACTIVITY_INITIAL_FETCH_LIMIT=50;" in template_source
-    assert "const ACTIVITY_FETCH_LIMIT=100;" in template_source
-    assert "loadDevice({silent:true,includeHistory:true,includeEvents:false});" in template_source
+    assert "const ACTIVITY_INITIAL_FETCH_LIMIT=20;" in template_source
+    assert "const ACTIVITY_FETCH_LIMIT=50;" in template_source
+    assert "loadDevice({silent:true,includeHistory:false,includeEvents:false});" in template_source
+    assert "window.setTimeout(()=>loadDevice({silent:true,includeHistory:true,includeEvents:false}),1600);" in template_source
     assert "refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT})" in template_source
 
 

@@ -10829,16 +10829,38 @@ def build_events(limit=12, device_id=None, sync=True, generated=True):
     return build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)
 
 
-def build_snapshot_activity_events(limit=12, device_id=None):
+def build_snapshot_activity_events(
+    limit=12,
+    device_id=None,
+    snapshot=None,
+    service_config=None,
+    automation_settings=None,
+    system_status=None,
+):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return []
 
-    snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
-    saved_config = build_current_saved_config(normalized_device_id)
-    service_config = saved_config.get("service_config") or {}
-    automation_settings = saved_config.get("automation_settings") or {}
-    system_status = build_system_status_payload(snapshot, device_id=normalized_device_id, service_config=service_config)
+    if snapshot is None:
+        snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
+    else:
+        snapshot = snapshot or build_empty_snapshot_payload(normalized_device_id)
+    if service_config is None or automation_settings is None:
+        saved_config = build_current_saved_config(normalized_device_id)
+        service_config = service_config if service_config is not None else (saved_config.get("service_config") or {})
+        automation_settings = (
+            automation_settings
+            if automation_settings is not None
+            else (saved_config.get("automation_settings") or {})
+        )
+    else:
+        service_config = service_config or {}
+        automation_settings = automation_settings or {}
+    system_status = system_status or build_system_status_payload(
+        snapshot,
+        device_id=normalized_device_id,
+        service_config=service_config,
+    )
     telemetry_status = str(
         (snapshot or {}).get("telemetry_status") or system_status.get("telemetry_status") or "no-data"
     ).strip().lower()
@@ -15685,7 +15707,14 @@ def device_detail_page(device_id):
     if simulator_state in {"on", "off"}:
         simulator_enabled = simulator_state == "on"
     system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
-    initial_events = build_events(limit=20, device_id=scoped_device_id, sync=False)
+    initial_events = build_snapshot_activity_events(
+        limit=20,
+        device_id=scoped_device_id,
+        snapshot=snapshot,
+        service_config=service_config,
+        automation_settings=automation_settings,
+        system_status=system_status,
+    )
     initial_info_cards = build_device_detail_info_cards(
         snapshot,
         system_status,
@@ -15702,6 +15731,7 @@ def device_detail_page(device_id):
         service_config=service_config,
         automation_settings=automation_settings,
         current_saved_config=current_saved_config,
+        system_status=system_status,
         peer_channel_input_value=peer_channel_input_value,
         android_sso_active_session_count=active_platform_session_count(
             SESSION_PLATFORM_ANDROID,
