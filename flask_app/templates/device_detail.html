@@ -77,7 +77,15 @@ body{font-size:16px}
         <div class="hero-head">
             <div class="hero-title">
                 <h1>{{ device_id }}</h1>
-                <p id="headline">Loading live device status...</p>
+                <p id="headline">
+                    {% if (live_snapshot.get("telemetry_status") or "no-data")|lower in ["live", "recent", "fresh"] %}
+                        {{ (live_snapshot.get("telemetry_status") or "live")|replace("_", " ")|title }} status | Last update {{ live_snapshot.get("last_sync_at") or "--" }} | Sensor {{ live_snapshot.get("sensor") or "--" }} | Signal {{ live_snapshot.get("signal_quality") or "--" }}
+                    {% elif live_snapshot %}
+                        Waiting for telemetry | Saved configuration loaded | Signal {{ live_snapshot.get("signal_quality") or "--" }}
+                    {% else %}
+                        Loading live device status...
+                    {% endif %}
+                </p>
             </div>
             <div class="hero-actions">
                 <a class="btn" href="{{ url_for('admin_customers') }}">Dashboard</a>
@@ -91,6 +99,8 @@ body{font-size:16px}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
     {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
+    {% set live_snapshot = snapshot or {} %}
+    {% set source_monitoring_active = live_snapshot.get("lower_tank_level") is not none or live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") or service_config.get("source_tank_monitoring_enabled") %}
     {% if firmware_install_profile is not defined %}
         {% if config_type == "master_slave" %}
             {% set firmware_install_profile = {
@@ -121,28 +131,28 @@ body{font-size:16px}
     <section class="summary-grid">
         <div class="summary-card">
             <div class="summary-label">Tank Level</div>
-            <div id="level" class="summary-value">--</div>
-            <div id="levelNote" class="summary-note">Waiting for telemetry.</div>
+            <div id="level" class="summary-value">{% if live_snapshot.get("level") is not none %}{{ live_snapshot.get("level") }}%{% else %}--{% endif %}</div>
+            <div id="levelNote" class="summary-note">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L available right now.{% else %}Waiting for telemetry.{% endif %}</div>
         </div>
         <div class="summary-card">
             <div class="summary-label">Available Water</div>
-            <div id="availableWater" class="summary-value">--</div>
-            <div id="availableWaterNote" class="summary-note">Capacity information will appear here.</div>
+            <div id="availableWater" class="summary-value">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L{% else %}--{% endif %}</div>
+            <div id="availableWaterNote" class="summary-note">{% if live_snapshot.get("capacity_liters") is not none %}Out of {{ live_snapshot.get("capacity_liters") }} L total tank capacity.{% else %}Capacity information will appear here.{% endif %}</div>
         </div>
         <div class="summary-card">
             <div class="summary-label">Pump</div>
-            <div id="motor" class="summary-value">--</div>
-            <div id="pumpNote" class="summary-note">Current motor state.</div>
+            <div id="motor" class="summary-value">{% if live_snapshot.get("motor") %}{{ live_snapshot.get("motor")|title }}{% else %}--{% endif %}</div>
+            <div id="pumpNote" class="summary-note">{% if live_snapshot.get("motor") and live_snapshot.get("motor")|upper == "ON" %}The pump is currently running.{% elif live_snapshot.get("motor") %}The pump is currently stopped.{% else %}Current motor state.{% endif %}</div>
         </div>
         <div class="summary-card">
             <div class="summary-label">Mode</div>
-            <div id="mode" class="summary-value">--</div>
-            <div id="modeNote" class="summary-note">Auto or manual control.</div>
+            <div id="mode" class="summary-value">{% if live_snapshot.get("mode") %}{{ live_snapshot.get("mode")|title }}{% else %}--{% endif %}</div>
+            <div id="modeNote" class="summary-note">{% if live_snapshot.get("mode") and live_snapshot.get("mode")|upper == "MANUAL" %}Manual control is active.{% elif live_snapshot.get("mode") %}Automatic control is active.{% else %}Auto or manual control.{% endif %}</div>
         </div>
         <div class="summary-card">
             <div class="summary-label">Connection</div>
-            <div id="connection" class="summary-value">--</div>
-            <div id="connectionNote" class="summary-note">Last update will appear here.</div>
+            <div id="connection" class="summary-value">{{ ((live_snapshot.get("telemetry_status") or "--")|replace("_", " ")|title) if live_snapshot else "--" }}</div>
+            <div id="connectionNote" class="summary-note">{% if live_snapshot.get("last_sync_at") %}Last updated {{ live_snapshot.get("last_sync_at") }}.{% else %}Last update will appear here.{% endif %}</div>
         </div>
     </section>
 
@@ -156,16 +166,18 @@ body{font-size:16px}
         <div class="info-grid" style="margin-top:16px">
             <div class="info-item">
                 <div class="info-label">Tank Health</div>
-                <span id="healthStatus" class="info-value">--</span>
-                <div id="healthReason" class="detail-note">--</div>
+                <span id="healthStatus" class="info-value">{% if live_snapshot.get("tank_health") is not none %}{{ live_snapshot.get("tank_health") }}% {{ live_snapshot.get("tank_health_status") or "" }}{% else %}--{% endif %}</span>
+                <div id="healthReason" class="detail-note">{% if live_snapshot.get("tank_health_reasons") %}{{ live_snapshot.get("tank_health_reasons")[0] }}{% else %}--{% endif %}</div>
             </div>
-            <div id="sourceCard" class="info-item hidden-section">
+            <div id="sourceCard" class="info-item {% if not source_monitoring_active %}hidden-section{% endif %}">
                 <div class="info-label">Source Tank</div>
-                <span id="sourceLevel" class="info-value">--</span>
-                <div id="sourceInfo" class="detail-note">--</div>
+                <span id="sourceLevel" class="info-value">{% if live_snapshot.get("lower_tank_level") is not none %}{{ live_snapshot.get("lower_tank_level") }}%{% else %}--{% endif %}</span>
+                <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
             </div>
         </div>
-        <div id="deviceInfoGrid" class="info-grid"></div>
+        <div id="deviceInfoGrid" class="info-grid">
+            <div class="helper-text" style="grid-column:1/-1;margin-top:0">Live configuration details are ready and will expand from the latest synced snapshot.</div>
+        </div>
     </section>
 
     <section class="panel">
@@ -177,8 +189,19 @@ body{font-size:16px}
             <div id="memoryLegend" class="memory-legend"></div>
         </div>
         <div id="memoryChartWrap" class="memory-health">
-            <div id="memoryStats" class="memory-stats"></div>
-            <div class="memory-empty">Waiting for memory telemetry.</div>
+            <div id="memoryStats" class="memory-stats">
+                <div class="info-item">
+                    <span class="info-label">Master Heap</span>
+                    <strong class="info-value">{% if live_snapshot.get("free_heap") is not none %}{{ live_snapshot.get("free_heap") }} B free{% else %}Heap not reported{% endif %}</strong>
+                </div>
+                {% if service_config.get("slave_device_enabled") %}
+                <div class="info-item">
+                    <span class="info-label">Slave Heap</span>
+                    <strong class="info-value">{% if live_snapshot.get("slave_free_heap") is not none %}{{ live_snapshot.get("slave_free_heap") }} B free{% else %}Slave heap not reported{% endif %}</strong>
+                </div>
+                {% endif %}
+            </div>
+            <div class="memory-empty">{% if live_snapshot.get("free_heap") is not none or live_snapshot.get("slave_free_heap") is not none %}Heap telemetry is already available and the live chart will refine it shortly.{% else %}Waiting for memory telemetry.{% endif %}</div>
         </div>
     </section>
 
@@ -1487,7 +1510,7 @@ document.getElementById("activityNext")?.addEventListener("click",()=>setActivit
 document.getElementById("activityLast")?.addEventListener("click",()=>{
   setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
 });
-loadDevice();
+window.requestAnimationFrame?window.requestAnimationFrame(()=>loadDevice({silent:true})):loadDevice({silent:true});
 activityRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   refreshActivityEvents();

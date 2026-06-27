@@ -10673,8 +10673,53 @@ def fetch_device_events(limit=12, device_id=None):
     return events
 
 
+def device_event_sync_markers(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None, None
+    source_clause, source_params = device_source_where_clause()
+    with get_db() as db:
+        latest_telemetry = db.execute(
+            f"""
+            SELECT created_at
+            FROM tank_data
+            WHERE device_id = ?
+              AND {source_clause}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id, *source_params),
+        ).fetchone()
+        if not latest_telemetry:
+            return None, None
+        latest_event = db.execute(
+            """
+            SELECT event_at
+            FROM device_events
+            WHERE device_id = ?
+            ORDER BY event_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+    latest_telemetry_at = str(latest_telemetry["created_at"] or "").strip() or None
+    latest_event_at = str(latest_event["event_at"] or "").strip() or None if latest_event else None
+    return latest_telemetry_at, latest_event_at
+
+
+def device_event_sync_is_current(device_id):
+    latest_telemetry_at, latest_event_at = device_event_sync_markers(device_id)
+    if not latest_telemetry_at or not latest_event_at:
+        return False
+    return latest_event_at >= latest_telemetry_at
+
+
 def sync_device_events(device_id=None):
     normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+    if device_event_sync_is_current(normalized_device_id):
+        return []
     generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id)
     persist_device_events(generated_events, default_device_id=normalized_device_id)
     return generated_events
