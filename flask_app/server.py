@@ -12449,9 +12449,9 @@ def queue_device_command(command, target_device):
         db.execute(
             """
             DELETE FROM device_command_queue
-            WHERE target_device = ? AND delivered_at IS NULL AND UPPER(command) = ?
+            WHERE target_device = ? AND delivered_at IS NULL
             """,
-            (target_device, normalized_command),
+            (target_device,),
         )
         cursor = db.execute(
             """
@@ -12481,12 +12481,19 @@ def peek_queued_command(device_id):
             SELECT id, command
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id ASC
+            ORDER BY id DESC
             LIMIT 1
             """,
             (normalized_device_id,),
         ).fetchone()
         if row:
+            db.execute(
+                """
+                DELETE FROM device_command_queue
+                WHERE target_device = ? AND delivered_at IS NULL AND id <> ?
+                """,
+                (normalized_device_id, row["id"]),
+            )
             return {"id": row["id"], "command": row["command"]}
 
     sync_command = build_runtime_sync_command(normalized_device_id)
@@ -12504,7 +12511,7 @@ def peek_queued_command(device_id):
                 SELECT id, command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id ASC
+                ORDER BY id DESC
                 LIMIT 1
                 """,
                 (normalized_device_id,),
