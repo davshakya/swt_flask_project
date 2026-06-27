@@ -1413,17 +1413,21 @@ async function refreshActivityEvents(){
     activityRefreshInFlight=false;
   }
 }
-async function loadDevice({silent=false}={}){
+async function loadDevice({silent=false,includeHistory=null}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
   const includeHeavy=!silent&&!latestHistory.length;
+  const shouldIncludeHistory=includeHistory===null?includeHeavy:Boolean(includeHistory);
   try{
   const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
-  if(!includeHeavy){
+  if(!shouldIncludeHistory){
     statusUrl.searchParams.set("history","0");
-    statusUrl.searchParams.set("events","0");
-    statusUrl.searchParams.set("alerts","0");
-    statusUrl.searchParams.set("audit","0");
+  }
+  statusUrl.searchParams.set("events","0");
+  statusUrl.searchParams.set("alerts","0");
+  statusUrl.searchParams.set("audit","0");
+  if(shouldIncludeHistory){
+    statusUrl.searchParams.set("history","1");
   }
   const response=await fetch(statusUrl.toString(),{cache:"no-store"});
   const data=await response.json();
@@ -1510,7 +1514,7 @@ document.getElementById("activityNext")?.addEventListener("click",()=>setActivit
 document.getElementById("activityLast")?.addEventListener("click",()=>{
   setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
 });
-window.requestAnimationFrame?window.requestAnimationFrame(()=>loadDevice({silent:true})):loadDevice({silent:true});
+window.requestAnimationFrame?window.requestAnimationFrame(()=>{loadDevice({silent:true,includeHistory:true});refreshActivityEvents();}):(()=>{loadDevice({silent:true,includeHistory:true});refreshActivityEvents();})();
 activityRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   refreshActivityEvents();
