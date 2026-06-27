@@ -10727,7 +10727,61 @@ def sync_device_events(device_id=None):
 
 def build_events(limit=12, device_id=None):
     sync_device_events(device_id=device_id)
-    return fetch_device_events(limit=limit, device_id=device_id)
+    events = fetch_device_events(limit=limit, device_id=device_id)
+    if events:
+        return events
+    return build_snapshot_activity_events(limit=limit, device_id=device_id)
+
+
+def build_snapshot_activity_events(limit=12, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+
+    snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
+    saved_config = build_current_saved_config(normalized_device_id)
+    service_config = saved_config.get("service_config") or {}
+    automation_settings = saved_config.get("automation_settings") or {}
+    system_status = build_system_status_payload(snapshot, device_id=normalized_device_id, service_config=service_config)
+    telemetry_status = str(
+        (snapshot or {}).get("telemetry_status") or system_status.get("telemetry_status") or "no-data"
+    ).strip().lower()
+    checked_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    message = (
+        f"Current telemetry snapshot loaded for {normalized_device_id}."
+        if snapshot_has_live_device_data(snapshot)
+        else f"No historical activity yet for {normalized_device_id}. Showing the saved configuration."
+    )
+
+    return [
+        {
+            "time": checked_at,
+            "severity": "info",
+            "message": message,
+            "kind": "device_config_current_status",
+            "details": {
+                "event_key": f"{normalized_device_id}:device_config_current_status",
+                "source_table": "device_service_configs",
+                "source_row_id": normalized_device_id,
+                "device_id": normalized_device_id,
+                "current_status": True,
+                "status_checked_at": checked_at,
+                "telemetry_status": telemetry_status,
+                "device_state": system_status.get("device"),
+                "status_code": system_status.get("device_status_code"),
+                "master_status_label": system_status.get("master_status_label"),
+                "slave_status_label": system_status.get("slave_status_label"),
+                "auto_mode_enabled": service_config.get("auto_mode_enabled"),
+                "slave_device_enabled": service_config.get("slave_device_enabled"),
+                "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled"),
+                "relay_enabled": service_config.get("relay_enabled"),
+                "ai_analysis_enabled": service_config.get("ai_analysis_enabled"),
+                "cloud_feed_mode": service_config.get("cloud_feed_mode"),
+                "auto_start_pct": automation_settings.get("auto_start_pct"),
+                "auto_stop_pct": automation_settings.get("auto_stop_pct"),
+            },
+        }
+    ][: max(1, int(limit or 12))]
 
 
 def ping_age_label(value):
