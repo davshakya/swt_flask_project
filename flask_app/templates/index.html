@@ -582,6 +582,7 @@ const VIEWER_DISPLAY_NAME={{ viewer_display_name|tojson }};
 const CUSTOMER_CLOUD_FEED_ENABLED={{ cloud_feed_enabled|tojson }};
 const CUSTOMER_CLOUD_FEED_ERROR={{ cloud_feed_error|tojson }};
 const ANALYTICS_EXPORT_PATH={{ url_for("analytics_csv_export")|tojson }};
+const ANALYTICS_RANGE_STORAGE_KEY="tankDashboardAnalyticsRange";
 const EVENT_FEED_LIMIT=5;
 const FAST_POLL_MS=10000;
 const ACTIVITY_POLL_MS=30000;
@@ -1479,8 +1480,8 @@ function markTelemetryRefresh(snapshot,system,freshStatus="Live status synced"){
 function updateRefreshClock(){if(!state.lastRefreshAt)return;if(state.refreshDetailKind==="telemetry"){const meta=telemetryRefreshMeta(state.data.snapshot,state.data.systemStatus,state.refreshStatus);setRefreshMeta(meta.status,meta.tone,meta.detail,"telemetry");return;}setRefreshMeta(state.refreshStatus,state.refreshTone,`Updated ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`,"api");}
 function setRefreshBusy(status){if(state.lastRefreshAt){setRefreshMeta(status,"warn",`Last good update ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);return;}setRefreshMeta(status,"warn","Waiting for the first successful sync.");}
 function updateAnalyticsDownloadLink(){const link=document.getElementById("analyticsDownloadLink");if(!link)return;const blocked=customerFeedBlocked();const queryString=query();link.href=blocked?"#":(queryString?`${ANALYTICS_EXPORT_PATH}?${queryString}`:ANALYTICS_EXPORT_PATH);link.classList.toggle("is-disabled",blocked);link.setAttribute("aria-disabled",blocked?"true":"false");link.tabIndex=blocked?-1:0;}
-function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));updateAnalyticsDownloadLink();loadAnalytics({force:true});}
-function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));updateAnalyticsDownloadLink();loadAnalytics({force:true});}
+function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));saveAnalyticsRangeState();updateAnalyticsDownloadLink();loadAnalytics({force:true});}
+function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));saveAnalyticsRangeState();updateAnalyticsDownloadLink();loadAnalytics({force:true});}
 function resetFilters(){setQuickRange(7);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
 function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
@@ -1704,6 +1705,67 @@ function drawAnalyticsCharts(data){
 
 const ANALYTICS_CACHE_PREFIX="swtAnalyticsCache:";
 function analyticsCacheKey(){return `${ANALYTICS_CACHE_PREFIX}${query()}`;}
+function loadAnalyticsRangeState(){
+    try{
+        const raw=localStorage.getItem(ANALYTICS_RANGE_STORAGE_KEY);
+        if(!raw)return null;
+        const saved=JSON.parse(raw);
+        return saved&&typeof saved==="object"?saved:null;
+    }catch(error){
+        console.log("analytics range load error",error);
+        return null;
+    }
+}
+function saveAnalyticsRangeState(){
+    try{
+        localStorage.setItem(ANALYTICS_RANGE_STORAGE_KEY,JSON.stringify({
+            quickRange:Number(state.quickRange)||7,
+            customRange:Boolean(state.customRange),
+            startDate:document.getElementById("startDate")?.value||"",
+            endDate:document.getElementById("endDate")?.value||"",
+        }));
+    }catch(error){
+        console.log("analytics range save error",error);
+    }
+}
+function applyAnalyticsRangeState(saved){
+    const startInput=document.getElementById("startDate");
+    const endInput=document.getElementById("endDate");
+    if(!startInput||!endInput)return false;
+    const quickRange=Number(saved?.quickRange);
+    const hasCustomRange=Boolean(saved?.customRange&&saved?.startDate&&saved?.endDate);
+    if(hasCustomRange){
+        state.customRange=true;
+        state.quickRange=Number.isFinite(quickRange)&&quickRange>0?quickRange:7;
+        startInput.value=saved.startDate;
+        endInput.value=saved.endDate;
+        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));
+        return true;
+    }
+    state.customRange=false;
+    state.quickRange=[1,7,30].includes(quickRange)?quickRange:7;
+    startInput.value="";
+    endInput.value="";
+    [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===state.quickRange));
+    return true;
+}
+function restoreAnalyticsRange(){
+    const saved=loadAnalyticsRangeState();
+    const applied=applyAnalyticsRangeState(saved);
+    if(!applied){
+        const today=new Date();
+        const start=new Date(today);
+        start.setDate(today.getDate()-6);
+        document.getElementById("startDate").value=isoDate(start);
+        document.getElementById("endDate").value=isoDate(today);
+        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===7));
+        state.quickRange=7;
+        state.customRange=false;
+    }
+    updateAnalyticsDownloadLink();
+    saveAnalyticsRangeState();
+    return applied;
+}
 function loadAnalyticsCache(){
     try{
         const raw=localStorage.getItem(analyticsCacheKey());
@@ -2004,7 +2066,7 @@ async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedA
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
 function startPolling(){if(customerFeedBlocked())return;pageTimers.push(setInterval(()=>refreshLive(),FAST_POLL_MS),setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS),setInterval(updateRefreshClock,15000));}
 
-function initDates(){const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);updateAnalyticsDownloadLink();}
+function initDates(){if(restoreAnalyticsRange())return;const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);state.quickRange=7;state.customRange=false;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===7));updateAnalyticsDownloadLink();}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_STALE_MS)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}
