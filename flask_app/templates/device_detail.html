@@ -1260,16 +1260,25 @@ function setVisible(id,visible){
   if(!node)return;
   node.classList.toggle("hidden-section",!visible);
 }
+function simulatorSnapshotStatus(snapshot){
+  let sawInactive=false;
+  for(const key of ["simulator","upper_tank_simulator","main_tank_simulator","source_tank_simulator","lower_tank_simulator"]){
+    const raw=String(snapshot?.[key]??"").trim().toUpperCase();
+    if(["ON","TRUE","YES","1"].includes(raw))return true;
+    if(["OFF","FALSE","NO","0"].includes(raw))sawInactive=true;
+  }
+  return sawInactive?false:null;
+}
 function simulatorActive(snapshot){
+  if(typeof snapshot?.simulator_enabled==="boolean")return snapshot.simulator_enabled;
+  const liveStatus=simulatorSnapshotStatus(snapshot);
+  const telemetryStatus=String(snapshot?.telemetry_status||"").trim().toLowerCase();
+  if(liveStatus!==null&&telemetryStatus!=="no-data")return liveStatus;
   const override=String(SIMULATOR_STATE_OVERRIDE||"").trim().toLowerCase();
   if(override==="on")return true;
   if(override==="off")return false;
-  if(typeof snapshot?.simulator_enabled==="boolean")return snapshot.simulator_enabled;
   if(Boolean(INITIAL_SIMULATOR_ENABLED))return true;
-  return ["simulator","upper_tank_simulator","main_tank_simulator","source_tank_simulator","lower_tank_simulator"].some((key)=>{
-    const raw=String(snapshot?.[key]??"").trim().toUpperCase();
-    return ["ON","TRUE","YES","1"].includes(raw);
-  });
+  return liveStatus===true;
 }
 function simulatorStatusText(snapshot,serviceConfig){
   const active=simulatorActive(snapshot);

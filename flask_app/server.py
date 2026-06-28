@@ -7727,7 +7727,16 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    data["simulator"] = str(data.get("simulator") or "OFF").strip().upper() or "OFF"
+    stored_simulator_state = load_device_simulator_state(data.get("device_id"))
+    stored_simulator_source = str((stored_simulator_state or {}).get("source") or "").strip()
+    stored_simulator_enabled = (
+        bool(stored_simulator_state.get("enabled"))
+        if stored_simulator_state and stored_simulator_source != "admin_command"
+        else None
+    )
+    data["simulator"] = (
+        "ON" if stored_simulator_enabled else "OFF"
+    ) if stored_simulator_enabled is not None else str(data.get("simulator") or "OFF").strip().upper() or "OFF"
     if data["simulator"] not in {"ON", "OFF"}:
         data["simulator"] = "OFF"
     data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
@@ -16488,7 +16497,14 @@ def device_detail_page(device_id):
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    if simulator_state in {"on", "off"}:
+    live_simulator_status = simulator_payload_status(snapshot)
+    if (
+        simulator_state in {"on", "off"}
+        and (
+            live_simulator_status is None
+            or str(snapshot.get("telemetry_status") or "").strip().lower() == "no-data"
+        )
+    ):
         simulator_enabled = simulator_state == "on"
     system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
     # Keep the HTML render path cheap and safe. The browser can synthesize
@@ -16534,19 +16550,32 @@ def device_simulator_state_key(device_id):
     return f"{DEVICE_SIMULATOR_STATE_PREFIX}{normalized_device_id}" if normalized_device_id else None
 
 
-def simulator_payload_enabled(payload):
+SIMULATOR_STATUS_KEYS = (
+    "simulator",
+    "upper_tank_simulator",
+    "main_tank_simulator",
+    "source_tank_simulator",
+    "lower_tank_simulator",
+)
+
+
+def simulator_payload_status(payload):
     if not payload:
-        return False
-    for key in (
-        "simulator",
-        "upper_tank_simulator",
-        "main_tank_simulator",
-        "source_tank_simulator",
-        "lower_tank_simulator",
-    ):
+        return None
+    saw_disabled = False
+    for key in SIMULATOR_STATUS_KEYS:
         value = str(payload.get(key) or "").strip().upper()
         if value in {"ON", "TRUE", "YES", "1"}:
             return True
+        if value in {"OFF", "FALSE", "NO", "0"}:
+            saw_disabled = True
+    return False if saw_disabled else None
+
+
+def simulator_payload_enabled(payload):
+    status = simulator_payload_status(payload)
+    if status is not None:
+        return status
     return False
 
 
@@ -16570,20 +16599,33 @@ def record_device_simulator_state(device_id, enabled, source="telemetry"):
         logger.warning("Could not persist simulator state for %s: %s", normalize_device_id(device_id), exc)
 
 
-def device_simulator_enabled(device_id, snapshot=None):
+def load_device_simulator_state(device_id):
     state_key = device_simulator_state_key(device_id)
-    if state_key:
-        try:
-            raw_state = get_app_setting(state_key)
-        except Exception as exc:
-            logger.warning("Could not load simulator state for %s: %s", normalize_device_id(device_id), exc)
-            raw_state = None
-        if raw_state:
-            try:
-                return bool(json.loads(raw_state).get("enabled"))
-            except (TypeError, ValueError, json.JSONDecodeError):
-                pass
-    return simulator_payload_enabled(snapshot)
+    if not state_key:
+        return None
+    try:
+        raw_state = get_app_setting(state_key)
+    except Exception as exc:
+        logger.warning("Could not load simulator state for %s: %s", normalize_device_id(device_id), exc)
+        return None
+    if not raw_state:
+        return None
+    try:
+        state = json.loads(raw_state)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return state if isinstance(state, dict) else None
+
+
+def device_simulator_enabled(device_id, snapshot=None):
+    live_status = simulator_payload_status(snapshot)
+    if live_status is not None and str((snapshot or {}).get("telemetry_status") or "").strip().lower() != "no-data":
+        return live_status
+
+    state = load_device_simulator_state(device_id)
+    if state:
+        return bool(state.get("enabled"))
+    return bool(live_status)
 
 
 def device_detail_ajax_request():
@@ -17185,7 +17227,6 @@ def admin_device_detail_simulator(device_id):
         error = payload.get("error") or f"Unable to queue simulator command for {scoped_device_id}."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
 
-    record_device_simulator_state(scoped_device_id, not simulator_enabled, source="admin_command")
     log_audit_event(
         actor=current_actor_username(),
         action="queue_device_simulator_toggle",
@@ -17282,9 +17323,13 @@ def device_detail_status(device_id):
     include_audit = request.args.get("audit", "1").strip().lower() not in {"0", "false", "no", "off"}
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     snapshot_payload = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    snapshot_has_live_simulator_status = (
+        simulator_payload_status(snapshot_payload) is not None
+        and str(snapshot.get("telemetry_status") or "").strip().lower() != "no-data"
+    )
     snapshot_payload["simulator_enabled"] = simulator_enabled
     snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
-    if simulator_enabled and not simulator_payload_enabled(snapshot_payload):
+    if simulator_enabled and not snapshot_has_live_simulator_status:
         snapshot_payload["simulator"] = "ON"
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     payload = {

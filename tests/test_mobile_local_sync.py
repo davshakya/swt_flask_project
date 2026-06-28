@@ -29,6 +29,7 @@ ANDROID_STRINGS_SOURCE = (
     / "values"
     / "strings.xml"
 )
+DEVICE_DETAIL_TEMPLATE_SOURCE = PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html"
 
 
 def test_mobile_local_sync_route_exists_for_android_bridge():
@@ -113,6 +114,53 @@ def test_mobile_simulator_route_queues_firmware_simulator_commands():
     assert '"upper": "SIMULATOR"' in server_source
     assert '"source": "SIMULATOR"' in server_source
     assert 'f"{command_prefix}_{state_suffix}"' in server_source
+
+
+def test_simulator_state_prefers_live_telemetry_over_cached_admin_request():
+    device_id = "swt-simulator-cache-test-001"
+    state_key = server.device_simulator_state_key(device_id)
+    try:
+        server.record_device_simulator_state(device_id, True, source="admin_command")
+
+        assert server.device_simulator_enabled(
+            device_id,
+            snapshot={"telemetry_status": "live", "simulator": "OFF"},
+        ) is False
+        assert server.device_simulator_enabled(
+            device_id,
+            snapshot={"telemetry_status": "live", "upper_tank_simulator": "ON"},
+        ) is True
+        assert server.device_simulator_enabled(
+            device_id,
+            snapshot={"telemetry_status": "no-data", "simulator": "OFF"},
+        ) is True
+        assert server.enrich_snapshot({"device_id": device_id, "level": 50}).get("simulator") == "OFF"
+
+        server.record_device_simulator_state(device_id, True, source="http")
+        assert server.enrich_snapshot({"device_id": device_id, "level": 50}).get("simulator") == "ON"
+    finally:
+        if state_key:
+            server.delete_app_setting(state_key)
+
+
+def test_device_detail_simulator_ui_prefers_live_status_over_redirect_override():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template_source = DEVICE_DETAIL_TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    page_start = server_source.index("def device_detail_page(device_id):")
+    page_body = server_source[page_start : server_source.index("\n\ndef device_simulator_state_key", page_start)]
+    simulator_start = template_source.index("function simulatorActive(snapshot)")
+    simulator_body = template_source[simulator_start : template_source.index("function simulatorStatusText", simulator_start)]
+
+    assert "live_simulator_status = simulator_payload_status(snapshot)" in page_body
+    assert "live_simulator_status is None" in page_body
+    assert 'str(snapshot.get("telemetry_status") or "").strip().lower() == "no-data"' in page_body
+    assert "load_device_simulator_state(data.get(\"device_id\"))" in server_source
+    assert "source=\"admin_command\"" not in server_source[server_source.index("def admin_device_detail_simulator") : server_source.index("\n\n@app.route(\"/devices/<device_id>/status\")")]
+    assert "function simulatorSnapshotStatus(snapshot)" in template_source
+    assert "if(typeof snapshot?.simulator_enabled===\"boolean\")return snapshot.simulator_enabled;" in simulator_body
+    assert "if(liveStatus!==null&&telemetryStatus!==\"no-data\")return liveStatus;" in simulator_body
+    assert simulator_body.index("if(liveStatus!==null&&telemetryStatus!==\"no-data\")") < simulator_body.index("const override=")
 
 
 def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
