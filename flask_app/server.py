@@ -655,6 +655,8 @@ DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECOND
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
+TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS = max(1, env_int("TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS", 10))
+LOCAL_SYNC_TRANSPORTS = {"android_local_wifi", "dashboard_local_wifi"}
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
 RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS = max(30, env_int("RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS", 600))
@@ -3990,6 +3992,23 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     record_home_automation_status(cleaned)
+    telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
+    cleaned["telemetry_fingerprint"] = telemetry_fingerprint
+
+    if telemetry_sync_is_recent_duplicate(
+        cleaned.get("device_id"),
+        telemetry_fingerprint,
+        transport=transport,
+        source_ip=source_ip,
+    ):
+        cleaned["_telemetry_sync_result"] = "duplicate"
+        logger.info(
+            "Skipped duplicate telemetry sync via %s for device %s fingerprint=%s",
+            transport,
+            cleaned.get("device_id") or "unknown device",
+            telemetry_fingerprint[:12],
+        )
+        return cleaned
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -4074,6 +4093,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("last_ping_response_ms"),
         cleaned.get("last_ping_age_s"),
         cleaned.get("last_ping_nonce"),
+        cleaned.get("telemetry_fingerprint"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -4111,7 +4131,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 direct_peer_sync_pending, direct_peer_sync_channel,
                 direct_peer_sync_last_ok_age_s,
                 last_ping_target, last_ping_status, last_ping_response_ms,
-                last_ping_age_s, last_ping_nonce,
+                last_ping_age_s, last_ping_nonce, telemetry_fingerprint,
                 created_at
             )
             VALUES ({placeholders})
@@ -4232,6 +4252,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         evaluate_snapshot_alerts(alert_snapshot)
         if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
             relay_status_async(cleaned)
+    cleaned["_telemetry_sync_result"] = "saved"
     return cleaned
 
 
@@ -4642,6 +4663,7 @@ def ensure_tank_data_columns(cursor):
         "last_ping_response_ms": "INTEGER",
         "last_ping_age_s": "INTEGER",
         "last_ping_nonce": "INTEGER",
+        "telemetry_fingerprint": "VARCHAR(64)",
     }
 
     for column, definition in required.items():
@@ -4759,6 +4781,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             last_ping_response_ms INTEGER,
             last_ping_age_s INTEGER,
             last_ping_nonce INTEGER,
+            telemetry_fingerprint VARCHAR(64),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -5156,6 +5179,7 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_created ON tank_data(device_id, device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_id ON tank_data(device_id, device_source(16), id DESC)",
+        "CREATE INDEX idx_tank_data_device_fingerprint ON tank_data(device_id, telemetry_fingerprint, created_at DESC, id DESC)",
         "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
         "CREATE INDEX idx_alerts_device_active_updated ON ops_alerts(device_id, active, updated_at DESC, id DESC)",
         "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
@@ -5377,6 +5401,7 @@ def init_db():
             last_ping_response_ms INTEGER,
             last_ping_age_s INTEGER,
             last_ping_nonce INTEGER,
+            telemetry_fingerprint VARCHAR(64),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
             """
@@ -9473,6 +9498,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
     else:
         guidance_snapshot = latest_row
+    payload["latest_sync_at"] = format_timestamp(latest_row.get("created_at")) if latest_row else None
     payload["guidance"] = build_shared_guidance_payload(guidance_snapshot, payload)
 
     return store_cached_analytics(cache_key, payload, now_ts=now_ts)
@@ -9500,6 +9526,140 @@ def format_analytics_csv_value(value, digits=2):
         return f"{float(value):.{digits}f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
+    "device_id",
+    "device_source",
+    "level",
+    "motor",
+    "mode",
+    "leak",
+    "pump_failure",
+    "abnormal",
+    "drip",
+    "slow_leak",
+    "pipe_leak",
+    "dry_run",
+    "wifi",
+    "sensor",
+    "sensor_info",
+    "sensor_distance_cm",
+    "tank_height_cm",
+    "tank_capacity_liters",
+    "auto_start_pct",
+    "auto_stop_pct",
+    "auto_start_stable_ms",
+    "auto_level_average_samples",
+    "auto_status",
+    "auto_status_tone",
+    "auto_timer",
+    "tank_health",
+    "lower_tank_level",
+    "lower_sensor",
+    "lower_sensor_info",
+    "lower_sensor_distance_cm",
+    "firmware_version",
+    "slave_firmware_version",
+    "reset_reason",
+    "device_local_url",
+    "channel_mode",
+    "telemetry_service",
+    "command_service",
+    "ota_service",
+    "lower_tank_service",
+    "buzzer_service",
+    "led_display_service",
+    "local_firmware_upload_service",
+    "arch_id",
+    "node_role",
+    "device_type",
+    "direct_peer",
+    "direct_peer_remote_ip",
+    "direct_peer_remote_mac",
+    "direct_peer_config_channel",
+    "direct_peer_wifi_channel",
+    "direct_peer_sync_pending",
+    "direct_peer_sync_channel",
+)
+
+
+def normalize_telemetry_fingerprint_value(value):
+    if value in (None, "", "null"):
+        return ""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        normalized = f"{value:.3f}".rstrip("0").rstrip(".")
+        return normalized or "0"
+
+    text = str(value).strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in {"true", "false"}:
+        return "1" if lowered == "true" else "0"
+    try:
+        numeric = float(text)
+        if math.isfinite(numeric) and re.fullmatch(r"[-+]?\d+(?:\.\d+)?", text):
+            normalized = f"{numeric:.3f}".rstrip("0").rstrip(".")
+            return normalized or "0"
+    except (TypeError, ValueError):
+        pass
+    return lowered
+
+
+def build_telemetry_sync_fingerprint(cleaned):
+    if not isinstance(cleaned, dict):
+        return ""
+    fingerprint_source = "|".join(
+        f"{field}={normalize_telemetry_fingerprint_value(cleaned.get(field))}"
+        for field in TELEMETRY_SYNC_FINGERPRINT_FIELDS
+    ).strip("|")
+    if not fingerprint_source:
+        return ""
+    return hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
+
+
+def telemetry_sync_is_local_transport(transport=None, source_ip=None):
+    normalized_transport = str(transport or "").strip().lower()
+    normalized_source = str(source_ip or "").strip().lower()
+    return normalized_transport in LOCAL_SYNC_TRANSPORTS or normalized_source in LOCAL_SYNC_TRANSPORTS
+
+
+def telemetry_sync_is_recent_duplicate(device_id, fingerprint, transport=None, source_ip=None):
+    if not telemetry_sync_is_local_transport(transport=transport, source_ip=source_ip):
+        return False
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_fingerprint = str(fingerprint or "").strip()
+    if not normalized_device_id or not normalized_fingerprint:
+        return False
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT created_at
+            FROM tank_data
+            WHERE device_id = ?
+              AND telemetry_fingerprint = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id, normalized_fingerprint),
+        ).fetchone()
+
+    if not row:
+        return False
+
+    created_at = parse_timestamp(row["created_at"])
+    if created_at is None:
+        return False
+    age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
+    return age_seconds <= TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS
 
 
 def build_analytics_csv_rows(payload, device_id=None):
@@ -14098,10 +14258,14 @@ def mobile_local_sync():
     cleaned = process_telemetry_payload(data, source_ip="android_local_wifi", transport="android_local_wifi")
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    sync_result = str(cleaned.get("_telemetry_sync_result") or "saved")
     return jsonify(
         {
-            "result": "saved",
+            "status": "ok" if sync_result != "duplicate" else "duplicate",
+            "result": sync_result,
+            "duplicate": sync_result == "duplicate",
             "device_id": scoped_device_id,
+            "sync_fingerprint": cleaned.get("telemetry_fingerprint"),
             "snapshot": strip_ip_address_fields(snapshot or cleaned, keep_device_local_url=True),
         }
     )

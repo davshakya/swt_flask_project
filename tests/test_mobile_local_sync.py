@@ -47,6 +47,60 @@ def test_mobile_local_sync_preserves_scope_and_transport_markers():
     assert 'transport="android_local_wifi"' in server_source
 
 
+def test_android_local_sync_duplicate_payload_is_deduplicated():
+    device_id = "swt-android-sync-dedupe-001"
+    payload = {
+        "device_id": device_id,
+        "device_source": server.DEVICE_SOURCE_REAL,
+        "level": 68.5,
+        "motor": "OFF",
+        "mode": "AUTO",
+        "sensor": "OK",
+        "wifi": "ONLINE",
+        "firmware_version": "26.1.642",
+        "tank_capacity_liters": 1000.0,
+        "lower_tank_level": 54.0,
+        "telemetry_service": "ON",
+        "command_service": "ON",
+        "ota_service": "ON",
+        "lower_tank_service": "ON",
+        "buzzer_service": "ON",
+        "led_display_service": "ON",
+        "local_firmware_upload_service": "ON",
+        "arch_id": "arch-1",
+        "node_role": "master",
+        "device_type": "master",
+    }
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    try:
+        first = server.process_telemetry_payload(
+            dict(payload),
+            source_ip="android_local_wifi",
+            transport="android_local_wifi",
+        )
+        second = server.process_telemetry_payload(
+            dict(payload),
+            source_ip="android_local_wifi",
+            transport="android_local_wifi",
+        )
+        with server.get_db() as db:
+            row = db.execute(
+                "SELECT COUNT(*) AS count FROM tank_data WHERE device_id = ?",
+                (device_id,),
+            ).fetchone()
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    assert first.get("_telemetry_sync_result") == "saved"
+    assert second.get("_telemetry_sync_result") == "duplicate"
+    assert int(row["count"]) == 1
+
+
 def test_mobile_simulator_route_queues_firmware_simulator_commands():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 
