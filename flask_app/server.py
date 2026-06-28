@@ -4212,11 +4212,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         if firmware_log_events:
             persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
     except Exception as exc:
-        logger.debug("Firmware log event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        logger.debug("Firmware log event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     try:
         sync_device_events(device_id=cleaned.get("device_id"))
     except Exception as exc:
-        logger.debug("Device event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        logger.debug("Device event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
@@ -17379,7 +17379,7 @@ def dashboard_bootstrap():
         try:
             return builder()
         except Exception as exc:
-            logger.exception("Dashboard bootstrap %s failed for %s: %s", section_name, scoped_device_id, exc)
+            logger.exception("Dashboard bootstrap %s error for %s: %s", section_name, scoped_device_id, exc)
             bootstrap_warnings[section_name] = str(exc)
             return fallback
 
@@ -17455,7 +17455,7 @@ def dashboard_local_sync():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except requests.RequestException as exc:
-        logger.debug("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        logger.debug("Local device sync issue for %s via %s: %s", scoped_device_id, local_base_url, exc)
         return jsonify({"error": "local device is not reachable"}), 503
 
     local_device_id = normalize_device_id(local_status.get("device_id"))

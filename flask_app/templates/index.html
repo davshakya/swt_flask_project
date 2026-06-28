@@ -6,7 +6,6 @@
 <meta name="color-scheme" content="light dark">
 <title>SaleWell Smart Tank Dashboard</title>
 {% include '_pwa_head.html' %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--link-blue:#0b63ce;--link-blue-hover:#084fa8;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#ef4444;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
 @media (prefers-color-scheme: dark){
@@ -1955,7 +1954,12 @@ function renderAnalytics(data){
         :"--";
     document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
-    drawAnalyticsCharts(data);
+    const renderCharts=()=>drawAnalyticsCharts(data);
+    if(typeof window.requestAnimationFrame==="function"){
+        window.requestAnimationFrame(renderCharts);
+    }else{
+        window.setTimeout(renderCharts,0);
+    }
 }
 
 function renderEvents(events){const timeline=document.getElementById("eventTimeline");timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");li.innerHTML="<time>No timeline yet</time>No data available yet. Wait for the next sync or activity.";timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const li=document.createElement("li");li.classList.add(event.severity||"info");li.innerHTML=`<time>${localizedTimeText(event.time)}</time>${event.message||"--"}`;timeline.appendChild(li);});}
@@ -1979,7 +1983,7 @@ if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme:
 Object.assign(window,{manualRefresh,sendMotorCommand,sendCalibrateCommand,sendTankConfig,setQuickRange,applyCustomRange,resetFilters,savePreferences});
 window.swtPageTeardown=()=>{pageTimers.forEach((timer)=>clearInterval(timer));if(state.controllers.analytics)state.controllers.analytics.abort();};
 try{initCharts();}catch(error){chartsAvailable=false;console.error("Dashboard chart initialization failed",error);}
-initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked())bootstrapDashboard().finally(()=>loadAnalytics({force:true}));startPolling();
+initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked()){bootstrapDashboard();loadAnalytics({force:true});}startPolling();
 })();
 </script>
 {% include '_pwa_install.html' %}
