@@ -4212,11 +4212,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         if firmware_log_events:
             persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
     except Exception as exc:
-        logger.warning("Firmware log event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        logger.debug("Firmware log event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     try:
         sync_device_events(device_id=cleaned.get("device_id"))
     except Exception as exc:
-        logger.warning("Device event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        logger.debug("Device event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
@@ -13428,7 +13428,7 @@ def relay_status_to_cloud(payload):
                     verify=RELAY_VERIFY_TLS,
                 )
                 if response.ok:
-                    logger.info("Relayed telemetry to %s", url)
+                    logger.debug("Relayed telemetry to %s", url)
                     relay_state["last_success_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                     relay_state["last_status_code"] = response.status_code
                     relay_state["last_error_at"] = None
@@ -13439,7 +13439,7 @@ def relay_status_to_cloud(payload):
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = f"HTTP {response.status_code}"
                 relay_state["last_status_code"] = response.status_code
-                logger.warning("Relay telemetry failed (%s): %s", url, response.status_code)
+                logger.debug("Relay telemetry failed (%s): %s", url, response.status_code)
                 if response.status_code in {401, 403}:
                     set_alert(
                         "relay_failure",
@@ -13456,7 +13456,7 @@ def relay_status_to_cloud(payload):
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = str(exc)
                 relay_state["last_status_code"] = None
-                logger.warning("Relay telemetry failed (%s): %s", url, exc)
+                logger.debug("Relay telemetry failed (%s): %s", url, exc)
                 set_alert("relay_failure", "warning", f"Cloud relay request failed: {exc}", active=True)
     return "retry"
 
@@ -13582,7 +13582,7 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
                     verify=RELAY_VERIFY_TLS,
                 )
                 if not response.ok:
-                    logger.warning("Relay command failed (%s): %s", url, response.status_code)
+                    logger.debug("Relay command failed (%s): %s", url, response.status_code)
                     continue
                 payload = response.json()
                 command = payload.get("command")
@@ -13591,7 +13591,7 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
                     logger.info("Relayed command from %s: %s", url, command)
                 return {"command": command, "command_id": command_id}
             except requests.RequestException as exc:
-                logger.warning("Relay command failed (%s): %s", url, exc)
+                logger.debug("Relay command failed (%s): %s", url, exc)
             except ValueError as exc:
                 logger.warning("Relay command invalid JSON (%s): %s", url, exc)
     return None
@@ -17455,7 +17455,7 @@ def dashboard_local_sync():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except requests.RequestException as exc:
-        logger.info("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        logger.debug("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
         return jsonify({"error": "local device is not reachable"}), 503
 
     local_device_id = normalize_device_id(local_status.get("device_id"))
