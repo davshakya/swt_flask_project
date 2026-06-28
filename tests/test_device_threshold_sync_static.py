@@ -103,8 +103,10 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
 
 def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
-    process_start = source.index("def process_telemetry_payload(data, source_ip=None, transport=\"http\"):")
+    process_start = source.index("def process_telemetry_payload(")
     process_source = source[process_start : source.index("\n\ndef mysql_connection_config", process_start)]
+    postprocess_start = source.index("def postprocess_telemetry_payload(")
+    postprocess_source = source[postprocess_start : source.index("\n\ndef schedule_telemetry_postprocess", postprocess_start)]
 
     assert 'cleaned.get("auto_start_pct")' in process_source
     assert 'cleaned.get("auto_stop_pct")' in process_source
@@ -112,10 +114,10 @@ def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     assert 'cleaned.get("auto_level_average_samples")' in process_source
     assert "auto_start_pct, auto_stop_pct," in process_source
     assert "auto_start_stable_ms, auto_level_average_samples," in process_source
-    assert "saved_telemetry_config = fetch_device_service_config(cleaned.get(\"device_id\"), snapshot=None)" in process_source
-    assert "telemetry_config_float_seed(" in process_source
-    assert "auto_start_pct=telemetry_config_float_seed(" in process_source
-    assert "direct_peer_wifi_channel=telemetry_config_peer_channel_seed(" in process_source
+    assert "saved_telemetry_config = fetch_device_service_config(cleaned.get(\"device_id\"), snapshot=None)" in postprocess_source
+    assert "telemetry_config_float_seed(" in postprocess_source
+    assert "auto_start_pct=telemetry_config_float_seed(" in postprocess_source
+    assert "direct_peer_wifi_channel=telemetry_config_peer_channel_seed(" in postprocess_source
 
     schema_start = source.index("def ensure_tank_data_columns(cursor):")
     schema_source = source[schema_start : source.index("\n\ndef ensure_tank_data_mysql_column_types", schema_start)]
@@ -190,7 +192,8 @@ def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_d
 
     local_status_start = source.index("def fetch_local_device_status(base_url, device_id=None):")
     local_status_source = source[local_status_start : source.index("\n\ndef is_loopback_device_target", local_status_start)]
-    assert "password = fetch_device_local_web_password(device_id)" in local_status_source
+    assert "device_key = configured_device_key_for_id(normalized_device_id)" in local_status_source
+    assert "password = fetch_device_local_web_password(normalized_device_id)" in local_status_source
 
     saved_config_start = source.index("def build_current_saved_config(device_id, account=None):")
     saved_config_source = source[saved_config_start : source.index("\n\ndef upsert_device_automation_settings", saved_config_start)]

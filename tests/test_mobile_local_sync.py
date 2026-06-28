@@ -165,7 +165,7 @@ def test_dashboard_local_sync_route_polls_private_lan_device():
     assert '`${API}/dashboard/local-sync`' in dashboard_source
 
 
-def test_local_device_status_uses_local_web_username_before_device_id():
+def test_local_device_status_uses_device_key_before_local_web_password():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = server_source.index("def fetch_local_device_status(")
     function_body = server_source[function_start : server_source.index("def mobile_local_sync()", function_start)]
@@ -173,9 +173,28 @@ def test_local_device_status_uses_local_web_username_before_device_id():
 
     env_username = 'os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip()'
 
+    assert "device_key = configured_device_key_for_id(normalized_device_id)" in function_body
+    assert '"X-Device-Id": normalized_device_id' in function_body
+    assert "response = requests.get(status_url, headers=headers, timeout=timeout)" in function_body
+    assert "response = requests.get(status_url, headers=headers, auth=auth, timeout=timeout)" in function_body
     assert env_username in auth_block
     assert 'or "swtadmin"' in auth_block
     assert "normalize_device_id(device_id)" not in auth_block
+
+
+def test_cloud_status_ingest_defers_slow_postprocess_work():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = server_source.index('def status():')
+    route_body = server_source[route_start : server_source.index('\n\n@app.route("/device/status"', route_start)]
+    process_start = server_source.index("def process_telemetry_payload(")
+    process_body = server_source[process_start : server_source.index("\n\ndef mysql_connection_config", process_start)]
+
+    assert "def postprocess_telemetry_payload(" in server_source
+    assert "def schedule_telemetry_postprocess(" in server_source
+    assert "defer_postprocess=False" in process_body
+    assert "defer_postprocess=True" in route_body
+    assert "schedule_telemetry_postprocess(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)" in process_body
+    assert "threading.Thread(" in server_source
 
 
 def test_blank_relay_env_values_explicitly_clear_runtime_relay_config():

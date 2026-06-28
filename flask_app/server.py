@@ -3982,7 +3982,130 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
         db_maintenance_lock.release()
 
 
-def process_telemetry_payload(data, source_ip=None, transport="http"):
+def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
+    try:
+        maybe_prune_retained_rows(
+            device_id=cleaned.get("device_id"),
+            latest_row_id=latest_row_id,
+            force=False,
+        )
+        try:
+            saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
+            reported_peer_channel = (
+                cleaned.get("direct_peer_config_channel")
+                if cleaned.get("direct_peer_config_channel") not in (None, "")
+                else cleaned.get("direct_peer_wifi_channel")
+            )
+            upsert_device_service_config(
+                cleaned.get("device_id"),
+                tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "tank_height_cm",
+                    cleaned.get("tank_height_cm"),
+                ),
+                tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "tank_capacity_liters",
+                    cleaned.get("tank_capacity_liters"),
+                ),
+                upper_tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "upper_tank_height_cm",
+                    cleaned.get("tank_height_cm"),
+                ),
+                upper_tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "upper_tank_capacity_liters",
+                    cleaned.get("tank_capacity_liters"),
+                ),
+                lower_tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "lower_tank_height_cm",
+                    cleaned.get("lower_tank_height_cm"),
+                ),
+                lower_tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "lower_tank_capacity_liters",
+                    cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
+                ),
+                auto_start_pct=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "auto_start_pct",
+                    cleaned.get("auto_start_pct"),
+                ),
+                auto_stop_pct=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "auto_stop_pct",
+                    cleaned.get("auto_stop_pct"),
+                ),
+                telemetry_service_state=cleaned.get("telemetry_service"),
+                command_service_state=cleaned.get("command_service"),
+                relay_service_state=cleaned.get("relay_service"),
+                ota_service_state=cleaned.get("ota_service"),
+                local_firmware_upload_service_state=cleaned.get("local_firmware_upload_service"),
+                buzzer_service_state=cleaned.get("buzzer_service"),
+                led_display_service_state=cleaned.get("led_display_service"),
+                lower_tank_service_state=cleaned.get("lower_tank_service"),
+                slave_device_service_state=cleaned.get("slave_device_service"),
+                direct_peer_wifi_channel=telemetry_config_peer_channel_seed(
+                    saved_telemetry_config,
+                    reported_peer_channel,
+                ),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to upsert persisted device configuration for %s: %s",
+                cleaned.get("device_id") or "unknown device",
+                exc,
+            )
+        clear_runtime_caches(cleaned.get("device_id"))
+        record_device_simulator_state(
+            cleaned.get("device_id"),
+            simulator_payload_enabled(cleaned),
+            source=transport,
+        )
+        try:
+            firmware_log_payload = dict(cleaned)
+            if isinstance(raw_firmware_logs, list):
+                firmware_log_payload["firmware_logs"] = raw_firmware_logs
+            firmware_log_events = build_firmware_log_events_from_payload(
+                firmware_log_payload,
+                limit=24,
+                device_id=cleaned.get("device_id"),
+            )
+            if firmware_log_events:
+                persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
+        except Exception as exc:
+            logger.debug("Firmware log event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        try:
+            sync_device_events(device_id=cleaned.get("device_id"))
+        except Exception as exc:
+            logger.debug("Device event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+
+        if cleaned.get("device_source") == get_device_source_mode():
+            alert_snapshot = dict(cleaned)
+            alert_snapshot["telemetry_status"] = "fresh"
+            evaluate_snapshot_alerts(alert_snapshot)
+            if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
+                relay_status_async(cleaned)
+    except Exception as exc:
+        logger.warning(
+            "Telemetry postprocess failed for %s via %s: %s",
+            cleaned.get("device_id") or "unknown device",
+            transport,
+            exc,
+        )
+
+
+def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
+    threading.Thread(
+        target=postprocess_telemetry_payload,
+        args=(dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id),
+        daemon=True,
+    ).start()
+
+
+def process_telemetry_payload(data, source_ip=None, transport="http", defer_postprocess=False):
     raw_payload = dict(data or {})
     raw_firmware_logs = raw_payload.get("firmware_logs")
     cleaned = sanitize_payload(raw_payload)
@@ -4140,103 +4263,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         )
         latest_row_id = cursor.lastrowid
 
-    maybe_prune_retained_rows(
-        device_id=cleaned.get("device_id"),
-        latest_row_id=latest_row_id,
-        force=False,
-    )
-    try:
-        saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
-        reported_peer_channel = (
-            cleaned.get("direct_peer_config_channel")
-            if cleaned.get("direct_peer_config_channel") not in (None, "")
-            else cleaned.get("direct_peer_wifi_channel")
-        )
-        upsert_device_service_config(
-            cleaned.get("device_id"),
-            tank_height_cm=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "tank_height_cm",
-                cleaned.get("tank_height_cm"),
-            ),
-            tank_capacity_liters=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "tank_capacity_liters",
-                cleaned.get("tank_capacity_liters"),
-            ),
-            upper_tank_height_cm=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "upper_tank_height_cm",
-                cleaned.get("tank_height_cm"),
-            ),
-            upper_tank_capacity_liters=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "upper_tank_capacity_liters",
-                cleaned.get("tank_capacity_liters"),
-            ),
-            lower_tank_height_cm=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "lower_tank_height_cm",
-                cleaned.get("lower_tank_height_cm"),
-            ),
-            lower_tank_capacity_liters=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "lower_tank_capacity_liters",
-                cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
-            ),
-            auto_start_pct=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "auto_start_pct",
-                cleaned.get("auto_start_pct"),
-            ),
-            auto_stop_pct=telemetry_config_float_seed(
-                saved_telemetry_config,
-                "auto_stop_pct",
-                cleaned.get("auto_stop_pct"),
-            ),
-            telemetry_service_state=cleaned.get("telemetry_service"),
-            command_service_state=cleaned.get("command_service"),
-            relay_service_state=cleaned.get("relay_service"),
-            ota_service_state=cleaned.get("ota_service"),
-            local_firmware_upload_service_state=cleaned.get("local_firmware_upload_service"),
-            buzzer_service_state=cleaned.get("buzzer_service"),
-            led_display_service_state=cleaned.get("led_display_service"),
-            lower_tank_service_state=cleaned.get("lower_tank_service"),
-            slave_device_service_state=cleaned.get("slave_device_service"),
-            direct_peer_wifi_channel=telemetry_config_peer_channel_seed(
-                saved_telemetry_config,
-                reported_peer_channel,
-            ),
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to upsert persisted device configuration for %s: %s",
-            cleaned.get("device_id") or "unknown device",
-            exc,
-        )
     clear_runtime_caches(cleaned.get("device_id"))
-    record_device_simulator_state(
-        cleaned.get("device_id"),
-        simulator_payload_enabled(cleaned),
-        source=transport,
-    )
-    try:
-        firmware_log_payload = dict(cleaned)
-        if isinstance(raw_firmware_logs, list):
-            firmware_log_payload["firmware_logs"] = raw_firmware_logs
-        firmware_log_events = build_firmware_log_events_from_payload(
-            firmware_log_payload,
-            limit=24,
-            device_id=cleaned.get("device_id"),
-        )
-        if firmware_log_events:
-            persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
-    except Exception as exc:
-        logger.debug("Firmware log event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
-    try:
-        sync_device_events(device_id=cleaned.get("device_id"))
-    except Exception as exc:
-        logger.debug("Device event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
@@ -4246,12 +4273,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_id"),
     )
 
-    if cleaned.get("device_source") == get_device_source_mode():
-        alert_snapshot = dict(cleaned)
-        alert_snapshot["telemetry_status"] = "fresh"
-        evaluate_snapshot_alerts(alert_snapshot)
-        if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
-            relay_status_async(cleaned)
+    if defer_postprocess:
+        schedule_telemetry_postprocess(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)
+    else:
+        postprocess_telemetry_payload(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)
     cleaned["_telemetry_sync_result"] = "saved"
     return cleaned
 
@@ -12499,11 +12524,18 @@ def fetch_local_device_status(base_url, device_id=None):
     if not status_url:
         raise ValueError("local device URL is not configured")
 
+    normalized_device_id = normalize_device_id(device_id)
+    headers = {}
+    device_key = configured_device_key_for_id(normalized_device_id)
+    if normalized_device_id and device_key:
+        headers = {"X-Device-Id": normalized_device_id, "X-Device-Key": device_key}
     username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip() or "swtadmin"
-    password = fetch_device_local_web_password(device_id)
+    password = fetch_device_local_web_password(normalized_device_id)
     timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
     auth = (username, password) if username and password else None
-    response = requests.get(status_url, auth=auth, timeout=timeout)
+    response = requests.get(status_url, headers=headers, timeout=timeout)
+    if response.status_code in {401, 403}:
+        response = requests.get(status_url, headers=headers, auth=auth, timeout=timeout)
     if response.status_code in {401, 403} and username and password:
         session_client = requests.Session()
         session_client.post(
@@ -12511,12 +12543,12 @@ def fetch_local_device_status(base_url, device_id=None):
             data={"username": username, "password": password},
             timeout=timeout,
         )
-        response = session_client.get(status_url, auth=auth, timeout=timeout)
+        response = session_client.get(status_url, headers=headers, auth=auth, timeout=timeout)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("local device returned invalid status")
-    expected_device_id = normalize_device_id(device_id)
+    expected_device_id = normalized_device_id
     returned_device_id = normalize_device_id(payload.get("device_id"))
     if expected_device_id and returned_device_id and returned_device_id != expected_device_id:
         raise ValueError("local device_id does not match requested device")
@@ -17304,7 +17336,7 @@ def status():
     if not auth_ok:
         return auth_payload, auth_status
     data["device_id"] = auth_payload
-    process_telemetry_payload(data, source_ip=request.remote_addr, transport="http")
+    process_telemetry_payload(data, source_ip=request.remote_addr, transport="http", defer_postprocess=True)
 
     return jsonify({
         "result": "saved",
