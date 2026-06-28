@@ -1694,12 +1694,40 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
 function drawAnalyticsCharts(data){
     if(!chartsAvailable||!data)return;
     const todayAxis=analyticsRangeIsToday();
-    const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),360);
+    const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),180);
     drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
     drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
     drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"time"});
+}
+
+const ANALYTICS_CACHE_PREFIX="swtAnalyticsCache:";
+function analyticsCacheKey(){return `${ANALYTICS_CACHE_PREFIX}${query()}`;}
+function loadAnalyticsCache(){
+    try{
+        const raw=localStorage.getItem(analyticsCacheKey());
+        if(!raw)return null;
+        const cached=JSON.parse(raw);
+        return cached&&typeof cached==="object"&&cached.data&&typeof cached.data==="object"?cached:null;
+    }catch(error){
+        console.log("analytics cache load error",error);
+        return null;
+    }
+}
+function saveAnalyticsCache(data){
+    try{
+        localStorage.setItem(analyticsCacheKey(),JSON.stringify({savedAt:Date.now(),data}));
+    }catch(error){
+        console.log("analytics cache save error",error);
+    }
+}
+function restoreAnalyticsCache(){
+    const cached=loadAnalyticsCache();
+    if(!cached?.data)return false;
+    syncSection("analytics",cached.data,renderAnalytics);
+    state.analyticsUpdatedAt=cached.savedAt||Date.now();
+    return true;
 }
 
 function loadPreferences(){const saved=localStorage.getItem("tankDashboardPreferences");if(saved){try{state.preferences={...state.preferences,...JSON.parse(saved)};}catch(error){console.log("preferences load error",error);}}document.getElementById("lowThreshold").value=state.preferences.lowThreshold;document.getElementById("overflowThreshold").value=state.preferences.overflowThreshold;document.getElementById("toggleLeak").checked=state.preferences.leakAlerts;document.getElementById("toggleSystem").checked=state.preferences.systemAlerts;document.getElementById("toggleDesktop").checked=state.preferences.desktopAlerts;}
@@ -1971,7 +1999,7 @@ async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(d
 async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
 async function refreshLive({force=false}={}){if(customerFeedBlocked()||state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{await syncLocalDashboardSnapshot({force});const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markTelemetryRefresh(snapshot,system,"Live status synced");}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
 async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
-async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||state.inFlight.analytics||(!force&&isPageHidden()))return;state.inFlight.analytics=true;if(state.controllers.analytics)state.controllers.analytics.abort();const controller=new AbortController();state.controllers.analytics=controller;try{const data=await fetchJSON(`${API}/analytics?${query()}`,{signal:controller.signal});if(data.error){banner("commandBanner",data.error,"danger");return;}const changed=syncSection("analytics",data,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Existing charts are still shown.","warn");}finally{if(state.controllers.analytics===controller)state.controllers.analytics=null;state.inFlight.analytics=false;}}
+async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||state.inFlight.analytics||(!force&&isPageHidden()))return;state.inFlight.analytics=true;if(state.controllers.analytics)state.controllers.analytics.abort();const controller=new AbortController();state.controllers.analytics=controller;try{const cached=loadAnalyticsCache();if(cached?.data&&state.cache.analytics!==JSON.stringify(cached.data))syncSection("analytics",cached.data,renderAnalytics);const data=await fetchJSON(`${API}/analytics?${query()}`,{signal:controller.signal});if(data.error){banner("commandBanner",data.error,"danger");return;}saveAnalyticsCache(data);const changed=syncSection("analytics",data,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Existing charts are still shown.","warn");}finally{if(state.controllers.analytics===controller)state.controllers.analytics=null;state.inFlight.analytics=false;}}
 async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}try{const tasks=[refreshLive({force}),refreshEvents({force})];if(force||!state.analyticsUpdatedAt)tasks.push(loadAnalytics({force}));await Promise.all(tasks);}catch(error){console.log("refresh error",error);banner("commandBanner","Dashboard refresh failed. Check the Flask server connection.","danger");}}
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
 function startPolling(){if(customerFeedBlocked())return;pageTimers.push(setInterval(()=>refreshLive(),FAST_POLL_MS),setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS),setInterval(updateRefreshClock,15000));}
@@ -1983,7 +2011,7 @@ if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme:
 Object.assign(window,{manualRefresh,sendMotorCommand,sendCalibrateCommand,sendTankConfig,setQuickRange,applyCustomRange,resetFilters,savePreferences});
 window.swtPageTeardown=()=>{pageTimers.forEach((timer)=>clearInterval(timer));if(state.controllers.analytics)state.controllers.analytics.abort();};
 try{initCharts();}catch(error){chartsAvailable=false;console.error("Dashboard chart initialization failed",error);}
-initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked()){bootstrapDashboard();loadAnalytics({force:true});}startPolling();
+initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();restoreAnalyticsCache();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked()){bootstrapDashboard();loadAnalytics({force:true});}startPolling();
 })();
 </script>
 {% include '_pwa_install.html' %}
