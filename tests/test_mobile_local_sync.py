@@ -197,6 +197,17 @@ def test_cloud_status_ingest_defers_slow_postprocess_work():
     assert "threading.Thread(" in server_source
 
 
+def test_empty_cloud_analytics_do_not_emit_zero_liter_predictions():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = server_source.index("def build_empty_analytics(")
+    function_body = server_source[function_start : server_source.index("\n\ndef meaningful_forecast_hours", function_start)]
+
+    assert '"avg_daily_usage": None' in function_body
+    assert '"prediction": {"tomorrow_usage": None}' in function_body
+    assert '"daily": {"dates": daily_dates, "values": daily_values}' in function_body
+    assert '"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."' in function_body
+
+
 def test_blank_relay_env_values_explicitly_clear_runtime_relay_config():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 

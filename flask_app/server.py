@@ -8231,7 +8231,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "motor_cycles": int(motor_cycles),
             "consumption_rate": 0,
             "leak_events": int(leak_events),
-            "avg_daily_usage": 0,
+            "avg_daily_usage": None,
             "peak_usage_day": "--",
             "peak_usage_value": 0,
             "lowest_usage_day": "--",
@@ -8256,7 +8256,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "previous_day_usage": 0,
             "change_pct": None
         },
-        "prediction": {"tomorrow_usage": 0},
+        "prediction": {"tomorrow_usage": None},
         "analysis": {
             "quality": {
                 "score": 20,
