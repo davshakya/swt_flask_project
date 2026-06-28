@@ -650,7 +650,7 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 )
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
-STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
+STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 300)
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
@@ -15261,6 +15261,7 @@ def admin_customers():
 def admin_customers_device_table_json():
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
     devices = []
     for device in available_devices:
         master_node_label = str(device.get("master_status_label") or "Unreachable").replace("Master ", "").replace("Slave ", "")
@@ -15306,7 +15307,12 @@ def admin_customers_device_table_json():
                 "last_sync_at": last_sync_at,
             }
         )
-    return jsonify({"devices": devices, "count": len(devices), "updated_at": now_utc().isoformat()})
+    return jsonify({
+        "devices": devices,
+        "count": len(devices),
+        "summary": device_summary,
+        "updated_at": now_utc().isoformat(),
+    })
 
 
 @app.route("/admin/devices/register", methods=["POST"])

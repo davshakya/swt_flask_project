@@ -562,22 +562,22 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     <div class="summary-grid">
         <div class="summary-card">
             <div class="eyebrow">Total Registered Devices</div>
-            <div class="summary-value">{{ device_summary.total_registered_devices }}</div>
+            <div class="summary-value" data-summary-field="total_registered_devices">{{ device_summary.total_registered_devices }}</div>
             <div class="summary-caption">Tracked devices with either telemetry history or configured credentials.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Online Devices</div>
-            <div class="summary-value">{{ device_summary.online_devices }}</div>
+            <div class="summary-value" data-summary-field="online_devices">{{ device_summary.online_devices }}</div>
             <div class="summary-caption">Devices reporting fresh or recent telemetry right now.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Offline Devices</div>
-            <div class="summary-value">{{ device_summary.offline_devices }}</div>
+            <div class="summary-value" data-summary-field="offline_devices">{{ device_summary.offline_devices }}</div>
             <div class="summary-caption">Devices with stale or missing telemetry that likely need follow-up.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Warning / Alert Devices</div>
-            <div class="summary-value">{{ device_summary.warning_alert_devices }}</div>
+            <div class="summary-value" data-summary-field="warning_alert_devices">{{ device_summary.warning_alert_devices }}</div>
             <div class="summary-caption">Devices carrying active warnings or higher-severity operational alerts.</div>
         </div>
     </div>
@@ -1118,6 +1118,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         node.classList.add(`${prefix}${tone || "offline"}`);
     }
 
+    function updateSummaryFromJson(summary) {
+        if (!summary || typeof summary !== "object") return;
+        document.querySelectorAll("[data-summary-field]").forEach((node) => {
+            const key = node.dataset.summaryField;
+            if (!key || !Object.prototype.hasOwnProperty.call(summary, key)) return;
+            setTextIfChanged(node, summary[key]);
+        });
+    }
+
     function updateDeviceRowFromJson(row, device) {
         if (!row || !device) return;
         row.dataset.search = device.search || row.dataset.search || "";
@@ -1180,6 +1189,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             if (!response.ok) throw new Error(`refresh failed: ${response.status}`);
             const payload = await response.json();
             const devices = Array.isArray(payload.devices) ? payload.devices : [];
+            updateSummaryFromJson(payload.summary);
             devices.forEach((device) => {
                 const id = String(device.device_id || "").replace(/[^A-Za-z0-9_-]/g, "_");
                 updateDeviceRowFromJson(document.getElementById(`device_${id}`), device);

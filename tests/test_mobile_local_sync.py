@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from flask_app import server
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SERVER_SOURCE = PROJECT_ROOT / "flask_app" / "server.py"

@@ -252,6 +252,9 @@ def test_admin_customer_auto_refresh_uses_json_not_full_page_downloads():
     assert "response.json()" in refresh_body
     assert 'data-device-field="master_status"' in admin_template
     assert 'data-device-field="last_sync"' in admin_template
+    assert 'data-summary-field="online_devices"' in admin_template
+    assert "updateSummaryFromJson(payload.summary)" in refresh_body
+    assert '"summary": device_summary' in server_source
 
 
 def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
