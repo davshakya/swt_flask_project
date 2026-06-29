@@ -587,6 +587,8 @@ const EVENT_FEED_LIMIT=5;
 const FAST_POLL_MS=10000;
 const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
+const ANALYTICS_CACHE_MAX_AGE_MS=300000;
+const ANALYTICS_CACHE_SCHEMA_VERSION="v2";
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
@@ -1707,7 +1709,8 @@ function drawAnalyticsCharts(data){
 }
 
 const ANALYTICS_CACHE_PREFIX="swtAnalyticsCache:";
-function analyticsCacheKey(){return `${ANALYTICS_CACHE_PREFIX}${query()}`;}
+function analyticsCacheContext(){return encodeURIComponent([ANALYTICS_CACHE_SCHEMA_VERSION,VIEWER_ROLE,VIEWER_DISPLAY_NAME,SELECTED_DEVICE_ID||"customer"].join("|"));}
+function analyticsCacheKey(){return `${ANALYTICS_CACHE_PREFIX}${analyticsCacheContext()}:${query()}`;}
 function loadAnalyticsRangeState(){
     try{
         const raw=localStorage.getItem(ANALYTICS_RANGE_STORAGE_KEY);
@@ -1774,6 +1777,11 @@ function loadAnalyticsCache(){
         const raw=localStorage.getItem(analyticsCacheKey());
         if(!raw)return null;
         const cached=JSON.parse(raw);
+        const savedAt=Number(cached?.savedAt||0);
+        if(!Number.isFinite(savedAt)||savedAt<=0||Date.now()-savedAt>ANALYTICS_CACHE_MAX_AGE_MS){
+            localStorage.removeItem(analyticsCacheKey());
+            return null;
+        }
         return cached&&typeof cached==="object"&&cached.data&&typeof cached.data==="object"?cached:null;
     }catch(error){
         console.log("analytics cache load error",error);
