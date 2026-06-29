@@ -17,16 +17,6 @@ ANDROID_SOURCE = (
     / "app"
     / "MainActivity.kt"
 )
-ANDROID_STRINGS_SOURCE = (
-    PROJECT_ROOT.parent
-    / "swt_android_app_project"
-    / "app"
-    / "src"
-    / "main"
-    / "res"
-    / "values"
-    / "strings.xml"
-)
 
 
 def test_mobile_local_sync_route_exists_for_android_bridge():
@@ -57,42 +47,6 @@ def test_mobile_simulator_route_queues_firmware_simulator_commands():
     assert '"upper": "SIMULATOR"' in server_source
     assert '"source": "SIMULATOR"' in server_source
     assert 'f"{command_prefix}_{state_suffix}"' in server_source
-
-
-def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
-    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
-    android_source = ANDROID_SOURCE.read_text(encoding="utf-8")
-
-    assert "device_mobile_action_queue" in server_source
-    assert 'CREATE TABLE IF NOT EXISTS device_mobile_action_queue' in server_source
-    assert "idx_device_mobile_action_queue_target_pending" in server_source
-    assert '"mobile_action": pop_device_mobile_action(scoped_device_id)' in server_source
-    assert '@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])' in server_source
-    assert "def admin_device_detail_mobile_firmware_upgrade(device_id):" in server_source
-    assert '"message": "Flask requested a firmware upgrade."' in server_source
-    assert "scheduleRemoteFirmwareUpgradeIfRequested(payload)" in android_source
-    assert 'optJSONObject("mobile_action")' in android_source
-    assert 'optString("message")' in android_source
-    assert "local_firmware_upgrade_requested_from_flask" in android_source
-    assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true)" in android_source
-    assert '"START_FIRMWARE_UPGRADE"' in android_source
-
-
-def test_mobile_pump_slider_requires_hold_confirmation_before_sending_command():
-    android_source = ANDROID_SOURCE.read_text(encoding="utf-8")
-    strings_source = ANDROID_STRINGS_SOURCE.read_text(encoding="utf-8")
-
-    assert "pumpCommandHoldAnimator" in android_source
-    assert "pumpCommandHoldAction" in android_source
-    assert "pumpSliderConfirmProgress" in android_source
-    assert "startPumpCommandHoldConfirmation(renderedPumpButtonAction)" in android_source
-    assert "startPumpCommandHoldConfirmation(DeviceAction.OFF)" in android_source
-    assert "PUMP_COMMAND_CONFIRM_DELAY_MS = 1500L" in android_source
-    assert "PUMP_SLIDER_COMPLETE_PROGRESS = 0.9f" in android_source
-    assert "pump_hold_confirm_start" in strings_source
-    assert "pump_hold_confirm_stop" in strings_source
-    assert "pump_command_starting" in strings_source
-    assert "pump_command_stopping" in strings_source
 
 
 def test_dashboard_local_sync_route_polls_private_lan_device():

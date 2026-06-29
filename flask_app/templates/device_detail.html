@@ -214,8 +214,6 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
-                        <label class="service-option"><input type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
-                        <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
                         <div class="form-group">
                             <label for="android_sso_session_limit">Android SSO Device Count</label>
                             <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
@@ -410,19 +408,6 @@ body{font-size:16px}
                 <button class="btn btn-admin" type="submit"><span>Upload Slave Firmware</span></button>
             </form>
         </div>
-        {% set android_ota_ready = service_config.get("cloud_feed_enabled") and service_config.get("local_firmware_upload_enabled") %}
-        <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_mobile_firmware_upgrade', device_id=device_id) }}" data-confirm-title="Queue Android firmware upgrade?" data-confirm-message="Send an Android OTA trigger for device {{ device_id }}? The app will start its normal firmware upgrade flow on the next cloud refresh." data-confirm-button="Queue Upgrade">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-            <input type="hidden" name="return_to" value="device_detail">
-            <h3>Android App OTA Trigger</h3>
-            {% if android_ota_ready %}
-            <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device.</div>
-            <button class="btn btn-admin btn-full" type="submit"><span>Queue Android OTA</span></button>
-            {% else %}
-            <div class="helper-text">Enable Cloud Feed and Local firmware upload before queueing the Android app OTA trigger.</div>
-            <button class="btn btn-admin btn-full" type="submit" disabled><span>Queue Android OTA</span></button>
-            {% endif %}
-        </form>
     </section>
     {% endif %}
 
@@ -1028,7 +1013,6 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const mainSensorEnabled=savedServiceConfig.main_sensor_enabled!==false;
   const slaveIp=infoValue(snapshot.direct_peer_remote_ip,"");
   const upperSource=infoValue(snapshot?.upper_sensor_source,usesSlave?"slave":"master");
-  const autoModeEnabled=savedConfig.auto_mode_enabled??savedServiceConfig?.auto_mode_enabled;
   const autoStart=savedConfig.auto_start_pct??savedAutomationSettings?.auto_start_pct??savedServiceConfig?.auto_start_pct??snapshot?.auto_start_pct??snapshot?.auto_start_level_pct??snapshot?.lower_threshold_pct;
   const autoStop=savedConfig.auto_stop_pct??savedAutomationSettings?.auto_stop_pct??savedServiceConfig?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
   const autoStartStableMs=Number(snapshot?.auto_start_stable_ms);
@@ -1051,7 +1035,6 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
     {label:"Upper Sensor Source",value:upperSource},
     {label:"Source Tank Sensor",value:sourceSensorLocation},
-    {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
     {label:"Tank Capacity",value:formatLiters(capacity),show:isReportedInfoValue(capacity)},
     {label:"Tank Height",value:tankHeight,show:isReportedInfoValue(tankHeight)},
     {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&isReportedInfoValue(sourceCapacity)},

@@ -1490,7 +1490,6 @@ def purge_configured_virtual_device_records():
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
-        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1509,12 +1508,6 @@ def purge_configured_virtual_device_records():
             )
             deleted_counts["device_command_queue"] += int(
                 db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
-            )
-            deleted_counts["device_mobile_action_queue"] += int(
-                db.execute(
-                    "DELETE FROM device_mobile_action_queue WHERE target_device = ?",
-                    (normalized_device_id,),
-                ).rowcount or 0
             )
             deleted_counts["ops_alerts"] += int(
                 db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -1543,7 +1536,6 @@ def delete_known_device(device_id):
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
-        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1561,9 +1553,6 @@ def delete_known_device(device_id):
         )
         deleted_counts["device_command_queue"] = int(
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["device_mobile_action_queue"] = int(
-            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
         )
         deleted_counts["ops_alerts"] = int(
             db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -4154,15 +4143,6 @@ def translate_mysql_schema_sql(sql):
         "target_type TEXT NOT NULL": "target_type VARCHAR(96) NOT NULL",
         "registration_source TEXT NOT NULL": "registration_source VARCHAR(191) NOT NULL",
         "cloud_feed_mode TEXT NOT NULL": "cloud_feed_mode VARCHAR(32) NOT NULL",
-        "telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "telemetry_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "command_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "command_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "relay_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "relay_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "ota_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "ota_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "local_firmware_upload_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "local_firmware_upload_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "buzzer_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "buzzer_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "led_display_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "led_display_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "lower_tank_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "lower_tank_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
-        "slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "slave_device_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
         "created_at TEXT DEFAULT CURRENT_TIMESTAMP": "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         "updated_at TEXT DEFAULT CURRENT_TIMESTAMP": "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         "first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP": "first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP",
@@ -4556,21 +4536,6 @@ def ensure_device_command_queue_table(cursor):
     )
 
 
-def ensure_device_mobile_action_queue_table(cursor):
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS device_mobile_action_queue(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            target_device TEXT NOT NULL,
-            action TEXT NOT NULL,
-            payload_json TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            delivered_at TEXT
-        )
-        """
-    )
-
-
 def ensure_firmware_artifacts_table(cursor):
     cursor.execute(
         """
@@ -4778,7 +4743,6 @@ def ensure_device_service_configs_table(cursor):
             local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 1,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
-            auto_mode_enabled INTEGER NOT NULL DEFAULT 0,
             android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
             tank_height_cm REAL,
             tank_capacity_liters REAL,
@@ -4807,7 +4771,6 @@ def ensure_device_service_configs_table(cursor):
 
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
-    added_auto_mode_enabled = False
     required = {
         "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "master_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
@@ -4821,7 +4784,6 @@ def ensure_device_service_configs_columns(cursor):
         "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 1",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
-        "auto_mode_enabled": "INTEGER NOT NULL DEFAULT 0",
         "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
         "tank_height_cm": "REAL",
         "tank_capacity_liters": "REAL",
@@ -4847,16 +4809,6 @@ def ensure_device_service_configs_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE device_service_configs ADD COLUMN {column} {definition}")
-            if column == "auto_mode_enabled":
-                added_auto_mode_enabled = True
-    if added_auto_mode_enabled:
-        cursor.execute(
-            """
-            UPDATE device_service_configs
-            SET auto_mode_enabled = 1
-            WHERE auto_mode_enabled IS NULL OR auto_mode_enabled = 0
-            """
-        )
 
 
 def ensure_registered_devices_table(cursor):
@@ -4915,8 +4867,6 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
         "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
         "CREATE INDEX idx_device_command_queue_target_command ON device_command_queue(target_device, delivered_at, command, id DESC)",
-        "CREATE INDEX idx_device_mobile_action_queue_target_pending ON device_mobile_action_queue(target_device, delivered_at, id DESC)",
-        "CREATE INDEX idx_device_mobile_action_queue_target_action ON device_mobile_action_queue(target_device, delivered_at, action, id DESC)",
         "CREATE INDEX idx_relay_queue_next_attempt ON relay_queue(next_attempt_at, id)",
         "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
         "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
@@ -5126,7 +5076,6 @@ def init_db():
         remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
-        ensure_device_mobile_action_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_firmware_artifacts_columns(cursor)
         ensure_android_app_releases_table(cursor)
@@ -5860,7 +5809,6 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=True)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
-    auto_mode_enabled = boolish_enabled(payload.get("auto_mode_enabled"), default=False)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
     tank_height_cm = normalize_optional_config_float(payload.get("tank_height_cm"))
     tank_capacity_liters = normalize_optional_config_float(payload.get("tank_capacity_liters"))
@@ -5922,8 +5870,6 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "cloud_feed_mode_label": DEVICE_SERVICE_CLOUD_MODE_LABELS.get(cloud_feed_mode, "Unknown"),
         "cloud_feed_enabled": effective_cloud_feed_enabled,
         "cloud_note": cloud_note,
-        "auto_mode_enabled": auto_mode_enabled,
-        "auto_mode_label": "Enabled" if auto_mode_enabled else "Disabled",
         "ota_enabled": ota_enabled,
         "local_firmware_upload_enabled": local_firmware_upload_enabled,
         "buzzer_enabled": buzzer_enabled,
@@ -5976,7 +5922,6 @@ def default_device_service_config(device_id=None, account=None):
             "source_tank_monitoring_enabled": True,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
-            "auto_mode_enabled": False,
             "cloud_feed_mode": (
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
             ),
@@ -6017,28 +5962,6 @@ def snapshot_device_service_flag(snapshot, *keys):
             return True
         if value in {"OFF", "FALSE", "NO", "0", "DISABLED"}:
             return False
-    return None
-
-
-def snapshot_device_auto_mode_enabled(snapshot):
-    if not snapshot:
-        return None
-
-    direct_flag = snapshot_device_service_flag(snapshot, "auto_mode_enabled", "auto_control_enabled", "automation_enabled")
-    if direct_flag is not None:
-        return direct_flag
-
-    mode = str(snapshot.get("mode") or "").strip().upper()
-    if mode == "AUTO":
-        return True
-    if mode == "MANUAL":
-        return False
-
-    auto_status = str(snapshot.get("auto_status") or "").strip().lower()
-    if "manual" in auto_status:
-        return False
-    if "auto" in auto_status:
-        return True
     return None
 
 
@@ -6112,10 +6035,6 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         if snapshot_key in snapshot:
             base_payload[config_key] = normalize_optional_service_state(snapshot.get(snapshot_key))
 
-    live_auto_mode_enabled = snapshot_device_auto_mode_enabled(snapshot)
-    if live_auto_mode_enabled is not None:
-        base_payload["auto_mode_enabled"] = live_auto_mode_enabled
-
     return serialize_device_service_config(resolved_device_id, base_payload, account=account)
 
 
@@ -6138,7 +6057,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
                    slave_device_enabled, slave_upper_sensor_enabled,
                    source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                   buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
+                   buzzer_enabled, led_display_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
                    upper_tank_height_cm, upper_tank_capacity_liters,
                    lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6179,7 +6098,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                slave_device_enabled, slave_upper_sensor_enabled,
                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-               buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
+               buzzer_enabled, led_display_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
                upper_tank_height_cm, upper_tank_capacity_liters,
                lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6259,7 +6178,6 @@ def upsert_device_service_config(
     local_firmware_upload_enabled=None,
     buzzer_enabled=None,
     led_display_enabled=None,
-    auto_mode_enabled=None,
     android_sso_session_limit=None,
     tank_height_cm=None,
     tank_capacity_liters=None,
@@ -6340,10 +6258,6 @@ def upsert_device_service_config(
     resolved_led_display_enabled = boolish_enabled(
         led_display_enabled,
         default=existing.get("led_display_enabled", True),
-    )
-    resolved_auto_mode_enabled = boolish_enabled(
-        auto_mode_enabled,
-        default=existing.get("auto_mode_enabled", False),
     )
     resolved_android_sso_session_limit = normalize_android_sso_session_limit(
         android_sso_session_limit,
@@ -6429,7 +6343,7 @@ def upsert_device_service_config(
                 slave_device_enabled, slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
+                buzzer_enabled, led_display_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
                 upper_tank_height_cm, upper_tank_capacity_liters,
                 lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6454,7 +6368,6 @@ def upsert_device_service_config(
                 local_firmware_upload_enabled=excluded.local_firmware_upload_enabled,
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
-                auto_mode_enabled=excluded.auto_mode_enabled,
                 android_sso_session_limit=excluded.android_sso_session_limit,
                 tank_height_cm=excluded.tank_height_cm,
                 tank_capacity_liters=excluded.tank_capacity_liters,
@@ -6490,7 +6403,6 @@ def upsert_device_service_config(
                 1 if resolved_local_firmware_upload_enabled else 0,
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
-                1 if resolved_auto_mode_enabled else 0,
                 resolved_android_sso_session_limit,
                 resolved_tank_height_cm,
                 resolved_tank_capacity_liters,
@@ -6539,8 +6451,7 @@ def build_device_service_command(service_config):
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
     relay_enabled = bool(config.get("relay_enabled", True))
-    auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG5:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}".format(
+    return "SERVICECFG4:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -6549,7 +6460,6 @@ def build_device_service_command(service_config):
         led=1 if bool(config.get("led_display_enabled")) else 0,
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
-        auto_mode=1 if auto_mode_enabled else 0,
     )
 
 
@@ -6739,8 +6649,6 @@ def build_current_saved_config(device_id, account=None):
         "device_id": normalized_device_id,
         "configuration_source": "db_upsert",
         "updated_at": updated_at,
-        "auto_mode_enabled": saved_service_config.get("auto_mode_enabled"),
-        "auto_mode_label": saved_service_config.get("auto_mode_label"),
         "tank_height_cm": saved_service_config.get("tank_height_cm"),
         "tank_capacity_liters": saved_service_config.get("tank_capacity_liters"),
         "upper_tank_height_cm": saved_service_config.get("upper_tank_height_cm"),
@@ -10065,7 +9973,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG4:"):
         details.update(
             {
                 "label": "Runtime service configuration",
@@ -11225,111 +11133,6 @@ def queue_command(command, target_device=None):
     return result
 
 
-MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE = "START_FIRMWARE_UPGRADE"
-
-
-def normalize_mobile_device_action(action):
-    normalized_action = str(action or "").strip().upper().replace("-", "_").replace(" ", "_")
-    if normalized_action in {"START_FIRMWARE_UPGRADE", "FIRMWARE_UPGRADE", "START_OTA", "OTA_UPGRADE"}:
-        return MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
-    raise ValueError("Unsupported mobile action")
-
-
-def queue_device_mobile_action(action, target_device, payload=None):
-    normalized_target_device = normalize_device_id(target_device)
-    if not normalized_target_device:
-        return {
-            "status": "error",
-            "error": "No target device is available for this mobile action yet.",
-            "action": action,
-        }, 400
-
-    try:
-        normalized_action = normalize_mobile_device_action(action)
-    except ValueError as exc:
-        return {
-            "status": "error",
-            "error": str(exc),
-            "action": action,
-            "target_device": normalized_target_device,
-        }, 400
-
-    payload_json = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"))
-    with get_db() as db:
-        db.execute(
-            """
-            DELETE FROM device_mobile_action_queue
-            WHERE target_device = ? AND delivered_at IS NULL AND UPPER(action) = ?
-            """,
-            (normalized_target_device, normalized_action),
-        )
-        db.execute(
-            """
-            INSERT INTO device_mobile_action_queue (target_device, action, payload_json)
-            VALUES (?, ?, ?)
-            """,
-            (normalized_target_device, normalized_action, payload_json),
-        )
-        db.execute(
-            """
-            DELETE FROM device_mobile_action_queue
-            WHERE delivered_at IS NOT NULL
-              AND delivered_at < datetime('now', '-7 day')
-            """
-        )
-
-    return {
-        "status": "queued",
-        "action": normalized_action,
-        "target_device": normalized_target_device,
-        "payload": payload or {},
-        "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
-    }
-
-
-def pop_device_mobile_action(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return None
-
-    with get_db() as db:
-        row = db.execute(
-            """
-            SELECT id, action, payload_json, created_at
-            FROM device_mobile_action_queue
-            WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id DESC
-            LIMIT 1
-            """,
-            (normalized_device_id,),
-        ).fetchone()
-        if not row:
-            return None
-        db.execute(
-            """
-            UPDATE device_mobile_action_queue
-            SET delivered_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-            """,
-            (row["id"],),
-        )
-
-    payload = {}
-    try:
-        payload = json.loads(row["payload_json"] or "{}")
-        if not isinstance(payload, dict):
-            payload = {"value": payload}
-    except (TypeError, ValueError, json.JSONDecodeError):
-        payload = {}
-    return {
-        "id": row["id"],
-        "action": row["action"],
-        "payload": payload,
-        "queued_at": row["created_at"],
-        "delivered_at": now_utc().strftime(TIMESTAMP_FORMAT),
-    }
-
-
 def home_automation_device_label(device_id, account=None):
     if account and str(account.get("display_name") or "").strip():
         return str(account.get("display_name")).strip()
@@ -12135,7 +11938,6 @@ def mobile_bootstrap():
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
-        "mobile_action": pop_device_mobile_action(scoped_device_id),
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
@@ -12379,7 +12181,6 @@ def mobile_device_status():
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
-        "mobile_action": pop_device_mobile_action(scoped_device_id),
         "viewer": resolve_mobile_user(),
     })
 
@@ -13949,63 +13750,6 @@ def admin_device_reboot(device_id):
     )
 
 
-@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_device_detail_mobile_firmware_upgrade(device_id):
-    scoped_device_id = current_scope_device_id(device_id)
-    config_error = None
-    config_message = None
-
-    if not scoped_device_id:
-        config_error = "Choose a valid device before queueing an Android OTA trigger."
-    else:
-        service_config = fetch_device_service_config(scoped_device_id)
-        if not service_config.get("cloud_feed_enabled", True):
-            config_error = "Enable Cloud Feed before queueing an Android OTA trigger."
-        elif not service_config.get("local_firmware_upload_enabled", False):
-            config_error = "Enable Local firmware upload before queueing an Android OTA trigger."
-        else:
-            queue_result = queue_device_mobile_action(
-                MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
-                scoped_device_id,
-                payload={
-                    "message": "Flask requested a firmware upgrade.",
-                    "device_id": scoped_device_id,
-                    "source": "device_detail",
-                },
-            )
-            if isinstance(queue_result, tuple):
-                payload, _status_code = queue_result
-                config_error = payload.get("error") or f"Unable to queue an Android OTA trigger for {scoped_device_id}."
-            else:
-                log_audit_event(
-                    actor=current_actor_username(),
-                    action="queue_android_firmware_upgrade",
-                    target_type="device",
-                    target_id=scoped_device_id,
-                    device_id=scoped_device_id,
-                    details={
-                        "action": queue_result.get("action"),
-                        "queued_at": queue_result.get("queued_at"),
-                        "payload": queue_result.get("payload"),
-                    },
-                )
-                config_message = (
-                    f"Android OTA trigger queued for {scoped_device_id}. "
-                    "The Android app will start its next firmware upgrade sync on the next cloud refresh."
-                )
-
-    return redirect(
-        url_for(
-            "device_detail_page",
-            device_id=scoped_device_id or device_id,
-            config_error=config_error or "",
-            config_message=config_message or "",
-        )
-    )
-
-
 @app.route("/admin/customers/<device_id>/delete", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -14265,7 +14009,6 @@ def admin_device_detail_configuration(device_id):
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
             ai_analysis_enabled=("ai_analysis_enabled" in request.form),
-            auto_mode_enabled=("auto_mode_enabled" in request.form),
             cloud_feed_mode=(
                 DEVICE_SERVICE_CLOUD_FEED_OFF
                 if "cloud_feed_disabled" in request.form
@@ -14280,16 +14023,7 @@ def admin_device_detail_configuration(device_id):
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
         queued_command = build_device_service_command(updated_config)
-        queue_result = queue_command(queued_command, target_device=scoped_device_id)
-        if isinstance(queue_result, tuple):
-            error_payload, _status_code = queue_result
-            return redirect(
-                url_for(
-                    "device_detail_page",
-                    device_id=scoped_device_id,
-                    config_error=error_payload.get("error") or "Unable to queue runtime configuration update.",
-                )
-            )
+        queue_command(queued_command, target_device=scoped_device_id)
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
@@ -14302,11 +14036,7 @@ def admin_device_detail_configuration(device_id):
                 "android_sessions_preserved": True,
             },
         )
-        auto_mode_label = "Enabled" if updated_config.get("auto_mode_enabled") else "Disabled"
-        message = (
-            f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
-            "Device changes apply on the next command poll."
-        )
+        message = "Configuration saved. Device changes apply on the next command poll."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
