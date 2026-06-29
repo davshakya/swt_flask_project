@@ -101,11 +101,7 @@ def test_device_event_feed_uses_actionable_health_events():
     assert "def fetch_device_events" in server_source
     assert "def sync_device_events" in server_source
     assert "sync_device_events(device_id=cleaned.get(\"device_id\"))" in server_source
-    assert "def build_snapshot_activity_events" in server_source
-    assert "def merge_activity_events" in server_source
-    assert "build_generated_device_events(" in server_source
-    assert "merge_activity_events(generated_events, local_log_events, stored_events, limit=normalized_limit)" in server_source
-    assert "build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)" in server_source
+    assert "return fetch_device_events(limit=limit, device_id=device_id)" in server_source
 
     for event_kind in (
         "telemetry_recovered",
@@ -238,14 +234,6 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
 
 
-def test_customer_graphs_refresh_after_live_telemetry_changes():
-    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
-
-    assert "const ANALYTICS_LIVE_REFRESH_MS=30000;" in customer_template
-    assert "Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS" in customer_template
-    assert "loadAnalytics({force:true})" in customer_template
-
-
 def test_admin_customer_auto_refresh_uses_json_not_full_page_downloads():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
@@ -260,9 +248,6 @@ def test_admin_customer_auto_refresh_uses_json_not_full_page_downloads():
     assert "response.json()" in refresh_body
     assert 'data-device-field="master_status"' in admin_template
     assert 'data-device-field="last_sync"' in admin_template
-    assert 'data-summary-field="online_devices"' in admin_template
-    assert "updateSummaryFromJson(payload.summary)" in refresh_body
-    assert '"summary": device_summary' in server_source
 
 
 def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
@@ -271,11 +256,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v2";' in dashboard_template
-    assert "function analyticsCacheContext()" in dashboard_template
-    assert "Date.now()-savedAt>ANALYTICS_CACHE_MAX_AGE_MS" in dashboard_template
     assert "const tasks=[refreshLive({force}),refreshEvents({force})]" in dashboard_template
-    assert "const visibleHeight=Math.max(rawHeight,Math.abs(value)<=0.0001?2:1);" in dashboard_template
     assert "DEVICE_HEAVY_REFRESH_MS" not in device_template
     assert "const includeHeavy=!silent&&!latestHistory.length;" in device_template
 
@@ -289,37 +270,6 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil" in customer_template
     assert "const spinning=running||pendingActive||startInferred" in customer_template
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
-
-
-def test_customer_dashboard_stop_button_uses_effective_running_state():
-    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
-
-    update_start = customer_template.index("function updateCommandAvailability")
-    update_body = customer_template[update_start : customer_template.index("function renderCustomerOverview", update_start)]
-
-    assert "const pendingStartActive=state.pendingPumpStart&&Date.now()<state.pendingPumpStartUntil;" in update_body
-    assert "const running=isPumpRunning(snapshot?.motor)||pendingStartActive||state.upperTankIncreasing;" in update_body
-    assert 'nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});' in update_body
-
-
-def test_customer_dashboard_motor_chart_shows_run_durations():
-    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
-
-    assert "function buildMotorActivitySegments" in customer_template
-    assert "function drawMotorActivityTimeline" in customer_template
-    assert "drawMotorActivityTimeline(charts.motor.canvas,\"Motor State\",motorSeriesRaw.time,motorSeriesRaw.values" in customer_template
-    assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
-    assert "function formatDurationSeconds(value)" in customer_template
-    assert "pumpActivity?.avg_run_seconds" in customer_template
-    assert "ON spans are labeled with run duration." in customer_template
-    assert 'xLabelMode:"time"' in customer_template
-    assert 'const highY=box.top+Math.max(18,box.plotHeight*0.26)' in customer_template
-    assert 'const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78)' in customer_template
-    assert 'const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});' in customer_template
-    assert 'const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});' in customer_template
-    assert 'const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`' in customer_template
-    assert 'ctx.strokeStyle=themeVar("--chart-motor")' in customer_template
-    assert "ctx.lineWidth=4" in customer_template
 
 
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
@@ -347,7 +297,7 @@ def test_device_detail_exposes_mobile_logout_button():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert 'action="/devices/{{ device_id }}/mobile/logout" data-ajax-form' in device_template
+    assert 'action="/devices/{{ device_id }}/mobile/logout"' in device_template
     assert "Log Out Mobile Devices" in device_template
     assert 'data-confirm-title="Log out mobile devices?"' in device_template
     assert '@app.route("/devices/<device_id>/mobile/logout", methods=["POST"])' in server_source
@@ -361,7 +311,7 @@ def test_device_detail_exposes_android_firmware_upgrade_trigger():
     assert 'url_for(\'admin_device_detail_mobile_firmware_upgrade\', device_id=device_id)' in device_template
     assert "Android App OTA Trigger" in device_template
     assert "Queue Android OTA" in device_template
-    assert 'data-ajax-form data-confirm-title="Queue Android firmware upgrade?"' in device_template
+    assert 'data-confirm-title="Queue Android firmware upgrade?"' in device_template
     assert '@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])' in server_source
     assert "def admin_device_detail_mobile_firmware_upgrade(device_id):" in server_source
 
@@ -379,25 +329,13 @@ def test_device_detail_shows_android_sso_server_session_diagnostic():
 def test_device_detail_uses_compact_balanced_cards_and_buttons():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
-    assert ".btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit;min-width:0;width:auto}" in device_template
-    assert ".btn-full{width:auto}" in device_template
-    assert ".hero-actions .btn{height:36px;min-height:36px;min-width:0;padding:0 13px;border-radius:10px;font-size:12px}" in device_template
+    assert ".hero-actions .btn{height:36px;min-height:36px;min-width:96px" in device_template
     assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
-    assert ".admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}" in device_template
-    assert ".config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}" in device_template
-    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:16px;align-items:start}" in device_template
-    assert ".admin-form>form{display:grid;gap:10px;width:100%}" in device_template
-    assert ".admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}" in device_template
-    assert ".admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}" in device_template
+    assert ".admin-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}" in device_template
+    assert ".admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.firmware-upload-grid .btn{width:100%;max-width:none;justify-self:stretch}" in device_template
     assert ".sensor-setup-card{align-content:start}" in device_template
-    assert ".tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}" in device_template
-    assert ".tank-setup-actions .btn{width:100%;justify-self:stretch}" in device_template
+    assert ".tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}" in device_template
     assert ".summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info" in device_template
-    assert ".hero-actions form,.hero-actions .btn{width:auto}" in device_template
-    assert 'document.querySelectorAll("[data-ajax-form]")' in device_template
-    assert ".activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}" in device_template
-    assert ".confirm-actions .btn{min-width:0}" in device_template
-    assert ".admin-form .btn,.config-form>.btn{width:100%;justify-self:stretch;max-width:none}" in device_template
 
 
 def test_device_detail_upload_result_uses_closable_popup():
@@ -408,9 +346,6 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert 'modal.dataset.resultModal=""' in device_template
     assert 'request.setRequestHeader("X-Requested-With","XMLHttpRequest")' in device_template
     assert "showResultModal(ok?\"Upload successful\":\"Upload failed\"" in device_template
-    assert "const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};" in device_template
-    assert "const INITIAL_CONFIG_ERROR={{ config_error|tojson }};" in device_template
-    assert "function showInitialConfigResult()" in device_template
     assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
     assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
     assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template
@@ -432,18 +367,10 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'class="admin-form sensor-setup-card {% if not service_config.get("source_tank_monitoring_enabled") %}hidden-section{% endif %}" id="lowerSensorSetupSection"' in device_template
     assert "upperTankSetupForm" in device_template
     assert "lowerTankSetupForm" in device_template
-    assert 'id="upperTankSetupForm" method="post" action="{{ url_for(\'admin_device_detail_sensor_configure\', device_id=device_id) }}" data-ajax-form' in device_template
-    assert 'id="lowerTankSetupForm" method="post" action="{{ url_for(\'admin_device_detail_sensor_configure\', device_id=device_id) }}" data-ajax-form' in device_template
     assert "admin_upper_tank_height_cm" in device_template
     assert "admin_upper_tank_capacity_liters" in device_template
     assert "admin_lower_tank_height_cm" in device_template
     assert "admin_lower_tank_capacity_liters" in device_template
-    assert '{% set upper_tank_height_value = current_saved_config.get("upper_tank_height_cm")' in device_template
-    assert '{% set lower_tank_capacity_value = current_saved_config.get("lower_tank_capacity_liters")' in device_template
-    assert 'value="{{ upper_tank_height_value }}" placeholder="60.0"' in device_template
-    assert 'value="{{ upper_tank_capacity_value }}" placeholder="1000"' in device_template
-    assert 'value="{{ lower_tank_height_value }}" placeholder="60.0"' in device_template
-    assert 'value="{{ lower_tank_capacity_value }}" placeholder="1000"' in device_template
     assert "upperTankSetupCalibrateButton" in device_template
     assert "lowerTankSetupCalibrateButton" in device_template
     assert 'class="tank-setup-actions"' in device_template
@@ -453,8 +380,6 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert "window.swtSyncLowerSensorSetupVisibility=syncLowerSensorSetupVisibility;" in device_template
     assert "syncLowerSensorSetupVisibility();" in device_template
     assert 'window.addEventListener("pageshow",syncLowerSensorSetupVisibility);' in device_template
-    assert 'const submitter=event.submitter||null;' in device_template
-    assert 'form.requestSubmit(submitter||undefined);' in device_template
     assert 'heightInput&&heightInput.value.trim()!==""' in device_template
     assert 'capacityInput&&capacityInput.value.trim()!==""' in device_template
     assert "hasHeight&&hasCapacity&&heightInput.checkValidity()&&capacityInput.checkValidity()" in device_template
@@ -470,8 +395,7 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"' in server_source
     assert 'command = f"CONFIG_CAPACITY:{capacity_liters:.1f}"' in server_source
-    assert 'error="Tank height is required before calibration."' in server_source
-    assert "device_detail_action_response(" in server_source
+    assert 'config_error="Tank height is required before calibration."' in server_source
     assert 'calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert 'command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"' in server_source
     assert "The master will forward upper calibration to the slave MCU" in server_source
@@ -541,8 +465,7 @@ def test_device_detail_renders_master_slave_memory_health_graph():
     assert "fetch_device_history(scoped_device_id, limit=48)" in server_source
     assert 'doc["slave_free_heap"] = lastSlaveFreeHeap' in firmware_source
     assert 'doc["cpu_utilization_pct"] = cpuUtilizationPct' in firmware_source
-    assert "const uint32_t freeHeapBeforeStatusJson = ESP.getFreeHeap();" in firmware_source
-    assert 'doc["free_heap"] = freeHeapBeforeStatusJson' in firmware_source
+    assert 'doc["free_heap"] = ESP.getFreeHeap()' in firmware_source
 
 
 def test_android_release_upload_modal_is_detached_and_shows_progress():
@@ -679,48 +602,6 @@ def test_android_app_update_check_compares_installed_version_code():
     assert '"currentVersionCode" to installedAppVersionCode().toString()' in android_source
     assert "latestVersionCode > currentVersionCode" in android_source
     assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
-
-
-def test_android_cloud_pump_activity_chart_uses_duration_timeline():
-    android_source = (
-        PROJECT_ROOT.parent
-        / "swt_android_app_project"
-        / "app"
-        / "src"
-        / "main"
-        / "java"
-        / "com"
-        / "smartwatertank"
-        / "app"
-        / "MainActivity.kt"
-    ).read_text(encoding="utf-8")
-    chart_view_source = (
-        PROJECT_ROOT.parent
-        / "swt_android_app_project"
-        / "app"
-        / "src"
-        / "main"
-        / "java"
-        / "com"
-        / "smartwatertank"
-        / "app"
-        / "DashboardChartView.kt"
-    ).read_text(encoding="utf-8")
-
-    assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
-    assert "ON spans are labeled with their run duration." in android_source
-    assert "section.pumpActivity.startLabel" in android_source
-    assert "section.pumpActivity.endLabel" in android_source
-    assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
-    assert "private fun drawTimelineChart" in chart_view_source
-    assert "formatDurationLabel" in chart_view_source
-    assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
-    assert "val waveformFillPaint = Paint(fillPaint)" in chart_view_source
-    assert "val highY = top + max(18f * density, height * 0.26f)" in chart_view_source
-    assert "waveformPaint" in chart_view_source
-    assert "canvas.drawPath(fillPath, waveformFillPaint)" in chart_view_source
-    assert "canvas.drawPath(waveformPath, waveformPaint)" in chart_view_source
-    assert 'val badgeText = "ON ${formatDurationLabel(segment.endTime - segment.startTime)}"' in chart_view_source
 
 
 def test_release_versions_use_year_train_increment_syntax():

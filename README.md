@@ -225,7 +225,7 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 ### Analytics and forecasting
 
 - `TANK_CAPACITY_LITERS`: Default tank capacity used in summaries.
-- `DATA_STALE_AFTER_SECONDS`: Threshold for stale telemetry. Defaults to 300 seconds.
+- `DATA_STALE_AFTER_SECONDS`: Threshold for stale telemetry.
 - `LEVEL_FORECAST_MODEL_PATH`: Optional custom path to the forecast artifact.
 - `MOBILE_TOKEN_MAX_AGE_HOURS`: Lifetime for mobile API tokens.
 
