@@ -8208,13 +8208,25 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
     snapshot_level = round(safe_float(snapshot.get("level"), 0), 2)
     snapshot_motor = str(snapshot.get("motor") or "OFF").strip().upper()
     snapshot_time = format_timestamp(snapshot.get("created_at")) or now_utc().strftime(TIMESTAMP_FORMAT)
+    snapshot_dt = parse_timestamp(snapshot_time) or now_utc()
+    baseline_time = (snapshot_dt - timedelta(minutes=10)).strftime(TIMESTAMP_FORMAT)
     snapshot_date = (parse_timestamp(snapshot_time) or now_utc()).strftime(DATE_ONLY_FORMAT)
-    level_times = [snapshot_time] if live_snapshot_available else []
-    level_values = [snapshot_level] if live_snapshot_available else []
-    motor_times = [snapshot_time] if live_snapshot_available else []
-    motor_values = [1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
-    daily_dates = [snapshot_date] if live_snapshot_available else []
+    level_times = [baseline_time, snapshot_time] if live_snapshot_available else []
+    level_values = [snapshot_level, snapshot_level] if live_snapshot_available else []
+    motor_times = [baseline_time, snapshot_time] if live_snapshot_available else []
+    motor_values = [1 if snapshot_motor == "ON" else 0, 1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
+    daily_dates = []
+    if live_snapshot_available:
+        cursor_date = start_dt.date()
+        final_date = (end_exclusive - timedelta(days=1)).date()
+        while cursor_date <= final_date and len(daily_dates) < 62:
+            daily_dates.append(cursor_date.isoformat())
+            cursor_date += timedelta(days=1)
+        if snapshot_date not in daily_dates:
+            daily_dates.append(snapshot_date)
     daily_values = [0.0] if live_snapshot_available else []
+    if daily_dates:
+        daily_values = [0.0] * len(daily_dates)
     fallback_alert = (
         f"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."
         if live_snapshot_available and normalized_device_id

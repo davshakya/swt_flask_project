@@ -1633,7 +1633,9 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
             const centerX=barCenterForIndex(index);
             const x=centerX-barWidth/2;
             const y=yForValue(value);
-            ctx.fillRect(x,y,barWidth,box.top+box.plotHeight-y);
+            const rawHeight=box.top+box.plotHeight-y;
+            const visibleHeight=Math.max(rawHeight,Math.abs(value)<=0.0001?2:1);
+            ctx.fillRect(x,box.top+box.plotHeight-visibleHeight,barWidth,visibleHeight);
         });
         ctx.fillStyle=themeVar("--chart-ticks");
         ctx.textAlign="center";

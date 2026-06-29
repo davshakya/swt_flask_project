@@ -71,10 +71,14 @@ def test_low_history_analytics_returns_live_snapshot_fallback():
         )
 
         assert payload["analysis"]["live_snapshot_fallback"] is True
-        assert payload["levels"]["values"] == [83.7]
-        assert payload["levels"]["time"]
-        assert payload["motor"]["values"] == [0]
+        assert payload["levels"]["values"] == [83.7, 83.7]
+        assert len(payload["levels"]["time"]) == 2
+        assert payload["motor"]["values"] == [0, 0]
+        assert len(payload["motor"]["time"]) == 2
         assert payload["daily"]["dates"]
+        assert len(payload["daily"]["dates"]) == len(payload["daily"]["values"])
+        assert payload["prediction"]["tomorrow_usage"] is None
+        assert payload["insights"]["avg_daily_usage"] is None
         assert payload["guidance"]["title"]
         assert "live snapshot" in payload["alerts"][0].lower()
     finally:
