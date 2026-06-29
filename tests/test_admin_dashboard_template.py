@@ -238,6 +238,14 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
 
 
+def test_customer_graphs_refresh_after_live_telemetry_changes():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "const ANALYTICS_LIVE_REFRESH_MS=30000;" in customer_template
+    assert "Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS" in customer_template
+    assert "loadAnalytics({force:true})" in customer_template
+
+
 def test_admin_customer_auto_refresh_uses_json_not_full_page_downloads():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
