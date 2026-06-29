@@ -182,6 +182,19 @@ def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
     assert '"START_FIRMWARE_UPGRADE"' in android_source
 
 
+def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = server_source.index("def mobile_bootstrap():")
+    route_body = server_source[route_start : server_source.index('\n\n@app.route("/api/mobile/analytics")', route_start)]
+
+    assert 'include_analytics = str(request.args.get("include_analytics", "0"))' in route_body
+    assert '"monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id)' in route_body
+    assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
+    assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
+    assert 'payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
+    assert 'payload["analytics"] = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
+
+
 def test_mobile_pump_slider_requires_hold_confirmation_before_sending_command():
     android_source = ANDROID_SOURCE.read_text(encoding="utf-8")
     strings_source = ANDROID_STRINGS_SOURCE.read_text(encoding="utf-8")

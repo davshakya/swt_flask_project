@@ -14226,6 +14226,7 @@ def mobile_auth_logout():
 def mobile_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
     audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
+    include_analytics = str(request.args.get("include_analytics", "0")).strip().lower() in {"1", "true", "yes", "on"}
     response = mobile_customer_cloud_feed_block_response()
     if response:
         return response
@@ -14238,7 +14239,9 @@ def mobile_bootstrap():
     payload = {
         "snapshot": public_snapshot,
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "events": build_events(event_limit, device_id=scoped_device_id),
+        "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
         "guidance": build_shared_guidance_payload(snapshot, None),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
@@ -14249,6 +14252,18 @@ def mobile_bootstrap():
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
+    if include_analytics and current_customer_ai_analysis_enabled():
+        try:
+            start_dt, end_exclusive, label = resolve_date_window()
+            payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        except Exception as exc:
+            logger.exception("Mobile bootstrap analytics fallback used for %s: %s", scoped_device_id, exc)
+            try:
+                start_dt, end_exclusive, label = resolve_date_window()
+                payload["analytics"] = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+                payload["analytics"]["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+            except Exception:
+                payload["analytics_warning"] = "AI analysis is temporarily unavailable."
     return jsonify(payload)
 
 
