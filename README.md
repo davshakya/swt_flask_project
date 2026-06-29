@@ -1,8 +1,8 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-06-06`
+Last refreshed: `2026-06-19`
 
-This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling.
+This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. The devices still keep their local control loops on the ESP8266 when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
 This backend is one part of the wider SaleWell IoT Solutions stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
 
@@ -33,7 +33,7 @@ Within the wider workspace:
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
-- Home automation dashboard and local/cloud proxy at `/home-automation`
+- Home automation dashboard and local/cloud proxy at `/home-automation`; the switch-board keeps its wired control behavior even if Wi-Fi is unavailable
 - MySQL/MariaDB schema initialization for local and hosted deployment
 
 ## Customer and Sales Features
@@ -44,6 +44,8 @@ Within the wider workspace:
 - admin dashboard for device registration, customer mapping, customer password reset, service flags, firmware artifacts, Android releases, reboot commands, and data-source mode
 - operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
 - optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
+
+The backend is the network and persistence layer, not the runtime safety layer. Smart Tank and Home Automation devices continue local control and protection on-device when the backend is offline.
 
 ## Repository Layout
 
@@ -223,7 +225,7 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 ### Analytics and forecasting
 
 - `TANK_CAPACITY_LITERS`: Default tank capacity used in summaries.
-- `DATA_STALE_AFTER_SECONDS`: Threshold for stale telemetry.
+- `DATA_STALE_AFTER_SECONDS`: Threshold for stale telemetry. Defaults to 300 seconds.
 - `LEVEL_FORECAST_MODEL_PATH`: Optional custom path to the forecast artifact.
 - `MOBILE_TOKEN_MAX_AGE_HOURS`: Lifetime for mobile API tokens.
 
@@ -256,7 +258,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 
 ### Home Automation Cloud
 
-The home automation page can control a board directly on local Wi-Fi or through the same cloud command queue used by the Smart Water Tank relay. In cloud mode, the ESP8266 posts telemetry to `/status`, polls `/device/command`, and acknowledges with `/device/command/ack`, so the home router does not need port forwarding.
+The home automation page can control a board directly on local Wi-Fi or through the same cloud command queue used by the Smart Water Tank relay. In cloud mode, the ESP8266 posts telemetry to `/status`, polls `/device/command`, and acknowledges with `/device/command/ack`, so the home router does not need port forwarding. Local switch and relay control stay active on the board even if Wi-Fi or Flask is unavailable.
 
 Environment variables:
 

@@ -650,13 +650,20 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 )
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
-STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 180)
+STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 300)
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
-DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 45))
+DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
 TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
+TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS = max(1, env_int("TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS", 10))
+LOCAL_SYNC_TRANSPORTS = {"android_local_wifi", "dashboard_local_wifi"}
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
+RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS = max(30, env_int("RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS", 600))
+RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
+    30,
+    env_int("RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS", 180),
+)
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
@@ -665,6 +672,13 @@ DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
 DB_WAL_AUTOCHECKPOINT_PAGES = max(100, env_int("DB_WAL_AUTOCHECKPOINT_PAGES", 1000))
 DB_PRUNE_MIN_INTERVAL_SECONDS = max(0, env_int("DB_PRUNE_MIN_INTERVAL_SECONDS", 30 if IS_RENDER else 15))
+DB_RETENTION_DELETE_BATCH_ROWS = max(100, env_int("DB_RETENTION_DELETE_BATCH_ROWS", 5000))
+DB_RETENTION_DELETE_MAX_BATCHES = max(1, env_int("DB_RETENTION_DELETE_MAX_BATCHES", 4))
+DB_RETENTION_DELETE_FORCE_MAX_BATCHES = max(
+    DB_RETENTION_DELETE_MAX_BATCHES,
+    env_int("DB_RETENTION_DELETE_FORCE_MAX_BATCHES", 24),
+)
+DB_OPTIMIZE_AFTER_PRUNE_ROWS = max(0, env_int("DB_OPTIMIZE_AFTER_PRUNE_ROWS", 5000))
 TEMP_DB_SIZE_GUARD_ENABLED = env_flag("TEMP_DB_SIZE_GUARD_ENABLED", default=False)
 TEMP_HARD_DB_CAP_ENABLED = env_flag("TEMP_HARD_DB_CAP_ENABLED", default=False)
 TEMP_HARD_DB_CAP_BATCH_ROWS = max(100, env_int("TEMP_HARD_DB_CAP_BATCH_ROWS", 2000))
@@ -696,8 +710,8 @@ ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT",
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
-ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 720 if IS_RENDER else 1440))
-ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
+ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
+ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
 DEFAULT_LEVEL_FORECAST_MODEL_PATH = PROJECT_ROOT / "artifacts" / "level_forecast_model.pkl"
 DEFAULT_SHARED_CLOUD_BASE_URL = normalize_http_base_url(os.environ.get("SWT_CLOUD_BASE_URL")) or "https://salewell.co.in"
@@ -796,6 +810,9 @@ db_maintenance_state = {
     "last_reason": None,
     "last_error": None,
     "last_total_bytes": 0,
+    "last_action": None,
+    "last_pruned_rows": 0,
+    "last_tables": [],
     "last_skip_at": 0.0,
     "last_skip_reason": None,
 }
@@ -1490,6 +1507,7 @@ def purge_configured_virtual_device_records():
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
+        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1508,6 +1526,12 @@ def purge_configured_virtual_device_records():
             )
             deleted_counts["device_command_queue"] += int(
                 db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+            )
+            deleted_counts["device_mobile_action_queue"] += int(
+                db.execute(
+                    "DELETE FROM device_mobile_action_queue WHERE target_device = ?",
+                    (normalized_device_id,),
+                ).rowcount or 0
             )
             deleted_counts["ops_alerts"] += int(
                 db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -1536,6 +1560,7 @@ def delete_known_device(device_id):
         "registered_devices": 0,
         "tank_data": 0,
         "device_command_queue": 0,
+        "device_mobile_action_queue": 0,
         "ops_alerts": 0,
         "ops_audit_log": 0,
         "ignored_devices": 0,
@@ -1553,6 +1578,9 @@ def delete_known_device(device_id):
         )
         deleted_counts["device_command_queue"] = int(
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
+        )
+        deleted_counts["device_mobile_action_queue"] = int(
+            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
         )
         deleted_counts["ops_alerts"] = int(
             db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
@@ -2771,7 +2799,7 @@ def fetch_active_alert_device_ids(updated_since=None):
 
 
 def admin_device_is_online(device):
-    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent"}
+    return str(device.get("telemetry_status") or "").strip().lower() in {"live", "recent", "fresh", "online"}
 
 
 def admin_telemetry_status_label(value):
@@ -3032,8 +3060,21 @@ def build_admin_device_entry(device_id, snapshot=None):
         "device_type": payload.get("device_type"),
         "direct_peer": payload.get("direct_peer"),
         "direct_peer_remote_ip": payload.get("direct_peer_remote_ip"),
+        "direct_peer_remote_mac": payload.get("direct_peer_remote_mac"),
+        "direct_peer_config_channel": payload.get("direct_peer_config_channel"),
+        "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
+        "direct_peer_last_pong_age_s": payload.get("direct_peer_last_pong_age_s"),
+        "direct_peer_last_pong_nonce": payload.get("direct_peer_last_pong_nonce"),
+        "direct_peer_sync_pending": payload.get("direct_peer_sync_pending"),
+        "direct_peer_sync_channel": payload.get("direct_peer_sync_channel"),
+        "direct_peer_sync_last_ok_age_s": payload.get("direct_peer_sync_last_ok_age_s"),
+        "last_ping_target": payload.get("last_ping_target"),
+        "last_ping_status": payload.get("last_ping_status"),
+        "last_ping_response_ms": payload.get("last_ping_response_ms"),
+        "last_ping_age_s": payload.get("last_ping_age_s"),
+        "last_ping_nonce": payload.get("last_ping_nonce"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -3588,6 +3629,23 @@ def retention_maintenance_skip_reason(pruned_rows=0, force=False):
     return None
 
 
+def prune_delete_batches(cursor, delete_sql, params=(), batch_rows=None, max_batches=None):
+    batch_limit = max(1, int(batch_rows or DB_RETENTION_DELETE_BATCH_ROWS))
+    batch_count = max(1, int(max_batches or DB_RETENTION_DELETE_MAX_BATCHES))
+    total_deleted = 0
+    base_sql = str(delete_sql).strip().rstrip(";")
+    for _ in range(batch_count):
+        cursor.execute(
+            f"{base_sql}\nLIMIT ?",
+            tuple(params or ()) + (batch_limit,),
+        )
+        deleted = max(0, int(cursor.rowcount or 0))
+        total_deleted += deleted
+        if deleted < batch_limit:
+            break
+    return total_deleted
+
+
 def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
     cursor.execute(
         """
@@ -3655,33 +3713,36 @@ def maybe_prune_telemetry_size_cap(force=False):
     }
 
 
-def prune_tank_data_retention(cursor):
-    cursor.execute(
+def prune_tank_data_retention(cursor, max_batches=None):
+    return prune_delete_batches(
+        cursor,
         """
         DELETE FROM tank_data
         WHERE created_at < datetime('now', ?)
         """,
         (f"-{DATA_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    return max(0, int(cursor.rowcount or 0))
 
 
-def prune_device_events_retention(cursor):
-    cursor.execute(
+def prune_device_events_retention(cursor, max_batches=None):
+    return prune_delete_batches(
+        cursor,
         """
         DELETE FROM device_events
         WHERE event_at < datetime('now', ?)
         """,
         (f"-{DEVICE_EVENT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    return max(0, int(cursor.rowcount or 0))
 
 
-def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
+def prune_retained_rows(cursor, device_id=None, latest_row_id=None, force=False):
     pruned = {}
+    max_batches = DB_RETENTION_DELETE_FORCE_MAX_BATCHES if force else DB_RETENTION_DELETE_MAX_BATCHES
 
-    pruned["tank_data_retention"] = prune_tank_data_retention(cursor)
-    pruned["device_events_retention"] = prune_device_events_retention(cursor)
+    pruned["tank_data_retention"] = prune_tank_data_retention(cursor, max_batches=max_batches)
+    pruned["device_events_retention"] = prune_device_events_retention(cursor, max_batches=max_batches)
 
     normalized_device_id = normalize_device_id(device_id) or ""
     if latest_row_id is not None and not TELEMETRY_HISTORY_ENABLED:
@@ -3715,17 +3776,19 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
         )
         pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["device_command_queue_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM device_command_queue
         WHERE delivered_at IS NOT NULL
           AND delivered_at < datetime('now', ?)
         """,
         (f"-{DEVICE_COMMAND_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["device_command_queue_retention"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["ops_audit_log_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM ops_audit_log
         WHERE created_at < datetime('now', ?)
@@ -3738,18 +3801,19 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None):
           )
         """,
         (f"-{OPS_AUDIT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["ops_audit_log_retention"] = max(0, int(cursor.rowcount or 0))
 
-    cursor.execute(
+    pruned["ops_alerts_retention"] = prune_delete_batches(
+        cursor,
         """
         DELETE FROM ops_alerts
         WHERE active = 0
           AND COALESCE(resolved_at, updated_at, created_at) < datetime('now', ?)
         """,
         (f"-{OPS_ALERT_RETENTION_DAYS} day",),
+        max_batches=max_batches,
     )
-    pruned["ops_alerts_retention"] = max(0, int(cursor.rowcount or 0))
     return pruned
 
 
@@ -3780,6 +3844,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
                 cursor,
                 device_id=device_id,
                 latest_row_id=latest_row_id,
+                force=force,
             )
 
         size_cap_result = maybe_prune_telemetry_size_cap(force=force)
@@ -3809,7 +3874,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
                 }
             )
             return pruned
-        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows)
+        maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows, force=force)
         return pruned
     except Exception as exc:
         db_prune_state["last_error"] = str(exc)
@@ -3820,16 +3885,253 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
 
 
 def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
-    return False
+    now = time.time()
+    if not DB_MAINTENANCE_ENABLED:
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-disabled",
+            }
+        )
+        return False
+
+    if (
+        not force
+        and DB_MAINTENANCE_MIN_INTERVAL_SECONDS > 0
+        and (now - float(db_maintenance_state.get("last_run_at") or 0.0)) < DB_MAINTENANCE_MIN_INTERVAL_SECONDS
+    ):
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-interval",
+            }
+        )
+        return False
+
+    if not force and int(pruned_rows or 0) <= 0:
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-no-pruned-rows",
+            }
+        )
+        return False
+
+    if (
+        not force
+        and DB_OPTIMIZE_AFTER_PRUNE_ROWS > 0
+        and int(pruned_rows or 0) < DB_OPTIMIZE_AFTER_PRUNE_ROWS
+    ):
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "maintenance-pruned-rows-under-threshold",
+            }
+        )
+        return False
+
+    if not db_maintenance_lock.acquire(blocking=False):
+        return False
+
+    optimized_tables = []
+    try:
+        with get_db() as db:
+            cursor = db.cursor()
+            if USING_MYSQL:
+                for table_name in (
+                    "tank_data",
+                    "device_events",
+                    "device_command_queue",
+                    "ops_audit_log",
+                    "ops_alerts",
+                ):
+                    cursor.execute(f"OPTIMIZE TABLE {quote_mysql_identifier(table_name)}")
+                    optimized_tables.append(table_name)
+            else:
+                cursor.execute("PRAGMA optimize")
+                optimized_tables.append("sqlite")
+
+        file_sizes = collect_database_file_sizes()
+        db_maintenance_state.update(
+            {
+                "last_run_at": now,
+                "last_reason": reason,
+                "last_error": None,
+                "last_total_bytes": int(file_sizes.get("total_bytes") or 0),
+                "last_action": "optimize",
+                "last_pruned_rows": int(pruned_rows or 0),
+                "last_tables": optimized_tables,
+                "last_skip_reason": None,
+            }
+        )
+        return True
+    except Exception as exc:
+        db_maintenance_state.update(
+            {
+                "last_run_at": now,
+                "last_reason": reason,
+                "last_error": str(exc),
+                "last_action": "optimize-failed",
+                "last_pruned_rows": int(pruned_rows or 0),
+                "last_tables": optimized_tables,
+            }
+        )
+        logger.warning("Database maintenance failed: %s", exc)
+        return False
+    finally:
+        db_maintenance_lock.release()
 
 
-def process_telemetry_payload(data, source_ip=None, transport="http"):
-    cleaned = sanitize_payload(dict(data or {}))
+def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
+    try:
+        maybe_prune_retained_rows(
+            device_id=cleaned.get("device_id"),
+            latest_row_id=latest_row_id,
+            force=False,
+        )
+        try:
+            saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
+            reported_peer_channel = (
+                cleaned.get("direct_peer_config_channel")
+                if cleaned.get("direct_peer_config_channel") not in (None, "")
+                else cleaned.get("direct_peer_wifi_channel")
+            )
+            upsert_device_service_config(
+                cleaned.get("device_id"),
+                tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "tank_height_cm",
+                    cleaned.get("tank_height_cm"),
+                ),
+                tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "tank_capacity_liters",
+                    cleaned.get("tank_capacity_liters"),
+                ),
+                upper_tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "upper_tank_height_cm",
+                    cleaned.get("tank_height_cm"),
+                ),
+                upper_tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "upper_tank_capacity_liters",
+                    cleaned.get("tank_capacity_liters"),
+                ),
+                lower_tank_height_cm=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "lower_tank_height_cm",
+                    cleaned.get("lower_tank_height_cm"),
+                ),
+                lower_tank_capacity_liters=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "lower_tank_capacity_liters",
+                    cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
+                ),
+                auto_start_pct=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "auto_start_pct",
+                    cleaned.get("auto_start_pct"),
+                ),
+                auto_stop_pct=telemetry_config_float_seed(
+                    saved_telemetry_config,
+                    "auto_stop_pct",
+                    cleaned.get("auto_stop_pct"),
+                ),
+                telemetry_service_state=cleaned.get("telemetry_service"),
+                command_service_state=cleaned.get("command_service"),
+                relay_service_state=cleaned.get("relay_service"),
+                ota_service_state=cleaned.get("ota_service"),
+                local_firmware_upload_service_state=cleaned.get("local_firmware_upload_service"),
+                buzzer_service_state=cleaned.get("buzzer_service"),
+                led_display_service_state=cleaned.get("led_display_service"),
+                lower_tank_service_state=cleaned.get("lower_tank_service"),
+                slave_device_service_state=cleaned.get("slave_device_service"),
+                direct_peer_wifi_channel=telemetry_config_peer_channel_seed(
+                    saved_telemetry_config,
+                    reported_peer_channel,
+                ),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to upsert persisted device configuration for %s: %s",
+                cleaned.get("device_id") or "unknown device",
+                exc,
+            )
+        clear_runtime_caches(cleaned.get("device_id"))
+        record_device_simulator_state(
+            cleaned.get("device_id"),
+            simulator_payload_enabled(cleaned),
+            source=transport,
+        )
+        try:
+            firmware_log_payload = dict(cleaned)
+            if isinstance(raw_firmware_logs, list):
+                firmware_log_payload["firmware_logs"] = raw_firmware_logs
+            firmware_log_events = build_firmware_log_events_from_payload(
+                firmware_log_payload,
+                limit=24,
+                device_id=cleaned.get("device_id"),
+            )
+            if firmware_log_events:
+                persist_device_events(firmware_log_events, default_device_id=cleaned.get("device_id"))
+        except Exception as exc:
+            logger.debug("Firmware log event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+        try:
+            sync_device_events(device_id=cleaned.get("device_id"))
+        except Exception as exc:
+            logger.debug("Device event sync issue for %s: %s", cleaned.get("device_id") or "unknown device", exc)
+
+        if cleaned.get("device_source") == get_device_source_mode():
+            alert_snapshot = dict(cleaned)
+            alert_snapshot["telemetry_status"] = "fresh"
+            evaluate_snapshot_alerts(alert_snapshot)
+            if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
+                relay_status_async(cleaned)
+    except Exception as exc:
+        logger.warning(
+            "Telemetry postprocess failed for %s via %s: %s",
+            cleaned.get("device_id") or "unknown device",
+            transport,
+            exc,
+        )
+
+
+def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
+    threading.Thread(
+        target=postprocess_telemetry_payload,
+        args=(dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id),
+        daemon=True,
+    ).start()
+
+
+def process_telemetry_payload(data, source_ip=None, transport="http", defer_postprocess=False):
+    raw_payload = dict(data or {})
+    raw_firmware_logs = raw_payload.get("firmware_logs")
+    cleaned = sanitize_payload(raw_payload)
     cleaned.pop("device_key", None)
+    cleaned.pop("firmware_logs", None)
     apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     record_home_automation_status(cleaned)
+    telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
+    cleaned["telemetry_fingerprint"] = telemetry_fingerprint
+
+    if telemetry_sync_is_recent_duplicate(
+        cleaned.get("device_id"),
+        telemetry_fingerprint,
+        transport=transport,
+        source_ip=source_ip,
+    ):
+        cleaned["_telemetry_sync_result"] = "duplicate"
+        logger.info(
+            "Skipped duplicate telemetry sync via %s for device %s fingerprint=%s",
+            transport,
+            cleaned.get("device_id") or "unknown device",
+            telemetry_fingerprint[:12],
+        )
+        return cleaned
 
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
@@ -3899,8 +4201,22 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_type"),
         cleaned.get("direct_peer"),
         cleaned.get("direct_peer_remote_ip"),
+        cleaned.get("direct_peer_remote_mac"),
+        cleaned.get("direct_peer_config_channel"),
+        cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
+        cleaned.get("direct_peer_last_pong_age_s"),
+        cleaned.get("direct_peer_last_pong_nonce"),
+        cleaned.get("direct_peer_sync_pending"),
+        cleaned.get("direct_peer_sync_channel"),
+        cleaned.get("direct_peer_sync_last_ok_age_s"),
+        cleaned.get("last_ping_target"),
+        cleaned.get("last_ping_status"),
+        cleaned.get("last_ping_response_ms"),
+        cleaned.get("last_ping_age_s"),
+        cleaned.get("last_ping_nonce"),
+        cleaned.get("telemetry_fingerprint"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -3931,8 +4247,14 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
                 arch_id, node_role, device_type,
-                direct_peer, direct_peer_remote_ip, direct_peer_last_packet_age_s,
-                direct_peer_last_packet_bytes,
+                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
+                direct_peer_config_channel, direct_peer_wifi_channel,
+                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
+                direct_peer_sync_pending, direct_peer_sync_channel,
+                direct_peer_sync_last_ok_age_s,
+                last_ping_target, last_ping_status, last_ping_response_ms,
+                last_ping_age_s, last_ping_nonce, telemetry_fingerprint,
                 created_at
             )
             VALUES ({placeholders})
@@ -3941,50 +4263,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         )
         latest_row_id = cursor.lastrowid
 
-    maybe_prune_retained_rows(
-        device_id=cleaned.get("device_id"),
-        latest_row_id=latest_row_id,
-        force=True,
-    )
-    try:
-        upsert_device_service_config(
-            cleaned.get("device_id"),
-            tank_height_cm=cleaned.get("tank_height_cm"),
-            tank_capacity_liters=cleaned.get("tank_capacity_liters"),
-            upper_tank_height_cm=cleaned.get("tank_height_cm"),
-            upper_tank_capacity_liters=cleaned.get("tank_capacity_liters"),
-            lower_tank_height_cm=cleaned.get("lower_tank_height_cm"),
-            lower_tank_capacity_liters=(
-                cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters")
-            ),
-            auto_start_pct=cleaned.get("auto_start_pct"),
-            auto_stop_pct=cleaned.get("auto_stop_pct"),
-            telemetry_service_state=cleaned.get("telemetry_service"),
-            command_service_state=cleaned.get("command_service"),
-            relay_service_state=cleaned.get("relay_service"),
-            ota_service_state=cleaned.get("ota_service"),
-            local_firmware_upload_service_state=cleaned.get("local_firmware_upload_service"),
-            buzzer_service_state=cleaned.get("buzzer_service"),
-            led_display_service_state=cleaned.get("led_display_service"),
-            lower_tank_service_state=cleaned.get("lower_tank_service"),
-            slave_device_service_state=cleaned.get("slave_device_service"),
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to upsert persisted device configuration for %s: %s",
-            cleaned.get("device_id") or "unknown device",
-            exc,
-        )
     clear_runtime_caches(cleaned.get("device_id"))
-    record_device_simulator_state(
-        cleaned.get("device_id"),
-        simulator_payload_enabled(cleaned),
-        source=transport,
-    )
-    try:
-        sync_device_events(device_id=cleaned.get("device_id"))
-    except Exception as exc:
-        logger.warning("Device event sync failed for %s: %s", cleaned.get("device_id") or "unknown device", exc)
     logger.info(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
@@ -3994,12 +4273,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http"):
         cleaned.get("device_id"),
     )
 
-    if cleaned.get("device_source") == get_device_source_mode():
-        alert_snapshot = dict(cleaned)
-        alert_snapshot["telemetry_status"] = "fresh"
-        evaluate_snapshot_alerts(alert_snapshot)
-        if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
-            relay_status_async(cleaned)
+    if defer_postprocess:
+        schedule_telemetry_postprocess(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)
+    else:
+        postprocess_telemetry_payload(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)
+    cleaned["_telemetry_sync_result"] = "saved"
     return cleaned
 
 
@@ -4143,6 +4421,15 @@ def translate_mysql_schema_sql(sql):
         "target_type TEXT NOT NULL": "target_type VARCHAR(96) NOT NULL",
         "registration_source TEXT NOT NULL": "registration_source VARCHAR(191) NOT NULL",
         "cloud_feed_mode TEXT NOT NULL": "cloud_feed_mode VARCHAR(32) NOT NULL",
+        "telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "telemetry_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "command_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "command_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "relay_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "relay_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "ota_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "ota_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "local_firmware_upload_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "local_firmware_upload_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "buzzer_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "buzzer_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "led_display_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "led_display_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "lower_tank_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "lower_tank_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
+        "slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'": "slave_device_service_state VARCHAR(32) NOT NULL DEFAULT 'UNKNOWN'",
         "created_at TEXT DEFAULT CURRENT_TIMESTAMP": "created_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         "updated_at TEXT DEFAULT CURRENT_TIMESTAMP": "updated_at DATETIME DEFAULT CURRENT_TIMESTAMP",
         "first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP": "first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP",
@@ -4386,8 +4673,22 @@ def ensure_tank_data_columns(cursor):
         "device_type": "TEXT",
         "direct_peer": "TEXT",
         "direct_peer_remote_ip": "TEXT",
+        "direct_peer_remote_mac": "TEXT",
+        "direct_peer_config_channel": "INTEGER",
+        "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
+        "direct_peer_last_pong_age_s": "INTEGER",
+        "direct_peer_last_pong_nonce": "INTEGER",
+        "direct_peer_sync_pending": "INTEGER",
+        "direct_peer_sync_channel": "INTEGER",
+        "direct_peer_sync_last_ok_age_s": "INTEGER",
+        "last_ping_target": "TEXT",
+        "last_ping_status": "TEXT",
+        "last_ping_response_ms": "INTEGER",
+        "last_ping_age_s": "INTEGER",
+        "last_ping_nonce": "INTEGER",
+        "telemetry_fingerprint": "VARCHAR(64)",
     }
 
     for column, definition in required.items():
@@ -4490,8 +4791,22 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             device_type TEXT,
             direct_peer TEXT,
             direct_peer_remote_ip TEXT,
+            direct_peer_remote_mac TEXT,
+            direct_peer_config_channel INTEGER,
+            direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
             direct_peer_last_packet_bytes INTEGER,
+            direct_peer_last_pong_age_s INTEGER,
+            direct_peer_last_pong_nonce INTEGER,
+            direct_peer_sync_pending INTEGER,
+            direct_peer_sync_channel INTEGER,
+            direct_peer_sync_last_ok_age_s INTEGER,
+            last_ping_target TEXT,
+            last_ping_status TEXT,
+            last_ping_response_ms INTEGER,
+            last_ping_age_s INTEGER,
+            last_ping_nonce INTEGER,
+            telemetry_fingerprint VARCHAR(64),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """
@@ -4529,6 +4844,21 @@ def ensure_device_command_queue_table(cursor):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_device TEXT NOT NULL,
             command TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            delivered_at TEXT
+        )
+        """
+    )
+
+
+def ensure_device_mobile_action_queue_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_mobile_action_queue(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_device TEXT NOT NULL,
+            action TEXT NOT NULL,
+            payload_json TEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             delivered_at TEXT
         )
@@ -4743,6 +5073,7 @@ def ensure_device_service_configs_table(cursor):
             local_firmware_upload_enabled INTEGER NOT NULL DEFAULT 1,
             buzzer_enabled INTEGER NOT NULL DEFAULT 1,
             led_display_enabled INTEGER NOT NULL DEFAULT 1,
+            auto_mode_enabled INTEGER NOT NULL DEFAULT 0,
             android_sso_session_limit INTEGER NOT NULL DEFAULT 1,
             tank_height_cm REAL,
             tank_capacity_liters REAL,
@@ -4771,6 +5102,7 @@ def ensure_device_service_configs_table(cursor):
 
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
+    added_auto_mode_enabled = False
     required = {
         "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "master_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
@@ -4784,6 +5116,7 @@ def ensure_device_service_configs_columns(cursor):
         "local_firmware_upload_enabled": "INTEGER NOT NULL DEFAULT 1",
         "buzzer_enabled": "INTEGER NOT NULL DEFAULT 1",
         "led_display_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "auto_mode_enabled": "INTEGER NOT NULL DEFAULT 0",
         "android_sso_session_limit": "INTEGER NOT NULL DEFAULT 1",
         "tank_height_cm": "REAL",
         "tank_capacity_liters": "REAL",
@@ -4809,6 +5142,16 @@ def ensure_device_service_configs_columns(cursor):
     for column, definition in required.items():
         if column not in existing:
             cursor.execute(f"ALTER TABLE device_service_configs ADD COLUMN {column} {definition}")
+            if column == "auto_mode_enabled":
+                added_auto_mode_enabled = True
+    if added_auto_mode_enabled:
+        cursor.execute(
+            """
+            UPDATE device_service_configs
+            SET auto_mode_enabled = 1
+            WHERE auto_mode_enabled IS NULL OR auto_mode_enabled = 0
+            """
+        )
 
 
 def ensure_registered_devices_table(cursor):
@@ -4861,12 +5204,15 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_created ON tank_data(device_id, device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_id ON tank_data(device_id, device_source(16), id DESC)",
+        "CREATE INDEX idx_tank_data_device_fingerprint ON tank_data(device_id, telemetry_fingerprint, created_at DESC, id DESC)",
         "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
         "CREATE INDEX idx_alerts_device_active_updated ON ops_alerts(device_id, active, updated_at DESC, id DESC)",
         "CREATE INDEX idx_device_events_device_event_at ON device_events(device_id, event_at DESC, id DESC)",
         "CREATE INDEX idx_device_events_kind_event_at ON device_events(event_kind, event_at DESC)",
         "CREATE INDEX idx_device_command_queue_target_pending ON device_command_queue(target_device, delivered_at, id DESC)",
         "CREATE INDEX idx_device_command_queue_target_command ON device_command_queue(target_device, delivered_at, command, id DESC)",
+        "CREATE INDEX idx_device_mobile_action_queue_target_pending ON device_mobile_action_queue(target_device, delivered_at, id DESC)",
+        "CREATE INDEX idx_device_mobile_action_queue_target_action ON device_mobile_action_queue(target_device, delivered_at, action, id DESC)",
         "CREATE INDEX idx_relay_queue_next_attempt ON relay_queue(next_attempt_at, id)",
         "CREATE INDEX idx_firmware_artifacts_target_created ON firmware_artifacts(target_device, created_at DESC, id DESC)",
         "CREATE INDEX idx_firmware_artifacts_target_role_created ON firmware_artifacts(target_device, target_role, created_at DESC, id DESC)",
@@ -5065,10 +5411,24 @@ def init_db():
                 device_type TEXT,
                 direct_peer TEXT,
                 direct_peer_remote_ip TEXT,
-                direct_peer_last_packet_age_s INTEGER,
-                direct_peer_last_packet_bytes INTEGER,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                direct_peer_remote_mac TEXT,
+            direct_peer_config_channel INTEGER,
+            direct_peer_wifi_channel INTEGER,
+            direct_peer_last_packet_age_s INTEGER,
+            direct_peer_last_packet_bytes INTEGER,
+            direct_peer_last_pong_age_s INTEGER,
+            direct_peer_last_pong_nonce INTEGER,
+            direct_peer_sync_pending INTEGER,
+            direct_peer_sync_channel INTEGER,
+            direct_peer_sync_last_ok_age_s INTEGER,
+            last_ping_target TEXT,
+            last_ping_status TEXT,
+            last_ping_response_ms INTEGER,
+            last_ping_age_s INTEGER,
+            last_ping_nonce INTEGER,
+            telemetry_fingerprint VARCHAR(64),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
             """
         )
         ensure_tank_data_columns(cursor)
@@ -5076,6 +5436,7 @@ def init_db():
         remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
+        ensure_device_mobile_action_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_firmware_artifacts_columns(cursor)
         ensure_android_app_releases_table(cursor)
@@ -5809,6 +6170,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     local_firmware_upload_enabled = boolish_enabled(payload.get("local_firmware_upload_enabled"), default=True)
     buzzer_enabled = boolish_enabled(payload.get("buzzer_enabled"), default=True)
     led_display_enabled = boolish_enabled(payload.get("led_display_enabled"), default=True)
+    auto_mode_enabled = boolish_enabled(payload.get("auto_mode_enabled"), default=False)
     android_sso_session_limit = normalize_android_sso_session_limit(payload.get("android_sso_session_limit"))
     tank_height_cm = normalize_optional_config_float(payload.get("tank_height_cm"))
     tank_capacity_liters = normalize_optional_config_float(payload.get("tank_capacity_liters"))
@@ -5870,6 +6232,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "cloud_feed_mode_label": DEVICE_SERVICE_CLOUD_MODE_LABELS.get(cloud_feed_mode, "Unknown"),
         "cloud_feed_enabled": effective_cloud_feed_enabled,
         "cloud_note": cloud_note,
+        "auto_mode_enabled": auto_mode_enabled,
+        "auto_mode_label": "Enabled" if auto_mode_enabled else "Disabled",
         "ota_enabled": ota_enabled,
         "local_firmware_upload_enabled": local_firmware_upload_enabled,
         "buzzer_enabled": buzzer_enabled,
@@ -5922,6 +6286,7 @@ def default_device_service_config(device_id=None, account=None):
             "source_tank_monitoring_enabled": True,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
+            "auto_mode_enabled": False,
             "cloud_feed_mode": (
                 DEVICE_SERVICE_CLOUD_FEED_FULL if cloud_feed_enabled else DEVICE_SERVICE_CLOUD_FEED_OFF
             ),
@@ -5962,6 +6327,28 @@ def snapshot_device_service_flag(snapshot, *keys):
             return True
         if value in {"OFF", "FALSE", "NO", "0", "DISABLED"}:
             return False
+    return None
+
+
+def snapshot_device_auto_mode_enabled(snapshot):
+    if not snapshot:
+        return None
+
+    direct_flag = snapshot_device_service_flag(snapshot, "auto_mode_enabled", "auto_control_enabled", "automation_enabled")
+    if direct_flag is not None:
+        return direct_flag
+
+    mode = str(snapshot.get("mode") or "").strip().upper()
+    if mode == "AUTO":
+        return True
+    if mode == "MANUAL":
+        return False
+
+    auto_status = str(snapshot.get("auto_status") or "").strip().lower()
+    if "manual" in auto_status:
+        return False
+    if "auto" in auto_status:
+        return True
     return None
 
 
@@ -6035,6 +6422,10 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         if snapshot_key in snapshot:
             base_payload[config_key] = normalize_optional_service_state(snapshot.get(snapshot_key))
 
+    live_auto_mode_enabled = snapshot_device_auto_mode_enabled(snapshot)
+    if live_auto_mode_enabled is not None:
+        base_payload["auto_mode_enabled"] = live_auto_mode_enabled
+
     return serialize_device_service_config(resolved_device_id, base_payload, account=account)
 
 
@@ -6057,11 +6448,11 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
                    slave_device_enabled, slave_upper_sensor_enabled,
                    source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                   buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                   buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
                    upper_tank_height_cm, upper_tank_capacity_liters,
                    lower_tank_height_cm, lower_tank_capacity_liters,
-                   auto_start_pct, auto_stop_pct,
+                   auto_start_pct, auto_stop_pct, direct_peer_wifi_channel,
                    telemetry_service_state, command_service_state, relay_service_state,
                    ota_service_state, local_firmware_upload_service_state,
                    buzzer_service_state, led_display_service_state,
@@ -6098,11 +6489,11 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                slave_device_enabled, slave_upper_sensor_enabled,
                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-               buzzer_enabled, led_display_enabled, android_sso_session_limit,
+               buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
                upper_tank_height_cm, upper_tank_capacity_liters,
                lower_tank_height_cm, lower_tank_capacity_liters,
-               auto_start_pct, auto_stop_pct,
+               auto_start_pct, auto_stop_pct, direct_peer_wifi_channel,
                telemetry_service_state, command_service_state, relay_service_state,
                ota_service_state, local_firmware_upload_service_state,
                buzzer_service_state, led_display_service_state,
@@ -6178,6 +6569,7 @@ def upsert_device_service_config(
     local_firmware_upload_enabled=None,
     buzzer_enabled=None,
     led_display_enabled=None,
+    auto_mode_enabled=None,
     android_sso_session_limit=None,
     tank_height_cm=None,
     tank_capacity_liters=None,
@@ -6258,6 +6650,10 @@ def upsert_device_service_config(
     resolved_led_display_enabled = boolish_enabled(
         led_display_enabled,
         default=existing.get("led_display_enabled", True),
+    )
+    resolved_auto_mode_enabled = boolish_enabled(
+        auto_mode_enabled,
+        default=existing.get("auto_mode_enabled", False),
     )
     resolved_android_sso_session_limit = normalize_android_sso_session_limit(
         android_sso_session_limit,
@@ -6343,7 +6739,7 @@ def upsert_device_service_config(
                 slave_device_enabled, slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
-                buzzer_enabled, led_display_enabled, android_sso_session_limit,
+                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
                 upper_tank_height_cm, upper_tank_capacity_liters,
                 lower_tank_height_cm, lower_tank_capacity_liters,
@@ -6354,7 +6750,7 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -6368,6 +6764,7 @@ def upsert_device_service_config(
                 local_firmware_upload_enabled=excluded.local_firmware_upload_enabled,
                 buzzer_enabled=excluded.buzzer_enabled,
                 led_display_enabled=excluded.led_display_enabled,
+                auto_mode_enabled=excluded.auto_mode_enabled,
                 android_sso_session_limit=excluded.android_sso_session_limit,
                 tank_height_cm=excluded.tank_height_cm,
                 tank_capacity_liters=excluded.tank_capacity_liters,
@@ -6403,6 +6800,7 @@ def upsert_device_service_config(
                 1 if resolved_local_firmware_upload_enabled else 0,
                 1 if resolved_buzzer_enabled else 0,
                 1 if resolved_led_display_enabled else 0,
+                1 if resolved_auto_mode_enabled else 0,
                 resolved_android_sso_session_limit,
                 resolved_tank_height_cm,
                 resolved_tank_capacity_liters,
@@ -6451,7 +6849,8 @@ def build_device_service_command(service_config):
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
     relay_enabled = bool(config.get("relay_enabled", True))
-    return "SERVICECFG4:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}".format(
+    auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
+    return "SERVICECFG5:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -6460,6 +6859,7 @@ def build_device_service_command(service_config):
         led=1 if bool(config.get("led_display_enabled")) else 0,
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
+        auto_mode=1 if auto_mode_enabled else 0,
     )
 
 
@@ -6519,6 +6919,21 @@ def _coerce_optional_peer_channel_value(value):
     return resolved
 
 
+def telemetry_config_float_seed(saved_config, config_key, reported_value):
+    if normalize_optional_config_float((saved_config or {}).get(config_key)) is not None:
+        return None
+    return reported_value
+
+
+def telemetry_config_peer_channel_seed(saved_config, reported_value):
+    try:
+        if _coerce_optional_peer_channel_value((saved_config or {}).get("direct_peer_wifi_channel")) is not None:
+            return None
+    except ValueError:
+        pass
+    return reported_value
+
+
 def snapshot_device_automation_settings(snapshot, device_id=None):
     if not snapshot:
         return None
@@ -6563,21 +6978,6 @@ def save_device_automation_settings(device_id, auto_start_pct, auto_stop_pct, so
 
 def fetch_device_automation_settings(device_id, snapshot=None):
     normalized_device_id = normalize_device_id(device_id)
-    live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
-    if live_settings:
-        stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
-        if (
-            safe_float((stored_service_config or {}).get("auto_start_pct"), -1) != live_settings["auto_start_pct"]
-            or safe_float((stored_service_config or {}).get("auto_stop_pct"), -1) != live_settings["auto_stop_pct"]
-        ):
-            save_device_automation_settings(
-                normalized_device_id,
-                live_settings["auto_start_pct"],
-                live_settings["auto_stop_pct"],
-                source="telemetry_sync",
-            )
-        return live_settings
-
     stored_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
     stored_auto_start_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_start_pct"))
     stored_auto_stop_pct = _coerce_optional_threshold_value((stored_service_config or {}).get("auto_stop_pct"))
@@ -6614,6 +7014,18 @@ def fetch_device_automation_settings(device_id, snapshot=None):
                     payload.get("updated_at"),
                 )
 
+    live_settings = snapshot_device_automation_settings(snapshot, device_id=normalized_device_id)
+    if live_settings:
+        seed_device_id = normalized_device_id or live_settings.get("device_id")
+        if not seed_device_id:
+            return live_settings
+        return save_device_automation_settings(
+            seed_device_id,
+            live_settings["auto_start_pct"],
+            live_settings["auto_stop_pct"],
+            source="telemetry_seed",
+        )
+
     return default_device_automation_settings(normalized_device_id)
 
 
@@ -6649,6 +7061,8 @@ def build_current_saved_config(device_id, account=None):
         "device_id": normalized_device_id,
         "configuration_source": "db_upsert",
         "updated_at": updated_at,
+        "auto_mode_enabled": saved_service_config.get("auto_mode_enabled"),
+        "auto_mode_label": saved_service_config.get("auto_mode_label"),
         "tank_height_cm": saved_service_config.get("tank_height_cm"),
         "tank_capacity_liters": saved_service_config.get("tank_capacity_liters"),
         "upper_tank_height_cm": saved_service_config.get("upper_tank_height_cm"),
@@ -6736,7 +7150,7 @@ def build_runtime_sync_command(device_id, snapshot=None, account=None):
         return None
 
     live_snapshot = snapshot or fetch_device_snapshot(normalized_device_id)
-    if not snapshot_has_live_device_data(live_snapshot):
+    if not snapshot_is_fresh_enough_for_runtime_sync(live_snapshot):
         return None
 
     saved_config = build_current_saved_config(normalized_device_id, account=account)
@@ -7313,7 +7727,16 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["level"] = round(level, 2)
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
-    data["simulator"] = str(data.get("simulator") or "OFF").strip().upper() or "OFF"
+    stored_simulator_state = load_device_simulator_state(data.get("device_id"))
+    stored_simulator_source = str((stored_simulator_state or {}).get("source") or "").strip()
+    stored_simulator_enabled = (
+        bool(stored_simulator_state.get("enabled"))
+        if stored_simulator_state and stored_simulator_source != "admin_command"
+        else None
+    )
+    data["simulator"] = (
+        "ON" if stored_simulator_enabled else "OFF"
+    ) if stored_simulator_enabled is not None else str(data.get("simulator") or "OFF").strip().upper() or "OFF"
     if data["simulator"] not in {"ON", "OFF"}:
         data["simulator"] = "OFF"
     data["source_tank_simulator"] = str(data.get("source_tank_simulator") or "OFF").strip().upper() or "OFF"
@@ -7404,11 +7827,27 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     data["local_firmware_upload_service"] = normalize_service_state(data.get("local_firmware_upload_service"))
     data["direct_peer"] = str(data.get("direct_peer") or "").strip().lower()
     data["direct_peer_remote_ip"] = str(data.get("direct_peer_remote_ip") or "").strip()
-    for key in ("direct_peer_last_packet_age_s", "direct_peer_last_packet_bytes"):
+    data["direct_peer_remote_mac"] = str(data.get("direct_peer_remote_mac") or "").strip()
+    data["last_ping_target"] = str(data.get("last_ping_target") or "").strip().lower()
+    data["last_ping_status"] = str(data.get("last_ping_status") or "").strip().lower()
+    for key in (
+        "direct_peer_config_channel",
+        "direct_peer_wifi_channel",
+        "direct_peer_last_packet_age_s",
+        "direct_peer_last_packet_bytes",
+        "direct_peer_last_pong_age_s",
+        "direct_peer_last_pong_nonce",
+        "direct_peer_sync_channel",
+        "direct_peer_sync_last_ok_age_s",
+        "last_ping_response_ms",
+        "last_ping_age_s",
+        "last_ping_nonce",
+    ):
         try:
             data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
         except (TypeError, ValueError):
             data[key] = None
+    data["direct_peer_sync_pending"] = bool_flag(data.get("direct_peer_sync_pending"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
@@ -7765,6 +8204,38 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
         "tank_health_reasons": ["No data has been received yet."],
         "device_id": normalized_device_id or None,
     }
+    live_snapshot_available = bool(snapshot and snapshot.get("device_id"))
+    snapshot_level = round(safe_float(snapshot.get("level"), 0), 2)
+    snapshot_motor = str(snapshot.get("motor") or "OFF").strip().upper()
+    snapshot_time = format_timestamp(snapshot.get("created_at")) or now_utc().strftime(TIMESTAMP_FORMAT)
+    snapshot_dt = parse_timestamp(snapshot_time) or now_utc()
+    baseline_time = (snapshot_dt - timedelta(minutes=10)).strftime(TIMESTAMP_FORMAT)
+    snapshot_date = (parse_timestamp(snapshot_time) or now_utc()).strftime(DATE_ONLY_FORMAT)
+    level_times = [baseline_time, snapshot_time] if live_snapshot_available else []
+    level_values = [snapshot_level, snapshot_level] if live_snapshot_available else []
+    motor_times = [baseline_time, snapshot_time] if live_snapshot_available else []
+    motor_values = [1 if snapshot_motor == "ON" else 0, 1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
+    daily_dates = []
+    if live_snapshot_available:
+        cursor_date = start_dt.date()
+        final_date = (end_exclusive - timedelta(days=1)).date()
+        while cursor_date <= final_date and len(daily_dates) < 62:
+            daily_dates.append(cursor_date.isoformat())
+            cursor_date += timedelta(days=1)
+        if snapshot_date not in daily_dates:
+            daily_dates.append(snapshot_date)
+    daily_values = [0.0] if live_snapshot_available else []
+    if daily_dates:
+        daily_values = [0.0] * len(daily_dates)
+    fallback_alert = (
+        f"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."
+        if live_snapshot_available and normalized_device_id
+        else (
+            f"No telemetry available for device {normalized_device_id} in the selected range."
+            if normalized_device_id
+            else "No telemetry available for the selected range."
+        )
+    )
 
     payload = {
         "range": {
@@ -7781,7 +8252,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "motor_cycles": int(motor_cycles),
             "consumption_rate": 0,
             "leak_events": int(leak_events),
-            "avg_daily_usage": 0,
+            "avg_daily_usage": None,
             "peak_usage_day": "--",
             "peak_usage_value": 0,
             "lowest_usage_day": "--",
@@ -7795,10 +8266,10 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "status": snapshot.get("tank_health_status", "Healthy"),
             "reasons": snapshot.get("tank_health_reasons", ["No data has been received yet."])
         },
-        "daily": {"dates": [], "values": []},
+        "daily": {"dates": daily_dates, "values": daily_values},
         "pattern": {"hours": list(range(24)), "values": [0] * 24},
-        "levels": {"time": [], "values": []},
-        "motor": {"time": [], "values": []},
+        "levels": {"time": level_times, "values": level_values},
+        "motor": {"time": motor_times, "values": motor_values},
         "comparison": {
             "latest_day": "--",
             "latest_day_usage": 0,
@@ -7806,7 +8277,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "previous_day_usage": 0,
             "change_pct": None
         },
-        "prediction": {"tomorrow_usage": 0},
+        "prediction": {"tomorrow_usage": None},
         "analysis": {
             "quality": {
                 "score": 20,
@@ -7832,8 +8303,9 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             },
             "model": {
                 "family": "robust-rule-ml-hybrid",
-                "signals": [],
+                "signals": ["live_snapshot_fallback"] if live_snapshot_available else [],
             },
+            "live_snapshot_fallback": live_snapshot_available,
         },
         "events_analysis": {
             "event_count": 0,
@@ -7855,7 +8327,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "short_cycle_count": 0,
             "avg_off_seconds": 0,
         },
-        "alerts": [f"No telemetry available for device {normalized_device_id} in the selected range."] if normalized_device_id else ["No telemetry available for the selected range."]
+        "alerts": [fallback_alert]
     }
     payload["guidance"] = build_shared_guidance_payload(snapshot, payload)
     return payload
@@ -8485,8 +8957,21 @@ def build_empty_snapshot_payload(device_id=None):
         "local_firmware_upload_service": "UNKNOWN",
         "direct_peer": "",
         "direct_peer_remote_ip": "",
+        "direct_peer_remote_mac": "",
+        "direct_peer_config_channel": None,
+        "direct_peer_wifi_channel": None,
         "direct_peer_last_packet_age_s": None,
         "direct_peer_last_packet_bytes": None,
+        "direct_peer_last_pong_age_s": None,
+        "direct_peer_last_pong_nonce": None,
+        "direct_peer_sync_pending": False,
+        "direct_peer_sync_channel": None,
+        "direct_peer_sync_last_ok_age_s": None,
+        "last_ping_target": "",
+        "last_ping_status": "",
+        "last_ping_response_ms": None,
+        "last_ping_age_s": None,
+        "last_ping_nonce": None,
         "uptime_label": "--",
         "free_heap_label": "--",
         "cpu_utilization_pct_label": "--",
@@ -8526,14 +9011,37 @@ def load_dashboard_snapshot(device_id=None):
 
 
 def snapshot_has_live_device_data(snapshot):
-    return bool(snapshot and snapshot.get("device_id"))
+    if not snapshot:
+        return False
+    telemetry_status = str(snapshot.get("telemetry_status") or "").strip().lower()
+    if telemetry_status in {"", "no-data", "unknown"}:
+        return False
+    return bool(snapshot.get("device_id"))
 
 
-def build_system_status_payload(snapshot, device_id=None):
+def snapshot_is_fresh_enough_for_runtime_sync(snapshot):
+    if not snapshot_has_live_device_data(snapshot):
+        return False
+    telemetry_status = str(snapshot.get("telemetry_status") or "").strip().lower()
+    if telemetry_status in {"stale", "offline"}:
+        return False
+    seconds_since_sync = snapshot.get("seconds_since_sync")
+    try:
+        return seconds_since_sync is None or float(seconds_since_sync) <= STALE_AFTER_SECONDS
+    except (TypeError, ValueError):
+        return True
+
+
+def build_system_status_payload(snapshot, device_id=None, service_config=None):
     if snapshot_has_live_device_data(snapshot):
         evaluate_snapshot_alerts(snapshot)
     device_state = device_status_from_snapshot(snapshot if snapshot_has_live_device_data(snapshot) else None)
     active_alerts = fetch_active_alerts(limit=6, device_id=device_id)
+    normalized_device_id = normalize_device_id(device_id or ((snapshot or {}).get("device_id") if snapshot else None))
+    resolved_service_config = service_config
+    if resolved_service_config is None and normalized_device_id:
+        resolved_service_config = fetch_device_service_config(normalized_device_id, snapshot=snapshot)
+    node_status = admin_node_status_fields(snapshot or {}, resolved_service_config or {})
 
     return {
         "server": "online",
@@ -8564,6 +9072,10 @@ def build_system_status_payload(snapshot, device_id=None):
         "buzzer_service": snapshot.get("buzzer_service") if snapshot else "UNKNOWN",
         "led_display_service": snapshot.get("led_display_service") if snapshot else "UNKNOWN",
         "local_firmware_upload_service": snapshot.get("local_firmware_upload_service") if snapshot else "UNKNOWN",
+        "master_status_label": node_status.get("master_status_label"),
+        "master_status_tone": node_status.get("master_status_tone"),
+        "slave_status_label": node_status.get("slave_status_label"),
+        "slave_status_tone": node_status.get("slave_status_tone"),
         "uptime_label": snapshot.get("uptime_label") if snapshot else "--",
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
@@ -8718,6 +9230,10 @@ def build_db_summary_payload():
             "target_size_bytes": DB_TARGET_SIZE_BYTES,
             "min_interval_seconds": DB_MAINTENANCE_MIN_INTERVAL_SECONDS,
             "wal_autocheckpoint_pages": DB_WAL_AUTOCHECKPOINT_PAGES,
+            "retention_delete_batch_rows": DB_RETENTION_DELETE_BATCH_ROWS,
+            "retention_delete_max_batches": DB_RETENTION_DELETE_MAX_BATCHES,
+            "retention_delete_force_max_batches": DB_RETENTION_DELETE_FORCE_MAX_BATCHES,
+            "optimize_after_prune_rows": DB_OPTIMIZE_AFTER_PRUNE_ROWS,
             "temporary_size_guard_enabled": TEMP_DB_SIZE_GUARD_ENABLED,
             "temporary_hard_size_cap_enabled": TEMP_HARD_DB_CAP_ENABLED,
             "hard_size_cap_batch_rows": TEMP_HARD_DB_CAP_BATCH_ROWS,
@@ -8730,6 +9246,9 @@ def build_db_summary_payload():
             "last_reason": db_maintenance_state.get("last_reason"),
             "last_error": db_maintenance_state.get("last_error"),
             "last_total_bytes": db_maintenance_state.get("last_total_bytes"),
+            "last_action": db_maintenance_state.get("last_action"),
+            "last_pruned_rows": db_maintenance_state.get("last_pruned_rows"),
+            "last_tables": db_maintenance_state.get("last_tables"),
             "last_skip_at_epoch": db_maintenance_state.get("last_skip_at"),
             "last_skip_reason": db_maintenance_state.get("last_skip_reason"),
             "last_size_cap_pruned_rows": db_prune_state.get("last_size_cap_rows"),
@@ -9025,6 +9544,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
     else:
         guidance_snapshot = latest_row
+    payload["latest_sync_at"] = format_timestamp(latest_row.get("created_at")) if latest_row else None
     payload["guidance"] = build_shared_guidance_payload(guidance_snapshot, payload)
 
     return store_cached_analytics(cache_key, payload, now_ts=now_ts)
@@ -9052,6 +9572,140 @@ def format_analytics_csv_value(value, digits=2):
         return f"{float(value):.{digits}f}"
     except (TypeError, ValueError):
         return str(value)
+
+
+TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
+    "device_id",
+    "device_source",
+    "level",
+    "motor",
+    "mode",
+    "leak",
+    "pump_failure",
+    "abnormal",
+    "drip",
+    "slow_leak",
+    "pipe_leak",
+    "dry_run",
+    "wifi",
+    "sensor",
+    "sensor_info",
+    "sensor_distance_cm",
+    "tank_height_cm",
+    "tank_capacity_liters",
+    "auto_start_pct",
+    "auto_stop_pct",
+    "auto_start_stable_ms",
+    "auto_level_average_samples",
+    "auto_status",
+    "auto_status_tone",
+    "auto_timer",
+    "tank_health",
+    "lower_tank_level",
+    "lower_sensor",
+    "lower_sensor_info",
+    "lower_sensor_distance_cm",
+    "firmware_version",
+    "slave_firmware_version",
+    "reset_reason",
+    "device_local_url",
+    "channel_mode",
+    "telemetry_service",
+    "command_service",
+    "ota_service",
+    "lower_tank_service",
+    "buzzer_service",
+    "led_display_service",
+    "local_firmware_upload_service",
+    "arch_id",
+    "node_role",
+    "device_type",
+    "direct_peer",
+    "direct_peer_remote_ip",
+    "direct_peer_remote_mac",
+    "direct_peer_config_channel",
+    "direct_peer_wifi_channel",
+    "direct_peer_sync_pending",
+    "direct_peer_sync_channel",
+)
+
+
+def normalize_telemetry_fingerprint_value(value):
+    if value in (None, "", "null"):
+        return ""
+    if isinstance(value, bool):
+        return "1" if value else "0"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        normalized = f"{value:.3f}".rstrip("0").rstrip(".")
+        return normalized or "0"
+
+    text = str(value).strip()
+    if not text:
+        return ""
+    lowered = text.lower()
+    if lowered in {"true", "false"}:
+        return "1" if lowered == "true" else "0"
+    try:
+        numeric = float(text)
+        if math.isfinite(numeric) and re.fullmatch(r"[-+]?\d+(?:\.\d+)?", text):
+            normalized = f"{numeric:.3f}".rstrip("0").rstrip(".")
+            return normalized or "0"
+    except (TypeError, ValueError):
+        pass
+    return lowered
+
+
+def build_telemetry_sync_fingerprint(cleaned):
+    if not isinstance(cleaned, dict):
+        return ""
+    fingerprint_source = "|".join(
+        f"{field}={normalize_telemetry_fingerprint_value(cleaned.get(field))}"
+        for field in TELEMETRY_SYNC_FINGERPRINT_FIELDS
+    ).strip("|")
+    if not fingerprint_source:
+        return ""
+    return hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
+
+
+def telemetry_sync_is_local_transport(transport=None, source_ip=None):
+    normalized_transport = str(transport or "").strip().lower()
+    normalized_source = str(source_ip or "").strip().lower()
+    return normalized_transport in LOCAL_SYNC_TRANSPORTS or normalized_source in LOCAL_SYNC_TRANSPORTS
+
+
+def telemetry_sync_is_recent_duplicate(device_id, fingerprint, transport=None, source_ip=None):
+    if not telemetry_sync_is_local_transport(transport=transport, source_ip=source_ip):
+        return False
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_fingerprint = str(fingerprint or "").strip()
+    if not normalized_device_id or not normalized_fingerprint:
+        return False
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT created_at
+            FROM tank_data
+            WHERE device_id = ?
+              AND telemetry_fingerprint = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id, normalized_fingerprint),
+        ).fetchone()
+
+    if not row:
+        return False
+
+    created_at = parse_timestamp(row["created_at"])
+    if created_at is None:
+        return False
+    age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
+    return age_seconds <= TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS
 
 
 def build_analytics_csv_rows(payload, device_id=None):
@@ -9179,18 +9833,31 @@ def device_status_from_snapshot(snapshot):
     }
 
 
-def build_generated_device_events(limit=12, device_id=None, include_pair=True):
+def build_generated_device_events(limit=12, device_id=None, include_pair=True, row_limit=None):
     if not TELEMETRY_HISTORY_ENABLED:
         return []
 
     normalized_device_id = normalize_device_id(device_id)
+    requested_limit = max(1, int(limit or 12))
+    try:
+        requested_row_limit = int(row_limit) if row_limit is not None else requested_limit * 4
+    except (TypeError, ValueError):
+        requested_row_limit = requested_limit * 4
+    telemetry_row_limit = max(20, min(240, requested_row_limit))
     if include_pair and normalized_device_id:
         activity_device_ids = paired_activity_device_ids(normalized_device_id)
         if len(activity_device_ids) > 1:
             events = []
             for activity_device_id in activity_device_ids:
-                events.extend(build_generated_device_events(limit=limit, device_id=activity_device_id, include_pair=False))
-            combined_limit = max(1, int(limit or 12))
+                events.extend(
+                    build_generated_device_events(
+                        limit=limit,
+                        device_id=activity_device_id,
+                        include_pair=False,
+                        row_limit=telemetry_row_limit,
+                    )
+                )
+            combined_limit = requested_limit
             return sorted(events, key=lambda event: str(event.get("time") or ""), reverse=True)[:combined_limit]
 
     source_clause, source_params = device_source_where_clause()
@@ -9201,7 +9868,16 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
                local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
-               node_role, device_type, created_at
+               node_role, device_type,
+               direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
+               direct_peer_config_channel, direct_peer_wifi_channel,
+               direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
+               direct_peer_sync_pending, direct_peer_sync_channel,
+               direct_peer_sync_last_ok_age_s,
+               last_ping_target, last_ping_status, last_ping_response_ms,
+               last_ping_age_s, last_ping_nonce,
+               created_at
         FROM tank_data
         WHERE 
     """
@@ -9210,11 +9886,13 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
     if normalized_device_id:
         query += " AND device_id = ?"
         params.append(normalized_device_id)
-    query += " ORDER BY created_at DESC, id DESC LIMIT 240"
+    query += " ORDER BY created_at DESC, id DESC LIMIT ?"
+    params.append(telemetry_row_limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
 
     timeline = []
+    latest_peer_row = dict(rows[0]) if rows else None
     previous = None
     pump_started_at = None
     pump_started_level = None
@@ -9242,11 +9920,12 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         ("tank_height_cm", "Tank height"),
         ("tank_capacity_liters", "Tank capacity"),
     )
+    event_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
 
-    def add_event(current, severity, message, kind, details=None):
+    def add_event(current, severity, message, kind, details=None, event_time=None):
         timeline.append(
             {
-                "time": format_timestamp(current.get("created_at")),
+                "time": format_timestamp(event_time or current.get("created_at")),
                 "severity": severity,
                 "message": message,
                 "kind": kind,
@@ -9270,6 +9949,315 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
             "duration_label": format_compact_uptime(duration_seconds),
         }
 
+    def peer_channel_label(value):
+        try:
+            channel = int(value)
+        except (TypeError, ValueError):
+            return "--"
+        return str(channel) if 1 <= channel <= 13 else "--"
+
+    def peer_packet_age(current):
+        try:
+            return int(current.get("direct_peer_last_packet_age_s"))
+        except (TypeError, ValueError):
+            return None
+
+    def peer_link_state(current):
+        if str(current.get("direct_peer") or "").strip().lower() in {"", "disabled", "off"}:
+            return "disabled"
+        age = peer_packet_age(current)
+        if age is None or age < 0:
+            return "waiting"
+        if age <= DIRECT_PEER_STALE_AFTER_SECONDS:
+            return "reachable"
+        return "stale"
+
+    def peer_event_details(current, extra=None):
+        details = {
+            "direct_peer": current.get("direct_peer"),
+            "direct_peer_config_channel": current.get("direct_peer_config_channel"),
+            "direct_peer_wifi_channel": current.get("direct_peer_wifi_channel"),
+            "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
+            "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
+            "direct_peer_last_pong_age_s": current.get("direct_peer_last_pong_age_s"),
+            "direct_peer_last_pong_nonce": current.get("direct_peer_last_pong_nonce"),
+            "direct_peer_remote_ip": current.get("direct_peer_remote_ip"),
+            "direct_peer_remote_mac": current.get("direct_peer_remote_mac"),
+            "direct_peer_sync_pending": bool_flag(current.get("direct_peer_sync_pending")),
+            "direct_peer_sync_channel": current.get("direct_peer_sync_channel"),
+            "direct_peer_sync_last_ok_age_s": current.get("direct_peer_sync_last_ok_age_s"),
+            "last_ping_target": current.get("last_ping_target"),
+            "last_ping_status": current.get("last_ping_status"),
+            "last_ping_response_ms": current.get("last_ping_response_ms"),
+            "last_ping_age_s": current.get("last_ping_age_s"),
+            "last_ping_nonce": current.get("last_ping_nonce"),
+        }
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
+    def peer_status_message(current, state):
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        active_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
+        age = peer_packet_age(current)
+        channel_note = f"configured channel {config_channel}, Wi-Fi channel {active_channel}"
+        if state == "reachable":
+            return f"Slave peer reachable: {channel_note}, last packet {age}s ago."
+        if state == "stale":
+            return f"Slave peer stale: {channel_note}, last packet {age}s ago."
+        if state == "waiting":
+            return f"Slave peer waiting for accepted packet: {channel_note}."
+        return f"Direct peer disabled: {channel_note}."
+
+    def peer_status_severity(state):
+        if state == "reachable":
+            return "success"
+        if state in {"waiting", "stale"}:
+            return "warning"
+        return "info"
+
+    def peer_channel_detail(value, fallback="not reported"):
+        label = peer_channel_label(value)
+        return label if label != "--" else fallback
+
+    def config_enabled(value, default=False):
+        if value is None:
+            return bool(default)
+        if isinstance(value, bool):
+            return value
+        normalized = str(value).strip().lower()
+        if normalized in {"1", "true", "yes", "on", "enabled", "full", "basic"}:
+            return True
+        if normalized in {"0", "false", "no", "off", "disabled"}:
+            return False
+        return bool(value)
+
+    def config_on_off(value, default=False):
+        return "ON" if config_enabled(value, default=default) else "OFF"
+
+    def firmware_service_label(value):
+        normalized = str(value or "").strip().upper()
+        if normalized in {"ON", "OK", "ENABLED", "READY", "CONNECTED"}:
+            return "ON"
+        if normalized in {"OFF", "DISABLED"}:
+            return "OFF"
+        if normalized in {"", "UNKNOWN", "--", "N/A"}:
+            return "not reported"
+        return normalized
+
+    def peer_age_detail(current):
+        age = peer_packet_age(current)
+        if age is None or age < 0:
+            return "no accepted packet"
+        return f"{age}s ago"
+
+    def saved_peer_channel(current):
+        for value in (
+            event_service_config.get("direct_peer_wifi_channel"),
+            current.get("direct_peer_config_channel"),
+            current.get("direct_peer_wifi_channel"),
+            6,
+        ):
+            if peer_channel_label(value) != "--":
+                return value
+        return None
+
+    def peer_sync_detail(current):
+        if bool_flag(current.get("direct_peer_sync_pending")):
+            sync_channel = peer_channel_detail(current.get("direct_peer_sync_channel"), "")
+            return f"pending channel {sync_channel}" if sync_channel else "pending"
+        try:
+            last_ok_age = int(current.get("direct_peer_sync_last_ok_age_s"))
+        except (TypeError, ValueError):
+            last_ok_age = None
+        if last_ok_age is not None and last_ok_age >= 0:
+            return f"last OK {last_ok_age}s ago"
+        return "not pending"
+
+    def ping_status_severity(status):
+        normalized = str(status or "").strip().lower()
+        if normalized in {"reachable", "success", "ok", "responded"}:
+            return "success"
+        if normalized in {"", "unknown", "not_reported"}:
+            return "info"
+        if normalized in {"queued", "pending", "sent"}:
+            return "info"
+        return "warning"
+
+    def ping_result_message(current, prefix="Device ping result"):
+        target = str(current.get("last_ping_target") or "peer").strip().lower() or "peer"
+        status = str(current.get("last_ping_status") or "not reported").strip().lower() or "not reported"
+        response_ms = current.get("last_ping_response_ms")
+        age_s = current.get("last_ping_age_s")
+        nonce = current.get("last_ping_nonce")
+        details = []
+        try:
+            response_value = int(response_ms)
+        except (TypeError, ValueError):
+            response_value = -1
+        if response_value >= 0:
+            details.append(f"response {response_value} ms")
+        try:
+            age_value = int(age_s)
+        except (TypeError, ValueError):
+            age_value = -1
+        if age_value >= 0:
+            details.append(f"reported {age_value}s ago")
+        if nonce not in (None, "", 0):
+            details.append(f"nonce {nonce}")
+        detail_text = f" ({', '.join(details)})" if details else ""
+        return f"{prefix}: {target} {status}{detail_text}."
+
+    def live_node_status_message(current, status, state):
+        master_label = str(status.get("master_status_label") or "--").strip().lower()
+        slave_label = str(status.get("slave_status_label") or "--").strip().lower()
+        saved_channel = peer_channel_detail(saved_peer_channel(current), "not set")
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        wifi_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
+        age_text = peer_age_detail(current)
+        sync_text = peer_sync_detail(current)
+        if state == "reachable":
+            peer_text = f"peer reachable, last slave packet {age_text}"
+        elif state == "stale":
+            peer_text = f"peer stale, last slave packet {age_text}"
+        elif state == "waiting":
+            peer_text = "peer waiting for accepted slave packet"
+        else:
+            peer_text = "peer disabled"
+        remote_parts = []
+        remote_mac = str(current.get("direct_peer_remote_mac") or "").strip()
+        remote_ip = str(current.get("direct_peer_remote_ip") or "").strip()
+        if remote_mac:
+            remote_parts.append(f"MAC {remote_mac}")
+        if remote_ip:
+            remote_parts.append(f"IP {remote_ip}")
+        remote_text = f"; {', '.join(remote_parts)}" if remote_parts else ""
+        return (
+            f"Live node status: master {master_label}, slave {slave_label}; "
+            f"{peer_text}; saved ch {saved_channel}, configured ch {config_channel}, "
+            f"Wi-Fi ch {wifi_channel}; sync {sync_text}{remote_text}."
+        )
+
+    def live_node_status_details(current, status, state, extra=None):
+        saved_channel = saved_peer_channel(current)
+        details = node_reachability_details(status)
+        details.update(
+            peer_event_details(
+                current,
+                {
+                    "telemetry_status": current.get("telemetry_status"),
+                    "peer_state": state,
+                    "saved_peer_channel": saved_channel,
+                    "saved_peer_channel_label": peer_channel_detail(saved_channel, "not set"),
+                    "direct_peer_config_channel_label": peer_channel_detail(
+                        current.get("direct_peer_config_channel"),
+                        "firmware not reporting",
+                    ),
+                    "direct_peer_wifi_channel_label": peer_channel_detail(
+                        current.get("direct_peer_wifi_channel"),
+                        "firmware not reporting",
+                    ),
+                    "direct_peer_last_packet_age_label": peer_age_detail(current),
+                    "direct_peer_sync_status": peer_sync_detail(current),
+                },
+            )
+        )
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
+    def live_config_status_message(current):
+        uses_slave = config_enabled(event_service_config.get("slave_device_enabled"), default=True)
+        slave_upper = uses_slave and config_enabled(
+            event_service_config.get("slave_upper_sensor_enabled"),
+            default=uses_slave,
+        )
+        config_type = "Master + Slave" if uses_slave else "Master Only"
+        upper_source = "Slave" if slave_upper else "Master"
+        source_monitoring = config_on_off(event_service_config.get("source_tank_monitoring_enabled"), default=True)
+        relay = config_on_off(event_service_config.get("relay_enabled"), default=True)
+        auto_mode = config_on_off(event_service_config.get("auto_mode_enabled"), default=False)
+        cloud_feed = config_on_off(event_service_config.get("cloud_feed_enabled"), default=True)
+        saved_channel = peer_channel_detail(saved_peer_channel(current), "not set")
+        config_channel = peer_channel_detail(current.get("direct_peer_config_channel"), "firmware not reporting")
+        wifi_channel = peer_channel_detail(current.get("direct_peer_wifi_channel"), "firmware not reporting")
+        return (
+            f"Live device config: {config_type}; upper sensor {upper_source}; lower sensor {source_monitoring}; "
+            f"relay {relay}; auto {auto_mode}; cloud {cloud_feed}; firmware telemetry "
+            f"{firmware_service_label(current.get('telemetry_service'))}, command "
+            f"{firmware_service_label(current.get('command_service'))}; saved ch {saved_channel}, "
+            f"configured ch {config_channel}, Wi-Fi ch {wifi_channel}."
+        )
+
+    def live_config_status_details(current, extra=None):
+        uses_slave = config_enabled(event_service_config.get("slave_device_enabled"), default=True)
+        slave_upper = uses_slave and config_enabled(
+            event_service_config.get("slave_upper_sensor_enabled"),
+            default=uses_slave,
+        )
+        saved_channel = saved_peer_channel(current)
+        details = peer_event_details(
+            current,
+            {
+                "configuration_type": "Master + Slave" if uses_slave else "Master Only",
+                "upper_sensor_source": "slave" if slave_upper else "master",
+                "slave_device_enabled_label": config_on_off(
+                    event_service_config.get("slave_device_enabled"),
+                    default=True,
+                ),
+                "source_tank_monitoring_label": config_on_off(
+                    event_service_config.get("source_tank_monitoring_enabled"),
+                    default=True,
+                ),
+                "relay_enabled_label": config_on_off(event_service_config.get("relay_enabled"), default=True),
+                "auto_mode_enabled_label": config_on_off(event_service_config.get("auto_mode_enabled"), default=False),
+                "cloud_feed_enabled_label": config_on_off(event_service_config.get("cloud_feed_enabled"), default=True),
+                "telemetry_service_label": firmware_service_label(current.get("telemetry_service")),
+                "command_service_label": firmware_service_label(current.get("command_service")),
+                "ota_service_label": firmware_service_label(current.get("ota_service")),
+                "saved_peer_channel": saved_channel,
+                "saved_peer_channel_label": peer_channel_detail(saved_channel, "not set"),
+                "direct_peer_config_channel_label": peer_channel_detail(
+                    current.get("direct_peer_config_channel"),
+                    "firmware not reporting",
+                ),
+                "direct_peer_wifi_channel_label": peer_channel_detail(
+                    current.get("direct_peer_wifi_channel"),
+                    "firmware not reporting",
+                ),
+                "config_summary": live_config_status_message(current),
+            },
+        )
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
+    def node_reachability(current):
+        return admin_node_status_fields(current or {}, event_service_config)
+
+    def node_reachability_message(status):
+        master_label = str(status.get("master_status_label") or "--").strip()
+        slave_label = str(status.get("slave_status_label") or "--").strip()
+        if master_label == "--":
+            return f"Slave {slave_label.lower()}."
+        return f"Master {master_label.lower()}, slave {slave_label.lower()}."
+
+    def node_reachability_severity(status):
+        master_label = str(status.get("master_status_label") or "").strip().lower()
+        slave_label = str(status.get("slave_status_label") or "").strip().lower()
+        if "unreachable" in {master_label, slave_label}:
+            return "warning"
+        if master_label == "reachable" and slave_label in {"reachable", "disabled"}:
+            return "success"
+        return "info"
+
+    def node_reachability_details(status, extra=None):
+        details = {
+            "master_status_label": status.get("master_status_label"),
+            "master_status_tone": status.get("master_status_tone"),
+            "slave_status_label": status.get("slave_status_label"),
+            "slave_status_tone": status.get("slave_status_tone"),
+        }
+        details.update({key: value for key, value in (extra or {}).items() if value is not None})
+        return details
+
     for row in reversed(rows):
         current = dict(row)
         current_time = parse_timestamp(current.get("created_at"))
@@ -9278,6 +10266,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
         previous_level = safe_float(previous.get("level"), level) if previous else level
         source_level = safe_float(current.get("lower_tank_level"), None)
         previous_source_level = safe_float(previous.get("lower_tank_level"), None) if previous else None
+        peer_state = peer_link_state(current)
+        previous_peer_state = peer_link_state(previous) if previous else None
+        node_status = node_reachability(current)
+        previous_node_status = node_reachability(previous) if previous else None
 
         if previous is None:
             add_event(
@@ -9286,6 +10278,21 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                 "Device telemetry feed is active.",
                 "telemetry_feed_active",
                 {"level": round(level, 2)},
+            )
+            if peer_state != "disabled":
+                add_event(
+                    current,
+                    peer_status_severity(peer_state),
+                    peer_status_message(current, peer_state),
+                    f"slave_peer_{peer_state}",
+                    peer_event_details(current, {"state": peer_state}),
+                )
+            add_event(
+                current,
+                node_reachability_severity(node_status),
+                node_reachability_message(node_status),
+                "node_reachability_status",
+                node_reachability_details(node_status),
             )
         elif current_time and previous_time:
             gap_seconds = int((current_time - previous_time).total_seconds())
@@ -9297,6 +10304,102 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
                     "telemetry_recovered",
                     {"gap_seconds": gap_seconds},
                 )
+
+        if previous is not None and peer_state != previous_peer_state and peer_state != "disabled":
+            add_event(
+                current,
+                peer_status_severity(peer_state),
+                peer_status_message(current, peer_state),
+                f"slave_peer_{peer_state}",
+                peer_event_details(current, {"state": peer_state, "previous_state": previous_peer_state}),
+            )
+
+        if previous_node_status is not None:
+            current_node_key = (
+                node_status.get("master_status_label"),
+                node_status.get("slave_status_label"),
+            )
+            previous_node_key = (
+                previous_node_status.get("master_status_label"),
+                previous_node_status.get("slave_status_label"),
+            )
+            if current_node_key != previous_node_key:
+                add_event(
+                    current,
+                    node_reachability_severity(node_status),
+                    node_reachability_message(node_status),
+                    "node_reachability_changed",
+                    node_reachability_details(
+                        node_status,
+                        {
+                            "previous_master_status_label": previous_node_status.get("master_status_label"),
+                            "previous_slave_status_label": previous_node_status.get("slave_status_label"),
+                        },
+                    ),
+                )
+
+        if previous is not None:
+            for peer_field, peer_label in (
+                ("direct_peer_config_channel", "Configured peer channel"),
+                ("direct_peer_wifi_channel", "Active peer channel"),
+            ):
+                current_channel = current.get(peer_field)
+                previous_channel = previous.get(peer_field)
+                if current_channel in (None, "") or current_channel == previous_channel:
+                    continue
+                add_event(
+                    current,
+                    "info",
+                    f"{peer_label} changed to {current_channel}.",
+                    "peer_channel_changed",
+                    peer_event_details(
+                        current,
+                        {
+                            "field": peer_field,
+                            "value": current_channel,
+                            "previous_value": previous_channel,
+                        },
+                    ),
+                )
+
+            current_sync_pending = bool_flag(current.get("direct_peer_sync_pending"))
+            previous_sync_pending = bool_flag(previous.get("direct_peer_sync_pending"))
+            if current_sync_pending and not previous_sync_pending:
+                sync_channel = peer_channel_label(current.get("direct_peer_sync_channel"))
+                add_event(
+                    current,
+                    "warning",
+                    f"Peer channel sync is pending for channel {sync_channel}.",
+                    "peer_channel_sync_pending",
+                    peer_event_details(current, {"state": "pending"}),
+                )
+            elif previous_sync_pending and not current_sync_pending:
+                add_event(
+                    current,
+                    "success",
+                    "Peer channel sync completed.",
+                    "peer_channel_sync_completed",
+                    peer_event_details(current, {"state": "completed"}),
+                )
+
+        current_ping_key = (
+            current.get("last_ping_target"),
+            current.get("last_ping_status"),
+            current.get("last_ping_nonce"),
+        )
+        previous_ping_key = (
+            previous.get("last_ping_target"),
+            previous.get("last_ping_status"),
+            previous.get("last_ping_nonce"),
+        ) if previous else None
+        if current.get("last_ping_status") and (previous is None or current_ping_key != previous_ping_key):
+            add_event(
+                current,
+                ping_status_severity(current.get("last_ping_status")),
+                ping_result_message(current, "Device reported ping"),
+                "device_ping_reported",
+                peer_event_details(current, {"event_group": "ping_result"}),
+            )
 
         if previous is None or current.get("motor") != previous.get("motor"):
             if current.get("motor") == "ON":
@@ -9557,9 +10660,96 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True):
 
         previous = current
 
+    if latest_peer_row:
+        live_event_time = now_utc().strftime(TIMESTAMP_FORMAT)
+        latest_node_status = node_reachability(latest_peer_row)
+        add_event(
+            latest_peer_row,
+            "info",
+            live_config_status_message(latest_peer_row),
+            "device_config_current_status",
+            live_config_status_details(
+                latest_peer_row,
+                {
+                    "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:device_config_current_status",
+                    "current_status": True,
+                    "status_checked_at": live_event_time,
+                },
+            ),
+            event_time=live_event_time,
+        )
+        if latest_peer_row.get("last_ping_status"):
+            add_event(
+                latest_peer_row,
+                ping_status_severity(latest_peer_row.get("last_ping_status")),
+                ping_result_message(latest_peer_row, "Last device ping result"),
+                "device_ping_current_status",
+                peer_event_details(
+                    latest_peer_row,
+                    {
+                        "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:device_ping_current_status",
+                        "current_status": True,
+                        "status_checked_at": live_event_time,
+                        "event_group": "ping_result",
+                    },
+                ),
+                event_time=live_event_time,
+            )
+        add_event(
+            latest_peer_row,
+            node_reachability_severity(latest_node_status),
+            live_node_status_message(
+                latest_peer_row,
+                latest_node_status,
+                peer_link_state(latest_peer_row),
+            ),
+            "node_current_status",
+            live_node_status_details(
+                latest_peer_row,
+                latest_node_status,
+                peer_link_state(latest_peer_row),
+                {
+                    "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:node_current_status",
+                    "current_status": True,
+                    "status_checked_at": live_event_time,
+                },
+            ),
+            event_time=live_event_time,
+        )
+        latest_peer_state = peer_link_state(latest_peer_row)
+        if latest_peer_state != "disabled":
+            add_event(
+                latest_peer_row,
+                peer_status_severity(latest_peer_state),
+                peer_status_message(latest_peer_row, latest_peer_state),
+                "peer_current_status",
+                peer_event_details(
+                    latest_peer_row,
+                    {
+                        "event_key": f"{normalize_device_id(latest_peer_row.get('device_id'))}:peer_current_status",
+                        "state": latest_peer_state,
+                        "current_status": True,
+                        "status_checked_at": live_event_time,
+                    },
+                ),
+                event_time=live_event_time,
+            )
+
     timeline.extend(build_command_events(limit=40, device_id=normalized_device_id))
     timeline.extend(build_ota_events(limit=20, device_id=normalized_device_id))
-    timeline.sort(key=lambda item: parse_timestamp(item.get("time")) or datetime.min, reverse=True)
+    live_priority = {
+        "device_config_current_status": 0,
+        "device_ping_current_status": 1,
+        "node_current_status": 2,
+        "peer_current_status": 3,
+    }
+    timeline.sort(
+        key=lambda item: (
+            -live_priority.get(str(item.get("kind") or ""), 99),
+            parse_timestamp(item.get("time")) or datetime.min,
+        ),
+        reverse=True,
+    )
     return timeline[:limit]
 
 
@@ -9596,10 +10786,12 @@ def build_command_events(limit=20, device_id=None):
                 "message": command_activity["queued_message"],
                 "kind": f"{command_activity['kind_suffix']}_queued",
                 "details": {
+                    "event_group": "command_queued",
                     "source_table": "device_command_queue",
                     "source_row_id": row["id"],
                     "command": command,
                     "command_label": command_activity["label"],
+                    "command_summary": command_activity.get("summary"),
                     "device_id": target_device,
                     "command_id": row["id"],
                 },
@@ -9613,10 +10805,12 @@ def build_command_events(limit=20, device_id=None):
                     "message": command_activity["ack_message"],
                     "kind": f"{command_activity['kind_suffix']}_acknowledged",
                     "details": {
+                        "event_group": "command_acknowledged",
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
                         "command_label": command_activity["label"],
+                        "command_summary": command_activity.get("summary"),
                         "device_id": target_device,
                         "command_id": row["id"],
                     },
@@ -9639,10 +10833,12 @@ def build_command_events(limit=20, device_id=None):
                     "message": message,
                     "kind": kind,
                     "details": {
+                        "event_group": "command_delivery_failed" if severity == "warning" else "command_delivery_pending",
                         "source_table": "device_command_queue",
                         "source_row_id": row["id"],
                         "command": command,
                         "command_label": command_activity["label"],
+                        "command_summary": command_activity.get("summary"),
                         "device_id": target_device,
                         "command_id": row["id"],
                         "age_seconds": age_seconds,
@@ -9650,6 +10846,138 @@ def build_command_events(limit=20, device_id=None):
                 }
             )
     return events
+
+
+def persist_command_activity_events(device_id, limit=8):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return 0
+    try:
+        return persist_device_events(
+            build_command_events(limit=limit, device_id=normalized_device_id),
+            default_device_id=normalized_device_id,
+        )
+    except Exception as exc:
+        logger.warning("Unable to persist command activity for %s: %s", normalized_device_id, exc)
+        return 0
+
+
+FIRMWARE_LOG_LINE_PATTERN = re.compile(r"^\[(?P<timestamp>[^\]]+)\]\s+\[(?P<level>[^\]]+)\]\s*(?P<message>.*)$")
+
+
+def firmware_log_event_time(timestamp_text, fallback_time):
+    text = str(timestamp_text or "").strip()
+    fallback = format_timestamp(fallback_time) or now_utc().strftime(TIMESTAMP_FORMAT)
+    if not text or text.upper().startswith("NO TIME"):
+        return fallback
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = parse_timestamp(text)
+    if not parsed:
+        return fallback
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone(timezone.utc).replace(tzinfo=None)
+    return parsed.strftime(TIMESTAMP_FORMAT)
+
+
+def firmware_log_severity(level_text, message):
+    level = str(level_text or "").strip().upper()
+    lowered = str(message or "").lower()
+    if level == "ERROR" or any(token in lowered for token in ("failed", "error", "rejected")):
+        return "error"
+    if level in {"WARNING", "WARN"} or any(token in lowered for token in ("waiting", "stale", "unreachable", "not recognized")):
+        return "warning"
+    if any(token in lowered for token in ("command executed", "applied", "saved", "acknowledged")):
+        return "success"
+    return "info"
+
+
+def firmware_log_kind(message):
+    lowered = str(message or "").lower()
+    if "peer command applied" in lowered:
+        return "firmware_peer_command_applied"
+    if "command executed" in lowered or "flask_command" in lowered:
+        return "firmware_command_applied"
+    if "service config" in lowered or "runtime service" in lowered:
+        return "firmware_runtime_config_log"
+    if "threshold" in lowered:
+        return "firmware_threshold_log"
+    if "peer channel" in lowered:
+        return "firmware_peer_channel_log"
+    if "tank height" in lowered or "capacity" in lowered or "config_upper" in lowered or "config_lower" in lowered:
+        return "firmware_tank_setup_log"
+    return "firmware_log"
+
+
+def build_firmware_log_events_from_payload(payload, limit=24, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    payload = payload or {}
+    if not normalized_device_id:
+        normalized_device_id = normalize_device_id(payload.get("device_id"))
+    if not normalized_device_id:
+        return []
+    logs = payload.get("logs")
+    if logs is None:
+        logs = payload.get("firmware_logs")
+    if not isinstance(logs, list):
+        return []
+
+    fetched_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    role = str(payload.get("firmware_role") or "master").strip().lower() or "master"
+    events = []
+    for item in logs[-max(1, int(limit or 24)):]:
+        line = str((item or {}).get("line") if isinstance(item, dict) else item or "").strip()
+        if not line:
+            continue
+        match = FIRMWARE_LOG_LINE_PATTERN.match(line)
+        timestamp_text = match.group("timestamp") if match else None
+        level = match.group("level") if match else "INFO"
+        message = (match.group("message") if match else line).strip() or line
+        line_hash = hashlib.sha1(f"{role}|{line}".encode("utf-8")).hexdigest()[:24]
+        events.append(
+            {
+                "time": firmware_log_event_time(timestamp_text, fetched_at),
+                "severity": firmware_log_severity(level, message),
+                "message": f"Firmware {role} log: {message}",
+                "kind": firmware_log_kind(message),
+                "details": {
+                    "event_key": f"{normalized_device_id}:firmware_log:{line_hash}",
+                    "event_group": "firmware_local_log",
+                    "source_table": "firmware_local_log",
+                    "source_row_id": line_hash,
+                    "device_id": normalized_device_id,
+                    "node_role": role,
+                    "firmware_role": role,
+                    "firmware_log_level": str(level or "INFO").strip().upper(),
+                    "device_local_url": payload.get("device_local_url"),
+                    "raw_line": line,
+                    "fetched_at": fetched_at,
+                },
+            }
+        )
+    return events
+
+
+def build_local_firmware_log_events(limit=24, device_id=None, snapshot=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+    snapshot = snapshot if snapshot is not None else fetch_device_snapshot(normalized_device_id)
+    snapshot = snapshot or {}
+    local_base_url = normalize_device_base_url(
+        snapshot.get("device_local_url") or snapshot.get("local_device_url") or snapshot.get("device_ip_url")
+    )
+    if not local_base_url:
+        return []
+
+    try:
+        payload = fetch_local_device_logs(local_base_url, device_id=normalized_device_id)
+    except (ValueError, requests.RequestException, json.JSONDecodeError) as exc:
+        logger.info("Local firmware logs unavailable for %s via %s: %s", normalized_device_id, local_base_url, exc)
+        return []
+
+    return build_firmware_log_events_from_payload(payload, limit=limit, device_id=normalized_device_id)
 
 
 def build_ota_events(limit=20, device_id=None):
@@ -9750,9 +11078,14 @@ def normalize_device_event_time(value):
 def device_event_key(event, default_device_id=None):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     device_id = normalize_device_id(details.get("device_id") or default_device_id) or ""
+    explicit_key = str(details.get("event_key") or "").strip()
+    if explicit_key:
+        return hashlib.sha256(f"{device_id}|{explicit_key}".encode("utf-8")).hexdigest()[:40]
     source_table = str(details.get("source_table") or "").strip()
     source_row_id = str(details.get("source_row_id") or "").strip()
     event_kind = str(event.get("kind") or "event").strip().lower()
+    if source_table and source_row_id:
+        return hashlib.sha256(f"{device_id}|{event_kind}|{source_table}|{source_row_id}".encode("utf-8")).hexdigest()[:40]
     event_at = normalize_device_event_time(event.get("time"))
     basis = "|".join(
         (
@@ -9788,6 +11121,20 @@ def persist_device_events(events, default_device_id=None):
             except (TypeError, ValueError):
                 duration_seconds = None
             event_key = device_event_key(event, default_device_id=device_id)
+            source_table = str(details.get("source_table") or "").strip() or None
+            source_row_id = str(details.get("source_row_id") or "").strip() or None
+            if source_table and source_row_id:
+                db.execute(
+                    """
+                    DELETE FROM device_events
+                    WHERE device_id = ?
+                      AND event_kind = ?
+                      AND source_table = ?
+                      AND source_row_id = ?
+                      AND event_key <> ?
+                    """,
+                    (device_id, event_kind, source_table, source_row_id, event_key),
+                )
             db.execute(
                 """
                 INSERT INTO device_events(
@@ -9817,8 +11164,8 @@ def persist_device_events(events, default_device_id=None):
                     severity,
                     message,
                     json.dumps(details, separators=(",", ":"), sort_keys=True),
-                    str(details.get("source_table") or "").strip() or None,
-                    str(details.get("source_row_id") or "").strip() or None,
+                    source_table,
+                    source_row_id,
                     normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
                     normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
                     duration_seconds,
@@ -9843,7 +11190,46 @@ def fetch_device_events(limit=12, device_id=None):
         placeholders = ",".join("?" for _ in activity_device_ids)
         query += f" AND device_id IN ({placeholders})"
         params.extend(activity_device_ids)
-    query += " ORDER BY event_at DESC, id DESC LIMIT ?"
+    query += """
+        ORDER BY CASE
+                   WHEN event_kind IN (
+                     'device_config_current_status',
+                     'device_ping_current_status',
+                     'device_ping_reported',
+                     'node_current_status',
+                     'node_reachability_status',
+                     'node_reachability_changed',
+                     'master_ping_reachable',
+                     'master_ping_unreachable',
+                     'slave_ping_reachable',
+                     'slave_ping_unreachable',
+                     'slave_ping_disabled',
+                     'master_ping_command_queued',
+                     'master_ping_command_acknowledged',
+                     'master_ping_command_delivery_pending',
+                     'master_ping_command_delivery_failed',
+                     'slave_ping_command_queued',
+                     'slave_ping_command_acknowledged',
+                     'slave_ping_command_delivery_pending',
+                     'slave_ping_command_delivery_failed',
+                     'peer_current_status',
+                     'slave_peer_waiting',
+                     'slave_peer_stale',
+                     'slave_peer_reachable',
+                     'peer_channel_changed',
+                     'peer_channel_sync_pending',
+                     'peer_channel_sync_completed',
+                     'peer_channel_update_queued',
+                     'peer_channel_update_acknowledged',
+                     'peer_channel_update_delivery_pending',
+                     'peer_channel_update_delivery_failed'
+                   ) THEN 0
+                   ELSE 1
+                 END,
+                 event_at DESC,
+                 id DESC
+        LIMIT ?
+    """
     params.append(max(1, int(limit or 12)))
 
     with get_db() as db:
@@ -9876,16 +11262,584 @@ def fetch_device_events(limit=12, device_id=None):
     return events
 
 
+def device_event_sync_markers(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None, None
+    source_clause, source_params = device_source_where_clause()
+    live_status_kinds = (
+        "device_config_current_status",
+        "device_ping_current_status",
+        "node_current_status",
+        "peer_current_status",
+    )
+    placeholders = ",".join("?" for _ in live_status_kinds)
+    with get_db() as db:
+        latest_telemetry = db.execute(
+            f"""
+            SELECT created_at
+            FROM tank_data
+            WHERE device_id = ?
+              AND {source_clause}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id, *source_params),
+        ).fetchone()
+        if not latest_telemetry:
+            return None, None
+        historical_event = db.execute(
+            f"""
+            SELECT id
+            FROM device_events
+            WHERE device_id = ?
+              AND source_table = 'tank_data'
+              AND event_kind NOT IN ({placeholders})
+            LIMIT 1
+            """,
+            (normalized_device_id, *live_status_kinds),
+        ).fetchone()
+        if not historical_event:
+            return str(latest_telemetry["created_at"] or "").strip() or None, None
+        latest_event = db.execute(
+            """
+            SELECT event_at
+            FROM device_events
+            WHERE device_id = ?
+              AND source_table = 'tank_data'
+            ORDER BY event_at DESC, id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+    latest_telemetry_at = str(latest_telemetry["created_at"] or "").strip() or None
+    latest_event_at = str(latest_event["event_at"] or "").strip() or None if latest_event else None
+    return latest_telemetry_at, latest_event_at
+
+
+def device_event_sync_is_current(device_id):
+    latest_telemetry_at, latest_event_at = device_event_sync_markers(device_id)
+    if not latest_telemetry_at or not latest_event_at:
+        return False
+    return latest_event_at >= latest_telemetry_at
+
+
 def sync_device_events(device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id)
+    if not normalized_device_id:
+        return []
+    if device_event_sync_is_current(normalized_device_id):
+        return []
+    generated_events = build_generated_device_events(limit=320, device_id=normalized_device_id, row_limit=240)
     persist_device_events(generated_events, default_device_id=normalized_device_id)
     return generated_events
 
 
-def build_events(limit=12, device_id=None):
-    sync_device_events(device_id=device_id)
-    return fetch_device_events(limit=limit, device_id=device_id)
+def activity_event_identity(event):
+    details = event.get("details") if isinstance(event, dict) and isinstance(event.get("details"), dict) else {}
+    explicit_key = str(details.get("event_key") or "").strip()
+    device_id = normalize_device_id(details.get("device_id") or event.get("device_id")) if isinstance(event, dict) else ""
+    event_kind = str((event or {}).get("kind") or "event").strip().lower()
+    if explicit_key:
+        return ("event_key", device_id, explicit_key)
+    source_table = str(details.get("source_table") or (event or {}).get("source_table") or "").strip()
+    source_row_id = str(details.get("source_row_id") or (event or {}).get("source_row_id") or "").strip()
+    if source_table and source_row_id:
+        return ("source", device_id, event_kind, source_table, source_row_id)
+    return (
+        "message",
+        device_id,
+        event_kind,
+        str((event or {}).get("time") or "").strip(),
+        str((event or {}).get("message") or "").strip(),
+    )
+
+
+def activity_event_sort_key(event):
+    live_priority = {
+        "device_config_current_status": 0,
+        "device_ping_current_status": 1,
+        "node_current_status": 2,
+        "peer_current_status": 3,
+    }
+    kind = str((event or {}).get("kind") or "").strip()
+    return (
+        -live_priority.get(kind, 99),
+        parse_timestamp((event or {}).get("time")) or datetime.min,
+        str((event or {}).get("message") or ""),
+    )
+
+
+def merge_activity_events(*event_lists, limit=12):
+    seen = set()
+    merged = []
+    for event_list in event_lists:
+        for event in event_list or []:
+            if not isinstance(event, dict):
+                continue
+            identity = activity_event_identity(event)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            merged.append(event)
+    merged.sort(key=activity_event_sort_key, reverse=True)
+    return merged[: max(1, int(limit or 12))]
+
+
+def build_events(limit=12, device_id=None, sync=True, generated=True, include_local_logs=False):
+    normalized_limit = max(1, int(limit or 12))
+    if sync:
+        sync_device_events(device_id=device_id)
+    stored_events = fetch_device_events(limit=normalized_limit, device_id=device_id)
+    generated_events = []
+    if generated:
+        generated_events = build_generated_device_events(
+            limit=normalized_limit,
+            device_id=device_id,
+            row_limit=max(40, min(120, normalized_limit * 4)),
+        )
+    local_log_events = []
+    if include_local_logs:
+        local_log_events = build_local_firmware_log_events(limit=min(50, normalized_limit), device_id=device_id)
+        if local_log_events:
+            try:
+                persist_device_events(local_log_events, default_device_id=device_id)
+            except Exception as exc:
+                logger.warning("Unable to persist local firmware logs for %s: %s", normalize_device_id(device_id), exc)
+    events = merge_activity_events(generated_events, local_log_events, stored_events, limit=normalized_limit)
+    if events:
+        return events
+    return build_snapshot_activity_events(limit=normalized_limit, device_id=device_id)
+
+
+def build_snapshot_activity_events(
+    limit=12,
+    device_id=None,
+    snapshot=None,
+    service_config=None,
+    automation_settings=None,
+    system_status=None,
+):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+
+    if snapshot is None:
+        snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
+    else:
+        snapshot = snapshot or build_empty_snapshot_payload(normalized_device_id)
+    if service_config is None or automation_settings is None:
+        saved_config = build_current_saved_config(normalized_device_id)
+        service_config = service_config if service_config is not None else (saved_config.get("service_config") or {})
+        automation_settings = (
+            automation_settings
+            if automation_settings is not None
+            else (saved_config.get("automation_settings") or {})
+        )
+    else:
+        service_config = service_config or {}
+        automation_settings = automation_settings or {}
+    system_status = system_status or build_system_status_payload(
+        snapshot,
+        device_id=normalized_device_id,
+        service_config=service_config,
+    )
+    telemetry_status = str(
+        (snapshot or {}).get("telemetry_status") or system_status.get("telemetry_status") or "no-data"
+    ).strip().lower()
+    checked_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    event_time = (
+        format_timestamp(snapshot.get("created_at"))
+        or format_timestamp(snapshot.get("last_sync_at"))
+        or checked_at
+    )
+    live_data = snapshot_has_live_device_data(snapshot)
+    uses_slave = boolish_enabled(service_config.get("slave_device_enabled"), default=True)
+    source_monitoring = boolish_enabled(service_config.get("source_tank_monitoring_enabled"), default=True)
+    events = []
+
+    def add_event(kind, severity, message, details=None, node_role="master"):
+        events.append(
+            {
+                "time": event_time,
+                "severity": severity,
+                "message": message,
+                "kind": kind,
+                "details": {
+                    "event_key": f"{normalized_device_id}:snapshot:{kind}",
+                    "source_table": "live_snapshot",
+                    "source_row_id": normalized_device_id,
+                    "device_id": normalized_device_id,
+                    "node_role": node_role,
+                    "current_status": True,
+                    "status_checked_at": checked_at,
+                    "telemetry_status": telemetry_status,
+                    **(details or {}),
+                },
+            }
+        )
+
+    config_type = "Master + Slave" if uses_slave else "Master Only"
+    upper_source = "Slave" if uses_slave and boolish_enabled(service_config.get("slave_upper_sensor_enabled"), default=True) else "Master"
+    add_event(
+        "device_config_current_status",
+        "info",
+        (
+            f"Live device config: {config_type}; upper sensor {upper_source}; "
+            f"source tank {'enabled' if source_monitoring else 'disabled'}; "
+            f"relay {device_detail_card_bool(service_config.get('relay_enabled'), default=True)}; "
+            f"auto {device_detail_card_bool(service_config.get('auto_mode_enabled'), default=False)}."
+        ),
+        {
+            "device_state": system_status.get("device"),
+            "status_code": system_status.get("device_status_code"),
+            "master_status_label": system_status.get("master_status_label"),
+            "slave_status_label": system_status.get("slave_status_label"),
+            "configuration_type": config_type,
+            "upper_sensor_source": upper_source.lower(),
+            "auto_mode_enabled": service_config.get("auto_mode_enabled"),
+            "slave_device_enabled": service_config.get("slave_device_enabled"),
+            "source_tank_monitoring_enabled": service_config.get("source_tank_monitoring_enabled"),
+            "relay_enabled": service_config.get("relay_enabled"),
+            "ai_analysis_enabled": service_config.get("ai_analysis_enabled"),
+            "cloud_feed_mode": service_config.get("cloud_feed_mode"),
+            "auto_start_pct": automation_settings.get("auto_start_pct"),
+            "auto_stop_pct": automation_settings.get("auto_stop_pct"),
+        },
+    )
+
+    level = safe_float(snapshot.get("level"), None)
+    remaining_liters = safe_float(snapshot.get("remaining_liters"), None)
+    capacity_liters = safe_float(snapshot.get("capacity_liters"), None)
+    if level is not None:
+        water_parts = [f"Tank level is {level:.1f}%"]
+        if remaining_liters is not None:
+            water_parts.append(f"{remaining_liters:.1f} L available")
+        if capacity_liters is not None:
+            water_parts.append(f"out of {capacity_liters:.1f} L capacity")
+        add_event(
+            "tank_level_current_status",
+            "success" if level > 20 else "warning",
+            "; ".join(water_parts) + ".",
+            {
+                "level": round(level, 2),
+                "remaining_liters": round(remaining_liters, 2) if remaining_liters is not None else None,
+                "capacity_liters": round(capacity_liters, 2) if capacity_liters is not None else None,
+                "tank_health_status": snapshot.get("tank_health_status"),
+            },
+        )
+
+    motor = str(snapshot.get("motor") or "").strip().upper()
+    mode = str(snapshot.get("mode") or "").strip().upper()
+    if motor or mode:
+        add_event(
+            "pump_current_status",
+            "info",
+            f"Pump is {motor or 'not reported'} in {mode or 'unknown'} mode.",
+            {"motor": motor, "mode": mode},
+        )
+
+    master_status = system_status.get("master_status_label") or "Not reported"
+    slave_status = system_status.get("slave_status_label") or ("Not reported" if uses_slave else "Disabled")
+    add_event(
+        "node_current_status",
+        "success" if str(master_status).lower() == "reachable" and str(slave_status).lower() in {"reachable", "disabled"} else "warning",
+        f"Master {str(master_status).lower()}, slave {str(slave_status).lower()}.",
+        {
+            "master_status_label": master_status,
+            "slave_status_label": slave_status,
+            "master_status_tone": system_status.get("master_status_tone"),
+            "slave_status_tone": system_status.get("slave_status_tone"),
+        },
+    )
+
+    direct_peer = str(snapshot.get("direct_peer") or "").strip()
+    peer_age = safe_float(snapshot.get("direct_peer_last_packet_age_s"), None)
+    peer_channel = snapshot.get("direct_peer_wifi_channel") or snapshot.get("direct_peer_config_channel") or service_config.get("direct_peer_wifi_channel")
+    if uses_slave or direct_peer:
+        peer_parts = [f"Direct peer {direct_peer or 'not reported'}"]
+        if peer_channel not in (None, ""):
+            peer_parts.append(f"channel {peer_channel}")
+        if peer_age is not None:
+            peer_parts.append(f"last packet {format_compact_uptime(peer_age)} ago")
+        if snapshot.get("direct_peer_remote_mac"):
+            peer_parts.append(f"MAC {snapshot.get('direct_peer_remote_mac')}")
+        add_event(
+            "peer_current_status",
+            "success" if peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS else "warning",
+            "; ".join(peer_parts) + ".",
+            {
+                "direct_peer": direct_peer,
+                "direct_peer_config_channel": snapshot.get("direct_peer_config_channel"),
+                "direct_peer_wifi_channel": snapshot.get("direct_peer_wifi_channel"),
+                "direct_peer_last_packet_age_s": snapshot.get("direct_peer_last_packet_age_s"),
+                "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
+                "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
+            },
+        )
+
+    firmware_parts = []
+    if snapshot.get("firmware_version"):
+        firmware_parts.append(f"master {snapshot.get('firmware_version')}")
+    if snapshot.get("slave_firmware_version"):
+        firmware_parts.append(f"slave {snapshot.get('slave_firmware_version')}")
+    if firmware_parts:
+        add_event(
+            "firmware_current_status",
+            "info",
+            f"Firmware status: {', '.join(firmware_parts)}.",
+            {
+                "firmware_version": snapshot.get("firmware_version"),
+                "slave_firmware_version": snapshot.get("slave_firmware_version"),
+            },
+        )
+
+    heap_parts = []
+    if snapshot.get("free_heap") is not None:
+        heap_parts.append(f"master {device_detail_card_heap(snapshot.get('free_heap'))}")
+    if snapshot.get("slave_free_heap") is not None:
+        heap_parts.append(f"slave {device_detail_card_heap(snapshot.get('slave_free_heap'))}")
+    if heap_parts:
+        add_event(
+            "memory_current_status",
+            "info",
+            f"Memory status: {', '.join(heap_parts)}.",
+            {
+                "free_heap": snapshot.get("free_heap"),
+                "slave_free_heap": snapshot.get("slave_free_heap"),
+            },
+        )
+
+    source_level = safe_float(snapshot.get("lower_tank_level"), None)
+    if source_monitoring and source_level is not None:
+        add_event(
+            "source_tank_current_status",
+            "success" if source_level > 20 else "warning",
+            f"Source tank level is {source_level:.1f}%.",
+            {"source_tank_level": round(source_level, 2)},
+        )
+
+    service_parts = [
+        f"telemetry {device_detail_card_title(snapshot.get('telemetry_service'), 'not reported')}",
+        f"command {device_detail_card_title(snapshot.get('command_service'), 'not reported')}",
+        f"local firmware upload {device_detail_card_bool(service_config.get('local_firmware_upload_enabled'), default=True)}",
+        f"simulator {device_detail_card_title(snapshot.get('simulator') or snapshot.get('simulator_status'), 'OFF')}",
+    ]
+    add_event(
+        "services_current_status",
+        "info",
+        f"Service status: {'; '.join(service_parts)}.",
+        {
+            "telemetry_service_label": snapshot.get("telemetry_service"),
+            "command_service_label": snapshot.get("command_service"),
+            "local_firmware_upload_enabled": service_config.get("local_firmware_upload_enabled"),
+            "simulator": snapshot.get("simulator") or snapshot.get("simulator_status"),
+        },
+    )
+
+    if automation_settings or service_config:
+        add_event(
+            "thresholds_current_status",
+            "info",
+            (
+                "Auto thresholds: start at or below "
+                f"{device_detail_card_percent(automation_settings.get('auto_start_pct') or service_config.get('auto_start_pct'), 'not reported')}; "
+                "stop at or above "
+                f"{device_detail_card_percent(automation_settings.get('auto_stop_pct') or service_config.get('auto_stop_pct'), 'not reported')}."
+            ),
+            {
+                "auto_start_pct": automation_settings.get("auto_start_pct") or service_config.get("auto_start_pct"),
+                "auto_stop_pct": automation_settings.get("auto_stop_pct") or service_config.get("auto_stop_pct"),
+            },
+        )
+
+    if not live_data:
+        add_event(
+            "saved_config_current_status",
+            "info",
+            f"No historical activity yet for {normalized_device_id}. Showing saved configuration rows from Flask.",
+            {"live_data": False},
+        )
+
+    return merge_activity_events(events, limit=limit)
+
+
+def ping_age_label(value):
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        return "--"
+    if seconds < 0:
+        return "--"
+    if seconds < 60:
+        return f"{seconds}s"
+    return format_compact_uptime(seconds)
+
+
+def build_device_ping_result(device_id, target):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("Device id is required.")
+
+    normalized_target = str(target or "").strip().lower()
+    if normalized_target not in {"master", "slave"}:
+        raise ValueError("Ping target must be master or slave.")
+
+    snapshot = fetch_device_snapshot(normalized_device_id) or build_empty_snapshot_payload(normalized_device_id)
+    service_config = resolve_device_service_config(normalized_device_id, snapshot=snapshot)
+    expected_ping_nonce = secrets.randbelow(2147483646) + 1
+    queued_command = f"PING_{normalized_target.upper()}:{expected_ping_nonce}"
+    queue_result = queue_command(queued_command, target_device=normalized_device_id)
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        raise ValueError(error_payload.get("error") or "Unable to queue ping command.")
+
+    status_payload = build_system_status_payload(
+        snapshot,
+        device_id=normalized_device_id,
+        service_config=service_config,
+    )
+    node_status = {
+        "master_status_label": status_payload.get("master_status_label"),
+        "master_status_tone": status_payload.get("master_status_tone"),
+        "slave_status_label": status_payload.get("slave_status_label"),
+        "slave_status_tone": status_payload.get("slave_status_tone"),
+    }
+    target_label = normalized_target.title()
+    observed_status_label = str(status_payload.get(f"{normalized_target}_status_label") or "Unreachable").strip()
+    observed_status_tone = str(status_payload.get(f"{normalized_target}_status_tone") or "offline").strip()
+    disabled = observed_status_label.lower() == "disabled"
+    severity = "info"
+    event_time = now_utc()
+    event_time_text = event_time.strftime(TIMESTAMP_FORMAT)
+    telemetry_status_value = str(snapshot.get("telemetry_status") or "no-data").strip()
+    seconds_since_sync = snapshot.get("seconds_since_sync")
+    peer_age = snapshot.get("direct_peer_last_packet_age_s")
+    peer_age_text = ping_age_label(peer_age)
+    last_sync_at = snapshot.get("last_sync_at")
+    config_channel = snapshot.get("direct_peer_config_channel")
+    active_channel = snapshot.get("direct_peer_wifi_channel")
+
+    def ping_detail_value(value, fallback="Not reported"):
+        text = str(value if value is not None else "").strip()
+        return text if text else fallback
+
+    def ping_channel_value(value, fallback="Not reported"):
+        try:
+            channel = int(value)
+        except (TypeError, ValueError):
+            return fallback
+        return str(channel) if 1 <= channel <= 13 else fallback
+
+    saved_channel = (
+        service_config.get("direct_peer_wifi_channel")
+        or snapshot.get("direct_peer_config_channel")
+        or snapshot.get("direct_peer_wifi_channel")
+        or 6
+    )
+
+    details = {
+        "event_key": f"{normalized_device_id}:ping_command:{normalized_target}:{queue_result.get('command_id') or event_time.strftime('%Y%m%d%H%M%S%f')}",
+        "device_id": normalized_device_id,
+        "current_status": True,
+        "status_checked_at": event_time_text,
+        "event_group": "ping_command",
+        "ping_target": normalized_target,
+        "ping_status": "Queued",
+        "ping_status_tone": "pending",
+        "queued_command": queued_command,
+        "command": queued_command,
+        "command_id": queue_result.get("command_id"),
+        "expected_ping_nonce": expected_ping_nonce,
+        "target_device": normalized_device_id,
+        "telemetry_status": telemetry_status_value,
+        "last_sync_at": last_sync_at,
+        "seconds_since_sync": seconds_since_sync,
+        "saved_peer_channel": saved_channel,
+        "saved_peer_channel_label": ping_channel_value(saved_channel, "not set"),
+        "direct_peer": snapshot.get("direct_peer"),
+        "direct_peer_config_channel": snapshot.get("direct_peer_config_channel"),
+        "direct_peer_config_channel_label": ping_channel_value(config_channel, "firmware not reporting"),
+        "direct_peer_wifi_channel": snapshot.get("direct_peer_wifi_channel"),
+        "direct_peer_wifi_channel_label": ping_channel_value(active_channel, "firmware not reporting"),
+        "direct_peer_last_packet_age_s": peer_age,
+        "direct_peer_last_packet_age_label": peer_age_text if peer_age_text != "--" else "no accepted packet",
+        "direct_peer_last_pong_age_s": snapshot.get("direct_peer_last_pong_age_s"),
+        "direct_peer_last_pong_nonce": snapshot.get("direct_peer_last_pong_nonce"),
+        "last_ping_target": snapshot.get("last_ping_target"),
+        "last_ping_status": snapshot.get("last_ping_status"),
+        "last_ping_response_ms": snapshot.get("last_ping_response_ms"),
+        "last_ping_age_s": snapshot.get("last_ping_age_s"),
+        "last_ping_nonce": snapshot.get("last_ping_nonce"),
+        "direct_peer_remote_ip": snapshot.get("direct_peer_remote_ip"),
+        "direct_peer_remote_mac": snapshot.get("direct_peer_remote_mac"),
+        **node_status,
+    }
+
+    if normalized_target == "master":
+        message = (
+            f"Ping master command queued for {normalized_device_id}. "
+            "The master will execute it on its next command poll and acknowledge it."
+        )
+    elif disabled:
+        message = (
+            f"Ping slave command queued, but saved configuration currently marks slave as disabled. "
+            f"The command is still queued as {queued_command}; enable slave runtime config if this is unexpected."
+        )
+    else:
+        message = (
+            f"Ping slave command queued for {normalized_device_id}. "
+            "The master will send an ESP-NOW ping to the slave on its next command poll."
+        )
+
+    detail_lines = [
+        f"Target: {target_label}",
+        "Result: Command queued",
+        f"Queued command: {queued_command}",
+        f"Command id: {queue_result.get('command_id') or '--'}",
+        f"Ping nonce: {expected_ping_nonce}",
+        f"Queued at: {event_time_text}",
+        "Execution: waiting for master command poll",
+        f"Master reachability: {node_status.get('master_status_label') or 'Unreachable'}",
+        f"Slave reachability: {node_status.get('slave_status_label') or 'Unreachable'}",
+        f"Telemetry: {telemetry_status_value or 'not available'}",
+        f"Last sync: {ping_detail_value(last_sync_at)}",
+    ]
+    if normalized_target == "slave":
+        detail_lines.extend(
+            [
+                f"Last slave packet: {peer_age_text if peer_age_text != '--' else 'No accepted packet'}",
+                f"Saved peer channel: {ping_channel_value(saved_channel, 'not set')}",
+                f"Configured peer channel: {ping_channel_value(config_channel, 'Firmware not reporting')}",
+                f"Master Wi-Fi channel: {ping_channel_value(active_channel, 'Firmware not reporting')}",
+                f"Last peer pong: {ping_age_label(snapshot.get('direct_peer_last_pong_age_s')) if ping_age_label(snapshot.get('direct_peer_last_pong_age_s')) != '--' else 'No pong reported yet'}",
+                f"Last firmware ping result: {ping_detail_value(snapshot.get('last_ping_status'), 'Not reported yet')}",
+                f"Peer MAC: {ping_detail_value(snapshot.get('direct_peer_remote_mac'), 'Unknown until peer packet')}",
+                f"Peer IP: {ping_detail_value(snapshot.get('direct_peer_remote_ip'), 'Unknown until peer packet')}",
+            ]
+        )
+
+    event = {
+        "time": event_time_text,
+        "severity": severity,
+        "message": message,
+        "kind": f"{normalized_target}_ping_command_queued",
+        "details": details,
+    }
+    return {
+        "target": normalized_target,
+        "reachable": False,
+        "disabled": disabled,
+        "status": "Queued",
+        "title": f"Ping {target_label} Queued",
+        "message": message,
+        "detail_lines": detail_lines,
+        "saved_peer_channel": saved_channel,
+        "queued_command": queued_command,
+        "command_id": queue_result.get("command_id"),
+        "expected_ping_nonce": expected_ping_nonce,
+        "event": event,
+    }
 
 
 def describe_command_activity(command):
@@ -9908,6 +11862,39 @@ def describe_command_activity(command):
                 "pending_message": "Pump start is waiting for device acknowledgement.",
                 "failed_message": "Pump start has not been acknowledged yet.",
                 "kind_suffix": "pump_start",
+            }
+        )
+        return details
+
+    if normalized in {"PING_MASTER", "PING:MASTER", "PING_MASTER_NODE"} or normalized.startswith("PING_MASTER:"):
+        details.update(
+            {
+                "label": "Ping master",
+                "queued_message": "Ping master requested: real command queued for the master controller.",
+                "ack_message": "Ping master command acknowledged by device.",
+                "pending_message": "Ping master is waiting for the master command poll.",
+                "failed_message": "Ping master has not been acknowledged yet by the device.",
+                "kind_suffix": "master_ping_command",
+                "summary": "Master local ping command. Result is confirmed after device acknowledgement/telemetry.",
+            }
+        )
+        return details
+
+    if (
+        normalized in {"PING_SLAVE", "PING:SLAVE", "PING_PEER", "PEER_PING", "PING_SLAVE_NODE"}
+        or normalized.startswith("PING_SLAVE:")
+        or normalized.startswith("PING_PEER:")
+        or normalized.startswith("PEER_PING:")
+    ):
+        details.update(
+            {
+                "label": "Ping slave",
+                "queued_message": "Ping slave requested: real ESP-NOW ping command queued for the master controller.",
+                "ack_message": "Ping slave command acknowledged by device.",
+                "pending_message": "Ping slave is waiting for the master command poll.",
+                "failed_message": "Ping slave has not been acknowledged yet by the device.",
+                "kind_suffix": "slave_ping_command",
+                "summary": "Master will send an ESP-NOW ping to the slave; result appears after telemetry reports it.",
             }
         )
         return details
@@ -9973,14 +11960,52 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("PEER_CHANNEL:"):
+        _prefix, _sep, channel_text = normalized.partition(":")
+        channel_note = f"channel {channel_text.strip()}" if channel_text.strip() else "peer channel"
+        details.update(
+            {
+                "label": "Peer channel update",
+                "queued_message": f"Peer channel update requested: {channel_note}.",
+                "ack_message": f"Peer channel update acknowledged by device: {channel_note}.",
+                "pending_message": f"Peer channel update is waiting for device acknowledgement: {channel_note}.",
+                "failed_message": f"Peer channel update has not been acknowledged yet: {channel_note}.",
+                "kind_suffix": "peer_channel_update",
+            }
+        )
+        return details
+
+    if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+        values = normalized.split(":")[1:]
+        labels = (
+            "master upper",
+            "slave upper",
+            "source tank",
+            "relay",
+            "buzzer",
+            "LED",
+            "OTA",
+            "local upload",
+            "auto mode",
+        )
+
+        def service_state_label(value):
+            return "ON" if str(value or "").strip().upper() in {"1", "ON", "TRUE", "ENABLED"} else "OFF"
+
+        service_summary = ", ".join(
+            f"{label} {service_state_label(value)}"
+            for label, value in zip(labels, values)
+            if str(value or "").strip()
+        )
+        summary_note = f": {service_summary}" if service_summary else ""
         details.update(
             {
                 "label": "Runtime service configuration",
-                "queued_message": "Runtime service configuration update requested.",
-                "ack_message": "Runtime service configuration acknowledged by device.",
-                "pending_message": "Runtime service configuration is waiting for device acknowledgement.",
-                "failed_message": "Runtime service configuration has not been acknowledged yet.",
+                "summary": service_summary,
+                "queued_message": f"Runtime service configuration update requested{summary_note}.",
+                "ack_message": f"Runtime service configuration acknowledged by device{summary_note}.",
+                "pending_message": f"Runtime service configuration is waiting for device acknowledgement{summary_note}.",
+                "failed_message": f"Runtime service configuration has not been acknowledged yet{summary_note}.",
                 "kind_suffix": "service_config_update",
             }
         )
@@ -10505,6 +12530,13 @@ def local_device_status_url(base_url):
     return f"{normalized}/status"
 
 
+def local_device_logs_url(base_url):
+    normalized = normalize_device_base_url(base_url)
+    if not normalized:
+        return None
+    return f"{normalized}/api/logs"
+
+
 def fetch_local_device_status(base_url, device_id=None):
     if not is_private_device_base_url(base_url):
         raise ValueError("local device URL must be a private LAN address")
@@ -10513,11 +12545,18 @@ def fetch_local_device_status(base_url, device_id=None):
     if not status_url:
         raise ValueError("local device URL is not configured")
 
+    normalized_device_id = normalize_device_id(device_id)
+    headers = {}
+    device_key = configured_device_key_for_id(normalized_device_id)
+    if normalized_device_id and device_key:
+        headers = {"X-Device-Id": normalized_device_id, "X-Device-Key": device_key}
     username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip() or "swtadmin"
-    password = fetch_device_local_web_password(device_id)
+    password = fetch_device_local_web_password(normalized_device_id)
     timeout = max(0.5, env_float("LOCAL_DEVICE_STATUS_TIMEOUT_SECONDS", 1.5))
     auth = (username, password) if username and password else None
-    response = requests.get(status_url, auth=auth, timeout=timeout)
+    response = requests.get(status_url, headers=headers, timeout=timeout)
+    if response.status_code in {401, 403}:
+        response = requests.get(status_url, headers=headers, auth=auth, timeout=timeout)
     if response.status_code in {401, 403} and username and password:
         session_client = requests.Session()
         session_client.post(
@@ -10525,14 +12564,52 @@ def fetch_local_device_status(base_url, device_id=None):
             data={"username": username, "password": password},
             timeout=timeout,
         )
-        response = session_client.get(status_url, auth=auth, timeout=timeout)
+        response = session_client.get(status_url, headers=headers, auth=auth, timeout=timeout)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
         raise ValueError("local device returned invalid status")
-    expected_device_id = normalize_device_id(device_id)
+    expected_device_id = normalized_device_id
     returned_device_id = normalize_device_id(payload.get("device_id"))
     if expected_device_id and returned_device_id and returned_device_id != expected_device_id:
+        raise ValueError("local device_id does not match requested device")
+    payload["device_local_url"] = normalize_device_base_url(base_url)
+    return payload
+
+
+def fetch_local_device_logs(base_url, device_id=None):
+    if not is_private_device_base_url(base_url):
+        raise ValueError("local device URL must be a private LAN address")
+
+    logs_url = local_device_logs_url(base_url)
+    if not logs_url:
+        raise ValueError("local device URL is not configured")
+
+    normalized_device_id = normalize_device_id(device_id)
+    headers = {}
+    device_key = configured_device_key_for_id(normalized_device_id)
+    if normalized_device_id and device_key:
+        headers = {"X-Device-Id": normalized_device_id, "X-Device-Key": device_key}
+
+    username = os.environ.get("SWT_LOCAL_WEB_AUTH_USERNAME", "").strip() or "swtadmin"
+    password = fetch_device_local_web_password(normalized_device_id)
+    timeout = max(0.25, env_float("LOCAL_DEVICE_LOG_TIMEOUT_SECONDS", 0.75))
+    auth = (username, password) if username and password else None
+    response = requests.get(logs_url, headers=headers, auth=auth, timeout=timeout)
+    if response.status_code in {401, 403} and username and password:
+        session_client = requests.Session()
+        session_client.post(
+            f"{normalize_device_base_url(base_url)}/login",
+            data={"username": username, "password": password},
+            timeout=timeout,
+        )
+        response = session_client.get(logs_url, headers=headers, auth=auth, timeout=timeout)
+    response.raise_for_status()
+    payload = response.json()
+    if not isinstance(payload, dict):
+        raise ValueError("local device returned invalid logs")
+    returned_device_id = normalize_device_id(payload.get("device_id"))
+    if normalized_device_id and returned_device_id and returned_device_id != normalized_device_id:
         raise ValueError("local device_id does not match requested device")
     payload["device_local_url"] = normalize_device_base_url(base_url)
     return payload
@@ -10954,21 +13031,98 @@ def resolve_command_target(target_device=None):
     return None
 
 
+def device_command_family(command):
+    normalized_command = str(command or "").strip().upper()
+    compact = normalized_command.replace("-", "_").replace(" ", "_")
+    if compact in {"ON", "OFF"}:
+        return "pump"
+    if compact == "REBOOT" or compact.startswith("RESTART"):
+        return "reboot"
+    if compact.startswith("SERVICECFG"):
+        return "service_config"
+    if compact.startswith("THRESHOLDS:") or compact.startswith("CONFIG_THRESHOLDS:") or compact.startswith("CONFIG_AUTO:"):
+        return "thresholds"
+    if (
+        compact.startswith("CONFIG_AUTO_START")
+        or compact.startswith("AUTO_START")
+        or compact.startswith("START_LEVEL")
+    ):
+        return "threshold_start"
+    if (
+        compact.startswith("CONFIG_AUTO_STOP")
+        or compact.startswith("AUTO_STOP")
+        or compact.startswith("STOP_LEVEL")
+    ):
+        return "threshold_stop"
+    if compact.startswith("PEER_CHANNEL:") or compact.startswith("CONFIG_PEER_CHANNEL:"):
+        return "peer_channel"
+    if (
+        compact.startswith("CONFIG_UPPER:")
+        or compact.startswith("CONFIG:")
+        or compact.startswith("CONFIG_HEIGHT:")
+        or compact.startswith("CONFIG_CAPACITY:")
+    ):
+        return "upper_tank_setup"
+    if (
+        compact.startswith("CONFIG_LOWER:")
+        or compact.startswith("CONFIG_SOURCE:")
+        or compact.startswith("CONFIG_LOWER_HEIGHT:")
+        or compact.startswith("CONFIG_SOURCE_HEIGHT:")
+        or compact.startswith("CONFIG_LOWER_CAPACITY:")
+        or compact.startswith("CONFIG_SOURCE_CAPACITY:")
+    ):
+        return "lower_tank_setup"
+    if compact in {"CALIBRATE", "CALIBRATE_UPPER"}:
+        return "upper_calibration"
+    if compact == "CALIBRATE_LOWER":
+        return "lower_calibration"
+    if compact.startswith("PING_MASTER") or compact.startswith("PING:MASTER") or compact.startswith("MASTER_PING"):
+        return "ping_master"
+    if (
+        compact.startswith("PING_SLAVE")
+        or compact.startswith("PING:SLAVE")
+        or compact.startswith("PING_PEER")
+        or compact.startswith("PEER_PING")
+    ):
+        return "ping_slave"
+    if compact.startswith("SIMULATOR") or compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
+        return "simulator"
+    return f"command:{compact}"
+
+
 def queue_device_command(command, target_device):
+    normalized_command = str(command or "").strip().upper()
+    normalized_family = device_command_family(normalized_command)
     with get_db() as db:
-        db.execute(
+        pending_rows = db.execute(
             """
-            DELETE FROM device_command_queue
+            SELECT id, command
+            FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
+            ORDER BY id ASC
             """,
             (target_device,),
-        )
-        db.execute(
+        ).fetchall()
+        duplicate_ids = [
+            row["id"]
+            for row in pending_rows
+            if device_command_family(row["command"]) == normalized_family
+        ]
+        if duplicate_ids:
+            placeholders = ",".join("?" for _ in duplicate_ids)
+            db.execute(
+                f"""
+                DELETE FROM device_command_queue
+                WHERE target_device = ? AND delivered_at IS NULL AND id IN ({placeholders})
+                """,
+                (target_device, *duplicate_ids),
+            )
+        cursor = db.execute(
             """
             INSERT INTO device_command_queue (target_device, command)
             VALUES (?, ?)
             """,
-            (target_device, command),
+            (target_device, normalized_command),
         )
         db.execute(
             """
@@ -10977,6 +13131,56 @@ def queue_device_command(command, target_device):
               AND delivered_at < datetime('now', '-7 day')
             """
         )
+        return cursor.lastrowid
+
+
+def recent_device_command_row(db, device_id, seconds, command_prefixes=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id or seconds <= 0:
+        return None
+
+    params = [normalized_device_id, f"-{int(seconds)} seconds"]
+    command_clause = ""
+    if command_prefixes:
+        clauses = []
+        for prefix in command_prefixes:
+            clauses.append("command LIKE ?")
+            params.append(f"{str(prefix or '').strip().upper()}%")
+        command_clause = f" AND ({' OR '.join(clauses)})"
+
+    return db.execute(
+        f"""
+        SELECT id, command, created_at, delivered_at
+        FROM device_command_queue
+        WHERE target_device = ?
+          AND created_at >= datetime('now', ?)
+          {command_clause}
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        tuple(params),
+    ).fetchone()
+
+
+def runtime_sync_command_allowed(db, device_id):
+    if recent_device_command_row(db, device_id, RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS):
+        return False
+    if recent_device_command_row(
+        db,
+        device_id,
+        RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS,
+        command_prefixes=(
+            "SERVICECFG",
+            "THRESHOLDS:",
+            "PEER_CHANNEL:",
+            "CONFIG_UPPER:",
+            "CONFIG_LOWER:",
+            "CONFIG_CAPACITY:",
+            "CONFIG_LOWER_CAPACITY:",
+        ),
+    ):
+        return False
+    return True
 
 
 def peek_queued_command(device_id):
@@ -10990,7 +13194,7 @@ def peek_queued_command(device_id):
             SELECT id, command
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id DESC
+            ORDER BY id ASC
             LIMIT 1
             """,
             (normalized_device_id,),
@@ -10998,9 +13202,14 @@ def peek_queued_command(device_id):
         if row:
             return {"id": row["id"], "command": row["command"]}
 
+    with get_db() as db:
+        if not runtime_sync_command_allowed(db, normalized_device_id):
+            return None
+
     sync_command = build_runtime_sync_command(normalized_device_id)
     if sync_command and sync_command.get("command"):
         queue_device_command(sync_command["command"], normalized_device_id)
+        persist_command_activity_events(normalized_device_id)
         logger.info(
             "Queued runtime sync command for %s: %s (%s)",
             normalized_device_id,
@@ -11013,7 +13222,7 @@ def peek_queued_command(device_id):
                 SELECT id, command
                 FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL
-                ORDER BY id DESC
+                ORDER BY id ASC
                 LIMIT 1
                 """,
                 (normalized_device_id,),
@@ -11056,6 +13265,7 @@ def acknowledge_queued_command_id(device_id, command_id):
             """,
             (row["id"],),
         )
+    persist_command_activity_events(normalized_device_id)
     return True
 
 
@@ -11086,6 +13296,7 @@ def acknowledge_queued_command(device_id, command):
             """,
             (row["id"],),
         )
+    persist_command_activity_events(normalized_device_id)
     return True
 
 
@@ -11120,17 +13331,125 @@ def queue_command(command, target_device=None):
         }, 400
 
     normalized_command = str(command or "").strip().upper()
-    queue_device_command(normalized_command, device_command_target)
+    command_id = queue_device_command(normalized_command, device_command_target)
+    persist_command_activity_events(device_command_target)
     mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
         "command": normalized_command,
+        "command_id": command_id,
         "target_device": device_command_target,
         "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "control_policy": CONTROL_POLICY,
         "mqtt_delivery": "published" if mqtt_published else ("pending" if mqtt_feature_enabled() else "disabled"),
     }
     return result
+
+
+MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE = "START_FIRMWARE_UPGRADE"
+
+
+def normalize_mobile_device_action(action):
+    normalized_action = str(action or "").strip().upper().replace("-", "_").replace(" ", "_")
+    if normalized_action in {"START_FIRMWARE_UPGRADE", "FIRMWARE_UPGRADE", "START_OTA", "OTA_UPGRADE"}:
+        return MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+    raise ValueError("Unsupported mobile action")
+
+
+def queue_device_mobile_action(action, target_device, payload=None):
+    normalized_target_device = normalize_device_id(target_device)
+    if not normalized_target_device:
+        return {
+            "status": "error",
+            "error": "No target device is available for this mobile action yet.",
+            "action": action,
+        }, 400
+
+    try:
+        normalized_action = normalize_mobile_device_action(action)
+    except ValueError as exc:
+        return {
+            "status": "error",
+            "error": str(exc),
+            "action": action,
+            "target_device": normalized_target_device,
+        }, 400
+
+    payload_json = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"))
+    with get_db() as db:
+        db.execute(
+            """
+            DELETE FROM device_mobile_action_queue
+            WHERE target_device = ? AND delivered_at IS NULL AND UPPER(action) = ?
+            """,
+            (normalized_target_device, normalized_action),
+        )
+        db.execute(
+            """
+            INSERT INTO device_mobile_action_queue (target_device, action, payload_json)
+            VALUES (?, ?, ?)
+            """,
+            (normalized_target_device, normalized_action, payload_json),
+        )
+        db.execute(
+            """
+            DELETE FROM device_mobile_action_queue
+            WHERE delivered_at IS NOT NULL
+              AND delivered_at < datetime('now', '-7 day')
+            """
+        )
+        return cursor.lastrowid
+
+    return {
+        "status": "queued",
+        "action": normalized_action,
+        "target_device": normalized_target_device,
+        "payload": payload or {},
+        "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    }
+
+
+def pop_device_mobile_action(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT id, action, payload_json, created_at
+            FROM device_mobile_action_queue
+            WHERE target_device = ? AND delivered_at IS NULL
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (normalized_device_id,),
+        ).fetchone()
+        if not row:
+            return None
+        db.execute(
+            """
+            UPDATE device_mobile_action_queue
+            SET delivered_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+            """,
+            (row["id"],),
+        )
+
+    payload = {}
+    try:
+        payload = json.loads(row["payload_json"] or "{}")
+        if not isinstance(payload, dict):
+            payload = {"value": payload}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        payload = {}
+    return {
+        "id": row["id"],
+        "action": row["action"],
+        "payload": payload,
+        "queued_at": row["created_at"],
+        "delivered_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    }
 
 
 def home_automation_device_label(device_id, account=None):
@@ -11322,7 +13641,7 @@ def relay_status_to_cloud(payload):
                     verify=RELAY_VERIFY_TLS,
                 )
                 if response.ok:
-                    logger.info("Relayed telemetry to %s", url)
+                    logger.debug("Relayed telemetry to %s", url)
                     relay_state["last_success_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                     relay_state["last_status_code"] = response.status_code
                     relay_state["last_error_at"] = None
@@ -11333,7 +13652,7 @@ def relay_status_to_cloud(payload):
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = f"HTTP {response.status_code}"
                 relay_state["last_status_code"] = response.status_code
-                logger.warning("Relay telemetry failed (%s): %s", url, response.status_code)
+                logger.debug("Relay telemetry failed (%s): %s", url, response.status_code)
                 if response.status_code in {401, 403}:
                     set_alert(
                         "relay_failure",
@@ -11350,7 +13669,7 @@ def relay_status_to_cloud(payload):
                 relay_state["last_error_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
                 relay_state["last_error"] = str(exc)
                 relay_state["last_status_code"] = None
-                logger.warning("Relay telemetry failed (%s): %s", url, exc)
+                logger.debug("Relay telemetry failed (%s): %s", url, exc)
                 set_alert("relay_failure", "warning", f"Cloud relay request failed: {exc}", active=True)
     return "retry"
 
@@ -11476,7 +13795,7 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
                     verify=RELAY_VERIFY_TLS,
                 )
                 if not response.ok:
-                    logger.warning("Relay command failed (%s): %s", url, response.status_code)
+                    logger.debug("Relay command failed (%s): %s", url, response.status_code)
                     continue
                 payload = response.json()
                 command = payload.get("command")
@@ -11485,7 +13804,7 @@ def fetch_cloud_command(device_id=None, device_source=DEVICE_SOURCE_REAL):
                     logger.info("Relayed command from %s: %s", url, command)
                 return {"command": command, "command_id": command_id}
             except requests.RequestException as exc:
-                logger.warning("Relay command failed (%s): %s", url, exc)
+                logger.debug("Relay command failed (%s): %s", url, exc)
             except ValueError as exc:
                 logger.warning("Relay command invalid JSON (%s): %s", url, exc)
     return None
@@ -11919,6 +14238,7 @@ def mobile_auth_logout():
 def mobile_bootstrap():
     event_limit = max(1, min(request.args.get("event_limit", default=5, type=int), 30))
     audit_limit = max(1, min(request.args.get("audit_limit", default=5, type=int), 30))
+    include_analytics = str(request.args.get("include_analytics", "0")).strip().lower() in {"1", "true", "yes", "on"}
     response = mobile_customer_cloud_feed_block_response()
     if response:
         return response
@@ -11931,16 +14251,31 @@ def mobile_bootstrap():
     payload = {
         "snapshot": public_snapshot,
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "events": build_events(event_limit, device_id=scoped_device_id),
+        "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
         "guidance": build_shared_guidance_payload(snapshot, None),
         "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
+        "mobile_action": pop_device_mobile_action(scoped_device_id),
     }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
+    if include_analytics and current_customer_ai_analysis_enabled():
+        try:
+            start_dt, end_exclusive, label = resolve_date_window()
+            payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        except Exception as exc:
+            logger.exception("Mobile bootstrap analytics fallback used for %s: %s", scoped_device_id, exc)
+            try:
+                start_dt, end_exclusive, label = resolve_date_window()
+                payload["analytics"] = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+                payload["analytics"]["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+            except Exception:
+                payload["analytics_warning"] = "AI analysis is temporarily unavailable."
     return jsonify(payload)
 
 
@@ -11958,7 +14293,14 @@ def mobile_analytics():
         start_dt, end_exclusive, label = resolve_date_window()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+    try:
+        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    except Exception as exc:
+        logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
+        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+    return jsonify(payload)
 
 
 @app.route("/api/mobile/local-sync", methods=["POST"])
@@ -11984,10 +14326,14 @@ def mobile_local_sync():
     cleaned = process_telemetry_payload(data, source_ip="android_local_wifi", transport="android_local_wifi")
     snapshot = load_dashboard_snapshot(scoped_device_id)
     refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    sync_result = str(cleaned.get("_telemetry_sync_result") or "saved")
     return jsonify(
         {
-            "result": "saved",
+            "status": "ok" if sync_result != "duplicate" else "duplicate",
+            "result": sync_result,
+            "duplicate": sync_result == "duplicate",
             "device_id": scoped_device_id,
+            "sync_fingerprint": cleaned.get("telemetry_fingerprint"),
             "snapshot": strip_ip_address_fields(snapshot or cleaned, keep_device_local_url=True),
         }
     )
@@ -12181,6 +14527,7 @@ def mobile_device_status():
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
+        "mobile_action": pop_device_mobile_action(scoped_device_id),
         "viewer": resolve_mobile_user(),
     })
 
@@ -12982,6 +15329,7 @@ def admin_customers():
 def admin_customers_device_table_json():
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
     devices = []
     for device in available_devices:
         master_node_label = str(device.get("master_status_label") or "Unreachable").replace("Master ", "").replace("Slave ", "")
@@ -13027,7 +15375,12 @@ def admin_customers_device_table_json():
                 "last_sync_at": last_sync_at,
             }
         )
-    return jsonify({"devices": devices, "count": len(devices), "updated_at": now_utc().isoformat()})
+    return jsonify({
+        "devices": devices,
+        "count": len(devices),
+        "summary": device_summary,
+        "updated_at": now_utc().isoformat(),
+    })
 
 
 @app.route("/admin/devices/register", methods=["POST"])
@@ -13750,6 +16103,63 @@ def admin_device_reboot(device_id):
     )
 
 
+@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_mobile_firmware_upgrade(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    config_error = None
+    config_message = None
+
+    if not scoped_device_id:
+        config_error = "Choose a valid device before queueing an Android OTA trigger."
+    else:
+        service_config = fetch_device_service_config(scoped_device_id)
+        if not service_config.get("cloud_feed_enabled", True):
+            config_error = "Enable Cloud Feed before queueing an Android OTA trigger."
+        elif not service_config.get("local_firmware_upload_enabled", False):
+            config_error = "Enable Local firmware upload before queueing an Android OTA trigger."
+        else:
+            queue_result = queue_device_mobile_action(
+                MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
+                scoped_device_id,
+                payload={
+                    "message": "Flask requested a firmware upgrade.",
+                    "device_id": scoped_device_id,
+                    "source": "device_detail",
+                },
+            )
+            if isinstance(queue_result, tuple):
+                payload, _status_code = queue_result
+                config_error = payload.get("error") or f"Unable to queue an Android OTA trigger for {scoped_device_id}."
+            else:
+                log_audit_event(
+                    actor=current_actor_username(),
+                    action="queue_android_firmware_upgrade",
+                    target_type="device",
+                    target_id=scoped_device_id,
+                    device_id=scoped_device_id,
+                    details={
+                        "action": queue_result.get("action"),
+                        "queued_at": queue_result.get("queued_at"),
+                        "payload": queue_result.get("payload"),
+                    },
+                )
+                config_message = (
+                    f"Android OTA trigger queued for {scoped_device_id}. "
+                    "The Android app will start its next firmware upgrade sync on the next cloud refresh."
+                )
+
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id or device_id,
+            config_error=config_error or "",
+            config_message=config_message or "",
+        )
+    )
+
+
 @app.route("/admin/customers/<device_id>/delete", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -13827,6 +16237,26 @@ def admin_db_summary():
     return jsonify(build_db_summary_payload())
 
 
+@app.route("/admin/db-cleanup", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_db_cleanup():
+    pruned = maybe_prune_retained_rows(force=True)
+    pruned_rows = sum(int(value or 0) for value in pruned.values())
+    payload = build_db_summary_payload()
+    payload["cleanup"] = {
+        "pruned": pruned,
+        "pruned_rows": pruned_rows,
+        "maintenance": {
+            "last_action": db_maintenance_state.get("last_action"),
+            "last_error": db_maintenance_state.get("last_error"),
+            "last_reason": db_maintenance_state.get("last_reason"),
+            "last_tables": db_maintenance_state.get("last_tables"),
+        },
+    }
+    return jsonify(payload)
+
+
 @app.route("/admin/device-source-mode", methods=["GET", "POST"])
 @admin_required
 @csrf_protect
@@ -13877,6 +16307,205 @@ def customer_dashboard():
     return render_dashboard_page()
 
 
+def device_detail_card_display(value, fallback="Not reported"):
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    return text if text and text != "--" else fallback
+
+
+def device_detail_card_title(value, fallback="Not reported"):
+    text = device_detail_card_display(value, fallback="")
+    return text.replace("_", " ").replace("-", " ").title() if text else fallback
+
+
+def device_detail_card_bool(value, default=False):
+    return "Enabled" if boolish_enabled(value, default=default) else "Disabled"
+
+
+def device_detail_card_liters(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:.1f} L"
+
+
+def device_detail_card_cm(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:.1f} cm"
+
+
+def device_detail_card_percent(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    return f"{number:g}%"
+
+
+def device_detail_card_duration_ms(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number) or number < 0:
+        return fallback
+    if number >= 1000:
+        return format_compact_uptime(number / 1000.0)
+    return f"{number:g} ms"
+
+
+def device_detail_card_duration_seconds(value, fallback="Not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number) or number < 0:
+        return fallback
+    return format_compact_uptime(number)
+
+
+def device_detail_card_heap(value, fallback="Heap not reported"):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return fallback
+    if not math.isfinite(number):
+        return fallback
+    if abs(number) >= 1024 * 1024:
+        return f"{number / (1024 * 1024):.1f} MB free"
+    if abs(number) >= 1024:
+        return f"{number / 1024:.1f} KB free"
+    return f"{int(number)} B free"
+
+
+def build_device_detail_info_cards(snapshot, system_status, service_config, automation_settings, current_saved_config):
+    snapshot = snapshot or {}
+    system_status = system_status or {}
+    service_config = service_config or {}
+    current_saved_config = current_saved_config or {}
+    saved_service_config = current_saved_config.get("service_config") or service_config
+    saved_automation_settings = current_saved_config.get("automation_settings") or automation_settings or {}
+    uses_slave = boolish_enabled(saved_service_config.get("slave_device_enabled"), default=True)
+    slave_upper = uses_slave and boolish_enabled(
+        saved_service_config.get("slave_upper_sensor_enabled"),
+        default=uses_slave,
+    )
+    source_monitoring = boolish_enabled(
+        saved_service_config.get("source_tank_monitoring_enabled"),
+        default=True,
+    )
+    upper_source = snapshot.get("upper_sensor_source") or ("slave" if slave_upper else "master")
+    auto_start = (
+        current_saved_config.get("auto_start_pct")
+        or saved_automation_settings.get("auto_start_pct")
+        or saved_service_config.get("auto_start_pct")
+        or snapshot.get("auto_start_pct")
+        or snapshot.get("auto_start_level_pct")
+        or snapshot.get("lower_threshold_pct")
+    )
+    auto_stop = (
+        current_saved_config.get("auto_stop_pct")
+        or saved_automation_settings.get("auto_stop_pct")
+        or saved_service_config.get("auto_stop_pct")
+        or snapshot.get("auto_stop_pct")
+        or snapshot.get("auto_stop_level_pct")
+        or snapshot.get("upper_threshold_pct")
+    )
+    tank_capacity = (
+        current_saved_config.get("tank_capacity_liters")
+        or saved_service_config.get("tank_capacity_liters")
+        or snapshot.get("capacity_liters")
+        or snapshot.get("tank_capacity_liters")
+        or system_status.get("capacity_liters")
+    )
+    tank_height = (
+        current_saved_config.get("tank_height_cm")
+        or saved_service_config.get("tank_height_cm")
+        or snapshot.get("tank_height_cm")
+    )
+    source_capacity = (
+        current_saved_config.get("lower_tank_capacity_liters")
+        or saved_service_config.get("lower_tank_capacity_liters")
+        or snapshot.get("lower_tank_capacity_liters")
+        or snapshot.get("source_tank_capacity_liters")
+    )
+    source_height = (
+        current_saved_config.get("lower_tank_height_cm")
+        or saved_service_config.get("lower_tank_height_cm")
+        or snapshot.get("lower_tank_height_cm")
+    )
+    card_values = [
+        ("Firmware", device_detail_card_display(snapshot.get("firmware_version"))),
+        ("Configuration", "Master + Slave" if uses_slave else "Master Only"),
+        ("Master Reachability", device_detail_card_display(system_status.get("master_status_label"), "Unreachable")),
+        ("Slave Reachability", device_detail_card_display(system_status.get("slave_status_label"), "Reachable" if uses_slave else "Disabled")),
+        ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
+        ("Architecture", f"Arch {snapshot.get('arch_id')}" if snapshot.get("arch_id") not in (None, "") else device_detail_card_display(snapshot.get("architecture_mode"))),
+        ("Source Mode", device_detail_card_title(snapshot.get("device_source") or system_status.get("device_source_mode"), "Real")),
+        ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
+        ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
+        ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
+        ("Tank Capacity", device_detail_card_liters(tank_capacity)),
+        ("Tank Height", device_detail_card_cm(tank_height)),
+        ("Auto Start Threshold", device_detail_card_percent(auto_start)),
+        ("Auto Stop Threshold", device_detail_card_percent(auto_stop)),
+        ("Auto Start Delay", device_detail_card_duration_ms(snapshot.get("auto_start_stable_ms"), "5s")),
+        ("Level Average Samples", device_detail_card_display(snapshot.get("auto_level_average_samples"), "5")),
+        ("Water Depth", device_detail_card_cm(snapshot.get("water_depth_cm"))),
+        ("Upper Echo Distance", device_detail_card_cm(snapshot.get("sensor_distance_cm"))),
+        ("Command Service", device_detail_card_title(snapshot.get("command_service"), "ON")),
+        ("Telemetry Service", device_detail_card_title(snapshot.get("telemetry_service"), "ON")),
+        ("Simulator", device_detail_card_title(snapshot.get("simulator") or snapshot.get("simulator_status"), "OFF")),
+        ("Direct Peer", device_detail_card_display(snapshot.get("direct_peer"), "enabled" if uses_slave else "disabled")),
+        ("Peer Config Channel", device_detail_card_display(snapshot.get("direct_peer_config_channel") or saved_service_config.get("direct_peer_wifi_channel"), "1")),
+        ("Peer Active Channel", device_detail_card_display(snapshot.get("direct_peer_wifi_channel"), "1")),
+        ("Peer Sync", "Sync OK" if not boolish_enabled(snapshot.get("direct_peer_sync_pending"), default=False) else "Pending"),
+        ("Peer Remote IP", device_detail_card_display(snapshot.get("direct_peer_remote_ip"), "Waiting for peer")),
+        ("Peer Remote MAC", device_detail_card_display(snapshot.get("direct_peer_remote_mac"), "Waiting for peer")),
+        ("Peer Packet Age", device_detail_card_duration_seconds(snapshot.get("direct_peer_last_packet_age_s"), "0s")),
+        ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
+        ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
+        ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
+        ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
+        ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
+        ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
+        ("Local Firmware Upload", device_detail_card_bool(saved_service_config.get("local_firmware_upload_enabled"), default=True)),
+        ("Android SSO Limit", device_detail_card_display(saved_service_config.get("android_sso_session_limit"), DEFAULT_ANDROID_SSO_SESSION_LIMIT)),
+        ("Network Channel", device_detail_card_title(snapshot.get("channel_mode"), "Cloud")),
+        ("Local Device IP", device_detail_card_display(snapshot.get("device_local_url"), "Local IP not reported")),
+        ("Master Memory", device_detail_card_heap(snapshot.get("free_heap"))),
+    ]
+    if uses_slave:
+        card_values.extend(
+            [
+                ("Slave Memory", device_detail_card_heap(snapshot.get("slave_free_heap"), "Slave heap not reported")),
+                ("Uptime", device_detail_card_display(snapshot.get("uptime_label"), "Uptime not reported")),
+                ("Slave Uptime", device_detail_card_display(snapshot.get("slave_uptime_label"), "Slave uptime not reported")),
+            ]
+        )
+    if source_monitoring:
+        card_values.extend(
+            [
+                ("Source Capacity", device_detail_card_liters(source_capacity)),
+                ("Source Height", device_detail_card_cm(source_height)),
+                ("Source Water Depth", device_detail_card_cm(snapshot.get("lower_water_depth_cm"))),
+                ("Lower Sensor Distance", device_detail_card_cm(snapshot.get("lower_sensor_distance_cm"))),
+            ]
+        )
+    return [{"label": label, "value": value} for label, value in card_values]
+
+
 @app.route("/devices/<device_id>")
 @admin_required
 def device_detail_page(device_id):
@@ -13895,8 +16524,26 @@ def device_detail_page(device_id):
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    if simulator_state in {"on", "off"}:
+    live_simulator_status = simulator_payload_status(snapshot)
+    if (
+        simulator_state in {"on", "off"}
+        and (
+            live_simulator_status is None
+            or str(snapshot.get("telemetry_status") or "").strip().lower() == "no-data"
+        )
+    ):
         simulator_enabled = simulator_state == "on"
+    system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
+    # Keep the HTML render path cheap and safe. The browser can synthesize
+    # current activity rows from the snapshot below, then hydrate from /events.
+    initial_events = []
+    initial_info_cards = build_device_detail_info_cards(
+        snapshot,
+        system_status,
+        service_config,
+        automation_settings,
+        current_saved_config,
+    )
     return render_template(
         "device_detail.html",
         device_id=scoped_device_id,
@@ -13906,6 +16553,7 @@ def device_detail_page(device_id):
         service_config=service_config,
         automation_settings=automation_settings,
         current_saved_config=current_saved_config,
+        system_status=system_status,
         peer_channel_input_value=peer_channel_input_value,
         android_sso_active_session_count=active_platform_session_count(
             SESSION_PLATFORM_ANDROID,
@@ -13916,6 +16564,8 @@ def device_detail_page(device_id):
         firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
+        initial_events=initial_events,
+        initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
         config_error=request.args.get("config_error", "", type=str) or "",
@@ -13927,19 +16577,32 @@ def device_simulator_state_key(device_id):
     return f"{DEVICE_SIMULATOR_STATE_PREFIX}{normalized_device_id}" if normalized_device_id else None
 
 
-def simulator_payload_enabled(payload):
+SIMULATOR_STATUS_KEYS = (
+    "simulator",
+    "upper_tank_simulator",
+    "main_tank_simulator",
+    "source_tank_simulator",
+    "lower_tank_simulator",
+)
+
+
+def simulator_payload_status(payload):
     if not payload:
-        return False
-    for key in (
-        "simulator",
-        "upper_tank_simulator",
-        "main_tank_simulator",
-        "source_tank_simulator",
-        "lower_tank_simulator",
-    ):
+        return None
+    saw_disabled = False
+    for key in SIMULATOR_STATUS_KEYS:
         value = str(payload.get(key) or "").strip().upper()
         if value in {"ON", "TRUE", "YES", "1"}:
             return True
+        if value in {"OFF", "FALSE", "NO", "0"}:
+            saw_disabled = True
+    return False if saw_disabled else None
+
+
+def simulator_payload_enabled(payload):
+    status = simulator_payload_status(payload)
+    if status is not None:
+        return status
     return False
 
 
@@ -13963,20 +16626,79 @@ def record_device_simulator_state(device_id, enabled, source="telemetry"):
         logger.warning("Could not persist simulator state for %s: %s", normalize_device_id(device_id), exc)
 
 
-def device_simulator_enabled(device_id, snapshot=None):
+def load_device_simulator_state(device_id):
     state_key = device_simulator_state_key(device_id)
-    if state_key:
-        try:
-            raw_state = get_app_setting(state_key)
-        except Exception as exc:
-            logger.warning("Could not load simulator state for %s: %s", normalize_device_id(device_id), exc)
-            raw_state = None
-        if raw_state:
-            try:
-                return bool(json.loads(raw_state).get("enabled"))
-            except (TypeError, ValueError, json.JSONDecodeError):
-                pass
-    return simulator_payload_enabled(snapshot)
+    if not state_key:
+        return None
+    try:
+        raw_state = get_app_setting(state_key)
+    except Exception as exc:
+        logger.warning("Could not load simulator state for %s: %s", normalize_device_id(device_id), exc)
+        return None
+    if not raw_state:
+        return None
+    try:
+        state = json.loads(raw_state)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return None
+    return state if isinstance(state, dict) else None
+
+
+def device_simulator_enabled(device_id, snapshot=None):
+    live_status = simulator_payload_status(snapshot)
+    if live_status is not None and str((snapshot or {}).get("telemetry_status") or "").strip().lower() != "no-data":
+        return live_status
+
+    state = load_device_simulator_state(device_id)
+    if state:
+        return bool(state.get("enabled"))
+    return bool(live_status)
+
+
+def device_detail_ajax_request():
+    return request.headers.get("X-Requested-With") == "XMLHttpRequest"
+
+
+def device_detail_action_response(
+    device_id,
+    message="",
+    *,
+    error="",
+    title="",
+    status_code=200,
+    detail_lines=None,
+    **extra,
+):
+    normalized_device_id = normalize_device_id(device_id)
+    resolved_message = str(message or "").strip()
+    resolved_error = str(error or "").strip()
+    if device_detail_ajax_request():
+        payload = {
+            "ok": not bool(resolved_error),
+            "title": title or ("Action failed" if resolved_error else "Action saved"),
+            "message": resolved_message or ("Request completed." if not resolved_error else ""),
+            "error": resolved_error,
+            "detail_lines": [line for line in (detail_lines or []) if line],
+        }
+        payload.update(extra)
+        return jsonify(payload), status_code
+
+    query_key = "config_error" if resolved_error else "config_message"
+    query_value = resolved_error or resolved_message or "Request completed."
+    return redirect(url_for("device_detail_page", device_id=normalized_device_id, **{query_key: query_value}))
+
+
+def safe_queue_device_detail_command(command, device_id, failure_message):
+    try:
+        queue_result = queue_command(command, target_device=device_id)
+    except Exception as exc:
+        logger.exception("Unable to queue device detail command for %s: %s", normalize_device_id(device_id), exc)
+        return None, f"{failure_message}: {exc}"
+    if isinstance(queue_result, tuple):
+        error_payload, _status_code = queue_result
+        error_text = (error_payload or {}).get("error") if isinstance(error_payload, dict) else ""
+        return None, error_text or failure_message
+    return queue_result, ""
 
 
 @app.route("/devices/<device_id>/configuration", methods=["POST"])
@@ -14009,6 +16731,7 @@ def admin_device_detail_configuration(device_id):
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
             ai_analysis_enabled=("ai_analysis_enabled" in request.form),
+            auto_mode_enabled=("auto_mode_enabled" in request.form),
             cloud_feed_mode=(
                 DEVICE_SERVICE_CLOUD_FEED_OFF
                 if "cloud_feed_disabled" in request.form
@@ -14022,8 +16745,23 @@ def admin_device_detail_configuration(device_id):
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
-        queued_command = build_device_service_command(updated_config)
-        queue_command(queued_command, target_device=scoped_device_id)
+    except ValueError as exc:
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save runtime configuration for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save runtime configuration: {exc}",
+            status_code=500,
+        )
+
+    queued_command = build_device_service_command(updated_config)
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue runtime configuration update",
+    )
+    try:
         log_audit_event(
             actor=current_actor_username(),
             action="update_device_detail_configuration",
@@ -14033,13 +16771,36 @@ def admin_device_detail_configuration(device_id):
             details={
                 "service_config": updated_config,
                 "queued_command": queued_command,
+                "queue_error": queue_error,
                 "android_sessions_preserved": True,
             },
         )
-        message = "Configuration saved. Device changes apply on the next command poll."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
-    except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+    except Exception as exc:
+        logger.warning("Unable to log runtime configuration audit event for %s: %s", scoped_device_id, exc)
+    auto_mode_label = "Enabled" if updated_config.get("auto_mode_enabled") else "Disabled"
+    if queue_error:
+        return device_detail_action_response(
+            scoped_device_id,
+            (
+                f"Configuration saved in Flask. Auto Start/Stop is {auto_mode_label}. "
+                "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+            ),
+            title="Configuration saved in Flask",
+            detail_lines=[queue_error],
+            service_config=updated_config,
+            queued_command=queued_command,
+        )
+    message = (
+        f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
+        "Device changes apply on the next command poll."
+    )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        service_config=updated_config,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
 
 
 @app.route("/devices/<device_id>/thresholds", methods=["POST"])
@@ -14057,33 +16818,57 @@ def admin_device_detail_thresholds(device_id):
             source="admin_dashboard",
         )
     except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save tank thresholds for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save tank thresholds: {exc}",
+            status_code=500,
+        )
 
     queued_command = build_device_automation_command(updated_settings)
-    queue_result = queue_command(queued_command, target_device=scoped_device_id)
-    if isinstance(queue_result, tuple):
-        error_payload, _status_code = queue_result
-        error = error_payload.get("error") or "Unable to queue threshold update."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
-
-    log_audit_event(
-        actor=current_actor_username(),
-        action="update_device_detail_thresholds",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "automation_settings": updated_settings,
-            "queued_command": queued_command,
-            "source": "admin_dashboard",
-        },
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue threshold update",
     )
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_detail_thresholds",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "automation_settings": updated_settings,
+                "queued_command": queued_command,
+                "queue_error": queue_error,
+                "source": "admin_dashboard",
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log threshold audit event for %s: %s", scoped_device_id, exc)
     message = (
         f"Tank thresholds saved for {scoped_device_id}. "
         f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
         "Device changes apply on the next command poll."
     )
-    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+    if queue_error:
+        message = (
+            f"Tank thresholds saved in Flask for {scoped_device_id}. "
+            f"Start at {updated_settings['auto_start_pct']:g}% and stop at {updated_settings['auto_stop_pct']:g}%. "
+            "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+        )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        title="Tank thresholds saved in Flask" if queue_error else "Action saved",
+        detail_lines=[queue_error] if queue_error else [],
+        automation_settings=updated_settings,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
 
 
 @app.route("/devices/<device_id>/peer-channel", methods=["POST"])
@@ -14103,32 +16888,109 @@ def admin_device_detail_peer_channel(device_id):
         )
         queued_command = build_device_peer_channel_command(requested_channel)
     except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+        return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
+    except Exception as exc:
+        logger.exception("Could not save peer channel for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save peer channel: {exc}",
+            status_code=500,
+        )
 
-    queue_result = queue_command(queued_command, target_device=scoped_device_id)
-    if isinstance(queue_result, tuple):
-        error_payload, _status_code = queue_result
-        error = error_payload.get("error") or "Unable to queue peer channel update."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
-
-    log_audit_event(
-        actor=current_actor_username(),
-        action="update_device_detail_peer_channel",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "direct_peer_wifi_channel": requested_channel,
-            "service_config": updated_config,
-            "queued_command": queued_command,
-            "source": "admin_dashboard",
-        },
+    queue_result, queue_error = safe_queue_device_detail_command(
+        queued_command,
+        scoped_device_id,
+        "Unable to queue peer channel update",
     )
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="update_device_detail_peer_channel",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "direct_peer_wifi_channel": requested_channel,
+                "service_config": updated_config,
+                "queued_command": queued_command,
+                "queue_error": queue_error,
+                "source": "admin_dashboard",
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log peer channel audit event for %s: %s", scoped_device_id, exc)
     message = (
         f"Peer channel saved for {scoped_device_id}. "
         f"Channel {requested_channel} will apply on the next device command poll."
     )
-    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+    if queue_error:
+        message = (
+            f"Peer channel {requested_channel} saved in Flask for {scoped_device_id}. "
+            "The device command was not queued, so the controller will apply it after the next successful sync/queue."
+        )
+    return device_detail_action_response(
+        scoped_device_id,
+        message,
+        title="Peer channel saved in Flask" if queue_error else "Action saved",
+        detail_lines=[queue_error] if queue_error else [],
+        service_config=updated_config,
+        direct_peer_wifi_channel=requested_channel,
+        queued_command=queued_command,
+        queue_result=queue_result,
+    )
+
+
+@app.route("/devices/<device_id>/ping", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_ping(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    target = request.form.get("target") or request.form.get("node") or request.form.get("ping_target")
+    try:
+        ping_result = build_device_ping_result(scoped_device_id, target)
+    except Exception as exc:
+        logger.exception("Device ping failed for %s target=%s", scoped_device_id, target)
+        return jsonify({"ok": False, "error": str(exc) or "Unable to ping device node."}), 200
+
+    try:
+        persist_device_events([ping_result["event"]], default_device_id=scoped_device_id)
+    except Exception as exc:
+        logger.warning("Unable to persist ping event for %s: %s", scoped_device_id, exc)
+    try:
+        log_audit_event(
+            actor=current_actor_username(),
+            action="ping_device_node",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "ping_target": ping_result["target"],
+                "ping_status": ping_result["status"],
+                "reachable": ping_result["reachable"],
+                "disabled": ping_result["disabled"],
+                "queued_command": ping_result.get("queued_command"),
+                "command_id": ping_result.get("command_id"),
+            },
+        )
+    except Exception as exc:
+        logger.warning("Unable to log ping audit event for %s: %s", scoped_device_id, exc)
+
+    return jsonify(
+        {
+            "ok": True,
+            "title": ping_result["title"],
+            "message": ping_result["message"],
+            "detail_lines": ping_result["detail_lines"],
+            "saved_peer_channel": ping_result.get("saved_peer_channel"),
+            "target": ping_result["target"],
+            "status": ping_result["status"],
+            "reachable": ping_result["reachable"],
+            "disabled": ping_result["disabled"],
+            "queued_command": ping_result.get("queued_command"),
+            "command_id": ping_result.get("command_id"),
+            "expected_ping_nonce": ping_result.get("expected_ping_nonce"),
+        }
+    )
 
 
 @app.route("/devices/<device_id>/mobile/logout", methods=["POST"])
@@ -14245,128 +17107,135 @@ def admin_device_detail_sensor_configure(device_id):
     capacity_liters = request.values.get("capacity_liters", type=float)
     action = str(request.values.get("action") or "save").strip().lower()
     if lower_requested and not bool(service_config.get("source_tank_monitoring_enabled")):
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Lower/source tank setup is not available because lower sensor service is disabled.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Lower/source tank setup is not available because lower sensor service is disabled.",
+            status_code=400,
         )
     if capacity_liters is None:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank capacity is required.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank capacity is required.",
+            status_code=400,
         )
     if action in {"save_calibrate", "save_and_calibrate", "calibrate"} and height_cm is None:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank height is required before calibration.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank height is required before calibration.",
+            status_code=400,
         )
     if height_cm is not None and (height_cm < 2.1 or height_cm > 500):
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank height must be between 2.1 and 500 cm.",
-            )
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank height must be between 2.1 and 500 cm.",
+            status_code=400,
         )
     if capacity_liters < 50 or capacity_liters > 50000:
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error="Tank capacity must be between 50 and 50000 liters.",
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Tank capacity must be between 50 and 50000 liters.",
+            status_code=400,
+        )
+
+    try:
+        if lower_requested:
+            saved_config = upsert_device_service_config(
+                scoped_device_id,
+                lower_tank_height_cm=height_cm,
+                lower_tank_capacity_liters=capacity_liters,
             )
+        else:
+            saved_config = upsert_device_service_config(
+                scoped_device_id,
+                tank_height_cm=height_cm,
+                tank_capacity_liters=capacity_liters,
+                upper_tank_height_cm=height_cm,
+                upper_tank_capacity_liters=capacity_liters,
+            )
+    except Exception as exc:
+        logger.exception("Could not save tank setup for %s", scoped_device_id)
+        return device_detail_action_response(
+            scoped_device_id,
+            error=f"Unable to save tank setup: {exc}",
+            status_code=500,
         )
 
     if height_cm is not None:
         command = f"CONFIG_LOWER:{height_cm:.1f}:{capacity_liters:.1f}" if lower_requested else f"CONFIG_UPPER:{height_cm:.1f}:{capacity_liters:.1f}"
     else:
         command = f"CONFIG_LOWER_CAPACITY:{capacity_liters:.1f}" if lower_requested else f"CONFIG_CAPACITY:{capacity_liters:.1f}"
-    result = queue_command(command, target_device=scoped_device_id)
-    if isinstance(result, tuple):
-        payload, _status_code = result
-        return redirect(
-            url_for(
-                "device_detail_page",
-                device_id=scoped_device_id,
-                config_error=payload.get("error") or "Unable to queue tank capacity command.",
-            )
-        )
-    if lower_requested:
-        upsert_device_service_config(
-            scoped_device_id,
-            lower_tank_height_cm=height_cm,
-            lower_tank_capacity_liters=capacity_liters,
-        )
-    else:
-        upsert_device_service_config(
-            scoped_device_id,
-            tank_height_cm=height_cm,
-            tank_capacity_liters=capacity_liters,
-            upper_tank_height_cm=height_cm,
-            upper_tank_capacity_liters=capacity_liters,
-        )
-    log_audit_event(
-        actor=current_actor_username(),
-        action="queue_device_tank_capacity",
-        target_type="device",
-        target_id=scoped_device_id,
-        device_id=scoped_device_id,
-        details={
-            "command": result.get("command"),
-            "sensor": "lower" if lower_requested else "upper",
-            "height_cm": round(height_cm, 1) if height_cm is not None else None,
-            "capacity_liters": round(capacity_liters, 1),
-            "queued_at": result.get("queued_at"),
-        },
+    result, queue_error = safe_queue_device_detail_command(
+        command,
+        scoped_device_id,
+        "Unable to queue tank capacity command",
     )
-    calibration_result = None
-    if action in {"save_calibrate", "save_and_calibrate", "calibrate"}:
-        calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
-        calibration_result = queue_command(calibration_command, target_device=scoped_device_id)
-        if isinstance(calibration_result, tuple):
-            payload, _status_code = calibration_result
-            return redirect(
-                url_for(
-                    "device_detail_page",
-                    device_id=scoped_device_id,
-                    config_error=payload.get("error") or "Tank setup saved, but unable to queue calibration.",
-                )
-            )
+    try:
         log_audit_event(
             actor=current_actor_username(),
-            action="queue_device_calibration",
+            action="queue_device_tank_capacity",
             target_type="device",
             target_id=scoped_device_id,
             device_id=scoped_device_id,
             details={
-                "command": calibration_result.get("command"),
+                "command": (result or {}).get("command") or command,
                 "sensor": "lower" if lower_requested else "upper",
-                "command_target": scoped_device_id,
-                "queued_at": calibration_result.get("queued_at"),
-                "queued_after_tank_setup": True,
+                "height_cm": round(height_cm, 1) if height_cm is not None else None,
+                "capacity_liters": round(capacity_liters, 1),
+                "queued_at": (result or {}).get("queued_at"),
+                "queue_error": queue_error,
             },
         )
+    except Exception as exc:
+        logger.warning("Unable to log tank setup audit event for %s: %s", scoped_device_id, exc)
+    calibration_result = None
+    calibration_queue_error = ""
+    if action in {"save_calibrate", "save_and_calibrate", "calibrate"}:
+        calibration_command = "CALIBRATE_LOWER" if lower_requested else "CALIBRATE_UPPER"
+        calibration_result, calibration_queue_error = safe_queue_device_detail_command(
+            calibration_command,
+            scoped_device_id,
+            "Tank setup saved, but unable to queue calibration",
+        )
+        try:
+            log_audit_event(
+                actor=current_actor_username(),
+                action="queue_device_calibration",
+                target_type="device",
+                target_id=scoped_device_id,
+                device_id=scoped_device_id,
+                details={
+                    "command": (calibration_result or {}).get("command") or calibration_command,
+                    "sensor": "lower" if lower_requested else "upper",
+                    "command_target": scoped_device_id,
+                    "queued_at": (calibration_result or {}).get("queued_at"),
+                    "queued_after_tank_setup": True,
+                    "queue_error": calibration_queue_error,
+                },
+            )
+        except Exception as exc:
+            logger.warning("Unable to log sensor calibration audit event for %s: %s", scoped_device_id, exc)
 
     sensor_label = "Lower/source" if lower_requested else "Upper"
-    config_parts = [f"{sensor_label} tank capacity command queued: {capacity_liters:.1f} L"]
+    config_parts = [f"{sensor_label} tank setup saved in Flask: {capacity_liters:.1f} L"]
     if height_cm is not None:
-        config_parts.insert(0, f"{sensor_label} tank height command queued: {height_cm:.1f} cm")
-    if calibration_result:
+        config_parts.insert(0, f"{sensor_label} tank height saved in Flask: {height_cm:.1f} cm")
+    if queue_error:
+        config_parts.append("The device setup command was not queued, so the controller will apply it after the next successful sync/queue.")
+    else:
+        config_parts.append(f"{sensor_label} tank setup command queued.")
+    if calibration_result and not calibration_queue_error:
         config_parts.append(f"{sensor_label} calibration command queued.")
-    return redirect(
-        url_for(
-            "device_detail_page",
-            device_id=scoped_device_id,
-            config_message=". ".join(config_parts),
-        )
+    elif calibration_queue_error:
+        config_parts.append("Calibration was not queued.")
+    detail_lines = [line for line in (queue_error, calibration_queue_error) if line]
+    return device_detail_action_response(
+        scoped_device_id,
+        ". ".join(config_parts),
+        title="Tank setup saved in Flask" if detail_lines else "Action saved",
+        detail_lines=detail_lines,
+        service_config=saved_config,
+        queued_command=command,
+        queue_result=result,
     )
 
 
@@ -14385,7 +17254,6 @@ def admin_device_detail_simulator(device_id):
         error = payload.get("error") or f"Unable to queue simulator command for {scoped_device_id}."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
 
-    record_device_simulator_state(scoped_device_id, not simulator_enabled, source="admin_command")
     log_audit_event(
         actor=current_actor_username(),
         action="queue_device_simulator_toggle",
@@ -14472,20 +17340,32 @@ def device_detail_status(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
-        return jsonify({"error": "device not found"}), 404
+        # Newly registered devices can have saved configuration before the first
+        # telemetry packet arrives, so return an empty snapshot shell instead of
+        # failing the detail page.
+        snapshot = build_empty_snapshot_payload(scoped_device_id)
     include_history = request.args.get("history", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_events = request.args.get("events", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_alerts = request.args.get("alerts", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_audit = request.args.get("audit", "1").strip().lower() not in {"0", "false", "no", "off"}
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     snapshot_payload = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    snapshot_has_live_simulator_status = (
+        simulator_payload_status(snapshot_payload) is not None
+        and str(snapshot.get("telemetry_status") or "").strip().lower() != "no-data"
+    )
     snapshot_payload["simulator_enabled"] = simulator_enabled
     snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
-    if simulator_enabled and not simulator_payload_enabled(snapshot_payload):
+    if simulator_enabled and not snapshot_has_live_simulator_status:
         snapshot_payload["simulator"] = "ON"
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     payload = {
         "device_id": scoped_device_id,
-        "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+        "system_status": build_system_status_payload(
+            snapshot,
+            device_id=scoped_device_id,
+            service_config=service_config,
+        ),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
         "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),
@@ -14500,7 +17380,7 @@ def device_detail_status(device_id):
         payload["history"] = fetch_device_history(scoped_device_id, limit=48)
     if include_events:
         event_limit = max(10, min(request.args.get("event_limit", default=300, type=int), 500))
-        payload["events"] = build_events(limit=event_limit, device_id=scoped_device_id)
+        payload["events"] = build_events(limit=event_limit, device_id=scoped_device_id, sync=False)
     return jsonify(payload)
 
 
@@ -14528,7 +17408,7 @@ def status():
     if not auth_ok:
         return auth_payload, auth_status
     data["device_id"] = auth_payload
-    process_telemetry_payload(data, source_ip=request.remote_addr, transport="http")
+    process_telemetry_payload(data, source_ip=request.remote_addr, transport="http", defer_postprocess=True)
 
     return jsonify({
         "result": "saved",
@@ -14745,7 +17625,15 @@ def events():
     if response:
         return response
     limit = max(1, min(request.args.get("limit", default=12, type=int), 500))
-    return jsonify(build_events(limit, device_id=current_scope_device_id(request.args.get("device_id", type=str))))
+    include_local_logs = str(request.args.get("local_logs", "0")).strip().lower() in {"1", "true", "yes", "on"}
+    return jsonify(
+        build_events(
+            limit,
+            device_id=current_scope_device_id(request.args.get("device_id", type=str)),
+            sync=False,
+            include_local_logs=include_local_logs,
+        )
+    )
 
 
 @app.route("/dashboard/bootstrap")
@@ -14759,31 +17647,67 @@ def dashboard_bootstrap():
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     snapshot = load_dashboard_snapshot(scoped_device_id)
     public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    bootstrap_warnings = {}
 
-    return jsonify(
-        {
-            "snapshot": public_snapshot,
-            "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
-            "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
-            "events": build_events(event_limit, device_id=scoped_device_id),
-            "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
-            "guidance": build_shared_guidance_payload(snapshot, None),
-            "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
-            "viewer": {
-                "role": current_user_role(),
-                "device_id": scoped_device_id,
-                "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
-                "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
-                "cloud_feed_mode": (
-                    (current_customer_service_config() or {}).get("cloud_feed_mode")
-                    if current_user_role() == "customer"
-                    else DEVICE_SERVICE_CLOUD_FEED_FULL
-                ),
-                "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
-            },
-        }
+    def safe_bootstrap_section(section_name, fallback, builder):
+        try:
+            return builder()
+        except Exception as exc:
+            logger.exception("Dashboard bootstrap %s error for %s: %s", section_name, scoped_device_id, exc)
+            bootstrap_warnings[section_name] = str(exc)
+            return fallback
+
+    safe_bootstrap_section(
+        "operational_alerts",
+        None,
+        lambda: refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None),
     )
+
+    payload = {
+        "snapshot": public_snapshot,
+        "system_status": safe_bootstrap_section(
+            "system_status",
+            build_system_status_payload(public_snapshot, device_id=scoped_device_id),
+            lambda: build_system_status_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "monitoring_summary": safe_bootstrap_section(
+            "monitoring_summary",
+            {"alerts": [], "devices": [], "registered_devices": []},
+            lambda: build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "events": safe_bootstrap_section(
+            "events",
+            [],
+            lambda: build_events(event_limit, device_id=scoped_device_id),
+        ),
+        "audit": safe_bootstrap_section(
+            "audit",
+            [],
+            lambda: fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
+        ),
+        "guidance": safe_bootstrap_section(
+            "guidance",
+            build_shared_guidance_payload(public_snapshot, None),
+            lambda: build_shared_guidance_payload(snapshot, None),
+        ),
+        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+        "viewer": {
+            "role": current_user_role(),
+            "device_id": scoped_device_id,
+            "display_name": (current_customer_account() or {}).get("display_name") if current_user_role() == "customer" else "Administrator",
+            "cloud_feed_enabled": current_customer_cloud_feed_enabled(),
+            "cloud_feed_mode": (
+                (current_customer_service_config() or {}).get("cloud_feed_mode")
+                if current_user_role() == "customer"
+                else DEVICE_SERVICE_CLOUD_FEED_FULL
+            ),
+            "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
+        },
+    }
+    if bootstrap_warnings:
+        payload["warnings"] = bootstrap_warnings
+
+    return jsonify(payload)
 
 
 @app.route("/dashboard/local-sync", methods=["POST"])
@@ -14805,7 +17729,7 @@ def dashboard_local_sync():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except requests.RequestException as exc:
-        logger.info("Local device sync failed for %s via %s: %s", scoped_device_id, local_base_url, exc)
+        logger.debug("Local device sync issue for %s via %s: %s", scoped_device_id, local_base_url, exc)
         return jsonify({"error": "local device is not reachable"}), 503
 
     local_device_id = normalize_device_id(local_status.get("device_id"))
@@ -14846,7 +17770,14 @@ def analytics():
 
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
-    return jsonify(build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id))
+    try:
+        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    except Exception as exc:
+        logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
+        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+    return jsonify(payload)
 
 
 @app.route("/analytics/export.csv")
