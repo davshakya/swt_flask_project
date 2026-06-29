@@ -938,7 +938,8 @@ function buildSourceTankState(snapshot){
 function updateCommandAvailability(snapshot=state.data.snapshot){
     const sourceState=buildSourceTankState(snapshot);
     const baseEnabled=CAN_CONTROL&&!state.commandBusy;
-    const running=isPumpRunning(snapshot?.motor);
+    const pendingStartActive=state.pendingPumpStart&&Date.now()<state.pendingPumpStartUntil;
+    const running=isPumpRunning(snapshot?.motor)||pendingStartActive||state.upperTankIncreasing;
     nodesById("btn_on").forEach((button)=>{button.disabled=!baseEnabled||running||!sourceState.canStart;});
     nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});
     nodesById("btn_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});

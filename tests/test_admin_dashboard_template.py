@@ -280,6 +280,17 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
 
 
+def test_customer_dashboard_stop_button_uses_effective_running_state():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    update_start = customer_template.index("function updateCommandAvailability")
+    update_body = customer_template[update_start : customer_template.index("function renderCustomerOverview", update_start)]
+
+    assert "const pendingStartActive=state.pendingPumpStart&&Date.now()<state.pendingPumpStartUntil;" in update_body
+    assert "const running=isPumpRunning(snapshot?.motor)||pendingStartActive||state.upperTankIncreasing;" in update_body
+    assert 'nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});' in update_body
+
+
 def test_customer_dashboard_motor_chart_shows_run_durations():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
