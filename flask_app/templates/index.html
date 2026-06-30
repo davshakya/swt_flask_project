@@ -7,9 +7,9 @@
 <title>SaleWell Smart Tank Dashboard</title>
 {% include '_pwa_head.html' %}
 <style>
-:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--link-blue:#0b63ce;--link-blue-hover:#084fa8;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#ef4444;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
+:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--link-blue:#0b63ce;--link-blue-hover:#084fa8;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#22c55e;--chart-motor-on:#22c55e;--chart-motor-off:#2563eb;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
 @media (prefers-color-scheme: dark){
-:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.86);--panel-strong:#0f2430;--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--primary-deep:#8fe5ff;--link-blue:#83c5ff;--link-blue-hover:#b7ddff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 30%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(85,193,221,.12),rgba(15,36,48,.88));--chip-bg:rgba(15,36,48,.84);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.04);--tank-wrap-bg:linear-gradient(180deg,rgba(85,193,221,.08),rgba(10,22,32,.72));--tank-shell-border:rgba(173,219,235,.18);--tank-shell-bg:linear-gradient(180deg,rgba(16,34,45,.94),rgba(11,26,35,.9));--tank-inner-bg:linear-gradient(180deg,rgba(4,17,24,.96),rgba(8,28,38,.94));--tank-water-top:rgba(255,255,255,.18);--card-bg:rgba(14,31,41,.84);--input-bg:rgba(10,26,35,.92);--list-bg:rgba(12,29,39,.88);--setting-bg:rgba(12,29,39,.84);--button-outline:rgba(154,202,221,.16);--button-lite-bg:rgba(85,193,221,.12);--button-lite-ring:rgba(85,193,221,.16);--info-bg:rgba(85,193,221,.14);--info-line:rgba(85,193,221,.22);--warn-bg:rgba(244,178,76,.14);--warn-line:rgba(244,178,76,.2);--danger-bg:rgba(255,125,145,.14);--danger-line:rgba(255,125,145,.22);--text-strong:#f7fcfd;--chart-grid:rgba(154,202,221,.12);--chart-ticks:#9fb7c0;--chart-level:#67d6ff;--chart-level-fill:rgba(103,214,255,.16);--chart-daily:#46d18f;--chart-pattern:#f4b24c;--chart-motor:#ff7d91;--water-low:linear-gradient(180deg,#ff9aa9 0%,#e64559 100%);--water-mid:linear-gradient(180deg,#62ddff 0%,#1794d6 100%);--water-high:linear-gradient(180deg,#90f1b7 0%,#1ea45d 100%)}
+:root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.86);--panel-strong:#0f2430;--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--primary-deep:#8fe5ff;--link-blue:#83c5ff;--link-blue-hover:#b7ddff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 30%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(85,193,221,.12),rgba(15,36,48,.88));--chip-bg:rgba(15,36,48,.84);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.04);--tank-wrap-bg:linear-gradient(180deg,rgba(85,193,221,.08),rgba(10,22,32,.72));--tank-shell-border:rgba(173,219,235,.18);--tank-shell-bg:linear-gradient(180deg,rgba(16,34,45,.94),rgba(11,26,35,.9));--tank-inner-bg:linear-gradient(180deg,rgba(4,17,24,.96),rgba(8,28,38,.94));--tank-water-top:rgba(255,255,255,.18);--card-bg:rgba(14,31,41,.84);--input-bg:rgba(10,26,35,.92);--list-bg:rgba(12,29,39,.88);--setting-bg:rgba(12,29,39,.84);--button-outline:rgba(154,202,221,.16);--button-lite-bg:rgba(85,193,221,.12);--button-lite-ring:rgba(85,193,221,.16);--info-bg:rgba(85,193,221,.14);--info-line:rgba(85,193,221,.22);--warn-bg:rgba(244,178,76,.14);--warn-line:rgba(244,178,76,.2);--danger-bg:rgba(255,125,145,.14);--danger-line:rgba(255,125,145,.22);--text-strong:#f7fcfd;--chart-grid:rgba(154,202,221,.12);--chart-ticks:#9fb7c0;--chart-level:#67d6ff;--chart-level-fill:rgba(103,214,255,.16);--chart-daily:#46d18f;--chart-pattern:#f4b24c;--chart-motor:#46d18f;--chart-motor-on:#46d18f;--chart-motor-off:#60a5fa;--water-low:linear-gradient(180deg,#ff9aa9 0%,#e64559 100%);--water-mid:linear-gradient(180deg,#62ddff 0%,#1794d6 100%);--water-high:linear-gradient(180deg,#90f1b7 0%,#1ea45d 100%)}
 }
 *{box-sizing:border-box}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -589,7 +589,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v2";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v3";
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
@@ -603,6 +603,7 @@ const state={
     preferences:{lowThreshold:20,overflowThreshold:95,leakAlerts:true,systemAlerts:true,desktopAlerts:false},
     cache:{},
     data:{snapshot:null,systemStatus:null,analytics:null,events:null},
+    lastGoodAnalytics:{key:"",data:null},
     lastUpperTankLevel:null,
     upperTankIncreasing:false,
     inFlight:{bootstrap:false,live:false,events:false,analytics:false},
@@ -629,6 +630,25 @@ function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!=
 function hasMeaningfulAnalyticsData(data){
     if(!data||typeof data!=="object")return false;
     return [["levels","time"],["daily","dates"],["motor","time"],["pattern","values"]].some(([section,key])=>Array.isArray(data?.[section]?.[key])&&data[section][key].length>0);
+}
+function analyticsHasChartData(data){
+    if(!data||typeof data!=="object")return false;
+    return analyticsChartSections().every(([section,labelKey])=>analyticsSectionHasChartData(data,section,labelKey));
+}
+function analyticsSectionHasChartData(data,section,labelKey){
+    if(!data||typeof data!=="object")return false;
+    const labels=data?.[section]?.[labelKey];
+    const values=data?.[section]?.values;
+    if(!Array.isArray(labels)||!Array.isArray(values)||!labels.length||!values.length)return false;
+    return values.some((value)=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value)));
+}
+function analyticsChartSections(){
+    return [
+        ["levels","time"],
+        ["daily","dates"],
+        ["pattern","hours"],
+        ["motor","time"],
+    ];
 }
 function ago(seconds){if(seconds===null||seconds===undefined)return"No data";if(seconds<60)return`${seconds}s ago`;const m=Math.floor(seconds/60);if(m<60)return`${m}m ago`;return`${Math.floor(m/60)}h ago`;}
 function ageLabelFromMs(ms){const seconds=Math.max(0,Math.floor(ms/1000));if(seconds<60)return`${seconds}s`;const minutes=Math.floor(seconds/60);if(minutes<60)return`${minutes}m`;return`${Math.floor(minutes/60)}h`;}
@@ -728,8 +748,12 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     const xForTime=(ms)=>box.left+((ms-minTime)/timeSpan)*box.plotWidth;
     const useTimeLabels=xLabelMode==="time";
     const useDurationLabels=xLabelMode==="duration";
-    const highY=box.top+Math.max(18,box.plotHeight*0.26);
-    const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78);
+    const onColor=themeVar("--chart-motor-on")||themeVar("--chart-motor")||"#22c55e";
+    const offColor=themeVar("--chart-motor-off")||"#2563eb";
+    const barColor=(state)=>state===1?onColor:offColor;
+    const highY=box.top+Math.max(20,box.plotHeight*0.28);
+    const lowY=box.top+Math.min(box.plotHeight-16,box.plotHeight*0.74);
+    const barHeight=Math.max(16,Math.min(38,box.plotHeight*0.24));
     const stateY=(state)=>state===1?highY:lowY;
 
     ctx.fillStyle=themeVar("--chart-ticks");
@@ -738,60 +762,37 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     ctx.fillText("ON",box.left-10,highY+4);
     ctx.fillText("OFF",box.left-10,lowY+4);
 
-    const stepPoints=[];
-    finiteSegments.forEach((segment,index)=>{
+    [{state:1,y:highY},{state:0,y:lowY}].forEach((lane)=>{
+        ctx.save();
+        ctx.fillStyle=barColor(lane.state);
+        ctx.globalAlpha=0.08;
+        ctx.beginPath();
+        const laneTop=lane.y-barHeight/2;
+        if(typeof ctx.roundRect==="function")ctx.roundRect(box.left,laneTop,box.plotWidth,barHeight,10);
+        else ctx.rect(box.left,laneTop,box.plotWidth,barHeight);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    finiteSegments.forEach((segment)=>{
         const startX=xForTime(segment.startMs);
         const endX=xForTime(segment.endMs);
-        const y=stateY(segment.state);
-        if(index===0){
-            stepPoints.push([startX,y]);
-        }
-        stepPoints.push([endX,y]);
-        const next=finiteSegments[index+1]||null;
-        if(next){
-            const nextY=stateY(next.state);
-            if(nextY!==y){
-                stepPoints.push([endX,nextY]);
-            }
-        }
+        const drawEndX=Math.min(box.left+box.plotWidth,Math.max(endX,startX+2));
+        const laneY=stateY(segment.state);
+        const rectY=laneY-barHeight/2;
+        ctx.save();
+        ctx.fillStyle=barColor(segment.state);
+        ctx.globalAlpha=segment.state===1?0.94:0.82;
+        ctx.beginPath();
+        if(typeof ctx.roundRect==="function")ctx.roundRect(startX,rectY,drawEndX-startX,barHeight,9);
+        else ctx.rect(startX,rectY,drawEndX-startX,barHeight);
+        ctx.fill();
+        ctx.restore();
     });
 
-    if(!stepPoints.length){
-        drawCanvasEmpty(canvas,title,"No motor activity recorded yet. Wait for the next sync.");
-        return;
-    }
-
-    ctx.save();
-    ctx.fillStyle=themeVar("--chart-motor");
-    ctx.globalAlpha=0.12;
-    ctx.beginPath();
-    ctx.moveTo(stepPoints[0][0],lowY);
-    ctx.lineTo(stepPoints[0][0],stepPoints[0][1]);
-    stepPoints.forEach((point,index)=>{
-        if(index>0)ctx.lineTo(point[0],point[1]);
-    });
-    ctx.lineTo(stepPoints[stepPoints.length-1][0],lowY);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.save();
-    ctx.strokeStyle=themeVar("--chart-motor");
-    ctx.globalAlpha=0.96;
-    ctx.lineWidth=4;
-    ctx.lineCap="round";
-    ctx.lineJoin="round";
-    ctx.beginPath();
-    stepPoints.forEach((point,index)=>{
-        if(index===0)ctx.moveTo(point[0],point[1]);
-        else ctx.lineTo(point[0],point[1]);
-    });
-    ctx.stroke();
-    ctx.restore();
     ctx.save();
     ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
-    ctx.strokeStyle=themeVar("--chart-motor");
-    ctx.globalAlpha=0.96;
+    ctx.strokeStyle=onColor;
     ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="center";
     ctx.textBaseline="middle";
@@ -807,16 +808,16 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         if(segmentWidth<badgeWidth+6)return;
         const badgeHeight=18;
         const badgeX=startX+(segmentWidth-badgeWidth)/2;
-        const badgeY=Math.max(box.top+2,highY-badgeHeight-8);
+        const badgeY=Math.max(box.top+2,highY-barHeight/2-badgeHeight-6);
         ctx.globalAlpha=0.94;
         ctx.beginPath();
         if(typeof ctx.roundRect==="function")ctx.roundRect(badgeX,badgeY,badgeWidth,badgeHeight,9);
         else ctx.rect(badgeX,badgeY,badgeWidth,badgeHeight);
         ctx.fill();
-        ctx.globalAlpha=0.4;
+        ctx.globalAlpha=0.42;
         ctx.stroke();
         ctx.globalAlpha=1;
-        ctx.fillStyle=themeVar("--chart-motor");
+        ctx.fillStyle=onColor;
         ctx.fillText(labelText,badgeX+badgeWidth/2,badgeY+badgeHeight/2+0.5);
         ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
     });
@@ -829,7 +830,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         return {x:startX+(endX-startX)/2,y:laneY,index,value:segment.state,label:segment.startLabel,endLabel:segment.endLabel,durationSeconds:segment.durationSeconds,ongoing:segment.ongoing,stateLabel:segment.state===1?"ON":"OFF"};
     });
 
-    const summaryParts=[];
+    const summaryParts=["Green ON","Blue OFF"];
     const completedRuns=Number(pumpActivity?.completed_runs);
     const avgRunSeconds=Number(pumpActivity?.avg_run_seconds);
     const dutyCycle=Number(pumpActivity?.duty_cycle_pct);
@@ -841,8 +842,11 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     ctx.font='600 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="right";
     ctx.fillText(summaryText,width-8,14);
-    const axisLabelY=Math.min(height-6,box.top+box.plotHeight+20);
+    const axisY=box.top+box.plotHeight;
+    const axisLabelY=Math.min(height-6,axisY+20);
+    ctx.strokeStyle=themeVar("--chart-grid");
     ctx.fillStyle=themeVar("--chart-ticks");
+    ctx.lineWidth=1;
     if(useDurationLabels){
         const totalDurationSeconds=(maxTime-minTime)/1000;
         ctx.textAlign="left";
@@ -850,12 +854,19 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         ctx.textAlign="right";
         ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY);
     }else{
-        const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});
-        const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});
-        ctx.textAlign="left";
-        ctx.fillText(startLabel,box.left,axisLabelY);
-        ctx.textAlign="right";
-        ctx.fillText(endLabel,box.left+box.plotWidth,axisLabelY);
+        const axisStartLabel=chartAxisLabel(finiteSegments[0]?.startLabel??labels[0]??"",{timeOnly:useTimeLabels});
+        const axisEndLabel=chartAxisLabel(finiteSegments[finiteSegments.length-1]?.endLabel??labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});
+        [
+            {x:box.left,label:axisStartLabel,align:"left"},
+            {x:box.left+box.plotWidth,label:axisEndLabel,align:"right"},
+        ].forEach((tick)=>{
+            ctx.beginPath();
+            ctx.moveTo(tick.x,axisY);
+            ctx.lineTo(tick.x,axisY+5);
+            ctx.stroke();
+            ctx.textAlign=tick.align;
+            ctx.fillText(tick.label,tick.x,axisLabelY);
+        });
     }
     ctx.textAlign="left";
     canvas.__swtChartPoints=points;
@@ -864,7 +875,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     if(hoverPoint){
         const label=`${hoverPoint.stateLabel} ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`;
         const valueText=hoverPoint.stateLabel==="ON"?`Run duration ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`:`Idle duration ${formatDurationSeconds(hoverPoint.durationSeconds)}`;
-        drawChartTooltip(ctx,width,height,box,hoverPoint,{label,valueText,color:hoverPoint.value===1?themeVar("--chart-motor"):themeVar("--chart-grid")});
+        drawChartTooltip(ctx,width,height,box,hoverPoint,{label,valueText,color:barColor(hoverPoint.value)});
     }
 }
 function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)return;el.style.fontWeight="700";if(tone==="ok"){el.style.color="var(--good)";return;}if(tone==="warn"){el.style.color="var(--warn)";return;}if(tone==="bad"){el.style.color="var(--danger)";return;}el.style.color="";}
@@ -1706,7 +1717,35 @@ function drawAnalyticsCharts(data){
     drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
     drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
-    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"time"});
+    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"datetime"});
+}
+function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
+    const chartData=analyticsChartsPayload(data,{remember:false,key});
+    if(!analyticsHasChartData(chartData))return false;
+    state.lastGoodAnalytics={key,data:chartData};
+    return true;
+}
+function currentGoodAnalyticsCharts(){
+    const key=analyticsCacheKey();
+    return state.lastGoodAnalytics?.key===key&&analyticsHasChartData(state.lastGoodAnalytics.data)
+        ?state.lastGoodAnalytics.data
+        :null;
+}
+function analyticsChartsPayload(data,{remember=true,key=analyticsCacheKey()}={}){
+    const payload=data&&typeof data==="object"?data:{};
+    const previous=state.lastGoodAnalytics?.key===key?state.lastGoodAnalytics.data:null;
+    const merged={...payload};
+    analyticsChartSections().forEach(([section,labelKey])=>{
+        if(analyticsSectionHasChartData(payload,section,labelKey))return;
+        if(previous&&analyticsSectionHasChartData(previous,section,labelKey)){
+            merged[section]=previous[section];
+            if(section==="motor"&&previous.pump_activity)merged.pump_activity=previous.pump_activity;
+        }
+    });
+    if(remember&&analyticsHasChartData(merged)){
+        state.lastGoodAnalytics={key,data:merged};
+    }
+    return analyticsHasChartData(merged)?merged:payload;
 }
 
 const ANALYTICS_CACHE_PREFIX="swtAnalyticsCache:";
@@ -1783,22 +1822,33 @@ function loadAnalyticsCache(){
             localStorage.removeItem(analyticsCacheKey());
             return null;
         }
-        return cached&&typeof cached==="object"&&cached.data&&typeof cached.data==="object"?cached:null;
+        if(!(cached&&typeof cached==="object"&&cached.data&&typeof cached.data==="object"))return null;
+        if(!analyticsHasChartData(cached.data)){
+            localStorage.removeItem(analyticsCacheKey());
+            return null;
+        }
+        return cached;
     }catch(error){
         console.log("analytics cache load error",error);
         return null;
     }
 }
 function saveAnalyticsCache(data){
+    const chartData=analyticsChartsPayload(data);
+    if(!analyticsHasChartData(chartData))return false;
     try{
-        localStorage.setItem(analyticsCacheKey(),JSON.stringify({savedAt:Date.now(),data}));
+        localStorage.setItem(analyticsCacheKey(),JSON.stringify({savedAt:Date.now(),data:chartData}));
+        rememberGoodAnalyticsCharts(chartData);
+        return true;
     }catch(error){
         console.log("analytics cache save error",error);
+        return false;
     }
 }
 function restoreAnalyticsCache(){
     const cached=loadAnalyticsCache();
     if(!cached?.data)return false;
+    rememberGoodAnalyticsCharts(cached.data);
     syncSection("analytics",cached.data,renderAnalytics);
     state.analyticsUpdatedAt=cached.savedAt||Date.now();
     return true;
@@ -1861,7 +1911,7 @@ function initCharts(){
 }
 
 function refreshChartsTheme(){
-    if(state.data.analytics){drawAnalyticsCharts(state.data.analytics);return;}
+    if(state.data.analytics){drawAnalyticsCharts(analyticsChartsPayload(state.data.analytics));return;}
     if(chartsAvailable){Object.values(charts).forEach((chart)=>{if(chart?.canvas&&chart?.title)drawCanvasEmpty(chart.canvas,chart.title,"No data available yet. Wait for the next sync.");});}
 }
 function attachCanvasChartHover(canvas){
@@ -2023,6 +2073,7 @@ function renderSystemStatus(system){
 }
 
 function renderAnalytics(data){
+    data=data||{};
     const analyticsReady=hasMeaningfulAnalyticsData(data);
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
@@ -2056,7 +2107,7 @@ function renderAnalytics(data){
         :"--";
     document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
-    const renderCharts=()=>drawAnalyticsCharts(data);
+    const renderCharts=()=>drawAnalyticsCharts(analyticsChartsPayload(data));
     if(typeof window.requestAnimationFrame==="function"){
         window.requestAnimationFrame(renderCharts);
     }else{

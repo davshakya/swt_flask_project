@@ -271,8 +271,12 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v2";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v3";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
+    assert "function analyticsHasChartData(data)" in dashboard_template
+    assert "state.lastGoodAnalytics={key,data:merged};" in dashboard_template
+    assert "drawAnalyticsCharts(analyticsChartsPayload(data))" in dashboard_template
+    assert "if(!analyticsHasChartData(cached.data))" in dashboard_template
     assert "Date.now()-savedAt>ANALYTICS_CACHE_MAX_AGE_MS" in dashboard_template
     assert "const tasks=[refreshLive({force}),refreshEvents({force})]" in dashboard_template
     assert "const visibleHeight=Math.max(rawHeight,Math.abs(value)<=0.0001?2:1);" in dashboard_template
@@ -302,7 +306,7 @@ def test_customer_dashboard_stop_button_uses_effective_running_state():
     assert 'nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});' in update_body
 
 
-def test_customer_dashboard_motor_chart_shows_run_durations():
+def test_customer_dashboard_motor_chart_shows_two_color_activity_bars():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
     assert "function buildMotorActivitySegments" in customer_template
@@ -311,15 +315,16 @@ def test_customer_dashboard_motor_chart_shows_run_durations():
     assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
     assert "pumpActivity?.avg_run_seconds" in customer_template
-    assert "ON spans are labeled with run duration." in customer_template
-    assert 'xLabelMode:"time"' in customer_template
-    assert 'const highY=box.top+Math.max(18,box.plotHeight*0.26)' in customer_template
-    assert 'const lowY=box.top+Math.min(box.plotHeight-12,box.plotHeight*0.78)' in customer_template
-    assert 'const startLabel=chartAxisLabel(labels[0]??"",{timeOnly:useTimeLabels});' in customer_template
-    assert 'const endLabel=chartAxisLabel(labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});' in customer_template
+    assert 'xLabelMode:"datetime"' in customer_template
+    assert '--chart-motor-on:#22c55e' in customer_template
+    assert '--chart-motor-off:#2563eb' in customer_template
+    assert 'const onColor=themeVar("--chart-motor-on")' in customer_template
+    assert 'const offColor=themeVar("--chart-motor-off")' in customer_template
+    assert 'const barColor=(state)=>state===1?onColor:offColor;' in customer_template
+    assert 'const summaryParts=["Green ON","Blue OFF"];' in customer_template
     assert 'const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`' in customer_template
-    assert 'ctx.strokeStyle=themeVar("--chart-motor")' in customer_template
-    assert "ctx.lineWidth=4" in customer_template
+    assert 'const axisStartLabel=chartAxisLabel(finiteSegments[0]?.startLabel??labels[0]??"",{timeOnly:useTimeLabels});' in customer_template
+    assert 'const axisEndLabel=chartAxisLabel(finiteSegments[finiteSegments.length-1]?.endLabel??labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});' in customer_template
 
 
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
@@ -698,7 +703,7 @@ def test_android_app_update_check_compares_installed_version_code():
     assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
 
 
-def test_android_cloud_pump_activity_chart_uses_duration_timeline():
+def test_android_cloud_pump_activity_chart_uses_two_color_activity_bars():
     android_source = (
         PROJECT_ROOT.parent
         / "swt_android_app_project"
@@ -725,6 +730,8 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     ).read_text(encoding="utf-8")
 
     assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
+    assert "R.color.cloud_chart_green" in android_source
+    assert "Green bars show ON, blue bars show OFF." in android_source
     assert "ON spans are labeled with their run duration." in android_source
     assert "section.pumpActivity.startLabel" in android_source
     assert "section.pumpActivity.endLabel" in android_source
@@ -732,11 +739,12 @@ def test_android_cloud_pump_activity_chart_uses_duration_timeline():
     assert "private fun drawTimelineChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
     assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
-    assert "val waveformFillPaint = Paint(fillPaint)" in chart_view_source
-    assert "val highY = top + max(18f * density, height * 0.26f)" in chart_view_source
-    assert "waveformPaint" in chart_view_source
-    assert "canvas.drawPath(fillPath, waveformFillPaint)" in chart_view_source
-    assert "canvas.drawPath(waveformPath, waveformPaint)" in chart_view_source
+    assert "val onColor = ContextCompat.getColor(context, R.color.cloud_chart_green)" in chart_view_source
+    assert "val offColor = ContextCompat.getColor(context, R.color.cloud_chart_blue)" in chart_view_source
+    assert "fun barColor(state: Int): Int = if (state == 1) onColor else offColor" in chart_view_source
+    assert "val lanePaint = Paint(Paint.ANTI_ALIAS_FLAG)" in chart_view_source
+    assert "val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)" in chart_view_source
+    assert "canvas.drawRoundRect(segmentRect, 9f * density, 9f * density, barPaint)" in chart_view_source
     assert 'val badgeText = "ON ${formatDurationLabel(segment.endTime - segment.startTime)}"' in chart_view_source
 
 
