@@ -629,8 +629,11 @@ def test_device_detail_has_device_purge_action():
     assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
     assert 'name="delete_mode" value="purge"' in device_template
     assert 'purge_requested = delete_mode == "purge"' in server_source
+    assert "and ignored future check-ins until it is registered again." in server_source
+    assert "device_is_ignored(normalized_device_id)" in server_source
     assert "Purge Device Data" in device_template
     assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
+    assert "small deleted-device marker is kept" in device_template
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():

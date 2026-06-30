@@ -1643,6 +1643,59 @@ def purge_device_app_settings(cursor, device_id):
     return deleted_rows
 
 
+def purge_device_table_rows(cursor, table_name, normalized_device_id):
+    columns = table_column_names(cursor, table_name)
+    if not columns:
+        return None
+
+    conditions = []
+    params = []
+    for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
+        if column_name in columns:
+            conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
+            params.append(normalized_device_id)
+
+    if (
+        table_name in DEVICE_PURGE_TARGET_TABLES
+        and "target_type" in columns
+        and "target_id" in columns
+    ):
+        conditions.append(
+            f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+        )
+        params.extend(("device", normalized_device_id))
+
+    for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
+        if column_name in columns:
+            for pattern in json_device_id_like_patterns(normalized_device_id):
+                conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
+                params.append(pattern)
+
+    if not conditions:
+        return None
+
+    cursor.execute(
+        f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
+        tuple(params),
+    )
+    return int(cursor.rowcount or 0)
+
+
+def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
+    return int(
+        cursor.execute(
+            """
+            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                note=excluded.note,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, note),
+        ).rowcount or 0
+    )
+
+
 def purge_device_data(device_id, remember_deleted_device=False):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
@@ -1652,61 +1705,31 @@ def purge_device_data(device_id, remember_deleted_device=False):
     with get_db() as db:
         cursor = db.cursor()
         for table_name in list_database_table_names(cursor):
-            columns = table_column_names(cursor, table_name)
-            if not columns:
-                continue
-
-            conditions = []
-            params = []
-            for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
-                if column_name in columns:
-                    conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
-                    params.append(normalized_device_id)
-
-            if (
-                table_name in DEVICE_PURGE_TARGET_TABLES
-                and "target_type" in columns
-                and "target_id" in columns
-            ):
-                conditions.append(
-                    f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
-                )
-                params.extend(("device", normalized_device_id))
-
-            for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
-                if column_name in columns:
-                    for pattern in json_device_id_like_patterns(normalized_device_id):
-                        conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
-                        params.append(pattern)
-
-            if not conditions:
-                continue
-
-            cursor.execute(
-                f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
-                tuple(params),
-            )
-            deleted_counts[table_name] = int(cursor.rowcount or 0)
+            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+            if deleted_rows is not None:
+                deleted_counts[table_name] = deleted_rows
 
         app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
         if app_settings_count or "app_settings" not in deleted_counts:
             deleted_counts["app_settings"] = app_settings_count
 
-        if remember_deleted_device:
-            ignored_count = int(deleted_counts.get("ignored_devices") or 0)
-            ignored_count += int(
-                cursor.execute(
-                    """
-                    INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
-                    VALUES (?, 'admin_delete', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    ON CONFLICT(device_id) DO UPDATE SET
-                        note=excluded.note,
-                        updated_at=CURRENT_TIMESTAMP
-                    """,
-                    (normalized_device_id,),
-                ).rowcount or 0
-            )
-            deleted_counts["ignored_devices"] = ignored_count
+    # Commit source deletions before the final pass so generated event rows cannot
+    # be recreated from pre-purge telemetry seen by another request/thread.
+    with get_db() as db:
+        cursor = db.cursor()
+        for table_name in list_database_table_names(cursor):
+            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+            if deleted_rows is not None:
+                deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
+
+        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+        if app_settings_count:
+            deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+
+    if remember_deleted_device:
+        with get_db() as db:
+            marker_count = add_deleted_device_marker(db.cursor(), normalized_device_id)
+            deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
 
     forget_registered_device_touch(normalized_device_id)
     clear_runtime_caches(normalized_device_id)
@@ -4232,6 +4255,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     cleaned.pop("firmware_logs", None)
     apply_device_status_aliases(cleaned)
     apply_source_tank_aliases(cleaned)
+    normalized_device_id = normalize_device_id(cleaned.get("device_id"))
+    if normalized_device_id and device_is_ignored(normalized_device_id):
+        cleaned["device_id"] = normalized_device_id
+        cleaned["_telemetry_sync_result"] = "ignored"
+        logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
+        return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     record_home_automation_status(cleaned)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
@@ -16292,7 +16321,7 @@ def admin_delete_known_device(device_id):
 
     try:
         if purge_requested:
-            deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=False)
+            deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
             total_deleted = deleted_row_total(deleted_counts)
             log_audit_event(
                 actor=current_actor_username(),
@@ -16305,7 +16334,8 @@ def admin_delete_known_device(device_id):
             )
             success = (
                 f"Purged {total_deleted} database row"
-                f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id}."
+                f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
+                "and ignored future check-ins until it is registered again."
             )
         else:
             deleted_counts = delete_known_device(normalized_device_id)
@@ -16346,7 +16376,7 @@ def admin_purge_device_data(device_id):
     normalized_device_id = normalize_device_id(device_id)
 
     try:
-        deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=False)
+        deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
         total_deleted = deleted_row_total(deleted_counts)
         log_audit_event(
             actor=current_actor_username(),
@@ -16359,7 +16389,8 @@ def admin_purge_device_data(device_id):
         )
         success = (
             f"Purged {total_deleted} database row"
-            f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id}."
+            f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
+            "and ignored future check-ins until it is registered again."
         )
     except ValueError as exc:
         error = str(exc)

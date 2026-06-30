@@ -183,3 +183,42 @@ def test_purge_device_data_removes_device_scoped_tables_and_settings():
             assert int(settings_row["count"] or 0) == 0
     finally:
         server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_keeps_marker_and_ignored_telemetry_does_not_recreate_rows():
+    device_id = "swt-purge-ignore-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 55, "OFF", "AUTO"),
+            )
+
+        deleted_counts = server.delete_known_device(device_id)
+        assert deleted_counts["tank_data"] >= 1
+
+        with server.get_db() as db:
+            assert count_device_rows(db, "ignored_devices", "device_id", device_id) == 1
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+
+        result = server.process_telemetry_payload(
+            {
+                "device_id": device_id,
+                "device_source": server.DEVICE_SOURCE_REAL,
+                "level": 64,
+                "motor": "OFF",
+                "mode": "AUTO",
+            }
+        )
+
+        assert result["_telemetry_sync_result"] == "ignored"
+        with server.get_db() as db:
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+            assert count_device_rows(db, "device_events", "device_id", device_id) == 0
+    finally:
+        server.purge_device_data(device_id, remember_deleted_device=False)
