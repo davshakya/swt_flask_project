@@ -626,7 +626,9 @@ def test_device_detail_has_device_purge_action():
     assert '@app.route("/admin/customers/<device_id>/purge", methods=["POST"])' in server_source
     assert "def admin_purge_device_data(device_id):" in server_source
     assert "def purge_device_data(device_id, remember_deleted_device=False):" in server_source
-    assert 'action="/admin/customers/{{ device_id }}/purge"' in device_template
+    assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
+    assert 'name="delete_mode" value="purge"' in device_template
+    assert 'purge_requested = delete_mode == "purge"' in server_source
     assert "Purge Device Data" in device_template
     assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
 

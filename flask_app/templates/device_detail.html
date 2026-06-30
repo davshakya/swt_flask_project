@@ -339,8 +339,9 @@ body{font-size:16px}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-danger btn-full" type="submit">Delete Device</button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/purge" data-confirm-title="Purge device data?" data-confirm-message="Purge device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. Future telemetry can register again." data-confirm-button="Purge Data" data-confirm-danger="true" data-confirm-mode="navigate">
+                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Purge device data?" data-confirm-message="Purge device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. Future telemetry can register again." data-confirm-button="Purge Data" data-confirm-danger="true" data-confirm-mode="navigate">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="delete_mode" value="purge">
                     <button class="btn btn-danger btn-full" type="submit">Purge Device Data</button>
                 </form>
                 <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>

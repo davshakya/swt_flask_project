@@ -16287,17 +16287,36 @@ def admin_delete_known_device(device_id):
     success = None
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
+    delete_mode = str(request.form.get("delete_mode") or "").strip().lower()
+    purge_requested = delete_mode == "purge"
 
     try:
-        deleted_counts = delete_known_device(normalized_device_id)
-        log_audit_event(
-            actor=current_actor_username(),
-            action="delete_known_device",
-            target_type="device",
-            target_id=normalized_device_id,
-            details=deleted_counts,
-        )
-        success = f"Deleted device {normalized_device_id} from admin records."
+        if purge_requested:
+            deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=False)
+            total_deleted = deleted_row_total(deleted_counts)
+            log_audit_event(
+                actor=current_actor_username(),
+                action="purge_device_data",
+                target_type="admin_operation",
+                details={
+                    "deleted_rows": total_deleted,
+                    "deleted_counts": deleted_counts,
+                },
+            )
+            success = (
+                f"Purged {total_deleted} database row"
+                f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id}."
+            )
+        else:
+            deleted_counts = delete_known_device(normalized_device_id)
+            log_audit_event(
+                actor=current_actor_username(),
+                action="delete_known_device",
+                target_type="device",
+                target_id=normalized_device_id,
+                details=deleted_counts,
+            )
+            success = f"Deleted device {normalized_device_id} from admin records."
     except ValueError as exc:
         error = str(exc)
 
