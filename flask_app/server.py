@@ -1550,61 +1550,180 @@ def purge_configured_virtual_device_records():
     return deleted_counts
 
 
-def delete_known_device(device_id):
+DEVICE_PURGE_DIRECT_COLUMNS = ("device_id", "target_device")
+DEVICE_PURGE_TARGET_TABLES = {"ops_audit_log"}
+DEVICE_PURGE_JSON_DEVICE_COLUMNS = {"relay_queue": ("payload",)}
+
+
+def sql_like_escape(value, escape_char="="):
+    text = str(value or "")
+    return (
+        text.replace(escape_char, escape_char + escape_char)
+        .replace("%", escape_char + "%")
+        .replace("_", escape_char + "_")
+    )
+
+
+def json_device_id_like_patterns(device_id):
+    escaped_device_id = sql_like_escape(device_id)
+    return (
+        f'%"device_id":"{escaped_device_id}"%',
+        f'%"device_id": "{escaped_device_id}"%',
+    )
+
+
+def list_database_table_names(cursor):
+    if USING_MYSQL:
+        rows = cursor.execute(
+            """
+            SELECT TABLE_NAME AS table_name
+            FROM information_schema.TABLES
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_TYPE = 'BASE TABLE'
+            ORDER BY TABLE_NAME
+            """
+        ).fetchall()
+        return [str(row["table_name"] if isinstance(row, dict) else row[0]) for row in rows]
+
+    rows = cursor.execute(
+        """
+        SELECT name
+        FROM sqlite_master
+        WHERE type = 'table'
+          AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+        """
+    ).fetchall()
+    return [str(row["name"] if isinstance(row, dict) else row[0]) for row in rows]
+
+
+def table_column_names(cursor, table_name):
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
+        return set()
+    try:
+        rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+    except Exception as exc:
+        logger.warning("Could not inspect database table %s for device purge: %s", table_name, exc)
+        return set()
+    return {str(row[1]) for row in rows}
+
+
+def device_scoped_app_setting_keys(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return []
+
+    keys = [
+        f"{DEVICE_SIMULATOR_STATE_PREFIX}{normalized_device_id}",
+        f"{DEVICE_AUTOMATION_SETTINGS_PREFIX}{normalized_device_id}",
+        f"{DEVICE_LOCAL_WEB_PASSWORD_PREFIX}{normalized_device_id}",
+        mobile_session_epoch_setting_key(normalized_device_id),
+        active_session_setting_key(
+            SESSION_PLATFORM_ANDROID,
+            "customer",
+            username=normalized_device_id,
+            device_id=normalized_device_id,
+        ),
+        active_session_setting_key(
+            SESSION_PLATFORM_DASHBOARD,
+            "customer",
+            username=normalized_device_id,
+            device_id=normalized_device_id,
+        ),
+    ]
+    return list(dict.fromkeys(key for key in keys if key))
+
+
+def purge_device_app_settings(cursor, device_id):
+    deleted_rows = 0
+    for setting_key in device_scoped_app_setting_keys(device_id):
+        deleted_rows += int(
+            cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
+        )
+    return deleted_rows
+
+
+def purge_device_data(device_id, remember_deleted_device=False):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         raise ValueError("device_id is required")
 
-    deleted_counts = {
-        "customer_accounts": 0,
-        "registered_devices": 0,
-        "tank_data": 0,
-        "device_command_queue": 0,
-        "device_mobile_action_queue": 0,
-        "ops_alerts": 0,
-        "ops_audit_log": 0,
-        "ignored_devices": 0,
-    }
-
+    deleted_counts = {}
     with get_db() as db:
-        deleted_counts["customer_accounts"] = int(
-            db.execute("DELETE FROM customer_accounts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["registered_devices"] = int(
-            db.execute("DELETE FROM registered_devices WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["tank_data"] = int(
-            db.execute("DELETE FROM tank_data WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["device_command_queue"] = int(
-            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["device_mobile_action_queue"] = int(
-            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["ops_alerts"] = int(
-            db.execute("DELETE FROM ops_alerts WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["ops_audit_log"] = int(
-            db.execute("DELETE FROM ops_audit_log WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-        )
-        deleted_counts["ignored_devices"] = int(
-            db.execute(
-                """
-                INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
-                VALUES (?, 'admin_delete', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                ON CONFLICT(device_id) DO UPDATE SET
-                    note=excluded.note,
-                    updated_at=CURRENT_TIMESTAMP
-                """,
-                (normalized_device_id,),
-            ).rowcount or 0
-        )
+        cursor = db.cursor()
+        for table_name in list_database_table_names(cursor):
+            columns = table_column_names(cursor, table_name)
+            if not columns:
+                continue
+
+            conditions = []
+            params = []
+            for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
+                if column_name in columns:
+                    conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
+                    params.append(normalized_device_id)
+
+            if (
+                table_name in DEVICE_PURGE_TARGET_TABLES
+                and "target_type" in columns
+                and "target_id" in columns
+            ):
+                conditions.append(
+                    f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+                )
+                params.extend(("device", normalized_device_id))
+
+            for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
+                if column_name in columns:
+                    for pattern in json_device_id_like_patterns(normalized_device_id):
+                        conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
+                        params.append(pattern)
+
+            if not conditions:
+                continue
+
+            cursor.execute(
+                f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
+                tuple(params),
+            )
+            deleted_counts[table_name] = int(cursor.rowcount or 0)
+
+        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+        if app_settings_count or "app_settings" not in deleted_counts:
+            deleted_counts["app_settings"] = app_settings_count
+
+        if remember_deleted_device:
+            ignored_count = int(deleted_counts.get("ignored_devices") or 0)
+            ignored_count += int(
+                cursor.execute(
+                    """
+                    INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+                    VALUES (?, 'admin_delete', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    ON CONFLICT(device_id) DO UPDATE SET
+                        note=excluded.note,
+                        updated_at=CURRENT_TIMESTAMP
+                    """,
+                    (normalized_device_id,),
+                ).rowcount or 0
+            )
+            deleted_counts["ignored_devices"] = ignored_count
 
     forget_registered_device_touch(normalized_device_id)
     clear_runtime_caches(normalized_device_id)
+    clear_home_automation_status(normalized_device_id)
 
     return deleted_counts
+
+
+def deleted_row_total(deleted_counts):
+    return sum(int(value or 0) for value in (deleted_counts or {}).values() if isinstance(value, (int, float)))
+
+
+def delete_known_device(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    return purge_device_data(normalized_device_id, remember_deleted_device=True)
 
 
 DEVICE_KEY_MAP = parse_device_key_registry(DEVICE_KEYS)
@@ -15539,7 +15658,7 @@ def admin_home_automation_delete_device(device_id):
             raise ValueError("Home Automation device IDs must start with sha_.")
         deleted_counts = delete_known_device(normalized_device_id)
         with get_db() as db:
-            deleted_counts["device_auth_keys"] = int(
+            deleted_counts["device_auth_keys"] = int(deleted_counts.get("device_auth_keys") or 0) + int(
                 db.execute("DELETE FROM device_auth_keys WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
             )
         clear_home_automation_status(normalized_device_id)
@@ -16179,6 +16298,50 @@ def admin_delete_known_device(device_id):
             details=deleted_counts,
         )
         success = f"Deleted device {normalized_device_id} from admin records."
+    except ValueError as exc:
+        error = str(exc)
+
+    accounts = list_customer_accounts(limit=100)
+    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
+    device_summary = build_admin_device_summary(available_devices)
+    filtered_accounts = filter_admin_search_results(accounts, search_query)
+    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
+
+    return render_customer_admin_page(
+        accounts=filtered_accounts,
+        available_devices=filtered_available_devices,
+        error=error,
+        success=success,
+        search_query=search_query,
+        device_summary=device_summary,
+    )
+
+
+@app.route("/admin/customers/<device_id>/purge", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_purge_device_data(device_id):
+    error = None
+    success = None
+    search_query = request.values.get("q", "", type=str) or ""
+    normalized_device_id = normalize_device_id(device_id)
+
+    try:
+        deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=False)
+        total_deleted = deleted_row_total(deleted_counts)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="purge_device_data",
+            target_type="admin_operation",
+            details={
+                "deleted_rows": total_deleted,
+                "deleted_counts": deleted_counts,
+            },
+        )
+        success = (
+            f"Purged {total_deleted} database row"
+            f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id}."
+        )
     except ValueError as exc:
         error = str(exc)
 

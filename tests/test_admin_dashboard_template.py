@@ -619,6 +619,18 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert '"/api/mobile/device/firmware/cloud-upgrade"' not in mobile_firmware_routes
 
 
+def test_device_detail_has_device_purge_action():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '@app.route("/admin/customers/<device_id>/purge", methods=["POST"])' in server_source
+    assert "def admin_purge_device_data(device_id):" in server_source
+    assert "def purge_device_data(device_id, remember_deleted_device=False):" in server_source
+    assert 'action="/admin/customers/{{ device_id }}/purge"' in device_template
+    assert "Purge Device Data" in device_template
+    assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
+
+
 def test_device_detail_removes_cloud_firmware_upgrade():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
