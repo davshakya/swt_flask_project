@@ -275,7 +275,9 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "state.lastGoodAnalytics={key,data:merged};" in dashboard_template
-    assert "drawAnalyticsCharts(analyticsChartsPayload(data))" in dashboard_template
+    assert "return analyticsChartSections().some" in dashboard_template
+    assert "const chartData=analyticsChartsPayload(data);" in dashboard_template
+    assert "const merged=analyticsChartsPayload(data);" in dashboard_template
     assert "if(!analyticsHasChartData(cached.data))" in dashboard_template
     assert "Date.now()-savedAt>ANALYTICS_CACHE_MAX_AGE_MS" in dashboard_template
     assert "const tasks=[refreshLive({force}),refreshEvents({force})]" in dashboard_template
@@ -737,6 +739,7 @@ def test_android_cloud_pump_activity_chart_uses_two_color_activity_bars():
     assert "section.pumpActivity.endLabel" in android_source
     assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
     assert "private fun drawTimelineChart" in chart_view_source
+    assert "private fun drawSinglePointChart" in chart_view_source
     assert "formatDurationLabel" in chart_view_source
     assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
     assert "val onColor = ContextCompat.getColor(context, R.color.cloud_chart_green)" in chart_view_source

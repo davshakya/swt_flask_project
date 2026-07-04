@@ -7998,6 +7998,8 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
             data[key] = None
     data["direct_peer_sync_pending"] = bool_flag(data.get("direct_peer_sync_pending"))
     apply_source_tank_aliases(data, include_aliases=True)
+    data["dry_run_active"] = "YES" if effective_dry_run_active(data) else "NO"
+    data["pump_failure_active"] = "YES" if effective_pump_failure_active(data) else "NO"
     data["uptime_label"] = format_compact_uptime(data.get("uptime_s"))
     free_heap = data.get("free_heap")
     try:
@@ -8518,6 +8520,42 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     return round(forecast_hours, 2)
 
 
+def dry_run_fault_recovered(snapshot):
+    snapshot = snapshot or {}
+    telemetry = str(snapshot.get("telemetry_status") or "").strip().lower()
+    if telemetry in {"stale", "offline", "no-data"}:
+        return False
+    if str(snapshot.get("motor") or "").strip().upper() == "ON":
+        return False
+    sensor = str(snapshot.get("sensor") or "").strip().upper()
+    if sensor and sensor != "OK":
+        return False
+
+    source_service = str(snapshot.get("lower_tank_service") or snapshot.get("source_tank_service") or "").strip().upper()
+    source_level_raw = snapshot.get("lower_tank_level", snapshot.get("source_tank_level"))
+    source_level = None if source_level_raw in (None, "", "null") else safe_float(source_level_raw, -1)
+    source_sensor = str(snapshot.get("lower_sensor") or snapshot.get("source_sensor") or "").strip().upper()
+    if source_service == "ON" and (
+        source_level is None
+        or source_level < 20
+        or (source_sensor and source_sensor not in {"OK", "DISABLED"})
+    ):
+        return False
+
+    level = safe_float(snapshot.get("level"), -1)
+    auto_start = safe_float(snapshot.get("auto_start_pct") or snapshot.get("auto_start_level_pct"), 40)
+    recovery_level = max(45.0, min(85.0, auto_start + 10.0))
+    return level >= recovery_level
+
+
+def effective_dry_run_active(snapshot):
+    return bool_flag((snapshot or {}).get("dry_run")) and not dry_run_fault_recovered(snapshot)
+
+
+def effective_pump_failure_active(snapshot):
+    return bool_flag((snapshot or {}).get("pump_failure")) and not dry_run_fault_recovered(snapshot)
+
+
 def numeric_percentile(values, fraction):
     clean_values = []
     for value in values or []:
@@ -8927,7 +8965,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     pipe_leak = any(bool_flag(snapshot.get(key)) for key in ("pipe_leak", "slow_leak", "drip"))
     ai_leak_status = str(leakage_model.get("status") or "").lower()
     ai_leak_active = ai_leak_status in {"likely_leak", "possible_leak"}
-    dry_run = bool_flag(snapshot.get("dry_run"))
+    dry_run = effective_dry_run_active(snapshot)
     source_monitoring_active = source_service == "ON"
     source_blocked = (
         source_monitoring_active
@@ -9045,7 +9083,13 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         observations.append("Event history shows repeated warnings in this range.")
         actions.append("Review recent device events before changing automation settings.")
 
-    confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 92)))
+    confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 0)))
+    if confidence <= 0:
+        confidence = 72
+    if telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
+        confidence = max(confidence, 72)
+    if severity == "normal" and telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
+        confidence = max(confidence, 80 if analytics_payload else 74)
     if telemetry == "stale":
         confidence -= 20
     if not analytics_payload or not (analytics_payload.get("levels") or {}).get("values"):
@@ -12449,7 +12493,7 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Pump failure reported by firmware.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("pump_failure")),
+        active=effective_pump_failure_active(snapshot),
         best_effort=True,
     )
     set_alert(
@@ -12457,7 +12501,7 @@ def evaluate_snapshot_alerts(snapshot):
         "danger",
         "Dry-run protection triggered.",
         device_id=device_id,
-        active=bool_flag(snapshot.get("dry_run")),
+        active=effective_dry_run_active(snapshot),
         best_effort=True,
     )
     leak_active = any(bool_flag(snapshot.get(key)) for key in ("leak", "drip", "slow_leak", "pipe_leak"))

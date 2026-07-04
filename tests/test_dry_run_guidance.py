@@ -61,6 +61,27 @@ def test_shared_guidance_names_source_tank_only_when_source_monitoring_is_active
     assert "source water" in guidance["action_note"]
 
 
+def test_recovered_dry_run_flag_no_longer_drives_guidance_or_alerts():
+    snapshot = {
+        "device_id": "swt-test",
+        "level": 86.8,
+        "motor": "OFF",
+        "dry_run": "YES",
+        "pump_failure": "YES",
+        "sensor": "OK",
+        "telemetry_status": "live",
+        "auto_start_pct": 40,
+        "lower_tank_service": "OFF",
+    }
+
+    guidance = server.build_shared_guidance_payload(snapshot, {"analysis": {"quality": {"score": 70}}})
+
+    assert server.effective_dry_run_active(snapshot) is False
+    assert server.effective_pump_failure_active(snapshot) is False
+    assert guidance["title"] == "Water system is stable"
+    assert guidance["confidence_percent"] >= 70
+
+
 def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_leak():
     guidance = server.build_shared_guidance_payload(
         {
