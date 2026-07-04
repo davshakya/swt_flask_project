@@ -271,14 +271,18 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v3";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v4";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
+    assert "function analyticsIsFallbackPayload(data)" in dashboard_template
+    assert "function analyticsIsStrongPayload(data)" in dashboard_template
     assert "state.lastGoodAnalytics={key,data:merged};" in dashboard_template
-    assert "return analyticsChartSections().some" in dashboard_template
+    assert "return analyticsIsStrongPayload(data);" in dashboard_template
     assert "const chartData=analyticsChartsPayload(data);" in dashboard_template
+    assert "data=chartData;" in dashboard_template
     assert "const merged=analyticsChartsPayload(data);" in dashboard_template
-    assert "if(!analyticsHasChartData(cached.data))" in dashboard_template
+    assert "analyticsIsFallbackPayload(payload)" in dashboard_template
+    assert "if(!analyticsIsStrongPayload(cached.data))" in dashboard_template
     assert "Date.now()-savedAt>ANALYTICS_CACHE_MAX_AGE_MS" in dashboard_template
     assert "const tasks=[refreshLive({force}),refreshEvents({force})]" in dashboard_template
     assert "const visibleHeight=Math.max(rawHeight,Math.abs(value)<=0.0001?2:1);" in dashboard_template

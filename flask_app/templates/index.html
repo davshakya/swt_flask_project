@@ -589,7 +589,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v3";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v4";
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
@@ -629,11 +629,28 @@ const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyVal
 function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&!Number.isNaN(Number(value));}
 function hasMeaningfulAnalyticsData(data){
     if(!data||typeof data!=="object")return false;
-    return analyticsChartSections().some(([section,labelKey])=>analyticsSectionHasChartData(data,section,labelKey));
+    return analyticsIsStrongPayload(data);
 }
 function analyticsHasChartData(data){
     if(!data||typeof data!=="object")return false;
     return analyticsChartSections().some(([section,labelKey])=>analyticsSectionHasChartData(data,section,labelKey));
+}
+function analyticsQualityRowCount(data){
+    const value=Number(data?.analysis?.quality?.row_count);
+    return Number.isFinite(value)?value:null;
+}
+function analyticsIsFallbackPayload(data){
+    if(!data||typeof data!=="object")return true;
+    if(data?.analysis?.live_snapshot_fallback===true)return true;
+    const rowCount=analyticsQualityRowCount(data);
+    const hasForecast=data?.prediction?.tomorrow_usage!==null&&data?.prediction?.tomorrow_usage!==undefined;
+    const hasDailyUsage=data?.insights?.avg_daily_usage!==null&&data?.insights?.avg_daily_usage!==undefined;
+    return rowCount!==null&&rowCount<2&&!hasForecast&&!hasDailyUsage;
+}
+function analyticsIsStrongPayload(data){
+    if(!analyticsHasChartData(data)||analyticsIsFallbackPayload(data))return false;
+    const rowCount=analyticsQualityRowCount(data);
+    return rowCount===null||rowCount>=2;
 }
 function analyticsSectionHasChartData(data,section,labelKey){
     if(!data||typeof data!=="object")return false;
@@ -1722,19 +1739,22 @@ function drawAnalyticsCharts(data){
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
     const chartData=analyticsChartsPayload(data,{remember:false,key});
-    if(!analyticsHasChartData(chartData))return false;
+    if(!analyticsIsStrongPayload(chartData))return false;
     state.lastGoodAnalytics={key,data:chartData};
     return true;
 }
 function currentGoodAnalyticsCharts(){
     const key=analyticsCacheKey();
-    return state.lastGoodAnalytics?.key===key&&analyticsHasChartData(state.lastGoodAnalytics.data)
+    return state.lastGoodAnalytics?.key===key&&analyticsIsStrongPayload(state.lastGoodAnalytics.data)
         ?state.lastGoodAnalytics.data
         :null;
 }
 function analyticsChartsPayload(data,{remember=true,key=analyticsCacheKey()}={}){
     const payload=data&&typeof data==="object"?data:{};
     const previous=state.lastGoodAnalytics?.key===key?state.lastGoodAnalytics.data:null;
+    if(previous&&analyticsIsStrongPayload(previous)&&analyticsIsFallbackPayload(payload)){
+        return previous;
+    }
     const merged={...payload};
     analyticsChartSections().forEach(([section,labelKey])=>{
         if(analyticsSectionHasChartData(payload,section,labelKey))return;
@@ -1743,7 +1763,7 @@ function analyticsChartsPayload(data,{remember=true,key=analyticsCacheKey()}={})
             if(section==="motor"&&previous.pump_activity)merged.pump_activity=previous.pump_activity;
         }
     });
-    if(remember&&analyticsHasChartData(merged)){
+    if(remember&&analyticsIsStrongPayload(merged)){
         state.lastGoodAnalytics={key,data:merged};
     }
     return analyticsHasChartData(merged)?merged:payload;
@@ -1824,7 +1844,7 @@ function loadAnalyticsCache(){
             return null;
         }
         if(!(cached&&typeof cached==="object"&&cached.data&&typeof cached.data==="object"))return null;
-        if(!analyticsHasChartData(cached.data)){
+        if(!analyticsIsStrongPayload(cached.data)){
             localStorage.removeItem(analyticsCacheKey());
             return null;
         }
@@ -1836,7 +1856,7 @@ function loadAnalyticsCache(){
 }
 function saveAnalyticsCache(data){
     const chartData=analyticsChartsPayload(data);
-    if(!analyticsHasChartData(chartData))return false;
+    if(!analyticsIsStrongPayload(chartData))return false;
     try{
         localStorage.setItem(analyticsCacheKey(),JSON.stringify({savedAt:Date.now(),data:chartData}));
         rememberGoodAnalyticsCharts(chartData);
@@ -2076,6 +2096,7 @@ function renderSystemStatus(system){
 function renderAnalytics(data){
     data=data||{};
     const chartData=analyticsChartsPayload(data);
+    data=chartData;
     const analyticsReady=hasMeaningfulAnalyticsData(chartData);
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
