@@ -3117,21 +3117,22 @@ def fetch_active_alert_summaries(device_ids=None, updated_since=None):
         for item in (normalize_device_id(value) for value in (device_ids or []))
         if item
     ]
-    query = """
-        SELECT device_id, severity, message, updated_at, id
-        FROM ops_alerts
-        WHERE active = 1
-          AND COALESCE(device_id, '') != ''
+    query = f"""
+        SELECT alert.device_id, alert.severity, alert.message, alert.updated_at, alert.id
+        FROM ops_alerts AS alert
+        WHERE alert.active = 1
+          AND COALESCE(alert.device_id, '') != ''
+          AND {latest_active_alert_filter("alert")}
     """
     params = []
     if updated_since:
-        query += " AND updated_at >= ?"
+        query += " AND alert.updated_at >= ?"
         params.append(updated_since)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
-        query += f" AND device_id IN ({placeholders})"
+        query += f" AND alert.device_id IN ({placeholders})"
         params.extend(normalized_device_ids)
-    query += " ORDER BY updated_at DESC, id DESC"
+    query += " ORDER BY alert.updated_at DESC, alert.id DESC"
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
 
@@ -12309,7 +12310,18 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
     webhook_payload = None
     try:
         with get_db() as db:
-            existing = db.execute(
+            active_rows = db.execute(
+                """
+                SELECT id, active, message, severity
+                FROM ops_alerts
+                WHERE kind = ? AND COALESCE(device_id, '') = COALESCE(?, '')
+                  AND active = 1
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (kind, normalized_device_id),
+            ).fetchall()
+            existing_active = active_rows[0] if active_rows else None
+            existing = existing_active or db.execute(
                 """
                 SELECT id, active, message, severity
                 FROM ops_alerts
@@ -12319,49 +12331,71 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
                 """,
                 (kind, normalized_device_id),
             ).fetchone()
+            duplicate_active_ids = [row["id"] for row in active_rows[1:]]
 
             if active:
-                if existing and int(existing["active"]) == 1 and existing["message"] == message and existing["severity"] == severity:
-                    db.execute(
-                        "UPDATE ops_alerts SET updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        (existing["id"],),
-                    )
-                    note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
-                    return
-
-                if existing and int(existing["active"]) == 1:
+                if existing_active:
                     db.execute(
                         """
                         UPDATE ops_alerts
-                        SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        SET severity = ?, message = ?, active = 1, resolved_at = NULL, updated_at = CURRENT_TIMESTAMP
                         WHERE id = ?
                         """,
-                        (existing["id"],),
+                        (severity, message, existing_active["id"]),
                     )
-
-                cursor = db.execute(
-                    """
-                    INSERT INTO ops_alerts (device_id, kind, severity, message, active)
-                    VALUES (?, ?, ?, ?, 1)
-                    """,
-                    (normalized_device_id, kind, severity, message),
-                )
-                webhook_payload = {
-                    "id": cursor.lastrowid,
-                    "device_id": normalized_device_id,
-                    "kind": kind,
-                    "severity": severity,
-                    "message": message,
-                    "active": True,
-                }
-            elif existing and int(existing["active"]) == 1:
+                    if duplicate_active_ids:
+                        placeholders = ",".join("?" for _ in duplicate_active_ids)
+                        db.execute(
+                            f"""
+                            UPDATE ops_alerts
+                            SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                            WHERE id IN ({placeholders})
+                            """,
+                            tuple(duplicate_active_ids),
+                        )
+                elif existing:
+                    db.execute(
+                        """
+                        UPDATE ops_alerts
+                        SET severity = ?, message = ?, active = 1, resolved_at = NULL, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                        """,
+                        (severity, message, existing["id"]),
+                    )
+                    webhook_payload = {
+                        "id": existing["id"],
+                        "device_id": normalized_device_id,
+                        "kind": kind,
+                        "severity": severity,
+                        "message": message,
+                        "active": True,
+                    }
+                else:
+                    cursor = db.execute(
+                        """
+                        INSERT INTO ops_alerts (device_id, kind, severity, message, active)
+                        VALUES (?, ?, ?, ?, 1)
+                        """,
+                        (normalized_device_id, kind, severity, message),
+                    )
+                    webhook_payload = {
+                        "id": cursor.lastrowid,
+                        "device_id": normalized_device_id,
+                        "kind": kind,
+                        "severity": severity,
+                        "message": message,
+                        "active": True,
+                    }
+            elif active_rows:
+                active_ids = [row["id"] for row in active_rows]
+                placeholders = ",".join("?" for _ in active_ids)
                 db.execute(
-                    """
+                    f"""
                     UPDATE ops_alerts
                     SET active = 0, resolved_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
+                    WHERE id IN ({placeholders})
                     """,
-                    (existing["id"],),
+                    tuple(active_ids),
                 )
     except Exception as exc:
         if best_effort and database_is_locked_error(exc):
@@ -12377,6 +12411,22 @@ def set_alert(kind, severity, message, device_id=None, active=True, best_effort=
     note_alert_touch(kind, severity, message, device_id=normalized_device_id, active=active)
     if webhook_payload:
         send_alert_webhook(webhook_payload)
+
+
+def latest_active_alert_filter(alias="alert"):
+    return f"""
+        NOT EXISTS (
+            SELECT 1
+            FROM ops_alerts AS newer_alert
+            WHERE newer_alert.active = 1
+              AND newer_alert.kind = {alias}.kind
+              AND COALESCE(newer_alert.device_id, '') = COALESCE({alias}.device_id, '')
+              AND (
+                  newer_alert.updated_at > {alias}.updated_at
+                  OR (newer_alert.updated_at = {alias}.updated_at AND newer_alert.id > {alias}.id)
+              )
+        )
+    """
 
 
 def evaluate_snapshot_alerts(snapshot):
@@ -12431,17 +12481,18 @@ def evaluate_snapshot_alerts(snapshot):
 
 
 def fetch_active_alerts(limit=20, device_id=None):
-    query = """
-        SELECT id, device_id, kind, severity, message, created_at, updated_at
-        FROM ops_alerts
-        WHERE active = 1
+    query = f"""
+        SELECT alert.id, alert.device_id, alert.kind, alert.severity, alert.message, alert.created_at, alert.updated_at
+        FROM ops_alerts AS alert
+        WHERE alert.active = 1
+          AND {latest_active_alert_filter("alert")}
     """
     params = []
     normalized_device_id = normalize_device_id(device_id)
     if normalized_device_id:
-        query += " AND COALESCE(device_id, '') = COALESCE(?, '')"
+        query += " AND COALESCE(alert.device_id, '') = COALESCE(?, '')"
         params.append(normalized_device_id)
-    query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+    query += " ORDER BY alert.updated_at DESC, alert.id DESC LIMIT ?"
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
@@ -12449,22 +12500,23 @@ def fetch_active_alerts(limit=20, device_id=None):
 
 
 def fetch_filtered_alerts(limit=20, severity=None, device_id=None, updated_since=None):
-    query = """
-        SELECT id, device_id, kind, severity, message, created_at, updated_at
-        FROM ops_alerts
-        WHERE active = 1
+    query = f"""
+        SELECT alert.id, alert.device_id, alert.kind, alert.severity, alert.message, alert.created_at, alert.updated_at
+        FROM ops_alerts AS alert
+        WHERE alert.active = 1
+          AND {latest_active_alert_filter("alert")}
     """
     params = []
     if severity:
-        query += " AND LOWER(severity) = ?"
+        query += " AND LOWER(alert.severity) = ?"
         params.append(str(severity).lower())
     if device_id:
-        query += " AND COALESCE(device_id, '') = COALESCE(?, '')"
-        params.append(device_id)
+        query += " AND COALESCE(alert.device_id, '') = COALESCE(?, '')"
+        params.append(normalize_device_id(device_id))
     if updated_since:
-        query += " AND updated_at >= ?"
+        query += " AND alert.updated_at >= ?"
         params.append(updated_since)
-    query += " ORDER BY updated_at DESC, id DESC LIMIT ?"
+    query += " ORDER BY alert.updated_at DESC, alert.id DESC LIMIT ?"
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()

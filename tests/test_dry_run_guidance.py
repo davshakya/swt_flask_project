@@ -116,3 +116,48 @@ def test_evaluate_snapshot_alerts_maps_dry_run_to_active_alert(monkeypatch):
     )
 
     assert ("dry_run", "danger", "Dry-run protection triggered.", True, "swt-test") in calls
+
+
+def test_set_alert_keeps_one_active_row_per_device_and_kind(monkeypatch):
+    device_id = "swt-alert-dedupe-test"
+    kind = "pump_failure"
+    monkeypatch.setattr(server, "send_alert_webhook", lambda _payload: None)
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM ops_alerts WHERE device_id = ? AND kind = ?", (device_id, kind))
+
+    server.forget_alert_touch(kind, device_id)
+    server.set_alert(kind, "danger", "Pump failure reported by firmware.", device_id=device_id, active=True)
+    first_row = server.fetch_active_alerts(device_id=device_id)[0]
+
+    server.forget_alert_touch(kind, device_id)
+    server.set_alert(kind, "danger", "Pump failure reported by firmware.", device_id=device_id, active=False)
+    server.forget_alert_touch(kind, device_id)
+    server.set_alert(kind, "danger", "Pump failure reported by firmware.", device_id=device_id, active=True)
+
+    active_rows = [
+        row
+        for row in server.fetch_active_alerts(limit=10, device_id=device_id)
+        if row["kind"] == kind
+    ]
+    assert len(active_rows) == 1
+    assert active_rows[0]["id"] == first_row["id"]
+
+    with server.get_db() as db:
+        db.execute(
+            """
+            INSERT INTO ops_alerts(device_id, kind, severity, message, active)
+            VALUES (?, ?, ?, ?, 1)
+            """,
+            (device_id, kind, "danger", "Duplicate pump failure row.",),
+        )
+
+    server.forget_alert_touch(kind, device_id)
+    server.set_alert(kind, "danger", "Pump failure reported by firmware.", device_id=device_id, active=True)
+
+    active_rows = [
+        row
+        for row in server.fetch_active_alerts(limit=10, device_id=device_id)
+        if row["kind"] == kind
+    ]
+    assert len(active_rows) == 1
