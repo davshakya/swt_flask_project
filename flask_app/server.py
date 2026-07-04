@@ -2,6 +2,7 @@ import atexit
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 import base64
+import copy
 import csv
 import gzip
 import hashlib
@@ -710,6 +711,8 @@ ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT",
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
+ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
+ANALYTICS_LAST_VALID_SCHEMA_VERSION = 1
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -1635,10 +1638,18 @@ def device_scoped_app_setting_keys(device_id):
 
 
 def purge_device_app_settings(cursor, device_id):
+    normalized_device_id = normalize_device_id(device_id)
     deleted_rows = 0
     for setting_key in device_scoped_app_setting_keys(device_id):
         deleted_rows += int(
             cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
+        )
+    if normalized_device_id:
+        deleted_rows += int(
+            cursor.execute(
+                "DELETE FROM app_settings WHERE key LIKE ?",
+                (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
+            ).rowcount or 0
         )
     return deleted_rows
 
@@ -8316,7 +8327,150 @@ def read_cached_analytics(cache_key, now_ts=None):
     return cached.get("payload")
 
 
+def analytics_last_valid_setting_key(cache_key):
+    try:
+        cache_key_parts = [str(part) for part in cache_key]
+    except TypeError:
+        cache_key_parts = [str(cache_key)]
+    device_token = normalize_device_id(cache_key_parts[2]) if len(cache_key_parts) >= 3 else ""
+    device_token = device_token or "all"
+    digest = hashlib.sha256(json.dumps(cache_key_parts, sort_keys=True).encode("utf-8")).hexdigest()[:24]
+    return f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{device_token}:{digest}"
+
+
+def build_analytics_cache_key(start_dt, end_exclusive, device_id=None):
+    normalized_device_id = normalize_device_id(device_id)
+    return (
+        start_dt.strftime(DATE_ONLY_FORMAT),
+        end_exclusive.strftime(DATE_ONLY_FORMAT),
+        normalized_device_id or "*",
+        get_device_source_mode(),
+    )
+
+
+def copy_analytics_payload(payload):
+    return copy.deepcopy(payload) if isinstance(payload, dict) else payload
+
+
+def analytics_series_has_points(series, value_key="values"):
+    if not isinstance(series, dict):
+        return False
+    values = series.get(value_key)
+    if not isinstance(values, list):
+        return False
+    return any(value is not None for value in values)
+
+
+def analytics_payload_has_valid_result(payload):
+    if not isinstance(payload, dict):
+        return False
+    analysis = payload.get("analysis") or {}
+    quality = analysis.get("quality") or {}
+    if bool(analysis.get("live_snapshot_fallback")):
+        return False
+    if int(safe_float(quality.get("row_count"), 0)) < 2:
+        return False
+    return any(
+        (
+            analytics_series_has_points(payload.get("levels")),
+            analytics_series_has_points(payload.get("motor")),
+            analytics_series_has_points(payload.get("daily")),
+            analytics_series_has_points(payload.get("pattern")),
+        )
+    )
+
+
+def analytics_payload_version(payload):
+    version_source = {
+        "range": (payload or {}).get("range") or {},
+        "latest_sync_at": (payload or {}).get("latest_sync_at"),
+        "quality": ((payload or {}).get("analysis") or {}).get("quality") or {},
+        "insights": (payload or {}).get("insights") or {},
+    }
+    return hashlib.sha256(
+        json.dumps(version_source, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()[:16]
+
+
+def mark_computed_analytics_payload(payload, now_ts=None):
+    if not isinstance(payload, dict):
+        return payload
+    payload.setdefault("analytics_source", "computed")
+    payload.setdefault("analytics_generated_at", now_utc().strftime(TIMESTAMP_FORMAT))
+    payload.setdefault("analytics_version", analytics_payload_version(payload))
+    payload.setdefault("analytics_cached", False)
+    return payload
+
+
+def persist_last_valid_analytics(cache_key, payload, now_ts=None):
+    if not analytics_payload_has_valid_result(payload) or payload.get("analytics_cached"):
+        return False
+    payload_to_store = copy_analytics_payload(payload)
+    mark_computed_analytics_payload(payload_to_store, now_ts=now_ts)
+    record = {
+        "schema": ANALYTICS_LAST_VALID_SCHEMA_VERSION,
+        "cache_key": [str(part) for part in cache_key],
+        "saved_at": now_utc().strftime(TIMESTAMP_FORMAT),
+        "analytics_version": payload_to_store.get("analytics_version"),
+        "payload": payload_to_store,
+    }
+    try:
+        set_app_setting(analytics_last_valid_setting_key(cache_key), json.dumps(record, default=str))
+        return True
+    except Exception as exc:
+        logger.warning("Could not persist last valid analytics for %s: %s", cache_key, exc)
+        return False
+
+
+def read_last_valid_analytics(cache_key, reason=None):
+    raw_record = get_app_setting(analytics_last_valid_setting_key(cache_key))
+    if not raw_record:
+        return None
+    try:
+        record = json.loads(raw_record)
+    except (TypeError, ValueError):
+        return None
+    if record.get("schema") != ANALYTICS_LAST_VALID_SCHEMA_VERSION:
+        return None
+    expected_key = [str(part) for part in cache_key]
+    if record.get("cache_key") != expected_key:
+        return None
+    payload = copy_analytics_payload(record.get("payload"))
+    if not analytics_payload_has_valid_result(payload):
+        return None
+
+    payload["analytics_cached"] = True
+    payload["analytics_source"] = "last_valid"
+    payload["analytics_cached_at"] = record.get("saved_at")
+    payload["analytics_version"] = record.get("analytics_version") or analytics_payload_version(payload)
+    warning = reason or "Showing the last successful AI analysis while fresh analytics catches up."
+    payload["analytics_warning"] = warning
+    alerts = payload.setdefault("alerts", [])
+    if isinstance(alerts, list) and warning not in alerts:
+        alerts.insert(0, warning)
+    return payload
+
+
+def fallback_analytics_payload(cache_key, empty_payload, reason=None, now_ts=None):
+    cached_payload = read_last_valid_analytics(cache_key, reason=reason)
+    if cached_payload is not None:
+        return store_cached_analytics(cache_key, cached_payload, now_ts=now_ts)
+    return store_cached_analytics(cache_key, empty_payload, now_ts=now_ts)
+
+
+def build_analytics_fallback_payload(start_dt, end_exclusive, label, device_id=None, reason=None, now_ts=None):
+    normalized_device_id = normalize_device_id(device_id)
+    cache_key = build_analytics_cache_key(start_dt, end_exclusive, normalized_device_id)
+    empty_payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
+    if reason:
+        empty_payload["analytics_warning"] = reason
+    return fallback_analytics_payload(cache_key, empty_payload, reason=reason, now_ts=now_ts)
+
+
 def store_cached_analytics(cache_key, payload, now_ts=None):
+    if analytics_payload_has_valid_result(payload):
+        mark_computed_analytics_payload(payload, now_ts=now_ts)
+        persist_last_valid_analytics(cache_key, payload, now_ts=now_ts)
     if ANALYTICS_CACHE_TTL_SECONDS <= 0:
         return payload
 
@@ -9453,13 +9607,7 @@ def build_db_summary_payload():
 
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
-    active_mode = get_device_source_mode()
-    cache_key = (
-        start_dt.strftime(DATE_ONLY_FORMAT),
-        end_exclusive.strftime(DATE_ONLY_FORMAT),
-        normalized_device_id or "*",
-        active_mode,
-    )
+    cache_key = build_analytics_cache_key(start_dt, end_exclusive, normalized_device_id)
     now_ts = time.time()
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
@@ -9470,7 +9618,12 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     if not TELEMETRY_HISTORY_ENABLED:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
         payload["alerts"] = ["Analytics history is disabled on this deployment."]
-        return store_cached_analytics(cache_key, payload, now_ts=now_ts)
+        return fallback_analytics_payload(
+            cache_key,
+            payload,
+            reason="Analytics history is disabled; showing the last successful AI analysis if available.",
+            now_ts=now_ts,
+        )
 
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
@@ -9570,7 +9723,12 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
-        return store_cached_analytics(cache_key, payload, now_ts=now_ts)
+        return fallback_analytics_payload(
+            cache_key,
+            payload,
+            reason="Fresh analytics needs more history; showing the last successful AI analysis if available.",
+            now_ts=now_ts,
+        )
 
     mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
     consumption_rate = robust_consumption_rate(
@@ -14516,8 +14674,13 @@ def mobile_bootstrap():
             logger.exception("Mobile bootstrap analytics fallback used for %s: %s", scoped_device_id, exc)
             try:
                 start_dt, end_exclusive, label = resolve_date_window()
-                payload["analytics"] = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
-                payload["analytics"]["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
+                payload["analytics"] = build_analytics_fallback_payload(
+                    start_dt,
+                    end_exclusive,
+                    label,
+                    device_id=scoped_device_id,
+                    reason="AI analysis is using the last successful result while fresh analytics catches up.",
+                )
             except Exception:
                 payload["analytics_warning"] = "AI analysis is temporarily unavailable."
     return jsonify(payload)
@@ -14541,9 +14704,13 @@ def mobile_analytics():
         payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
-        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
-        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
-        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+        payload = build_analytics_fallback_payload(
+            start_dt,
+            end_exclusive,
+            label,
+            device_id=scoped_device_id,
+            reason="AI analysis is using the last successful result while fresh analytics catches up.",
+        )
     return jsonify(payload)
 
 
@@ -18083,9 +18250,13 @@ def analytics():
         payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
-        payload = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
-        payload["analytics_warning"] = "Analytics engine fell back to the latest live snapshot."
-        payload.setdefault("alerts", []).insert(0, "AI analysis is using the latest live snapshot while history catches up.")
+        payload = build_analytics_fallback_payload(
+            start_dt,
+            end_exclusive,
+            label,
+            device_id=scoped_device_id,
+            reason="AI analysis is using the last successful result while fresh analytics catches up.",
+        )
     return jsonify(payload)
 
 

@@ -192,7 +192,7 @@ def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
     assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
     assert 'payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
-    assert 'payload["analytics"] = build_empty_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
+    assert 'payload["analytics"] = build_analytics_fallback_payload(' in route_body
 
 
 def test_mobile_pump_slider_requires_hold_confirmation_before_sending_command():

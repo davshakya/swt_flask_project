@@ -86,3 +86,67 @@ def test_low_history_analytics_returns_live_snapshot_fallback():
             db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
         server.clear_runtime_caches(device_id)
         server.analytics_cache.clear()
+
+
+def test_last_valid_analytics_survives_empty_recalculation():
+    device_id = "swt-analytics-cache-001"
+    now = server.now_utc()
+    start_dt = now - timedelta(days=1)
+    end_exclusive = now + timedelta(days=1)
+    cache_key = server.build_analytics_cache_key(start_dt, end_exclusive, device_id)
+    setting_key = server.analytics_last_valid_setting_key(cache_key)
+    valid_payload = {
+        "range": {
+            "label": "Today",
+            "start_date": start_dt.strftime(server.DATE_ONLY_FORMAT),
+            "end_date": now.strftime(server.DATE_ONLY_FORMAT),
+        },
+        "insights": {
+            "consumption_rate": 13.66,
+            "avg_daily_usage": 1833.39,
+            "usage_change_pct": -81.9,
+        },
+        "daily": {"dates": ["2026-07-03", "2026-07-04"], "values": [1731.85, 313.71]},
+        "pattern": {"hours": list(range(24)), "values": [0.0] * 24},
+        "levels": {
+            "time": ["2026-07-04 11:10:00", "2026-07-04 11:13:00", "2026-07-04 11:14:00"],
+            "values": [83.5, 87.0, 86.8],
+        },
+        "motor": {
+            "time": ["2026-07-04 11:10:00", "2026-07-04 11:13:00", "2026-07-04 11:14:00"],
+            "values": [0, 1, 0],
+        },
+        "prediction": {"tomorrow_usage": 1332.1},
+        "alerts": ["AI found a possible leakage pattern."],
+        "analysis": {
+            "quality": {"score": 80, "row_count": 3, "status": "good"},
+            "forecast_confidence": 80,
+            "live_snapshot_fallback": False,
+            "leakage": {"status": "possible_leak", "score": 59},
+        },
+    }
+
+    try:
+        server.analytics_cache.clear()
+        server.delete_app_setting(setting_key)
+        server.store_cached_analytics(cache_key, valid_payload, now_ts=1)
+        server.analytics_cache.clear()
+
+        empty_payload = server.build_empty_analytics(start_dt, end_exclusive, "Today", device_id=device_id)
+        fallback = server.fallback_analytics_payload(
+            cache_key,
+            empty_payload,
+            reason="Fresh analytics needs more history.",
+            now_ts=2,
+        )
+
+        assert fallback["analytics_cached"] is True
+        assert fallback["analytics_source"] == "last_valid"
+        assert fallback["insights"]["consumption_rate"] == 13.66
+        assert fallback["prediction"]["tomorrow_usage"] == 1332.1
+        assert fallback["analysis"]["forecast_confidence"] == 80
+        assert fallback["levels"]["values"] == [83.5, 87.0, 86.8]
+        assert fallback["daily"]["values"] == [1731.85, 313.71]
+    finally:
+        server.delete_app_setting(setting_key)
+        server.analytics_cache.clear()
