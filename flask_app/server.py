@@ -8117,10 +8117,9 @@ def resolve_date_window():
     return start_dt, end_exclusive, label
 
 
-def build_analytics_query(start_dt, end_exclusive, device_id=None):
-    source_clause, source_params = device_source_where_clause()
+def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_sources=False):
     query = """
-        SELECT level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
+        SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
                ai_usage_rate, tomorrow_prediction, created_at
         FROM tank_data
@@ -8132,10 +8131,127 @@ def build_analytics_query(start_dt, end_exclusive, device_id=None):
         params.append(normalized_device_id)
     query += "created_at >= ? AND created_at < ? AND "
     params.extend([start_dt.strftime(TIMESTAMP_FORMAT), end_exclusive.strftime(TIMESTAMP_FORMAT)])
-    query += source_clause
-    params.extend(source_params)
+    if include_all_sources:
+        query += "1 = 1"
+    else:
+        source_clause, source_params = device_source_where_clause()
+        query += source_clause
+        params.extend(source_params)
     query += " ORDER BY created_at ASC, id ASC"
     return query, tuple(params)
+
+
+def analytics_row_has_valid_level(row):
+    level = safe_float((row or {}).get("level"), None)
+    return level is not None and math.isfinite(level) and 0 <= level <= 100
+
+
+def filter_valid_analytics_rows(rows):
+    return [dict(row) for row in (rows or []) if analytics_row_has_valid_level(row)]
+
+
+def fetch_event_analytics_rows(start_dt, end_exclusive, device_id=None, existing_source_row_ids=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if get_device_source_mode() != DEVICE_SOURCE_REAL:
+        return []
+
+    where_clauses = [
+        "event_at >= ?",
+        "event_at < ?",
+        "details_json IS NOT NULL",
+        "(details_json LIKE ? OR details_json LIKE ?)",
+    ]
+    params = [
+        start_dt.strftime(TIMESTAMP_FORMAT),
+        end_exclusive.strftime(TIMESTAMP_FORMAT),
+        '%"level"%',
+        '%\\"level\\"%',
+    ]
+    if normalized_device_id:
+        where_clauses.insert(0, "device_id = ?")
+        params.insert(0, normalized_device_id)
+
+    query = f"""
+        SELECT id, event_kind, details_json, source_table, source_row_id, event_at
+        FROM device_events
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY event_at ASC, id ASC
+        LIMIT 5000
+    """
+    existing_ids = {str(value) for value in (existing_source_row_ids or set()) if value not in (None, "")}
+    seen_keys = set()
+    rows = []
+    with get_db() as db:
+        event_rows = [dict(row) for row in db.execute(query, tuple(params))]
+
+    for event_row in event_rows:
+        try:
+            details = json.loads(event_row.get("details_json") or "{}")
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(details, dict):
+            continue
+        level = safe_float(details.get("level"), None)
+        if level is None or not math.isfinite(level) or level < 0 or level > 100:
+            continue
+
+        source_row_id = str(details.get("source_row_id") or event_row.get("source_row_id") or "").strip()
+        if source_row_id and source_row_id in existing_ids:
+            continue
+        dedupe_key = source_row_id or f"{event_row.get('event_at')}:{event_row.get('event_kind')}:{level}"
+        if dedupe_key in seen_keys:
+            continue
+        seen_keys.add(dedupe_key)
+
+        motor = str(details.get("motor") or details.get("pump") or "").strip().upper()
+        if motor not in {"ON", "OFF"}:
+            raw_line = str(details.get("raw_line") or "")
+            motor_match = re.search(r"\bpump=(ON|OFF)\b", raw_line, flags=re.IGNORECASE)
+            motor = motor_match.group(1).upper() if motor_match else "OFF"
+
+        event_at = parse_timestamp(event_row.get("event_at")) or now_utc()
+        rows.append(
+            {
+                "id": f"event:{event_row.get('id')}",
+                "level": level,
+                "motor": motor,
+                "mode": details.get("mode") or "AUTO",
+                "pipe_leak": details.get("pipe_leak") or "NO",
+                "slow_leak": details.get("slow_leak") or "NO",
+                "drip": details.get("drip") or "NO",
+                "abnormal": details.get("abnormal") or "NO",
+                "pump_failure": details.get("pump_failure") or "NO",
+                "dry_run": details.get("dry_run") or "NO",
+                "wifi": details.get("wifi") or "ONLINE",
+                "wifi_rssi": details.get("wifi_rssi"),
+                "sensor": details.get("sensor") or "OK",
+                "lower_tank_level": details.get("lower_tank_level") or details.get("source_tank_level"),
+                "ai_usage_rate": details.get("ai_usage_rate"),
+                "tomorrow_prediction": details.get("tomorrow_prediction"),
+                "created_at": event_at,
+                "_analytics_source": "device_events",
+            }
+        )
+
+    return rows
+
+
+def merge_analytics_source_rows(tank_rows, event_rows):
+    merged_rows = []
+    seen = set()
+    for row in list(tank_rows or []) + list(event_rows or []):
+        row_dict = dict(row)
+        created_at = parse_timestamp(row_dict.get("created_at")) if not isinstance(row_dict.get("created_at"), datetime) else row_dict.get("created_at")
+        if created_at is None:
+            continue
+        source_key = str(row_dict.get("id") or row_dict.get("source_row_id") or "")
+        dedupe_key = source_key or f"{created_at.strftime(TIMESTAMP_FORMAT)}:{safe_float(row_dict.get('level'), 0):.2f}"
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        row_dict["created_at"] = created_at
+        merged_rows.append(row_dict)
+    return sorted(merged_rows, key=lambda item: (item["created_at"], str(item.get("id") or "")))
 
 
 def evenly_spaced_indices(item_count, sample_count):
@@ -9626,6 +9742,34 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         )
 
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
+    with get_db() as db:
+        raw_tank_rows = [dict(row) for row in db.execute(query, params)]
+    tank_rows = filter_valid_analytics_rows(raw_tank_rows)
+    history_source = "tank_data"
+    if len(tank_rows) < 2 and normalized_device_id:
+        all_source_query, all_source_params = build_analytics_query(
+            start_dt,
+            end_exclusive,
+            normalized_device_id,
+            include_all_sources=True,
+        )
+        with get_db() as db:
+            all_source_rows = filter_valid_analytics_rows([dict(row) for row in db.execute(all_source_query, all_source_params)])
+        if len(all_source_rows) > len(tank_rows):
+            tank_rows = all_source_rows
+            history_source = "tank_data_all_sources"
+    existing_source_row_ids = {str(row.get("id")) for row in tank_rows if row.get("id") not in (None, "")}
+    event_rows = []
+    if len(tank_rows) < 2:
+        event_rows = fetch_event_analytics_rows(
+            start_dt,
+            end_exclusive,
+            device_id=normalized_device_id,
+            existing_source_row_ids=existing_source_row_ids,
+        )
+        if event_rows:
+            history_source = "device_events"
+    analytics_rows = merge_analytics_source_rows(tank_rows, event_rows)
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
     daily_usage = {}
     hourly_usage = [0.0] * 24
@@ -9650,76 +9794,75 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     prev_motor = "OFF"
     latest_row = None
 
-    with get_db() as db:
-        for row in db.execute(query, params):
-            created_at = parse_timestamp(row["created_at"])
-            if created_at is None:
-                continue
+    for row in analytics_rows:
+        created_at = parse_timestamp(row["created_at"])
+        if created_at is None:
+            continue
 
-            row_count += 1
-            timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
-            level = safe_float(row["level"], 0.0)
-            motor = str(row["motor"] or "").upper()
-            pipe_leak = str(row["pipe_leak"] or "").upper()
+        row_count += 1
+        timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
+        level = safe_float(row["level"], 0.0)
+        motor = str(row["motor"] or "").upper()
+        pipe_leak = str(row["pipe_leak"] or "").upper()
 
-            level_total += level
-            level_min = level if level_min is None else min(level_min, level)
-            level_max = level if level_max is None else max(level_max, level)
+        level_total += level
+        level_min = level if level_min is None else min(level_min, level)
+        level_max = level if level_max is None else max(level_max, level)
 
-            delta_hours = 0.0
-            gap_break = False
-            if prev_created_at is not None:
-                delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
-                gap_break = delta_hours > gap_threshold_hours
-                if gap_break:
-                    gap_count += 1
+        delta_hours = 0.0
+        gap_break = False
+        if prev_created_at is not None:
+            delta_hours = max(0.0, (created_at - prev_created_at).total_seconds() / 3600.0)
+            gap_break = delta_hours > gap_threshold_hours
+            if gap_break:
+                gap_count += 1
 
-            drop = 0.0 if prev_level is None else level - prev_level
-            refill_event = (
-                prev_level is not None
-                and (not gap_break)
-                and drop > 0.25
-                and abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
-            )
-            if refill_event:
-                refill_events += 1
-            valid_drop = (
-                (not gap_break)
-                and (drop < -0.05)
-                and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-            )
-            stable_consumption_window = prev_motor != "ON" and motor != "ON"
-            usage = abs(drop) if valid_drop and stable_consumption_window else 0.0
-            total_usage += usage
-            if not gap_break:
-                valid_hours += delta_hours
-            if usage > 0 and delta_hours >= (1.0 / 60.0):
-                valid_drop_count += 1
-                consumption_rate_segments.append(usage / delta_hours)
+        drop = 0.0 if prev_level is None else level - prev_level
+        refill_event = (
+            prev_level is not None
+            and (not gap_break)
+            and drop > 0.25
+            and abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+        )
+        if refill_event:
+            refill_events += 1
+        valid_drop = (
+            (not gap_break)
+            and (drop < -0.05)
+            and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
+        )
+        stable_consumption_window = prev_motor != "ON" and motor != "ON"
+        usage = abs(drop) if valid_drop and stable_consumption_window else 0.0
+        total_usage += usage
+        if not gap_break:
+            valid_hours += delta_hours
+        if usage > 0 and delta_hours >= (1.0 / 60.0):
+            valid_drop_count += 1
+            consumption_rate_segments.append(usage / delta_hours)
 
-            date_key = created_at.date().isoformat()
-            daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
-            hourly_usage[created_at.hour] += usage
+        date_key = created_at.date().isoformat()
+        daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
+        hourly_usage[created_at.hour] += usage
 
-            level_times.append(timestamp_label)
-            level_values.append(None if gap_break else level)
-            motor_times.append(timestamp_label)
-            motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
+        level_times.append(timestamp_label)
+        level_values.append(None if gap_break else level)
+        motor_times.append(timestamp_label)
+        motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
 
-            if motor == "ON" and prev_motor != "ON":
-                motor_cycles += 1
-            if pipe_leak == "YES":
-                leak_events += 1
+        if motor == "ON" and prev_motor != "ON":
+            motor_cycles += 1
+        if pipe_leak == "YES":
+            leak_events += 1
 
-            latest_row = dict(row)
-            latest_row["created_at"] = created_at
-            latest_row["level"] = level
-            latest_row["motor"] = motor
-            latest_row["pipe_leak"] = pipe_leak
+        latest_row = dict(row)
+        latest_row["created_at"] = created_at
+        latest_row["level"] = level
+        latest_row["motor"] = motor
+        latest_row["pipe_leak"] = pipe_leak
 
-            prev_created_at = created_at
-            prev_level = level
-            prev_motor = motor
+        prev_created_at = created_at
+        prev_level = level
+        prev_motor = motor
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -9891,6 +10034,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         leakage_model=leakage_model,
         pump_activity_metrics=pump_activity_metrics,
     )
+    payload["analysis"]["live_snapshot_fallback"] = False
+    payload["analysis"]["history_source"] = history_source
+    payload["analysis"]["tank_data_raw_row_count"] = len(raw_tank_rows)
+    payload["analysis"]["tank_data_row_count"] = len(tank_rows)
+    payload["analysis"]["event_history_row_count"] = len(event_rows)
     if normalized_device_id:
         guidance_snapshot = fetch_device_snapshot(normalized_device_id) or latest_row
     else:

@@ -1,4 +1,5 @@
 from datetime import timedelta
+import json
 
 from flask_app import server
 
@@ -36,10 +37,13 @@ def test_service_config_upsert_persists_ai_and_cloud_mode():
 def test_low_history_analytics_returns_live_snapshot_fallback():
     device_id = "swt-analytics-live-001"
     now = server.now_utc()
+    cache_key = server.build_analytics_cache_key(now - timedelta(days=1), now + timedelta(days=1), device_id)
     server.analytics_cache.clear()
     server.clear_runtime_caches(device_id)
+    server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
     with server.get_db() as db:
         db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
         db.execute(
             """
             INSERT INTO tank_data(
@@ -84,6 +88,8 @@ def test_low_history_analytics_returns_live_snapshot_fallback():
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
         server.clear_runtime_caches(device_id)
         server.analytics_cache.clear()
 
@@ -149,4 +155,154 @@ def test_last_valid_analytics_survives_empty_recalculation():
         assert fallback["daily"]["values"] == [1731.85, 313.71]
     finally:
         server.delete_app_setting(setting_key)
+        server.analytics_cache.clear()
+
+
+def test_analytics_recovers_history_from_device_events_when_tank_rows_are_thin():
+    device_id = "swt-analytics-events-001"
+    now = server.now_utc()
+    cache_key = server.build_analytics_cache_key(now - timedelta(days=1), now + timedelta(days=1), device_id)
+    event_times = [now - timedelta(minutes=30), now - timedelta(minutes=15), now - timedelta(minutes=1)]
+    levels = [80.0, 72.0, 63.5]
+    server.analytics_cache.clear()
+    server.clear_runtime_caches(device_id)
+    server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        for index, (event_time, level) in enumerate(zip(event_times, levels), start=1):
+            db.execute(
+                """
+                INSERT INTO device_events(
+                    event_key, device_id, event_kind, severity, message, details_json,
+                    source_table, source_row_id, event_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"{device_id}:telemetry:{index}",
+                    device_id,
+                    "telemetry_feed_active",
+                    "success",
+                    "Device telemetry feed is active.",
+                    json.dumps(
+                        {
+                            "device_id": device_id,
+                            "level": level,
+                            "motor": "OFF",
+                            "mode": "AUTO",
+                            "sensor": "OK",
+                            "source_table": "tank_data",
+                            "source_row_id": index,
+                        }
+                    ),
+                    "tank_data",
+                    str(index),
+                    event_time.strftime(server.TIMESTAMP_FORMAT),
+                ),
+            )
+
+    try:
+        payload = server.build_analytics(
+            now - timedelta(days=1),
+            now + timedelta(days=1),
+            "Today",
+            device_id=device_id,
+        )
+
+        assert payload["analysis"]["live_snapshot_fallback"] is False
+        assert payload["analysis"]["history_source"] == "device_events"
+        assert payload["analysis"]["tank_data_row_count"] == 0
+        assert payload["analysis"]["event_history_row_count"] == 3
+        assert payload["analysis"]["quality"]["row_count"] == 3
+        assert payload["levels"]["values"] == levels
+        assert payload["insights"]["consumption_rate"] > 0
+        assert payload["prediction"]["tomorrow_usage"] is not None
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+        server.clear_runtime_caches(device_id)
+        server.analytics_cache.clear()
+
+
+def test_analytics_skips_invalid_levels_and_recovers_all_source_rows():
+    device_id = "swt-analytics-source-recovery-001"
+    original_mode = server.get_device_source_mode()
+    now = server.now_utc()
+    start_dt = now - timedelta(days=1)
+    end_exclusive = now + timedelta(days=1)
+    event_times = [now - timedelta(minutes=30), now - timedelta(minutes=15), now - timedelta(minutes=1)]
+    valid_levels = [76.0, 70.5, 62.0]
+
+    server.analytics_cache.clear()
+    server.clear_runtime_caches(device_id)
+    server.set_device_source_mode(server.DEVICE_SOURCE_VIRTUAL)
+    cache_key = server.build_analytics_cache_key(start_dt, end_exclusive, device_id)
+    server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        for index, event_time in enumerate(event_times, start=1):
+            db.execute(
+                """
+                INSERT INTO tank_data(
+                    device_id, device_source, level, motor, mode, sensor, wifi,
+                    tank_capacity_liters, tank_health, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    device_id,
+                    server.DEVICE_SOURCE_VIRTUAL,
+                    -1,
+                    "OFF",
+                    "AUTO",
+                    "ERROR",
+                    "connected",
+                    1000,
+                    100,
+                    event_time.strftime(server.TIMESTAMP_FORMAT),
+                ),
+            )
+            db.execute(
+                """
+                INSERT INTO tank_data(
+                    device_id, device_source, level, motor, mode, sensor, wifi,
+                    tank_capacity_liters, tank_health, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    device_id,
+                    server.DEVICE_SOURCE_REAL,
+                    valid_levels[index - 1],
+                    "OFF",
+                    "AUTO",
+                    "OK",
+                    "connected",
+                    1000,
+                    100,
+                    event_time.strftime(server.TIMESTAMP_FORMAT),
+                ),
+            )
+
+    try:
+        payload = server.build_analytics(start_dt, end_exclusive, "Today", device_id=device_id)
+
+        assert payload["analysis"]["live_snapshot_fallback"] is False
+        assert payload["analysis"]["history_source"] == "tank_data_all_sources"
+        assert payload["analysis"]["tank_data_raw_row_count"] == 3
+        assert payload["analysis"]["tank_data_row_count"] == 3
+        assert payload["analysis"]["quality"]["row_count"] == 3
+        assert payload["levels"]["values"] == valid_levels
+        assert payload["insights"]["consumption_rate"] > 0
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+        server.set_device_source_mode(original_mode)
+        server.clear_runtime_caches(device_id)
         server.analytics_cache.clear()
