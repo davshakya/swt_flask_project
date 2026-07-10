@@ -111,8 +111,8 @@ def test_mobile_simulator_route_queues_firmware_simulator_commands():
     assert '@app.route("/api/mobile/device/simulator", methods=["POST"])' in server_source
     assert "def resolve_simulator_command(payload):" in server_source
     assert '"all": "SIMULATOR"' in server_source
-    assert '"upper": "SIMULATOR"' in server_source
-    assert '"source": "SIMULATOR"' in server_source
+    assert '"upper": "UPPER_SIMULATOR"' in server_source
+    assert '"source": "LOWER_SIMULATOR"' in server_source
     assert 'f"{command_prefix}_{state_suffix}"' in server_source
 
 
@@ -294,10 +294,13 @@ def test_cloud_ingestion_accepts_firmware_device_ip_url():
     assert 'cleaned.get("device_ip_url")' in server_source
     assert 'cleaned["device_local_url"] = cleaned.get("device_ip_url")' in server_source
     assert 'cleaned["level"] = cleaned.get("main_tank_level")' in server_source
+    assert 'cleaned["level"] = cleaned.get("overhead_level_pct")' in server_source
     assert 'relay_state_label(cleaned.get("relay_on"))' in server_source
     assert 'relay_state_label(cleaned.get("relay"))' in server_source
     assert 'cleaned["motor"] = relay_state' in server_source
     assert 'cleaned["motor"] = cleaned.get("pump")' in server_source
+    assert 'cleaned["motor"] = cleaned.get("pump_status")' in server_source
+    assert '"source_level_pct"' in server_source
     assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
 
 

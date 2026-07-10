@@ -1640,6 +1640,8 @@ def device_scoped_app_setting_keys(device_id):
 def purge_device_app_settings(cursor, device_id):
     normalized_device_id = normalize_device_id(device_id)
     deleted_rows = 0
+    if "app_settings" not in set(list_database_table_names(cursor)):
+        return deleted_rows
     for setting_key in device_scoped_app_setting_keys(device_id):
         deleted_rows += int(
             cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
@@ -1693,6 +1695,7 @@ def purge_device_table_rows(cursor, table_name, normalized_device_id):
 
 
 def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
+    ensure_ignored_devices_table(cursor)
     return int(
         cursor.execute(
             """
@@ -3719,6 +3722,8 @@ def apply_device_status_aliases(cleaned):
         cleaned["device_local_url"] = cleaned.get("device_ip_url")
     if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
         cleaned["level"] = cleaned.get("main_tank_level")
+    if cleaned.get("level") is None and cleaned.get("overhead_level_pct") is not None:
+        cleaned["level"] = cleaned.get("overhead_level_pct")
     relay_state = relay_state_label(cleaned.get("relay_on"))
     if relay_state is None:
         relay_state = relay_state_label(cleaned.get("relay"))
@@ -3726,13 +3731,15 @@ def apply_device_status_aliases(cleaned):
         cleaned["motor"] = relay_state
     elif cleaned.get("motor") is None and cleaned.get("pump") is not None:
         cleaned["motor"] = cleaned.get("pump")
+    elif cleaned.get("motor") is None and cleaned.get("pump_status") is not None:
+        cleaned["motor"] = cleaned.get("pump_status")
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
     return cleaned
 
 
 SOURCE_TANK_ALIAS_FIELDS = {
-    "lower_tank_level": ("source_tank_level", "source_level"),
+    "lower_tank_level": ("source_tank_level", "source_level", "source_level_pct"),
     "lower_sensor": ("source_tank_sensor", "source_sensor"),
     "lower_sensor_info": ("source_tank_sensor_info", "source_sensor_info"),
     "lower_sensor_distance_cm": ("source_tank_sensor_distance_cm", "source_sensor_distance_cm"),
@@ -6256,19 +6263,57 @@ MASTER_SLAVE_FIRMWARE_BUILD_FLAGS = {
     "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "1",
     "SWT_DIRECT_PEER_ENABLED": "1",
 }
+ESP32_MULTI_SOURCE_FIRMWARE_BUILD_FLAGS = {
+    "SWT_FEATURE_MASTER_LOWER_SENSOR": "1",
+    "SWT_ARCH_ID": "5",
+    "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "1",
+    "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "1",
+    "SWT_DIRECT_PEER_ENABLED": "1",
+    "SWT_DIRECT_PEER_BROADCAST_ENABLED": "1",
+}
+
+
+def snapshot_is_esp32_multi_source(snapshot):
+    snapshot = snapshot or {}
+    markers = (
+        snapshot.get("device_type"),
+        snapshot.get("controller_arch"),
+        snapshot.get("architecture_mode"),
+        snapshot.get("hardware_module"),
+    )
+    normalized_markers = " ".join(str(value or "").strip().lower() for value in markers)
+    if "esp32_multi_source" in normalized_markers or "esp32_wroom_32" in normalized_markers:
+        return True
+    try:
+        return int(snapshot.get("arch_id")) == 5
+    except (TypeError, ValueError):
+        return False
 
 
 def build_device_firmware_install_profile(service_config):
     config = service_config or {}
+    configuration_type = str(config.get("firmware_configuration_type") or "").strip().lower()
+    esp32_multi_source_enabled = configuration_type == "esp32_multi_source"
     master_slave_enabled = bool(config.get("slave_device_enabled", True))
-    flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
+    if esp32_multi_source_enabled:
+        flags = ESP32_MULTI_SOURCE_FIRMWARE_BUILD_FLAGS
+    else:
+        flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
     return {
-        "configuration_type": "master_slave" if master_slave_enabled else "master_only",
-        "label": "Master + Slave" if master_slave_enabled else "Master Only",
+        "configuration_type": configuration_type or ("master_slave" if master_slave_enabled else "master_only"),
+        "label": (
+            "ESP32 Multi-Source"
+            if esp32_multi_source_enabled
+            else ("Master + Slave" if master_slave_enabled else "Master Only")
+        ),
         "description": (
-            "Build swt_master for a pump master that receives upper tank level from a slave MCU."
-            if master_slave_enabled
-            else "Build swt_master for a single MCU that reads the upper tank sensor locally."
+            "Build swt_esp32_master for the ESP32-WROOM-32 controller and swt_esp8266_mcp_slave for ESP-NOW tank readings."
+            if esp32_multi_source_enabled
+            else (
+                "Build swt_master for a pump master that receives upper tank level from a slave MCU."
+                if master_slave_enabled
+                else "Build swt_master for a single MCU that reads the upper tank sensor locally."
+            )
         ),
         "requires_slave_firmware": master_slave_enabled,
         "flags": dict(flags),
@@ -6362,6 +6407,9 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         and cloud_feed_mode == DEVICE_SERVICE_CLOUD_FEED_FULL
         and effective_cloud_feed_enabled
     )
+    firmware_configuration_type = str(payload.get("firmware_configuration_type") or "").strip().lower()
+    if firmware_configuration_type not in {"esp32_multi_source"}:
+        firmware_configuration_type = "master_slave" if slave_device_enabled else "master_only"
     hardware_enabled_count = (
         int(relay_enabled)
         + int(ota_enabled)
@@ -6384,6 +6432,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "slave_device_enabled": slave_device_enabled,
         "slave_upper_sensor_enabled": slave_upper_sensor_enabled,
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
+        "firmware_configuration_type": firmware_configuration_type,
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
         "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
@@ -6532,6 +6581,22 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         base_payload["slave_upper_sensor_enabled"] = slave_upper_sensor_enabled
         base_payload["master_upper_sensor_enabled"] = not slave_upper_sensor_enabled
         base_payload["main_sensor_enabled"] = True
+    elif snapshot_is_esp32_multi_source(snapshot):
+        peer_transport = str(snapshot.get("peer_transport") or "").strip().lower()
+        peer_state = str(snapshot.get("direct_peer") or "").strip().lower()
+        peer_enabled = bool(peer_state) and peer_state not in {"disabled", "off"}
+        slave_service_enabled = snapshot_device_service_flag(snapshot, "slave_device_service")
+        slave_device_enabled = (
+            slave_service_enabled
+            if slave_service_enabled is not None
+            else peer_enabled or peer_transport == "esp_now"
+        )
+        base_payload["firmware_configuration_type"] = "esp32_multi_source"
+        base_payload["slave_device_enabled"] = bool(slave_device_enabled)
+        base_payload["slave_upper_sensor_enabled"] = bool(slave_device_enabled)
+        base_payload["master_upper_sensor_enabled"] = not bool(slave_device_enabled)
+        base_payload["main_sensor_enabled"] = True
+        base_payload["upper_sensor_source"] = "slave" if slave_device_enabled else "master"
 
     for snapshot_key, config_key in (
         ("lower_tank_service", "source_tank_monitoring_enabled"),
@@ -14680,14 +14745,14 @@ def resolve_simulator_command(payload):
         "dual_tank": "SIMULATOR",
         "tank": "SIMULATOR",
         "simulator": "SIMULATOR",
-        "main": "SIMULATOR",
-        "upper": "SIMULATOR",
-        "upper_tank": "SIMULATOR",
-        "main_tank": "SIMULATOR",
-        "source": "SIMULATOR",
-        "lower": "SIMULATOR",
-        "source_tank": "SIMULATOR",
-        "lower_tank": "SIMULATOR",
+        "main": "UPPER_SIMULATOR",
+        "upper": "UPPER_SIMULATOR",
+        "upper_tank": "UPPER_SIMULATOR",
+        "main_tank": "UPPER_SIMULATOR",
+        "source": "LOWER_SIMULATOR",
+        "lower": "LOWER_SIMULATOR",
+        "source_tank": "LOWER_SIMULATOR",
+        "lower_tank": "LOWER_SIMULATOR",
     }
     command_prefix = target_map.get(raw_target)
     if not command_prefix:
@@ -16005,6 +16070,9 @@ def admin_register_device_credentials():
         )
     except ValueError as exc:
         error = str(exc)
+    except Exception as exc:
+        logger.exception("Failed to delete device %s", normalized_device_id)
+        error = f"Unable to delete device {normalized_device_id}: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -16312,6 +16380,9 @@ def admin_android_release_upload():
         )
     except ValueError as exc:
         error = str(exc)
+    except Exception as exc:
+        logger.exception("Failed to purge device %s", normalized_device_id)
+        error = f"Unable to purge device {normalized_device_id}: {exc}"
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         payload = {
@@ -17143,7 +17214,7 @@ def device_detail_page(device_id):
         or (snapshot or {}).get("direct_peer_wifi_channel")
         or 6
     )
-    service_config = current_saved_config.get("service_config") or default_device_service_config(scoped_device_id, account=account)
+    service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)
     firmware_install_profile = build_device_firmware_install_profile(service_config)
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
@@ -17870,8 +17941,18 @@ def admin_device_detail_sensor_configure(device_id):
 def admin_device_detail_simulator(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
-    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
+    target = str(request.form.get("target") or "all").strip().lower()
+    requested_enabled = request.form.get("enabled")
+    if requested_enabled is None:
+        simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+        payload = {"target": target, "enabled": not simulator_enabled}
+    else:
+        payload = {"target": target, "enabled": requested_enabled}
+        simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    try:
+        command, simulator_target, enabled = resolve_simulator_command(payload)
+    except ValueError as exc:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -17886,22 +17967,21 @@ def admin_device_detail_simulator(device_id):
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
+            "simulator_target": simulator_target,
+            "simulator_enabled": enabled,
             "previous_simulator_enabled": simulator_enabled,
             "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
     )
-    message = (
-        "Simulator disable command queued."
-        if simulator_enabled
-        else "Simulator enable command queued. The device will apply it using the current service configuration."
-    )
+    target_label = simulator_target.replace("_", " ").title()
+    message = f"{target_label} simulator {'enable' if enabled else 'disable'} command queued."
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
             config_message=message,
-            simulator_state="off" if simulator_enabled else "on",
+            simulator_state="on" if enabled else "off",
         )
     )
 

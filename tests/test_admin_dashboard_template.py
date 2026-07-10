@@ -627,7 +627,24 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert 'service_config.get("local_firmware_upload_enabled")' in mobile_firmware_routes
     assert "firmware_service_disabled_response" in mobile_firmware_routes
     assert '"Local firmware upload", "local_firmware_upload_enabled"' in mobile_firmware_routes
-    assert '"/api/mobile/device/firmware/cloud-upgrade"' not in mobile_firmware_routes
+
+
+def test_esp32_multi_source_service_config_and_firmware_profile_are_supported():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert "def snapshot_is_esp32_multi_source(snapshot):" in server_source
+    assert '"ESP32 Multi-Source"' in server_source
+    assert '"SWT_DIRECT_PEER_ENABLED": "1"' in server_source
+    assert '"SWT_DIRECT_PEER_BROADCAST_ENABLED": "1"' in server_source
+    assert '"configuration_type": configuration_type or ("master_slave" if master_slave_enabled else "master_only")' in server_source
+    assert 'base_payload["firmware_configuration_type"] = "esp32_multi_source"' in server_source
+    assert 'base_payload["slave_device_enabled"] = bool(slave_device_enabled)' in server_source
+    assert 'base_payload["upper_sensor_source"] = "slave" if slave_device_enabled else "master"' in server_source
+    assert '"Build swt_esp32_master for the ESP32-WROOM-32 controller and swt_esp8266_mcp_slave for ESP-NOW tank readings."' in server_source
+    assert 'if(configType==="esp32_multi_source")return"ESP32 + ESP8266";' in device_template
+    assert "const peerFresh=Number.isFinite(peerAge)&&peerAge>=0&&peerAge<=DIRECT_PEER_STALE_AFTER_SECONDS;" in device_template
+    assert "service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)" in server_source
 
 
 def test_device_detail_has_device_purge_action():
@@ -639,12 +656,29 @@ def test_device_detail_has_device_purge_action():
     assert "def purge_device_data(device_id, remember_deleted_device=False):" in server_source
     assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
     assert 'name="delete_mode" value="purge"' in device_template
+    assert 'logger.exception("Failed to purge device %s", normalized_device_id)' in server_source
+    assert 'logger.exception("Failed to delete device %s", normalized_device_id)' in server_source
+    assert "ensure_ignored_devices_table(cursor)" in server_source
     assert 'purge_requested = delete_mode == "purge"' in server_source
     assert "and ignored future check-ins until it is registered again." in server_source
     assert "device_is_ignored(normalized_device_id)" in server_source
     assert "Purge Device Data" in device_template
     assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
     assert "small deleted-device marker is kept" in device_template
+
+
+def test_device_detail_has_targeted_simulator_controls():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '"upper": "UPPER_SIMULATOR"' in server_source
+    assert '"source": "LOWER_SIMULATOR"' in server_source
+    assert 'name="target" value="all"' in device_template
+    assert 'name="target" value="upper"' in device_template
+    assert 'name="target" value="source"' in device_template
+    assert "Enable Upper Simulator" in device_template
+    assert "Disable Source Simulator" in device_template
+    assert "command, simulator_target, enabled = resolve_simulator_command(payload)" in server_source
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():
