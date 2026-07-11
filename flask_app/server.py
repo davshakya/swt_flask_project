@@ -3067,6 +3067,10 @@ def admin_sensor_reachable(raw_status):
     return True
 
 
+def admin_snapshot_simulator_enabled(entry, *keys):
+    return any(boolish_enabled((entry or {}).get(key), default=False) for key in keys)
+
+
 def admin_relay_sensor_status_fields(entry, service_config=None):
     service_config = service_config or {}
     online = admin_device_is_online(entry)
@@ -3082,26 +3086,35 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
     peer_packet_fresh = direct_peer_packet_is_fresh(entry)
     tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
+    upper_simulator_enabled = admin_snapshot_simulator_enabled(entry, "upper_tank_simulator", "main_tank_simulator")
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
     if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         upper_enabled = False
     if slave_upper_enabled:
         upper_enabled = True
-        upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid
+        upper_reachable = online and (
+            (peer_packet_fresh is True and tank_level_is_valid)
+            or (upper_simulator_enabled and tank_level_is_valid)
+        )
     else:
-        upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
+        upper_reachable = online and upper_enabled and (admin_sensor_reachable(upper_sensor) or upper_simulator_enabled)
     upper_label, upper_tone = admin_reachable_status_fields(
         upper_enabled,
         upper_reachable,
     )
 
     lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
+    lower_level_is_valid = safe_float(entry.get("lower_tank_level", entry.get("source_tank_level")), -1) >= 0
+    lower_simulator_enabled = admin_snapshot_simulator_enabled(entry, "lower_tank_simulator", "source_tank_simulator")
     lower_enabled = bool(service_config.get("source_tank_monitoring_enabled", True))
     if str(lower_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         lower_enabled = False
     lower_label, lower_tone = admin_reachable_status_fields(
         lower_enabled,
-        online and lower_enabled and admin_sensor_reachable(lower_sensor),
+        online and lower_enabled and (
+            admin_sensor_reachable(lower_sensor)
+            or (lower_simulator_enabled and lower_level_is_valid)
+        ),
     )
 
     return {
@@ -14763,10 +14776,13 @@ def resolve_simulator_command(payload):
         "lower": "LOWER_SIMULATOR",
         "source_tank": "LOWER_SIMULATOR",
         "lower_tank": "LOWER_SIMULATOR",
+        "municipal": "MUNICIPAL_SIMULATOR",
+        "municipal_water": "MUNICIPAL_SIMULATOR",
+        "municipal_supply": "MUNICIPAL_SIMULATOR",
     }
     command_prefix = target_map.get(raw_target)
     if not command_prefix:
-        raise ValueError("target must be one of all, upper, main, lower, or source")
+        raise ValueError("target must be one of all, upper, main, lower, source, or municipal")
     return f"{command_prefix}_{state_suffix}", raw_target, enabled
 
 
@@ -17975,7 +17991,7 @@ def admin_device_detail_simulator(device_id):
     slave_device_id = None
     if esp32_pair_simulator:
         state_suffix = "ON" if enabled else "OFF"
-        command = f"LOWER_SIMULATOR_{state_suffix}"
+        command = f"SIMULATOR_{state_suffix}"
         simulator_target = "esp32_pair"
         slave_command = f"UPPER_SIMULATOR_{state_suffix}"
         slave_device_id = paired_slave_device_id(scoped_device_id)
