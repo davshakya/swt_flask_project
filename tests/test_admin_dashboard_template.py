@@ -634,17 +634,22 @@ def test_device_detail_has_device_purge_action():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert '@app.route("/admin/customers/<device_id>/purge", methods=["POST"])' in server_source
-    assert "def admin_purge_device_data(device_id):" in server_source
     assert "def purge_device_data(device_id, remember_deleted_device=False):" in server_source
     assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
-    assert 'name="delete_mode" value="purge"' in device_template
-    assert 'purge_requested = delete_mode == "purge"' in server_source
-    assert "and ignored future check-ins until it is registered again." in server_source
+    assert 'name="delete_mode" value="purge"' not in device_template
+    assert 'purge_requested = delete_mode == "purge"' not in server_source
+    assert "Future check-ins are ignored until the device is registered again." in server_source
     assert "device_is_ignored(normalized_device_id)" in server_source
-    assert "Purge Device Data" in device_template
-    assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
+    assert "Purge Device Data" not in device_template
+    assert "Delete device {{ device_id }} from every device-scoped database table?" in device_template
     assert "small deleted-device marker is kept" in device_template
+    assert 'error = request.args.get("error", "", type=str) or None' in server_source
+    assert 'success = request.args.get("success", "", type=str) or None' in server_source
+    assert 'url_for(\n                "admin_customers",' in server_source
+    assert 'logger.exception("Admin device delete failed for %s", normalized_device_id)' in server_source
+    assert 'logger.exception("Admin device purge failed for %s", normalized_device_id)' not in server_source
+    assert 'error=f"Delete failed for {normalized_device_id}. Check the server log for details."' in server_source
+    assert 'error=f"Purge failed for {normalized_device_id}. Check the server log for details."' not in server_source
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():

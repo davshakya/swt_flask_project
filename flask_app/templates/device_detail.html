@@ -336,18 +336,13 @@ body{font-size:16px}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-admin btn-full" type="submit"><span>Log Out Mobile Devices</span></button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Delete device?" data-confirm-message="Delete device {{ device_id }} and its stored admin records? This cannot be undone." data-confirm-button="Delete Device" data-confirm-danger="true" data-confirm-mode="navigate">
+                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Delete device?" data-confirm-message="Delete device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. A small deleted-device marker is kept so the controller does not immediately recreate data while it is still powered." data-confirm-button="Delete Device" data-confirm-danger="true" data-confirm-mode="navigate">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-danger btn-full" type="submit">Delete Device</button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Purge device data?" data-confirm-message="Purge device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. A small deleted-device marker is kept so the controller does not immediately recreate data while it is still powered." data-confirm-button="Purge Data" data-confirm-danger="true" data-confirm-mode="navigate">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="delete_mode" value="purge">
-                    <button class="btn btn-danger btn-full" type="submit">Purge Device Data</button>
-                </form>
                 <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>
                 <div class="helper-text">Ping checks use the latest cloud telemetry and direct peer packet age; no local LAN access is required.</div>
-                <div class="helper-text">Delete returns to the admin fleet table because the device detail record is removed.</div>
+                <div class="helper-text">Delete removes the stored device data and returns to the admin fleet table.</div>
             </div>
 
             {% if master_upper_checked or slave_upper_checked %}

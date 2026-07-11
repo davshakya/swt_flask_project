@@ -15914,8 +15914,8 @@ def render_dashboard_page(selected_device_id=None):
 @admin_required
 @csrf_protect
 def admin_customers():
-    error = None
-    success = None
+    error = request.args.get("error", "", type=str) or None
+    success = request.args.get("success", "", type=str) or None
     search_query = request.args.get("q", "", type=str) or ""
 
     if request.method == "POST":
@@ -16812,102 +16812,50 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
 @admin_required
 @csrf_protect
 def admin_delete_known_device(device_id):
-    error = None
-    success = None
-    search_query = request.values.get("q", "", type=str) or ""
-    normalized_device_id = normalize_device_id(device_id)
-    delete_mode = str(request.form.get("delete_mode") or "").strip().lower()
-    purge_requested = delete_mode == "purge"
-
-    try:
-        if purge_requested:
-            deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
-            total_deleted = deleted_row_total(deleted_counts)
-            log_audit_event(
-                actor=current_actor_username(),
-                action="purge_device_data",
-                target_type="admin_operation",
-                details={
-                    "deleted_rows": total_deleted,
-                    "deleted_counts": deleted_counts,
-                },
-            )
-            success = (
-                f"Purged {total_deleted} database row"
-                f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
-                "and ignored future check-ins until it is registered again."
-            )
-        else:
-            deleted_counts = delete_known_device(normalized_device_id)
-            log_audit_event(
-                actor=current_actor_username(),
-                action="delete_known_device",
-                target_type="device",
-                target_id=normalized_device_id,
-                details=deleted_counts,
-            )
-            success = f"Deleted device {normalized_device_id} from admin records."
-    except ValueError as exc:
-        error = str(exc)
-
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
-    )
-
-
-@app.route("/admin/customers/<device_id>/purge", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_purge_device_data(device_id):
-    error = None
-    success = None
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
 
     try:
-        deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
+        deleted_counts = delete_known_device(normalized_device_id)
         total_deleted = deleted_row_total(deleted_counts)
         log_audit_event(
             actor=current_actor_username(),
-            action="purge_device_data",
-            target_type="admin_operation",
+            action="delete_known_device",
+            target_type="device",
+            target_id=normalized_device_id,
             details={
                 "deleted_rows": total_deleted,
                 "deleted_counts": deleted_counts,
             },
         )
         success = (
-            f"Purged {total_deleted} database row"
-            f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
-            "and ignored future check-ins until it is registered again."
+            f"Deleted device {normalized_device_id} and removed {total_deleted} stored row"
+            f"{'' if total_deleted == 1 else 's'}. Future check-ins are ignored until the device is registered again."
         )
     except ValueError as exc:
-        error = str(exc)
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=str(exc),
+            )
+        )
+    except Exception:
+        logger.exception("Admin device delete failed for %s", normalized_device_id)
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=f"Delete failed for {normalized_device_id}. Check the server log for details.",
+            )
+        )
 
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
+    return redirect(
+        url_for(
+            "admin_customers",
+            q=search_query,
+            success=success,
+        )
     )
 
 
