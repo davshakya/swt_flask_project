@@ -319,34 +319,6 @@ body{font-size:16px}
                     <input type="hidden" name="target" value="all">
                     <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Enable upper simulator?" data-confirm-message="Queue an upper tank simulator enable command for device {{ device_id }}?" data-confirm-button="Enable Upper Simulator">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="target" value="upper">
-                    <input type="hidden" name="enabled" value="on">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Enable Upper Simulator</span></button>
-                </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Disable upper simulator?" data-confirm-message="Queue an upper tank simulator disable command for device {{ device_id }}?" data-confirm-button="Disable Upper Simulator">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="target" value="upper">
-                    <input type="hidden" name="enabled" value="off">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Disable Upper Simulator</span></button>
-                </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Enable source simulator?" data-confirm-message="Queue a source/lower tank simulator enable command for device {{ device_id }}?" data-confirm-button="Enable Source Simulator">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="target" value="source">
-                    <input type="hidden" name="enabled" value="on">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Enable Source Simulator</span></button>
-                </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Disable source simulator?" data-confirm-message="Queue a source/lower tank simulator disable command for device {{ device_id }}?" data-confirm-button="Disable Source Simulator">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="target" value="source">
-                    <input type="hidden" name="enabled" value="off">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Disable Source Simulator</span></button>
-                </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">

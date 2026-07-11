@@ -4281,6 +4281,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
+    if cleaned.get("slave_uptime_s") in (None, "", "null") and cleaned.get("slave_uptime_ms") not in (None, "", "null"):
+        try:
+            cleaned["slave_uptime_s"] = int(float(cleaned.get("slave_uptime_ms")) / 1000.0)
+        except (TypeError, ValueError):
+            cleaned["slave_uptime_s"] = None
     record_home_automation_status(cleaned)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
     cleaned["telemetry_fingerprint"] = telemetry_fingerprint
@@ -8106,7 +8111,12 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         data[key] = round(cpu_value, 1) if cpu_value is not None else None
         data[f"{key}_label"] = f"{data[key]:.1f}%" if data[key] is not None else "--"
     try:
-        data["slave_uptime_s"] = int(data["slave_uptime_s"]) if data.get("slave_uptime_s") not in (None, "", "null") else None
+        if data.get("slave_uptime_s") not in (None, "", "null"):
+            data["slave_uptime_s"] = int(data["slave_uptime_s"])
+        elif data.get("slave_uptime_ms") not in (None, "", "null"):
+            data["slave_uptime_s"] = int(float(data.get("slave_uptime_ms")) / 1000.0)
+        else:
+            data["slave_uptime_s"] = None
     except (TypeError, ValueError):
         data["slave_uptime_s"] = None
     data["slave_uptime_label"] = format_compact_uptime(data.get("slave_uptime_s"))
@@ -17953,10 +17963,32 @@ def admin_device_detail_simulator(device_id):
         command, simulator_target, enabled = resolve_simulator_command(payload)
     except ValueError as exc:
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
+
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
+    esp32_pair_simulator = (
+        target == "all"
+        and str(service_config.get("firmware_configuration_type") or "").strip().lower() == "esp32_multi_source"
+        and boolish_enabled(service_config.get("slave_device_enabled"), default=True)
+    )
+    slave_result = None
+    slave_command = None
+    slave_device_id = None
+    if esp32_pair_simulator:
+        state_suffix = "ON" if enabled else "OFF"
+        command = f"LOWER_SIMULATOR_{state_suffix}"
+        simulator_target = "esp32_pair"
+        slave_command = f"UPPER_SIMULATOR_{state_suffix}"
+        slave_device_id = paired_slave_device_id(scoped_device_id)
+        slave_result = queue_command(slave_command, target_device=slave_device_id)
+
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
         error = payload.get("error") or f"Unable to queue simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+    if isinstance(slave_result, tuple):
+        payload, _status_code = slave_result
+        error = payload.get("error") or f"Unable to queue simulator command for {slave_device_id}."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
 
     log_audit_event(
@@ -17967,6 +17999,9 @@ def admin_device_detail_simulator(device_id):
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
+            "slave_command": slave_command,
+            "slave_device_id": slave_device_id,
+            "slave_command_id": (slave_result or {}).get("command_id") if isinstance(slave_result, dict) else None,
             "simulator_target": simulator_target,
             "simulator_enabled": enabled,
             "previous_simulator_enabled": simulator_enabled,
@@ -17974,8 +18009,11 @@ def admin_device_detail_simulator(device_id):
             "queued_at": result.get("queued_at"),
         },
     )
-    target_label = simulator_target.replace("_", " ").title()
-    message = f"{target_label} simulator {'enable' if enabled else 'disable'} command queued."
+    message = (
+        f"Simulator {'enable' if enabled else 'disable'} command queued for ESP32 lower/source and ESP8266 upper sensor."
+        if esp32_pair_simulator
+        else f"{simulator_target.replace('_', ' ').title()} simulator {'enable' if enabled else 'disable'} command queued."
+    )
     return redirect(
         url_for(
             "device_detail_page",

@@ -667,18 +667,21 @@ def test_device_detail_has_device_purge_action():
     assert "small deleted-device marker is kept" in device_template
 
 
-def test_device_detail_has_targeted_simulator_controls():
+def test_device_detail_keeps_single_simulator_button_and_pairs_esp32_slave_command():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
     assert '"upper": "UPPER_SIMULATOR"' in server_source
     assert '"source": "LOWER_SIMULATOR"' in server_source
     assert 'name="target" value="all"' in device_template
-    assert 'name="target" value="upper"' in device_template
-    assert 'name="target" value="source"' in device_template
-    assert "Enable Upper Simulator" in device_template
-    assert "Disable Source Simulator" in device_template
+    assert 'name="target" value="upper"' not in device_template
+    assert 'name="target" value="source"' not in device_template
+    assert "Enable Upper Simulator" not in device_template
+    assert "Disable Source Simulator" not in device_template
     assert "command, simulator_target, enabled = resolve_simulator_command(payload)" in server_source
+    assert 'command = f"LOWER_SIMULATOR_{state_suffix}"' in server_source
+    assert 'slave_command = f"UPPER_SIMULATOR_{state_suffix}"' in server_source
+    assert "slave_device_id = paired_slave_device_id(scoped_device_id)" in server_source
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():
