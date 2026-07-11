@@ -646,6 +646,10 @@ def test_device_detail_has_device_purge_action():
     assert 'error = request.args.get("error", "", type=str) or None' in server_source
     assert 'success = request.args.get("success", "", type=str) or None' in server_source
     assert 'url_for(\n                "admin_customers",' in server_source
+    assert '@app.route("/admin/customers/<device_id>/delete", methods=["GET", "POST"])' in server_source
+    assert 'if request.method == "GET":' in server_source
+    assert 'error=f"Delete for {normalized_device_id} must be submitted from the admin dashboard form."' in server_source
+    assert 'logger.info("Admin device delete requested for %s", normalized_device_id)' in server_source
     assert 'logger.exception("Admin device delete failed for %s", normalized_device_id)' in server_source
     assert 'logger.exception("Admin device purge failed for %s", normalized_device_id)' not in server_source
     assert 'error=f"Delete failed for {normalized_device_id}. Check the server log for details."' in server_source

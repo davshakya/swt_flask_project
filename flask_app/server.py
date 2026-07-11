@@ -16808,12 +16808,22 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
     )
 
 
-@app.route("/admin/customers/<device_id>/delete", methods=["POST"])
+@app.route("/admin/customers/<device_id>/delete", methods=["GET", "POST"])
 @admin_required
 @csrf_protect
 def admin_delete_known_device(device_id):
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
+    if request.method == "GET":
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=f"Delete for {normalized_device_id} must be submitted from the admin dashboard form.",
+            )
+        )
+
+    logger.info("Admin device delete requested for %s", normalized_device_id)
 
     try:
         deleted_counts = delete_known_device(normalized_device_id)
