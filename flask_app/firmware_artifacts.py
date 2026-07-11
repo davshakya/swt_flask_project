@@ -15,20 +15,14 @@ FIRMWARE_BINARY_ROLE_MARKERS = {
         b'"firmware_role":"master"',
         b'"node_role":"master_control"',
         b'"device_type":"swt_master"',
-        b'"device_type":"swt_esp32_master"',
-        b'"controller_arch":"esp32_wroom_32"',
         b"swt_master",
-        b"swt_esp32_master",
     ),
     "slave": (
         b"SWT_FIRMWARE_ROLE=slave",
         b'"firmware_role":"slave"',
         b'"node_role":"slave_tank"',
         b'"device_type":"swt_slave"',
-        b'"device_type":"swt_esp8266_mcp_slave"',
-        b'"controller_arch":"esp8266_mcp_slave"',
         b"swt_slave",
-        b"swt_esp8266_mcp_slave",
     ),
 }
 FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {

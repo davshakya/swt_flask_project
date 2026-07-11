@@ -97,9 +97,7 @@ body{font-size:16px}
         </div>
     </div>
 
-    {% set firmware_configuration_type = service_config.get("firmware_configuration_type", "") %}
-    {% set config_type = "esp32_multi_source" if firmware_configuration_type == "esp32_multi_source" else ("master_slave" if service_config.get("slave_device_enabled") else "master_only") %}
-    {% set config_type_label = "ESP32 + ESP8266" if config_type == "esp32_multi_source" else ("Master + Slave" if config_type == "master_slave" else "Master Only") %}
+    {% set config_type = "master_slave" if service_config.get("slave_device_enabled") else "master_only" %}
     {% set slave_device_checked = service_config.get("slave_device_enabled", True) %}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
@@ -228,7 +226,7 @@ body{font-size:16px}
                 <div class="eyebrow">Admin Configuration</div>
                 <p>Manage runtime services, customer access, and local device commands.</p>
             </div>
-            <span class="status-pill tone-info">{{ config_type_label }}</span>
+            <span class="status-pill tone-info">{{ "Master + Slave" if config_type == "master_slave" else "Master Only" }}</span>
         </div>
         <div class="admin-grid">
             <form class="admin-form config-form" method="post" action="{{ url_for('admin_device_detail_configuration', device_id=device_id) }}" data-ajax-form>
@@ -239,9 +237,7 @@ body{font-size:16px}
                         <h4>Master Configuration</h4>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
-                        {% if firmware_configuration_type == "esp32_multi_source" %}
-                        <label class="service-option"><input id="municipalWaterSensorOption" type="checkbox" name="municipal_water_sensor_enabled" value="1" {% if service_config.get("municipal_water_sensor_enabled", True) %}checked{% endif %}> Municipal Water Sensor</label>
-                        {% endif %}
+                        <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %}> Municipal Sensor</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
@@ -298,7 +294,7 @@ body{font-size:16px}
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}" data-ajax-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <h3>Device &amp; Customer Information</h3>
+                <h3>Customer Name</h3>
                 {% if customer_account %}
                 <div class="form-group">
                     <label for="display_name">Name</label>
@@ -308,7 +304,7 @@ body{font-size:16px}
                     <label for="email">Email</label>
                     <input id="email" name="email" type="email" value="{{ customer_account.get('email') or '' }}" placeholder="customer@example.com">
                 </div>
-                <button class="btn btn-admin" type="submit"><span>Save Customer Information</span></button>
+                <button class="btn btn-admin" type="submit"><span>Save Name</span></button>
                 {% else %}
                 <div class="helper-text">Create a customer account from the admin dashboard before editing the customer name here.</div>
                 {% endif %}
@@ -319,7 +315,6 @@ body{font-size:16px}
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="{{ 'Disable simulator?' if simulator_enabled|default(false) else 'Enable simulator?' }}" data-confirm-message="{{ 'Queue a simulator disable command for device ' ~ device_id ~ '?' if simulator_enabled|default(false) else 'Queue a simulator enable command for device ' ~ device_id ~ '? The device will apply it using the current service configuration.' }}" data-confirm-button="{{ 'Disable Simulator' if simulator_enabled|default(false) else 'Enable Simulator' }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="target" value="all">
                     <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
                 </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
@@ -590,11 +585,6 @@ function clientTruthy(value,defaultValue=false){
   if(["0","false","no","off","disabled"].includes(raw))return false;
   return Boolean(value);
 }
-function serviceConfigTypeLabel(serviceConfig={}){
-  const configType=String(serviceConfig.firmware_configuration_type||"").trim().toLowerCase();
-  if(configType==="esp32_multi_source")return"ESP32 + ESP8266";
-  return clientTruthy(serviceConfig.slave_device_enabled,true)?"Master + Slave":"Master Only";
-}
 function clientTitle(value,fallback="not reported"){
   const text=String(value??"").trim();
   if(!text||text==="--")return fallback;
@@ -618,7 +608,7 @@ function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceCo
   const telemetry=String(snapshot.telemetry_status||systemStatus.telemetry_status||"live").toLowerCase();
   const usesSlave=clientTruthy(serviceConfig.slave_device_enabled,true);
   const sourceMonitoring=clientTruthy(serviceConfig.source_tank_monitoring_enabled,true);
-  const configType=serviceConfigTypeLabel(serviceConfig);
+  const configType=usesSlave?"Master + Slave":"Master Only";
   const upperSource=usesSlave&&clientTruthy(serviceConfig.slave_upper_sensor_enabled,true)?"Slave":"Master";
   const events=[];
   const add=(kind,severity,message,details={})=>{
@@ -638,12 +628,10 @@ function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceCo
   add("node_current_status",String(masterStatus).toLowerCase()==="reachable"&&["reachable","disabled"].includes(String(slaveStatus).toLowerCase())?"success":"warning",`Master ${String(masterStatus).toLowerCase()}, slave ${String(slaveStatus).toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
   if(usesSlave||snapshot.direct_peer){
     const age=snapshot.direct_peer_last_packet_age_s;
-    const peerAge=Number(age);
-    const peerFresh=Number.isFinite(peerAge)&&peerAge>=0&&peerAge<=DIRECT_PEER_STALE_AFTER_SECONDS;
     const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
     const channel=snapshot.direct_peer_wifi_channel||snapshot.direct_peer_config_channel||serviceConfig.direct_peer_wifi_channel;
     const channelText=channel!==undefined&&channel!==null?`; channel ${channel}`:"";
-    add("peer_current_status",peerFresh?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac});
+    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac});
   }
   if(snapshot.firmware_version||snapshot.slave_firmware_version){
     add("firmware_current_status","info",`Firmware status: master ${snapshot.firmware_version||"not reported"}; slave ${snapshot.slave_firmware_version||"not reported"}.`,{firmware_version:snapshot.firmware_version,slave_firmware_version:snapshot.slave_firmware_version});
@@ -1380,7 +1368,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const simulatorSummary=simulatorParts.length?Array.from(new Set(simulatorParts)).join(" / "):simulatorStatusText(snapshot,serviceConfig);
   const items=[
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
-    {label:"Configuration",value:serviceConfigTypeLabel(serviceConfig),show:true},
+    {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
     {label:"Master Reachability",value:infoValue(systemStatus?.master_status_label,"Unreachable"),show:true},
     {label:"Slave Reachability",value:infoValue(systemStatus?.slave_status_label,usesSlave?"Unreachable":"Disabled"),show:true},
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},

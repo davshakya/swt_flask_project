@@ -19,6 +19,7 @@ def test_command_activity_descriptions_cover_pump_reboot_thresholds_and_setup():
     assert 'if normalized.startswith("THRESHOLDS:"):' in function_source
     assert '"Auto thresholds update requested:' in function_source
     assert 'if normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):' in function_source
+    assert '"municipal sensor"' in function_source
 
 
 def test_command_events_use_friendly_activity_messages():

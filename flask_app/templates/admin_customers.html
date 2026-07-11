@@ -676,7 +676,6 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                         <tr>
                             <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
                             <th>Customer</th>
-                            <th>Local IP Address</th>
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Master Status</button></th>
                             <th>Slave Status</th>
                             <th>Telemetry</th>
@@ -694,12 +693,12 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                         <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.source_ip or '') ~ ' ' ~ (device.device_local_host or '') ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
                             <td class="device-id-cell">
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
+                                <div class="cell-sub">Local IP: {% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% else %}--{% endif %}</div>
                             </td>
                             <td>
                                 <div class="cell-main">{{ device.display_name or "No customer account" }}</div>
                                 <div class="cell-sub">{{ device.email or "Email not added" }}</div>
                             </td>
-                            <td data-device-field="local_ip">{% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% else %}N/A{% endif %}</td>
                             <td>
                                 {% set master_node_label = (device.master_status_label or "Unreachable")|replace("Master ", "")|replace("Slave ", "") %}
                                 <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}" data-device-field="master_status">{{ master_node_label }}</span>
@@ -717,7 +716,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ device.lower_sensor_status_label or "Unreachable" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'offline' }}" data-device-field="municipal_sensor_status">{{ device.municipal_sensor_status_label or "Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ device.municipal_sensor_status_label or "Disabled" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main" data-device-field="tank_level">
@@ -1139,8 +1138,6 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         row.dataset.alertCount = String(device.alert_count || 0);
         row.classList.toggle("has-alerts", Boolean(device.has_alerts));
 
-        setTextIfChanged(row.querySelector('[data-device-field="local_ip"]'), device.local_ip || "N/A");
-
         const master = row.querySelector('[data-device-field="master_status"]');
         setTextIfChanged(master, device.master_status || "Unreachable");
         setPillTone(master, device.master_status_tone || "offline");
@@ -1161,8 +1158,8 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setPillTone(lower, device.lower_sensor_status_tone || "offline");
 
         const municipal = row.querySelector('[data-device-field="municipal_sensor_status"]');
-        setTextIfChanged(municipal, device.municipal_sensor_status || "Unreachable");
-        setPillTone(municipal, device.municipal_sensor_status_tone || "offline");
+        setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled");
+        setPillTone(municipal, device.municipal_sensor_status_tone || "clear");
 
         setTextIfChanged(row.querySelector('[data-device-field="tank_level"]'), device.tank_level || "--");
         setTextIfChanged(row.querySelector('[data-device-field="pump_mode"]'), device.pump_mode || "Pump --");

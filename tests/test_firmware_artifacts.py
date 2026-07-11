@@ -24,21 +24,6 @@ def test_detect_firmware_binary_role_from_embedded_marker():
     assert detect_firmware_binary_role(b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=slave") == "slave"
 
 
-def test_detect_firmware_binary_role_accepts_esp32_project_markers():
-    assert (
-        detect_firmware_binary_role(
-            b'\xe9demo 26.1.29 "device_type":"swt_esp32_master" swt-000-000-000-007'
-        )
-        == "master"
-    )
-    assert (
-        detect_firmware_binary_role(
-            b'\xe9demo 26.1.24 "device_type":"swt_esp8266_mcp_slave" swt-100-000-000-007'
-        )
-        == "slave"
-    )
-
-
 def test_validate_firmware_binary_role_rejects_mismatch():
     with pytest.raises(ValueError, match="is slave firmware, but this upload slot expects master firmware"):
         validate_firmware_binary_role(

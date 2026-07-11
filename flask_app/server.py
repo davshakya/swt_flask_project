@@ -778,7 +778,7 @@ def logging_ist_converter(timestamp, *_args):
 logging.Formatter.converter = staticmethod(logging_ist_converter)
 logging.basicConfig(
     level=APP_LOG_LEVEL,
-    format="%(asctime)s IST | %(levelname)s | %(name)s | %(message)s",
+    format="%(asctime)s IST | %(levelname)s | %(message)s",
     datefmt=TIMESTAMP_FORMAT,
 )
 
@@ -1640,8 +1640,6 @@ def device_scoped_app_setting_keys(device_id):
 def purge_device_app_settings(cursor, device_id):
     normalized_device_id = normalize_device_id(device_id)
     deleted_rows = 0
-    if "app_settings" not in set(list_database_table_names(cursor)):
-        return deleted_rows
     for setting_key in device_scoped_app_setting_keys(device_id):
         deleted_rows += int(
             cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
@@ -1649,7 +1647,7 @@ def purge_device_app_settings(cursor, device_id):
     if normalized_device_id:
         deleted_rows += int(
             cursor.execute(
-                f"DELETE FROM app_settings WHERE {quote_mysql_identifier('key')} LIKE ?",
+                "DELETE FROM app_settings WHERE key LIKE ?",
                 (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
             ).rowcount or 0
         )
@@ -1695,7 +1693,6 @@ def purge_device_table_rows(cursor, table_name, normalized_device_id):
 
 
 def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
-    ensure_ignored_devices_table(cursor)
     return int(
         cursor.execute(
             """
@@ -3058,6 +3055,31 @@ def admin_reachable_status_fields(enabled, reachable):
     return "Unreachable", "offline"
 
 
+def admin_municipal_sensor_status_fields(entry, service_config=None):
+    service_config = service_config or {}
+    online = admin_device_is_online(entry)
+    enabled = boolish_enabled(
+        entry.get("municipal_sensor_enabled"),
+        default=service_config.get("municipal_sensor_enabled", False),
+    )
+    state = str(entry.get("municipal_sensor_state") or "").strip().lower()
+    simulated = boolish_enabled(entry.get("municipal_sensor_simulated"), default=False)
+    reachable = boolish_enabled(entry.get("municipal_sensor_reachable"), default=state in {"available", "unavailable"})
+    if not enabled:
+        return "Disabled", "clear"
+    if not online:
+        return "Offline/Stale", "offline"
+    if simulated:
+        return "Simulated", "warning"
+    if state == "available":
+        return "Available", "online"
+    if state == "unavailable":
+        return "Unavailable", "warning"
+    if reachable:
+        return "Unknown", "warning"
+    return "Offline/Stale", "offline"
+
+
 def admin_sensor_reachable(raw_status):
     normalized = str(raw_status or "").strip().upper()
     if normalized in {"OK", "ON", "READY", "CONNECTED", "HEALTHY"}:
@@ -3065,10 +3087,6 @@ def admin_sensor_reachable(raw_status):
     if normalized in {"DISABLED", "OFF", "--", "UNKNOWN", "ERROR", "FAULT", "DISCONNECTED", "TIMEOUT", ""}:
         return False
     return True
-
-
-def admin_snapshot_simulator_enabled(entry, *keys):
-    return any(boolish_enabled((entry or {}).get(key), default=False) for key in keys)
 
 
 def admin_relay_sensor_status_fields(entry, service_config=None):
@@ -3086,36 +3104,28 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
     peer_packet_fresh = direct_peer_packet_is_fresh(entry)
     tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
-    upper_simulator_enabled = admin_snapshot_simulator_enabled(entry, "upper_tank_simulator", "main_tank_simulator")
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
     if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         upper_enabled = False
     if slave_upper_enabled:
         upper_enabled = True
-        upper_reachable = online and (
-            (peer_packet_fresh is True and tank_level_is_valid)
-            or (upper_simulator_enabled and tank_level_is_valid)
-        )
+        upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid
     else:
-        upper_reachable = online and upper_enabled and (admin_sensor_reachable(upper_sensor) or upper_simulator_enabled)
+        upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
     upper_label, upper_tone = admin_reachable_status_fields(
         upper_enabled,
         upper_reachable,
     )
 
     lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
-    lower_level_is_valid = safe_float(entry.get("lower_tank_level", entry.get("source_tank_level")), -1) >= 0
-    lower_simulator_enabled = admin_snapshot_simulator_enabled(entry, "lower_tank_simulator", "source_tank_simulator")
     lower_enabled = bool(service_config.get("source_tank_monitoring_enabled", True))
     if str(lower_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         lower_enabled = False
     lower_label, lower_tone = admin_reachable_status_fields(
         lower_enabled,
-        online and lower_enabled and (
-            admin_sensor_reachable(lower_sensor)
-            or (lower_simulator_enabled and lower_level_is_valid)
-        ),
+        online and lower_enabled and admin_sensor_reachable(lower_sensor),
     )
+    municipal_label, municipal_tone = admin_municipal_sensor_status_fields(entry, service_config)
 
     return {
         "relay_status_label": relay_label,
@@ -3124,6 +3134,8 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
         "upper_sensor_status_tone": upper_tone,
         "lower_sensor_status_label": lower_label,
         "lower_sensor_status_tone": lower_tone,
+        "municipal_sensor_status_label": municipal_label,
+        "municipal_sensor_status_tone": municipal_tone,
     }
 
 
@@ -3254,8 +3266,6 @@ def build_admin_device_entry(device_id, snapshot=None):
         "water_depth_label": payload.get("water_depth_label"),
         "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),
         "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
-        "municipal_available": payload.get("municipal_available"),
-        "municipal_water_sensor": payload.get("municipal_water_sensor"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
         "registered_account": False,
@@ -3401,10 +3411,6 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
-        municipal_enabled = bool(service_config.get("municipal_water_sensor_enabled", True))
-        municipal_live = boolish_enabled(entry.get("municipal_available"), default=False)
-        entry["municipal_sensor_status_label"] = "Reachable" if municipal_enabled and online and municipal_live else "Unreachable"
-        entry["municipal_sensor_status_tone"] = "online" if municipal_enabled and online and municipal_live else "offline"
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
@@ -3741,8 +3747,6 @@ def apply_device_status_aliases(cleaned):
         cleaned["device_local_url"] = cleaned.get("device_ip_url")
     if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
         cleaned["level"] = cleaned.get("main_tank_level")
-    if cleaned.get("level") is None and cleaned.get("overhead_level_pct") is not None:
-        cleaned["level"] = cleaned.get("overhead_level_pct")
     relay_state = relay_state_label(cleaned.get("relay_on"))
     if relay_state is None:
         relay_state = relay_state_label(cleaned.get("relay"))
@@ -3750,15 +3754,13 @@ def apply_device_status_aliases(cleaned):
         cleaned["motor"] = relay_state
     elif cleaned.get("motor") is None and cleaned.get("pump") is not None:
         cleaned["motor"] = cleaned.get("pump")
-    elif cleaned.get("motor") is None and cleaned.get("pump_status") is not None:
-        cleaned["motor"] = cleaned.get("pump_status")
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
     return cleaned
 
 
 SOURCE_TANK_ALIAS_FIELDS = {
-    "lower_tank_level": ("source_tank_level", "source_level", "source_level_pct"),
+    "lower_tank_level": ("source_tank_level", "source_level"),
     "lower_sensor": ("source_tank_sensor", "source_sensor"),
     "lower_sensor_info": ("source_tank_sensor_info", "source_sensor_info"),
     "lower_sensor_distance_cm": ("source_tank_sensor_distance_cm", "source_sensor_distance_cm"),
@@ -4172,9 +4174,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
         try:
             saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
             reported_peer_channel = (
-                cleaned.get("direct_peer_wifi_channel")
-                if cleaned.get("direct_peer_wifi_channel") not in (None, "")
-                else cleaned.get("direct_peer_config_channel")
+                cleaned.get("direct_peer_config_channel")
+                if cleaned.get("direct_peer_config_channel") not in (None, "")
+                else cleaned.get("direct_peer_wifi_channel")
             )
             upsert_device_service_config(
                 cleaned.get("device_id"),
@@ -4300,11 +4302,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
-    if cleaned.get("slave_uptime_s") in (None, "", "null") and cleaned.get("slave_uptime_ms") not in (None, "", "null"):
-        try:
-            cleaned["slave_uptime_s"] = int(float(cleaned.get("slave_uptime_ms")) / 1000.0)
-        except (TypeError, ValueError):
-            cleaned["slave_uptime_s"] = None
     record_home_automation_status(cleaned)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
     cleaned["telemetry_fingerprint"] = telemetry_fingerprint
@@ -4327,6 +4324,20 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
+    municipal_enabled = boolish_enabled(cleaned.get("municipal_sensor_enabled"), default=False)
+    cleaned["municipal_sensor_enabled"] = municipal_enabled
+    if not municipal_enabled:
+        cleaned["municipal_sensor_state"] = cleaned.get("municipal_sensor_state") or "unknown"
+        cleaned["municipal_sensor_simulated"] = False
+        cleaned["municipal_sensor_reachable"] = False
+        cleaned["municipal_sensor_last_updated"] = cleaned.get("municipal_sensor_last_updated")
+    else:
+        cleaned["municipal_sensor_state"] = str(cleaned.get("municipal_sensor_state") or "unknown").strip().lower()
+        cleaned["municipal_sensor_simulated"] = boolish_enabled(cleaned.get("municipal_sensor_simulated"), default=False)
+        cleaned["municipal_sensor_reachable"] = boolish_enabled(
+            cleaned.get("municipal_sensor_reachable"),
+            default=cleaned["municipal_sensor_state"] in {"available", "unavailable"},
+        )
 
     latest_row_id = None
     received_at = now_utc().strftime(TIMESTAMP_FORMAT)
@@ -4373,6 +4384,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("lower_sensor"),
         cleaned.get("lower_sensor_info"),
         cleaned.get("lower_sensor_distance_cm"),
+        1 if cleaned.get("municipal_sensor_enabled") else 0,
+        cleaned.get("municipal_sensor_state"),
+        1 if cleaned.get("municipal_sensor_simulated") else 0,
+        1 if cleaned.get("municipal_sensor_reachable") else 0,
+        cleaned.get("municipal_sensor_last_updated"),
         cleaned.get("device_id"),
         cleaned.get("firmware_version"),
         cleaned.get("slave_firmware_version"),
@@ -4434,6 +4450,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 slave_free_heap, slave_cpu_utilization_pct, slave_uptime_s,
                 uptime_s,
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
+                municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
+                municipal_sensor_reachable, municipal_sensor_last_updated,
                 device_id, firmware_version, slave_firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
@@ -4845,6 +4863,11 @@ def ensure_tank_data_columns(cursor):
         "lower_sensor": "TEXT",
         "lower_sensor_info": "TEXT",
         "lower_sensor_distance_cm": "REAL",
+        "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_state": "VARCHAR(32) NOT NULL DEFAULT 'unknown'",
+        "municipal_sensor_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_reachable": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_last_updated": "TEXT",
         "device_id": "TEXT",
         "firmware_version": "TEXT",
         "slave_firmware_version": "TEXT",
@@ -4963,6 +4986,11 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_sensor TEXT,
             lower_sensor_info TEXT,
             lower_sensor_distance_cm REAL,
+            municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_state VARCHAR(32) NOT NULL DEFAULT 'unknown',
+            municipal_sensor_simulated INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_last_updated TEXT,
             device_id TEXT,
             firmware_version TEXT,
             slave_firmware_version TEXT,
@@ -5257,7 +5285,7 @@ def ensure_device_service_configs_table(cursor):
             slave_device_enabled INTEGER NOT NULL DEFAULT 1,
             slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
-            municipal_water_sensor_enabled INTEGER NOT NULL DEFAULT 1,
+            municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
             relay_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
@@ -5301,7 +5329,7 @@ def ensure_device_service_configs_columns(cursor):
         "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
         "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
-        "municipal_water_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
         "relay_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
@@ -5585,6 +5613,11 @@ def init_db():
                 lower_sensor TEXT,
                 lower_sensor_info TEXT,
                 lower_sensor_distance_cm REAL,
+                municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_state VARCHAR(32) NOT NULL DEFAULT 'unknown',
+                municipal_sensor_simulated INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_last_updated TEXT,
                 device_id TEXT,
                 firmware_version TEXT,
                 slave_firmware_version TEXT,
@@ -6289,57 +6322,19 @@ MASTER_SLAVE_FIRMWARE_BUILD_FLAGS = {
     "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "1",
     "SWT_DIRECT_PEER_ENABLED": "1",
 }
-ESP32_MULTI_SOURCE_FIRMWARE_BUILD_FLAGS = {
-    "SWT_FEATURE_MASTER_LOWER_SENSOR": "1",
-    "SWT_ARCH_ID": "5",
-    "SWT_MASTER_LOCAL_UPPER_SENSOR_COUNT": "1",
-    "SWT_MASTER_REMOTE_UPPER_SENSOR_COUNT": "1",
-    "SWT_DIRECT_PEER_ENABLED": "1",
-    "SWT_DIRECT_PEER_BROADCAST_ENABLED": "1",
-}
-
-
-def snapshot_is_esp32_multi_source(snapshot):
-    snapshot = snapshot or {}
-    markers = (
-        snapshot.get("device_type"),
-        snapshot.get("controller_arch"),
-        snapshot.get("architecture_mode"),
-        snapshot.get("hardware_module"),
-    )
-    normalized_markers = " ".join(str(value or "").strip().lower() for value in markers)
-    if "esp32_multi_source" in normalized_markers or "esp32_wroom_32" in normalized_markers:
-        return True
-    try:
-        return int(snapshot.get("arch_id")) == 5
-    except (TypeError, ValueError):
-        return False
 
 
 def build_device_firmware_install_profile(service_config):
     config = service_config or {}
-    configuration_type = str(config.get("firmware_configuration_type") or "").strip().lower()
-    esp32_multi_source_enabled = configuration_type == "esp32_multi_source"
     master_slave_enabled = bool(config.get("slave_device_enabled", True))
-    if esp32_multi_source_enabled:
-        flags = ESP32_MULTI_SOURCE_FIRMWARE_BUILD_FLAGS
-    else:
-        flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
+    flags = MASTER_SLAVE_FIRMWARE_BUILD_FLAGS if master_slave_enabled else MASTER_ONLY_FIRMWARE_BUILD_FLAGS
     return {
-        "configuration_type": configuration_type or ("master_slave" if master_slave_enabled else "master_only"),
-        "label": (
-            "ESP32 Multi-Source"
-            if esp32_multi_source_enabled
-            else ("Master + Slave" if master_slave_enabled else "Master Only")
-        ),
+        "configuration_type": "master_slave" if master_slave_enabled else "master_only",
+        "label": "Master + Slave" if master_slave_enabled else "Master Only",
         "description": (
-            "Build swt_esp32_master for the ESP32-WROOM-32 controller and swt_esp8266_mcp_slave for ESP-NOW tank readings."
-            if esp32_multi_source_enabled
-            else (
-                "Build swt_master for a pump master that receives upper tank level from a slave MCU."
-                if master_slave_enabled
-                else "Build swt_master for a single MCU that reads the upper tank sensor locally."
-            )
+            "Build swt_master for a pump master that receives upper tank level from a slave MCU."
+            if master_slave_enabled
+            else "Build swt_master for a single MCU that reads the upper tank sensor locally."
         ),
         "requires_slave_firmware": master_slave_enabled,
         "flags": dict(flags),
@@ -6395,7 +6390,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         default=True,
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
-    municipal_water_sensor_enabled = boolish_enabled(payload.get("municipal_water_sensor_enabled"), default=True)
+    municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -6434,9 +6429,6 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         and cloud_feed_mode == DEVICE_SERVICE_CLOUD_FEED_FULL
         and effective_cloud_feed_enabled
     )
-    firmware_configuration_type = str(payload.get("firmware_configuration_type") or "").strip().lower()
-    if firmware_configuration_type not in {"esp32_multi_source"}:
-        firmware_configuration_type = "master_slave" if slave_device_enabled else "master_only"
     hardware_enabled_count = (
         int(relay_enabled)
         + int(ota_enabled)
@@ -6459,9 +6451,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "slave_device_enabled": slave_device_enabled,
         "slave_upper_sensor_enabled": slave_upper_sensor_enabled,
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
-        "firmware_configuration_type": firmware_configuration_type,
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
-        "municipal_water_sensor_enabled": municipal_water_sensor_enabled,
+        "municipal_sensor_enabled": municipal_sensor_enabled,
         "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
@@ -6500,7 +6491,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "hardware_enabled_label": f"{hardware_enabled_count}/5 device services active",
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
-            f" | Municipal sensor {'On' if municipal_water_sensor_enabled else 'Off'}"
+            f" | Municipal {'On' if municipal_sensor_enabled else 'Off'}"
             f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
             f" | Relay {'On' if relay_enabled else 'Off'}"
             f" | AI {ai_label}"
@@ -6522,7 +6513,7 @@ def default_device_service_config(device_id=None, account=None):
             "slave_device_enabled": True,
             "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
-            "municipal_water_sensor_enabled": True,
+            "municipal_sensor_enabled": False,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "auto_mode_enabled": False,
@@ -6611,26 +6602,9 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         base_payload["slave_upper_sensor_enabled"] = slave_upper_sensor_enabled
         base_payload["master_upper_sensor_enabled"] = not slave_upper_sensor_enabled
         base_payload["main_sensor_enabled"] = True
-    elif snapshot_is_esp32_multi_source(snapshot):
-        peer_transport = str(snapshot.get("peer_transport") or "").strip().lower()
-        peer_state = str(snapshot.get("direct_peer") or "").strip().lower()
-        peer_enabled = bool(peer_state) and peer_state not in {"disabled", "off"}
-        slave_service_enabled = snapshot_device_service_flag(snapshot, "slave_device_service")
-        slave_device_enabled = (
-            slave_service_enabled
-            if slave_service_enabled is not None
-            else peer_enabled or peer_transport == "esp_now"
-        )
-        base_payload["firmware_configuration_type"] = "esp32_multi_source"
-        base_payload["slave_device_enabled"] = bool(slave_device_enabled)
-        base_payload["slave_upper_sensor_enabled"] = bool(slave_device_enabled)
-        base_payload["master_upper_sensor_enabled"] = not bool(slave_device_enabled)
-        base_payload["main_sensor_enabled"] = True
-        base_payload["upper_sensor_source"] = "slave" if slave_device_enabled else "master"
 
     for snapshot_key, config_key in (
         ("lower_tank_service", "source_tank_monitoring_enabled"),
-        ("municipal_water_sensor", "municipal_water_sensor_enabled"),
         ("relay_service", "relay_enabled"),
         ("buzzer_service", "buzzer_enabled"),
         ("led_display_service", "led_display_enabled"),
@@ -6656,7 +6630,7 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
             if normalized_value is not None:
                 base_payload[config_key] = normalized_value
 
-    peer_channel_value = snapshot.get("direct_peer_wifi_channel", snapshot.get("direct_peer_config_channel"))
+    peer_channel_value = snapshot.get("direct_peer_config_channel", snapshot.get("direct_peer_wifi_channel"))
     try:
         normalized_peer_channel = _coerce_optional_peer_channel_value(peer_channel_value)
     except ValueError:
@@ -6702,8 +6676,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, municipal_water_sensor_enabled,
-                   relay_enabled, ai_analysis_enabled,
+                   source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
@@ -6731,12 +6704,6 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         account=resolved_account,
         existing=stored_config,
     )
-    if live_config and row:
-        # Admin-saved intent is authoritative. A device may continue reporting the
-        # previous value until it receives the queued command; allowing that stale
-        # telemetry to overwrite the row makes disabled checkboxes appear enabled
-        # again after a refresh.
-        live_config["municipal_water_sensor_enabled"] = stored_config["municipal_water_sensor_enabled"]
     return live_config or stored_config
 
 
@@ -6750,8 +6717,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, municipal_water_sensor_enabled,
-               relay_enabled, ai_analysis_enabled,
+               source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
@@ -6826,7 +6792,7 @@ def upsert_device_service_config(
     slave_device_enabled=None,
     slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
-    municipal_water_sensor_enabled=None,
+    municipal_sensor_enabled=None,
     relay_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
@@ -6892,9 +6858,9 @@ def upsert_device_service_config(
         source_tank_monitoring_enabled,
         default=existing.get("source_tank_monitoring_enabled", True),
     )
-    resolved_municipal_water_sensor_enabled = boolish_enabled(
-        municipal_water_sensor_enabled,
-        default=existing.get("municipal_water_sensor_enabled", True),
+    resolved_municipal_sensor_enabled = boolish_enabled(
+        municipal_sensor_enabled,
+        default=existing.get("municipal_sensor_enabled", False),
     )
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,
@@ -7006,8 +6972,7 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, municipal_water_sensor_enabled,
-                relay_enabled, ai_analysis_enabled,
+                source_tank_monitoring_enabled, municipal_sensor_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
@@ -7027,7 +6992,7 @@ def upsert_device_service_config(
                 slave_device_enabled=excluded.slave_device_enabled,
                 slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
-                municipal_water_sensor_enabled=excluded.municipal_water_sensor_enabled,
+                municipal_sensor_enabled=excluded.municipal_sensor_enabled,
                 relay_enabled=excluded.relay_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
@@ -7064,7 +7029,7 @@ def upsert_device_service_config(
                 1 if resolved_slave_device_enabled else 0,
                 1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
-                1 if resolved_municipal_water_sensor_enabled else 0,
+                1 if resolved_municipal_sensor_enabled else 0,
                 1 if resolved_relay_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
@@ -7120,10 +7085,10 @@ def build_device_service_command(service_config):
     if not slave_upper_sensor_enabled:
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
-    municipal_water_sensor_enabled = bool(config.get("municipal_water_sensor_enabled", True))
+    municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG6:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal_sensor}".format(
+    return "SERVICECFG6:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -7133,7 +7098,7 @@ def build_device_service_command(service_config):
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
         auto_mode=1 if auto_mode_enabled else 0,
-        municipal_sensor=1 if municipal_water_sensor_enabled else 0,
+        municipal=1 if municipal_sensor_enabled else 0,
     )
 
 
@@ -8155,12 +8120,7 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         data[key] = round(cpu_value, 1) if cpu_value is not None else None
         data[f"{key}_label"] = f"{data[key]:.1f}%" if data[key] is not None else "--"
     try:
-        if data.get("slave_uptime_s") not in (None, "", "null"):
-            data["slave_uptime_s"] = int(data["slave_uptime_s"])
-        elif data.get("slave_uptime_ms") not in (None, "", "null"):
-            data["slave_uptime_s"] = int(float(data.get("slave_uptime_ms")) / 1000.0)
-        else:
-            data["slave_uptime_s"] = None
+        data["slave_uptime_s"] = int(data["slave_uptime_s"]) if data.get("slave_uptime_s") not in (None, "", "null") else None
     except (TypeError, ValueError):
         data["slave_uptime_s"] = None
     data["slave_uptime_label"] = format_compact_uptime(data.get("slave_uptime_s"))
@@ -10223,6 +10183,11 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "lower_sensor",
     "lower_sensor_info",
     "lower_sensor_distance_cm",
+    "municipal_sensor_enabled",
+    "municipal_sensor_state",
+    "municipal_sensor_simulated",
+    "municipal_sensor_reachable",
+    "municipal_sensor_last_updated",
     "firmware_version",
     "slave_firmware_version",
     "reset_reason",
@@ -12595,7 +12560,7 @@ def describe_command_activity(command):
 
     if normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
-        labels = (
+        labels = [
             "master upper",
             "slave upper",
             "source tank",
@@ -12605,8 +12570,9 @@ def describe_command_activity(command):
             "OTA",
             "local upload",
             "auto mode",
-            "municipal water sensor",
-        )
+        ]
+        if normalized.startswith("SERVICECFG6:"):
+            labels.append("municipal sensor")
 
         def service_state_label(value):
             return "ON" if str(value or "").strip().upper() in {"1", "ON", "TRUE", "ENABLED"} else "OFF"
@@ -14800,21 +14766,18 @@ def resolve_simulator_command(payload):
         "dual_tank": "SIMULATOR",
         "tank": "SIMULATOR",
         "simulator": "SIMULATOR",
-        "main": "UPPER_SIMULATOR",
-        "upper": "UPPER_SIMULATOR",
-        "upper_tank": "UPPER_SIMULATOR",
-        "main_tank": "UPPER_SIMULATOR",
-        "source": "LOWER_SIMULATOR",
-        "lower": "LOWER_SIMULATOR",
-        "source_tank": "LOWER_SIMULATOR",
-        "lower_tank": "LOWER_SIMULATOR",
-        "municipal": "MUNICIPAL_SIMULATOR",
-        "municipal_water": "MUNICIPAL_SIMULATOR",
-        "municipal_supply": "MUNICIPAL_SIMULATOR",
+        "main": "SIMULATOR",
+        "upper": "SIMULATOR",
+        "upper_tank": "SIMULATOR",
+        "main_tank": "SIMULATOR",
+        "source": "SIMULATOR",
+        "lower": "SIMULATOR",
+        "source_tank": "SIMULATOR",
+        "lower_tank": "SIMULATOR",
     }
     command_prefix = target_map.get(raw_target)
     if not command_prefix:
-        raise ValueError("target must be one of all, upper, main, lower, source, or municipal")
+        raise ValueError("target must be one of all, upper, main, lower, or source")
     return f"{command_prefix}_{state_suffix}", raw_target, enabled
 
 
@@ -15243,10 +15206,6 @@ def mobile_device_services():
                     "source_tank_monitoring_enabled": bool(
                         snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
                     ),
-                    "municipal_water_sensor_enabled": boolish_enabled(
-                        (snapshot or {}).get("municipal_water_sensor"),
-                        default=True,
-                    ),
                     "ota_enabled": bool(
                         snapshot and str(snapshot.get("ota_service") or "").upper() == "ON"
                     ),
@@ -15270,7 +15229,6 @@ def mobile_device_services():
         slave_device_enabled=source_payload.get("slave_device_enabled"),
         slave_upper_sensor_enabled=source_payload.get("slave_upper_sensor_enabled"),
         source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
-        municipal_water_sensor_enabled=source_payload.get("municipal_water_sensor_enabled"),
         relay_enabled=source_payload.get("relay_enabled"),
         ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
         cloud_feed_mode=source_payload.get("cloud_feed_mode"),
@@ -16028,7 +15986,6 @@ def admin_customers_device_table_json():
         devices.append(
             {
                 "device_id": device.get("device_id") or "",
-                "local_ip": device.get("device_local_host") or "N/A",
                 "search": (
                     f"{device.get('device_id') or ''} {device.get('source_ip') or ''} "
                     f"{device.get('device_local_host') or ''} {device.get('display_name') or ''}"
@@ -16047,8 +16004,8 @@ def admin_customers_device_table_json():
                 "upper_sensor_status_tone": device.get("upper_sensor_status_tone") or "offline",
                 "lower_sensor_status": device.get("lower_sensor_status_label") or "Unreachable",
                 "lower_sensor_status_tone": device.get("lower_sensor_status_tone") or "offline",
-                "municipal_sensor_status": device.get("municipal_sensor_status_label") or "Unreachable",
-                "municipal_sensor_status_tone": device.get("municipal_sensor_status_tone") or "offline",
+                "municipal_sensor_status": device.get("municipal_sensor_status_label") or "Disabled",
+                "municipal_sensor_status_tone": device.get("municipal_sensor_status_tone") or "clear",
                 "tank_level": f"{level}%" if has_sync and level is not None else "--",
                 "pump_mode": f"Pump {device.get('motor') or '--'} / {device.get('mode') or '--'}" if has_sync else "Pump --",
                 "depth_echo": (
@@ -16136,9 +16093,6 @@ def admin_register_device_credentials():
         )
     except ValueError as exc:
         error = str(exc)
-    except Exception as exc:
-        logger.exception("Device registration failed: device_id=%s", normalize_device_id(device_id))
-        error = f"Unable to register device: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -16446,9 +16400,6 @@ def admin_android_release_upload():
         )
     except ValueError as exc:
         error = str(exc)
-    except Exception as exc:
-        logger.exception("Android app release upload failed")
-        error = f"Unable to upload Android app release: {exc}"
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         payload = {
@@ -16687,7 +16638,7 @@ def admin_customer_services(device_id):
             main_sensor_enabled=("main_sensor_enabled" in request.form),
             slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            municipal_water_sensor_enabled=("municipal_water_sensor_enabled" in request.form),
+            municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
             ota_enabled=False,
@@ -16898,9 +16849,6 @@ def admin_delete_known_device(device_id):
             success = f"Deleted device {normalized_device_id} from admin records."
     except ValueError as exc:
         error = str(exc)
-    except Exception as exc:
-        logger.exception("Failed to delete device %s", normalized_device_id)
-        error = f"Unable to delete device {normalized_device_id}: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -16946,9 +16894,6 @@ def admin_purge_device_data(device_id):
         )
     except ValueError as exc:
         error = str(exc)
-    except Exception as exc:
-        logger.exception("Failed to purge device %s", normalized_device_id)
-        error = f"Unable to purge device {normalized_device_id}: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -17246,7 +17191,6 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
         ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
-        ("Municipal Water Sensor", device_detail_card_bool(saved_service_config.get("municipal_water_sensor_enabled"), default=True)),
         ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
         ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
         ("Local Firmware Upload", device_detail_card_bool(saved_service_config.get("local_firmware_upload_enabled"), default=True)),
@@ -17283,12 +17227,12 @@ def device_detail_page(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     current_saved_config = build_current_saved_config(scoped_device_id, account=account)
     peer_channel_input_value = (
-        (snapshot or {}).get("direct_peer_wifi_channel")
-        or current_saved_config.get("direct_peer_wifi_channel")
+        current_saved_config.get("direct_peer_wifi_channel")
         or (snapshot or {}).get("direct_peer_config_channel")
+        or (snapshot or {}).get("direct_peer_wifi_channel")
         or 6
     )
-    service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)
+    service_config = current_saved_config.get("service_config") or default_device_service_config(scoped_device_id, account=account)
     firmware_install_profile = build_device_firmware_install_profile(service_config)
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
@@ -17496,7 +17440,7 @@ def admin_device_detail_configuration(device_id):
             slave_device_enabled=slave_device_enabled,
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            municipal_water_sensor_enabled=("municipal_water_sensor_enabled" in request.form),
+            municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
@@ -18016,44 +17960,12 @@ def admin_device_detail_sensor_configure(device_id):
 def admin_device_detail_simulator(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
-    target = str(request.form.get("target") or "all").strip().lower()
-    requested_enabled = request.form.get("enabled")
-    if requested_enabled is None:
-        simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-        payload = {"target": target, "enabled": not simulator_enabled}
-    else:
-        payload = {"target": target, "enabled": requested_enabled}
-        simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    try:
-        command, simulator_target, enabled = resolve_simulator_command(payload)
-    except ValueError as exc:
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=str(exc)))
-
-    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
-    esp32_pair_simulator = (
-        target == "all"
-        and str(service_config.get("firmware_configuration_type") or "").strip().lower() == "esp32_multi_source"
-        and boolish_enabled(service_config.get("slave_device_enabled"), default=True)
-    )
-    slave_result = None
-    slave_command = None
-    slave_device_id = None
-    if esp32_pair_simulator:
-        state_suffix = "ON" if enabled else "OFF"
-        command = f"SIMULATOR_{state_suffix}"
-        simulator_target = "esp32_pair"
-        slave_command = f"UPPER_SIMULATOR_{state_suffix}"
-        slave_device_id = paired_slave_device_id(scoped_device_id)
-        slave_result = queue_command(slave_command, target_device=slave_device_id)
-
+    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
         error = payload.get("error") or f"Unable to queue simulator command for {scoped_device_id}."
-        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
-    if isinstance(slave_result, tuple):
-        payload, _status_code = slave_result
-        error = payload.get("error") or f"Unable to queue simulator command for {slave_device_id}."
         return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
 
     log_audit_event(
@@ -18064,27 +17976,22 @@ def admin_device_detail_simulator(device_id):
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
-            "slave_command": slave_command,
-            "slave_device_id": slave_device_id,
-            "slave_command_id": (slave_result or {}).get("command_id") if isinstance(slave_result, dict) else None,
-            "simulator_target": simulator_target,
-            "simulator_enabled": enabled,
             "previous_simulator_enabled": simulator_enabled,
             "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
     )
     message = (
-        f"Simulator {'enable' if enabled else 'disable'} command queued for ESP32 lower/source and ESP8266 upper sensor."
-        if esp32_pair_simulator
-        else f"{simulator_target.replace('_', ' ').title()} simulator {'enable' if enabled else 'disable'} command queued."
+        "Simulator disable command queued."
+        if simulator_enabled
+        else "Simulator enable command queued. The device will apply it using the current service configuration."
     )
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
             config_message=message,
-            simulator_state="on" if enabled else "off",
+            simulator_state="off" if simulator_enabled else "on",
         )
     )
 
