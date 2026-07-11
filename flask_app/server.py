@@ -778,7 +778,7 @@ def logging_ist_converter(timestamp, *_args):
 logging.Formatter.converter = staticmethod(logging_ist_converter)
 logging.basicConfig(
     level=APP_LOG_LEVEL,
-    format="%(asctime)s IST | %(levelname)s | %(message)s",
+    format="%(asctime)s IST | %(levelname)s | %(name)s | %(message)s",
     datefmt=TIMESTAMP_FORMAT,
 )
 
@@ -1649,7 +1649,7 @@ def purge_device_app_settings(cursor, device_id):
     if normalized_device_id:
         deleted_rows += int(
             cursor.execute(
-                "DELETE FROM app_settings WHERE key LIKE ?",
+                f"DELETE FROM app_settings WHERE {quote_mysql_identifier('key')} LIKE ?",
                 (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
             ).rowcount or 0
         )
@@ -3254,6 +3254,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "water_depth_label": payload.get("water_depth_label"),
         "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),
         "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
+        "municipal_available": payload.get("municipal_available"),
+        "municipal_water_sensor": payload.get("municipal_water_sensor"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
         "registered_account": False,
@@ -3399,6 +3401,10 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
+        municipal_enabled = bool(service_config.get("municipal_water_sensor_enabled", True))
+        municipal_live = boolish_enabled(entry.get("municipal_available"), default=False)
+        entry["municipal_sensor_status_label"] = "Reachable" if municipal_enabled and online and municipal_live else "Unreachable"
+        entry["municipal_sensor_status_tone"] = "online" if municipal_enabled and online and municipal_live else "offline"
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
@@ -6725,6 +6731,12 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         account=resolved_account,
         existing=stored_config,
     )
+    if live_config and row:
+        # Admin-saved intent is authoritative. A device may continue reporting the
+        # previous value until it receives the queued command; allowing that stale
+        # telemetry to overwrite the row makes disabled checkboxes appear enabled
+        # again after a refresh.
+        live_config["municipal_water_sensor_enabled"] = stored_config["municipal_water_sensor_enabled"]
     return live_config or stored_config
 
 
@@ -16016,6 +16028,7 @@ def admin_customers_device_table_json():
         devices.append(
             {
                 "device_id": device.get("device_id") or "",
+                "local_ip": device.get("device_local_host") or "N/A",
                 "search": (
                     f"{device.get('device_id') or ''} {device.get('source_ip') or ''} "
                     f"{device.get('device_local_host') or ''} {device.get('display_name') or ''}"
@@ -16034,6 +16047,8 @@ def admin_customers_device_table_json():
                 "upper_sensor_status_tone": device.get("upper_sensor_status_tone") or "offline",
                 "lower_sensor_status": device.get("lower_sensor_status_label") or "Unreachable",
                 "lower_sensor_status_tone": device.get("lower_sensor_status_tone") or "offline",
+                "municipal_sensor_status": device.get("municipal_sensor_status_label") or "Unreachable",
+                "municipal_sensor_status_tone": device.get("municipal_sensor_status_tone") or "offline",
                 "tank_level": f"{level}%" if has_sync and level is not None else "--",
                 "pump_mode": f"Pump {device.get('motor') or '--'} / {device.get('mode') or '--'}" if has_sync else "Pump --",
                 "depth_echo": (
@@ -16122,8 +16137,8 @@ def admin_register_device_credentials():
     except ValueError as exc:
         error = str(exc)
     except Exception as exc:
-        logger.exception("Failed to delete device %s", normalized_device_id)
-        error = f"Unable to delete device {normalized_device_id}: {exc}"
+        logger.exception("Device registration failed: device_id=%s", normalize_device_id(device_id))
+        error = f"Unable to register device: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -16432,8 +16447,8 @@ def admin_android_release_upload():
     except ValueError as exc:
         error = str(exc)
     except Exception as exc:
-        logger.exception("Failed to purge device %s", normalized_device_id)
-        error = f"Unable to purge device {normalized_device_id}: {exc}"
+        logger.exception("Android app release upload failed")
+        error = f"Unable to upload Android app release: {exc}"
 
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         payload = {
@@ -16883,6 +16898,9 @@ def admin_delete_known_device(device_id):
             success = f"Deleted device {normalized_device_id} from admin records."
     except ValueError as exc:
         error = str(exc)
+    except Exception as exc:
+        logger.exception("Failed to delete device %s", normalized_device_id)
+        error = f"Unable to delete device {normalized_device_id}: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)
@@ -16928,6 +16946,9 @@ def admin_purge_device_data(device_id):
         )
     except ValueError as exc:
         error = str(exc)
+    except Exception as exc:
+        logger.exception("Failed to purge device %s", normalized_device_id)
+        error = f"Unable to purge device {normalized_device_id}: {exc}"
 
     accounts = list_customer_accounts(limit=100)
     available_devices = load_admin_known_devices(accounts, inventory_limit=100)

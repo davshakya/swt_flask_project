@@ -239,7 +239,9 @@ body{font-size:16px}
                         <h4>Master Configuration</h4>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
+                        {% if firmware_configuration_type == "esp32_multi_source" %}
                         <label class="service-option"><input id="municipalWaterSensorOption" type="checkbox" name="municipal_water_sensor_enabled" value="1" {% if service_config.get("municipal_water_sensor_enabled", True) %}checked{% endif %}> Municipal Water Sensor</label>
+                        {% endif %}
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
@@ -296,7 +298,7 @@ body{font-size:16px}
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}" data-ajax-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <h3>Customer Name</h3>
+                <h3>Device &amp; Customer Information</h3>
                 {% if customer_account %}
                 <div class="form-group">
                     <label for="display_name">Name</label>
@@ -306,7 +308,7 @@ body{font-size:16px}
                     <label for="email">Email</label>
                     <input id="email" name="email" type="email" value="{{ customer_account.get('email') or '' }}" placeholder="customer@example.com">
                 </div>
-                <button class="btn btn-admin" type="submit"><span>Save Name</span></button>
+                <button class="btn btn-admin" type="submit"><span>Save Customer Information</span></button>
                 {% else %}
                 <div class="helper-text">Create a customer account from the admin dashboard before editing the customer name here.</div>
                 {% endif %}
