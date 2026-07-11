@@ -4166,9 +4166,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
         try:
             saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
             reported_peer_channel = (
-                cleaned.get("direct_peer_config_channel")
-                if cleaned.get("direct_peer_config_channel") not in (None, "")
-                else cleaned.get("direct_peer_wifi_channel")
+                cleaned.get("direct_peer_wifi_channel")
+                if cleaned.get("direct_peer_wifi_channel") not in (None, "")
+                else cleaned.get("direct_peer_config_channel")
             )
             upsert_device_service_config(
                 cleaned.get("device_id"),
@@ -5251,6 +5251,7 @@ def ensure_device_service_configs_table(cursor):
             slave_device_enabled INTEGER NOT NULL DEFAULT 1,
             slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+            municipal_water_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             relay_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
@@ -5294,6 +5295,7 @@ def ensure_device_service_configs_columns(cursor):
         "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
         "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "municipal_water_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "relay_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
@@ -6387,6 +6389,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         default=True,
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
+    municipal_water_sensor_enabled = boolish_enabled(payload.get("municipal_water_sensor_enabled"), default=True)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -6452,6 +6455,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
         "firmware_configuration_type": firmware_configuration_type,
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
+        "municipal_water_sensor_enabled": municipal_water_sensor_enabled,
         "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
@@ -6490,6 +6494,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "hardware_enabled_label": f"{hardware_enabled_count}/5 device services active",
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
+            f" | Municipal sensor {'On' if municipal_water_sensor_enabled else 'Off'}"
             f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
             f" | Relay {'On' if relay_enabled else 'Off'}"
             f" | AI {ai_label}"
@@ -6511,6 +6516,7 @@ def default_device_service_config(device_id=None, account=None):
             "slave_device_enabled": True,
             "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
+            "municipal_water_sensor_enabled": True,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "auto_mode_enabled": False,
@@ -6618,6 +6624,7 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
 
     for snapshot_key, config_key in (
         ("lower_tank_service", "source_tank_monitoring_enabled"),
+        ("municipal_water_sensor", "municipal_water_sensor_enabled"),
         ("relay_service", "relay_enabled"),
         ("buzzer_service", "buzzer_enabled"),
         ("led_display_service", "led_display_enabled"),
@@ -6643,7 +6650,7 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
             if normalized_value is not None:
                 base_payload[config_key] = normalized_value
 
-    peer_channel_value = snapshot.get("direct_peer_config_channel", snapshot.get("direct_peer_wifi_channel"))
+    peer_channel_value = snapshot.get("direct_peer_wifi_channel", snapshot.get("direct_peer_config_channel"))
     try:
         normalized_peer_channel = _coerce_optional_peer_channel_value(peer_channel_value)
     except ValueError:
@@ -6689,7 +6696,8 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+                   source_tank_monitoring_enabled, municipal_water_sensor_enabled,
+                   relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
@@ -6730,7 +6738,8 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+               source_tank_monitoring_enabled, municipal_water_sensor_enabled,
+               relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
@@ -6805,6 +6814,7 @@ def upsert_device_service_config(
     slave_device_enabled=None,
     slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
+    municipal_water_sensor_enabled=None,
     relay_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
@@ -6869,6 +6879,10 @@ def upsert_device_service_config(
     resolved_source_tank_monitoring_enabled = boolish_enabled(
         source_tank_monitoring_enabled,
         default=existing.get("source_tank_monitoring_enabled", True),
+    )
+    resolved_municipal_water_sensor_enabled = boolish_enabled(
+        municipal_water_sensor_enabled,
+        default=existing.get("municipal_water_sensor_enabled", True),
     )
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,
@@ -6980,7 +6994,8 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+                source_tank_monitoring_enabled, municipal_water_sensor_enabled,
+                relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
@@ -6993,13 +7008,14 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
                 slave_device_enabled=excluded.slave_device_enabled,
                 slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
+                municipal_water_sensor_enabled=excluded.municipal_water_sensor_enabled,
                 relay_enabled=excluded.relay_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
@@ -7036,6 +7052,7 @@ def upsert_device_service_config(
                 1 if resolved_slave_device_enabled else 0,
                 1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
+                1 if resolved_municipal_water_sensor_enabled else 0,
                 1 if resolved_relay_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
@@ -7091,9 +7108,10 @@ def build_device_service_command(service_config):
     if not slave_upper_sensor_enabled:
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
+    municipal_water_sensor_enabled = bool(config.get("municipal_water_sensor_enabled", True))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG5:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}".format(
+    return "SERVICECFG6:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal_sensor}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -7103,6 +7121,7 @@ def build_device_service_command(service_config):
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
         auto_mode=1 if auto_mode_enabled else 0,
+        municipal_sensor=1 if municipal_water_sensor_enabled else 0,
     )
 
 
@@ -12562,7 +12581,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = (
             "master upper",
@@ -12574,6 +12593,7 @@ def describe_command_activity(command):
             "OTA",
             "local upload",
             "auto mode",
+            "municipal water sensor",
         )
 
         def service_state_label(value):
@@ -15211,6 +15231,10 @@ def mobile_device_services():
                     "source_tank_monitoring_enabled": bool(
                         snapshot and str(snapshot.get("lower_tank_service") or "").upper() == "ON"
                     ),
+                    "municipal_water_sensor_enabled": boolish_enabled(
+                        (snapshot or {}).get("municipal_water_sensor"),
+                        default=True,
+                    ),
                     "ota_enabled": bool(
                         snapshot and str(snapshot.get("ota_service") or "").upper() == "ON"
                     ),
@@ -15234,6 +15258,7 @@ def mobile_device_services():
         slave_device_enabled=source_payload.get("slave_device_enabled"),
         slave_upper_sensor_enabled=source_payload.get("slave_upper_sensor_enabled"),
         source_tank_monitoring_enabled=source_payload.get("source_tank_monitoring_enabled"),
+        municipal_water_sensor_enabled=source_payload.get("municipal_water_sensor_enabled"),
         relay_enabled=source_payload.get("relay_enabled"),
         ai_analysis_enabled=source_payload.get("ai_analysis_enabled"),
         cloud_feed_mode=source_payload.get("cloud_feed_mode"),
@@ -16647,6 +16672,7 @@ def admin_customer_services(device_id):
             main_sensor_enabled=("main_sensor_enabled" in request.form),
             slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            municipal_water_sensor_enabled=("municipal_water_sensor_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
             ota_enabled=False,
@@ -17199,6 +17225,7 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
         ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
+        ("Municipal Water Sensor", device_detail_card_bool(saved_service_config.get("municipal_water_sensor_enabled"), default=True)),
         ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
         ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
         ("Local Firmware Upload", device_detail_card_bool(saved_service_config.get("local_firmware_upload_enabled"), default=True)),
@@ -17235,9 +17262,9 @@ def device_detail_page(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     current_saved_config = build_current_saved_config(scoped_device_id, account=account)
     peer_channel_input_value = (
-        current_saved_config.get("direct_peer_wifi_channel")
+        (snapshot or {}).get("direct_peer_wifi_channel")
+        or current_saved_config.get("direct_peer_wifi_channel")
         or (snapshot or {}).get("direct_peer_config_channel")
-        or (snapshot or {}).get("direct_peer_wifi_channel")
         or 6
     )
     service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)
@@ -17448,6 +17475,7 @@ def admin_device_detail_configuration(device_id):
             slave_device_enabled=slave_device_enabled,
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            municipal_water_sensor_enabled=("municipal_water_sensor_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),

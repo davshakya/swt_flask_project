@@ -24,7 +24,7 @@ def test_device_detail_page_exposes_shared_threshold_settings():
     function_source = source[function_start : source.index("\n\ndef device_simulator_state_key", function_start)]
 
     assert "current_saved_config = build_current_saved_config(scoped_device_id, account=account)" in function_source
-    assert 'service_config = current_saved_config.get("service_config")' in function_source
+    assert "service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)" in function_source
     assert 'automation_settings = current_saved_config.get("automation_settings")' in function_source
     assert "initial_events = []" in function_source
     assert "Keep the HTML render path cheap and safe" in function_source
@@ -84,6 +84,7 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
 
     assert 'snapshot.get("upper_sensor_source")' in function_source
     assert '("lower_tank_service", "source_tank_monitoring_enabled")' in function_source
+    assert '("municipal_water_sensor", "municipal_water_sensor_enabled")' in function_source
     assert '("relay_service", "relay_enabled")' in function_source
     assert '("buzzer_service", "buzzer_enabled")' in function_source
     assert '("led_display_service", "led_display_enabled")' in function_source
@@ -138,6 +139,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "auto_start_pct REAL" in table_source
     assert "auto_stop_pct REAL" in table_source
     assert "auto_mode_enabled INTEGER NOT NULL DEFAULT 0" in table_source
+    assert "municipal_water_sensor_enabled INTEGER NOT NULL DEFAULT 1" in table_source
     assert "telemetry_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'" in table_source
     assert "slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN'" in table_source
 
@@ -147,6 +149,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "lower_tank_capacity_liters=None," in upsert_source
     assert "local_web_password=None," in upsert_source
     assert "auto_mode_enabled=None," in upsert_source
+    assert "municipal_water_sensor_enabled=None," in upsert_source
     assert "tank_height_cm=excluded.tank_height_cm" in upsert_source
     assert "auto_stop_pct=excluded.auto_stop_pct" in upsert_source
     assert "auto_mode_enabled=excluded.auto_mode_enabled" in upsert_source
@@ -155,8 +158,9 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG5:" in build_source
+    assert "SERVICECFG6:" in build_source
     assert "auto_mode_enabled" in build_source
+    assert "municipal_water_sensor_enabled" in build_source
 
 
 def test_mysql_schema_translation_maps_device_service_state_defaults_for_mysql():

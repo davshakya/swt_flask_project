@@ -648,6 +648,9 @@ def test_esp32_multi_source_service_config_and_firmware_profile_are_supported():
     assert 'base_payload["upper_sensor_source"] = "slave" if slave_device_enabled else "master"' in server_source
     assert '"Build swt_esp32_master for the ESP32-WROOM-32 controller and swt_esp8266_mcp_slave for ESP-NOW tank readings."' in server_source
     assert 'if(configType==="esp32_multi_source")return"ESP32 + ESP8266";' in device_template
+    assert 'id="municipalWaterSensorOption" type="checkbox" name="municipal_water_sensor_enabled"' in device_template
+    assert '"Municipal Water Sensor"' in server_source
+    assert "SERVICECFG6:" in server_source
     assert "const peerFresh=Number.isFinite(peerAge)&&peerAge>=0&&peerAge<=DIRECT_PEER_STALE_AFTER_SECONDS;" in device_template
     assert "service_config = resolve_device_service_config(scoped_device_id, account=account, snapshot=snapshot)" in server_source
 
