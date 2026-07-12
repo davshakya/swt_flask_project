@@ -10631,7 +10631,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         current["telemetry_status"] = telemetry_status(age_seconds)
         return current
 
-    latest_peer_row = row_with_event_telemetry_status(rows[0]) if rows else None
+    latest_snapshot_row = fetch_device_snapshot(normalized_device_id) if normalized_device_id else None
+    if snapshot_has_live_device_data(latest_snapshot_row):
+        latest_peer_row = dict(latest_snapshot_row)
+    else:
+        latest_peer_row = row_with_event_telemetry_status(rows[0]) if rows else None
     previous = None
     pump_started_at = None
     pump_started_level = None

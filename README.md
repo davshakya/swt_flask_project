@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-06-19`
+Last refreshed: `2026-07-12`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. The devices still keep their local control loops on the ESP8266 when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
@@ -10,7 +10,7 @@ This backend is one part of the wider SaleWell IoT Solutions stack. The shared `
 
 Within the wider workspace:
 
-- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
+- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the mixed ESP32-master / ESP8266-slave controller pair that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
@@ -27,7 +27,9 @@ Within the wider workspace:
 - Pricing/comparison page for Starter Wi-Fi, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
 - Sales/demo enquiry form with backup logging, support email, customer confirmation email, and optional WhatsApp webhook delivery
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
-- Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
+- Admin service controls for source tank monitoring, municipal sensor enablement, buzzer, LED, cloud-feed mode, and customer AI access
+- Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
+- Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - Optional HTTP relay and notification integration support
@@ -41,7 +43,7 @@ Within the wider workspace:
 - public marketing homepage with product explanations, plan guidance, Android download link, and enquiry entry points
 - guided product chatbot content for pricing, pump control, overflow, leakage, installation type, app access, and service coverage questions
 - customer dashboard for tank level, pump state, alert status, events, analytics, and local sync
-- admin dashboard for device registration, customer mapping, customer password reset, service flags, firmware artifacts, Android releases, reboot commands, and data-source mode
+- admin dashboard for device registration, customer mapping, customer password reset, service flags, peer channel, firmware artifacts, Android releases, reboot commands, delete/purge, and data-source mode
 - operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
 - optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
 
@@ -51,7 +53,7 @@ The backend is the network and persistence layer, not the runtime safety layer. 
 
 | Path | Purpose |
 | --- | --- |
-| `server.py` | Root entrypoint and WSGI compatibility wrapper |
+| `server.py` | Root entrypoint and WSGI compatibility wrapper; keep this in sync with `flask_app/server.py` for cPanel / Passenger deployments |
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
 | `flask_app/home_automation_routes.py` | Home automation dashboard and proxy routes |
 | `flask_app/__init__.py` | Package export for `app` |
@@ -246,6 +248,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/admin/devices/register` | Register device credentials and optional customer account | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
+| `/admin/customers/<device_id>/delete` | Delete a device through the normal admin flow; purges device-scoped rows and keeps the deleted-device marker until re-registration | Admin |
 | `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/releases/android/prune` | Prune old uploaded Android APK releases | Admin |
@@ -301,7 +304,7 @@ Proxy routes:
 | `/monitoring/summary` | Monitoring summary | Session |
 | `/monitoring/alerts` | Alert list | Session |
 | `/monitoring/audit` | Audit trail | Session |
-| `/events` | Recent event feed | Session |
+| `/events` | Recent event feed, including live current-status snapshots generated from the latest device snapshot | Session |
 | `/relay/health` | Relay queue and relay connectivity summary | Admin |
 | `/admin/db-summary` | DB size/retention/row summary | Admin |
 | `/admin/device-source-mode` | Get or set the active backend `device_source_mode` | Admin |
@@ -370,7 +373,7 @@ Core dashboard and telemetry features do not depend on ML being ready.
 
 ## Testing
 
-This repo keeps a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
+This repo keeps a small backend-only pytest layer for local startup/env parsing checks, runtime event generation, dashboard status mapping, device purge behavior, and optional simulator-import coverage.
 
 Install the local unit-test tooling:
 
@@ -389,6 +392,8 @@ Useful focused runs:
 ```powershell
 pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
+pytest tests/test_activity_events_runtime.py
+pytest tests/test_device_purge.py
 ```
 
 Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.
@@ -433,6 +438,7 @@ Before deploying:
 - keep `SESSION_COOKIE_SECURE=true`
 - keep firmware and Android release artifact directories on persistent storage
 - decide whether relay URLs should be enabled in that environment
+- deploy both `server.py` and `flask_app/server.py` together on cPanel / Passenger so the root wrapper and the main app stay aligned
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
 ## Operational Docs
