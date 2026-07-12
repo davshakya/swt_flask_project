@@ -1294,6 +1294,35 @@ def database_is_locked_error(exc):
     )
 
 
+def run_with_database_lock_retries(
+    operation,
+    *,
+    operation_name="database operation",
+    attempts=4,
+    initial_delay_s=0.2,
+):
+    last_exc = None
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            return operation()
+        except Exception as exc:
+            if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
+                raise
+            last_exc = exc
+            delay_s = max(0.0, float(initial_delay_s or 0.0)) * (attempt + 1)
+            logger.warning(
+                "Retrying %s after database lock/deadlock (%s/%s): %s",
+                operation_name,
+                attempt + 1,
+                max(1, int(attempts or 1)),
+                exc,
+            )
+            if delay_s > 0:
+                time.sleep(delay_s)
+    if last_exc is not None:
+        raise last_exc
+
+
 def alert_touch_key(kind, device_id=None):
     normalized_kind = str(kind or "").strip().lower()
     normalized_device_id = normalize_device_id(device_id) or ""
@@ -1712,41 +1741,47 @@ def purge_device_data(device_id, remember_deleted_device=False):
     if not normalized_device_id:
         raise ValueError("device_id is required")
 
-    deleted_counts = {}
-    with get_db() as db:
-        cursor = db.cursor()
-        for table_name in list_database_table_names(cursor):
-            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-            if deleted_rows is not None:
-                deleted_counts[table_name] = deleted_rows
-
-        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-        if app_settings_count or "app_settings" not in deleted_counts:
-            deleted_counts["app_settings"] = app_settings_count
-
-    # Commit source deletions before the final pass so generated event rows cannot
-    # be recreated from pre-purge telemetry seen by another request/thread.
-    with get_db() as db:
-        cursor = db.cursor()
-        for table_name in list_database_table_names(cursor):
-            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-            if deleted_rows is not None:
-                deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
-
-        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-        if app_settings_count:
-            deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
-
-    if remember_deleted_device:
+    def execute_purge():
+        deleted_counts = {}
         with get_db() as db:
-            marker_count = add_deleted_device_marker(db.cursor(), normalized_device_id)
-            deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
+            cursor = db.cursor()
+            for table_name in list_database_table_names(cursor):
+                deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                if deleted_rows is not None:
+                    deleted_counts[table_name] = deleted_rows
 
-    forget_registered_device_touch(normalized_device_id)
-    clear_runtime_caches(normalized_device_id)
-    clear_home_automation_status(normalized_device_id)
+            app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+            if app_settings_count or "app_settings" not in deleted_counts:
+                deleted_counts["app_settings"] = app_settings_count
 
-    return deleted_counts
+        # Commit source deletions before the final pass so generated event rows cannot
+        # be recreated from pre-purge telemetry seen by another request/thread.
+        with get_db() as db:
+            cursor = db.cursor()
+            for table_name in list_database_table_names(cursor):
+                deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                if deleted_rows is not None:
+                    deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
+
+            app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+            if app_settings_count:
+                deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+
+        if remember_deleted_device:
+            with get_db() as db:
+                marker_count = add_deleted_device_marker(db.cursor(), normalized_device_id)
+                deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
+
+        forget_registered_device_touch(normalized_device_id)
+        clear_runtime_caches(normalized_device_id)
+        clear_home_automation_status(normalized_device_id)
+
+        return deleted_counts
+
+    return run_with_database_lock_retries(
+        execute_purge,
+        operation_name=f"purge device data for {normalized_device_id}",
+    )
 
 
 def deleted_row_total(deleted_counts):
