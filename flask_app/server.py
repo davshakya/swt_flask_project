@@ -616,6 +616,7 @@ def build_swt_version():
 SWT_VERSION = build_swt_version()
 API_VERSION = SWT_VERSION
 OTA_CONTRACT_VERSION = 2
+DEPLOY_MARKER = "delete-fix-2026-07-12-v4"
 DEVICE = os.environ.get("DEVICE_URL", "").strip()
 DEFAULT_CUSTOMER_PASSWORD = os.environ.get("DEFAULT_CUSTOMER_PASSWORD", "").strip()
 SEED_DEFAULT_CUSTOMERS = os.environ.get("SEED_DEFAULT_CUSTOMERS", "false").lower() in {"1", "true", "yes"}
@@ -18212,6 +18213,7 @@ def health():
     mysql_config = mysql_connection_config()
     return {
         "status": "ok",
+        "deploy_marker": DEPLOY_MARKER,
         "database": mysql_config.get("database"),
         "database_backend": DB_BACKEND,
         "version": API_VERSION,
@@ -18575,6 +18577,7 @@ logger.info(
     _mysql_config_for_log.get("database"),
     _mysql_config_for_log.get("user"),
 )
+logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
 init_db()
 resolve_relay_alert_when_disabled()
