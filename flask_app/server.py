@@ -1633,12 +1633,27 @@ def list_database_table_names(cursor):
 def table_column_names(cursor, table_name):
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
         return set()
+
+    def inspect_columns():
+        try:
+            rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        except Exception as exc:
+            logger.warning("Could not inspect database table %s for device purge: %s", table_name, exc)
+            return set()
+        return {str(row[1]) for row in rows}
+
     try:
-        rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return run_with_database_lock_retries(
+            inspect_columns,
+            operation_name=f"inspect database columns for {table_name}",
+            attempts=6,
+            initial_delay_s=0.5,
+        )
     except Exception as exc:
-        logger.warning("Could not inspect database table %s for device purge: %s", table_name, exc)
-        return set()
-    return {str(row[1]) for row in rows}
+        if database_is_locked_error(exc):
+            logger.warning("Could not inspect database table %s for device purge after retries: %s", table_name, exc)
+            return set()
+        raise
 
 
 def device_scoped_app_setting_keys(device_id):
@@ -1685,42 +1700,49 @@ def purge_device_app_settings(cursor, device_id):
 
 
 def purge_device_table_rows(cursor, table_name, normalized_device_id):
-    columns = table_column_names(cursor, table_name)
-    if not columns:
-        return None
+    def delete_rows():
+        columns = table_column_names(cursor, table_name)
+        if not columns:
+            return None
 
-    conditions = []
-    params = []
-    for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
-        if column_name in columns:
-            conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
-            params.append(normalized_device_id)
+        conditions = []
+        params = []
+        for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
+            if column_name in columns:
+                conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
+                params.append(normalized_device_id)
 
-    if (
-        table_name in DEVICE_PURGE_TARGET_TABLES
-        and "target_type" in columns
-        and "target_id" in columns
-    ):
-        conditions.append(
-            f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+        if (
+            table_name in DEVICE_PURGE_TARGET_TABLES
+            and "target_type" in columns
+            and "target_id" in columns
+        ):
+            conditions.append(
+                f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+            )
+            params.extend(("device", normalized_device_id))
+
+        for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
+            if column_name in columns:
+                for pattern in json_device_id_like_patterns(normalized_device_id):
+                    conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
+                    params.append(pattern)
+
+        if not conditions:
+            return None
+
+        cursor.execute(
+            f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
+            tuple(params),
         )
-        params.extend(("device", normalized_device_id))
+        return int(cursor.rowcount or 0)
 
-    for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
-        if column_name in columns:
-            for pattern in json_device_id_like_patterns(normalized_device_id):
-                conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
-                params.append(pattern)
-
-    if not conditions:
-        return None
-
-    cursor.execute(
-        f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
-        tuple(params),
+    return run_with_database_lock_retries(
+        delete_rows,
+        operation_name=f"purge table rows for {table_name}",
+        attempts=6,
+        initial_delay_s=0.5,
     )
-    return int(cursor.rowcount or 0)
-
 
 def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
     return int(

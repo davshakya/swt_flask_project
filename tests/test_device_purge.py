@@ -224,6 +224,41 @@ def test_delete_known_device_keeps_marker_and_ignored_telemetry_does_not_recreat
         server.purge_device_data(device_id, remember_deleted_device=False)
 
 
+def test_purge_device_table_rows_retries_transient_deadlock(monkeypatch):
+    device_id = "swt-purge-row-retry-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+    original_table_column_names = server.table_column_names
+    state = {"raised": False}
+
+    def flaky_table_column_names(cursor, table_name):
+        if table_name == "tank_data" and not state["raised"]:
+            state["raised"] = True
+            raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+        return original_table_column_names(cursor, table_name)
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 71, "OFF", "AUTO"),
+            )
+
+        monkeypatch.setattr(server, "table_column_names", flaky_table_column_names)
+        with server.get_db() as db:
+            deleted_rows = server.purge_device_table_rows(db.cursor(), "tank_data", device_id)
+
+        assert state["raised"] is True
+        assert deleted_rows >= 1
+        with server.get_db() as db:
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+    finally:
+        monkeypatch.setattr(server, "table_column_names", original_table_column_names)
+        server.purge_device_data(device_id, remember_deleted_device=False)
+
+
 def test_delete_known_device_retries_transient_database_deadlock(monkeypatch):
     device_id = "swt-purge-retry-001"
     server.purge_device_data(device_id, remember_deleted_device=False)
