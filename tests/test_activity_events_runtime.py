@@ -94,6 +94,8 @@ def test_build_events_generates_activity_from_telemetry_when_event_table_is_empt
     assert events
     assert events[0]["kind"] != "device_config_current_status" or "Live device config" in events[0]["message"]
     assert any(event["kind"] == "telemetry_feed_active" for event in events)
+    node_status_event = next(event for event in events if event["kind"] == "node_current_status")
+    assert "Live node status: master reachable, slave reachable;" in node_status_event["message"]
     assert all("Activity log is ready" not in event["message"] for event in events)
 
 

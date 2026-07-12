@@ -10619,7 +10619,19 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         rows = db.execute(query, tuple(params)).fetchall()
 
     timeline = []
-    latest_peer_row = dict(rows[0]) if rows else None
+    def row_with_event_telemetry_status(row):
+        current = dict(row or {})
+        if str(current.get("telemetry_status") or "").strip():
+            return current
+        created_at = parse_timestamp(current.get("created_at"))
+        if created_at is None:
+            current["telemetry_status"] = "no-data"
+            return current
+        age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
+        current["telemetry_status"] = telemetry_status(age_seconds)
+        return current
+
+    latest_peer_row = row_with_event_telemetry_status(rows[0]) if rows else None
     previous = None
     pump_started_at = None
     pump_started_level = None
@@ -10986,7 +10998,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         return details
 
     for row in reversed(rows):
-        current = dict(row)
+        current = row_with_event_telemetry_status(row)
         current_time = parse_timestamp(current.get("created_at"))
         previous_time = parse_timestamp(previous.get("created_at")) if previous else None
         level = safe_float(current.get("level"), 0)
