@@ -10,6 +10,28 @@ def count_device_rows(db, table_name, column_name, device_id):
     return int(row["count"] or 0)
 
 
+def test_purge_device_app_settings_uses_quoted_key_identifier(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.executed_sql = []
+
+        def execute(self, sql, params=None):
+            self.executed_sql.append((sql, params))
+            return type("Result", (), {"rowcount": 1})()
+
+    cursor = FakeCursor()
+    monkeypatch.setattr(
+        server,
+        "device_scoped_app_setting_keys",
+        lambda device_id: ["device-setting", f"{server.ANALYTICS_LAST_VALID_SETTING_PREFIX}{device_id}:%"],
+    )
+
+    server.purge_device_app_settings(cursor, "swt-purge-app-settings-001")
+
+    assert any(sql == "DELETE FROM app_settings WHERE `key` = ?" for sql, _ in cursor.executed_sql)
+    assert any(sql == "DELETE FROM app_settings WHERE `key` LIKE ?" for sql, _ in cursor.executed_sql)
+
+
 def test_purge_device_data_removes_device_scoped_tables_and_settings():
     device_id = "swt-purge-device-001"
     now = server.now_utc().strftime(server.TIMESTAMP_FORMAT)

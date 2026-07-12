@@ -1685,14 +1685,15 @@ def device_scoped_app_setting_keys(device_id):
 def purge_device_app_settings(cursor, device_id):
     normalized_device_id = normalize_device_id(device_id)
     deleted_rows = 0
+    key_identifier = quote_mysql_identifier("key")
     for setting_key in device_scoped_app_setting_keys(device_id):
         deleted_rows += int(
-            cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
+            cursor.execute(f"DELETE FROM app_settings WHERE {key_identifier} = ?", (setting_key,)).rowcount or 0
         )
     if normalized_device_id:
         deleted_rows += int(
             cursor.execute(
-                "DELETE FROM app_settings WHERE `key` LIKE ?",
+                f"DELETE FROM app_settings WHERE {key_identifier} LIKE ?",
                 (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
             ).rowcount or 0
         )
