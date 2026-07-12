@@ -391,6 +391,27 @@ def test_customer_dashboard_motor_chart_shows_stepped_digital_state():
     assert 'const tickCount=Math.max(2,Math.min(7,Math.round(box.plotWidth/120)));' in customer_template
 
 
+def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="ops-sticky"' in customer_template
+    assert 'id="stickyTankLevel"' in customer_template
+    assert 'id="stickyPumpStatus"' in customer_template
+    assert 'id="stickyAiAlert"' in customer_template
+    assert 'id="systemHealthScore"' in customer_template
+    assert 'id="motorConfirmDialog"' in customer_template
+    assert "function closeMotorConfirmation(confirmed)" in customer_template
+    assert "executeMotorCommand(request.path,request.label)" in customer_template
+    assert 'id="dashboardSettings"' in customer_template
+    assert '<details id="dashboardSettings"' in customer_template
+    assert "function eventPresentation(event)" in customer_template
+    assert 'showValues:true' in customer_template
+    assert 'highlightPeak:true' in customer_template
+    assert "eventMarkers:levelEvents" in customer_template
+    assert 'id="viewLeakReportButton"' in customer_template
+    assert "aiLeakConfidence>90" in customer_template
+
+
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

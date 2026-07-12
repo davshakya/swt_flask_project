@@ -195,10 +195,31 @@ button,.action-link,input[type="date"],input[type="number"]{min-height:52px;font
 .status-row{grid-template-columns:1fr}
 canvas{height:260px!important}
 }
+/* Compact operational hierarchy and semantic status colors. */
+.ops-sticky{position:sticky;top:8px;z-index:30;display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) auto;gap:8px;align-items:stretch;margin-bottom:12px;padding:10px;border-radius:20px;background:color-mix(in srgb,var(--panel-strong) 92%,transparent);border:1px solid var(--line);box-shadow:0 12px 32px rgba(17,52,64,.14);backdrop-filter:blur(18px)}
+.ops-sticky-item{display:flex;align-items:center;gap:10px;min-width:0;padding:7px 10px;border-radius:14px;background:var(--chip-bg)}.ops-icon,.section-icon,.event-icon{font-size:20px;line-height:1}.ops-sticky-item span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:800}.ops-sticky-item strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tone-info{color:var(--primary)}.tone-ok{color:var(--good)}.tone-warn{color:var(--warn)}.tone-bad{color:var(--danger)}
+.hero{gap:12px}.hero .panel{padding:16px}.hero-copy{gap:12px}.hero-lead{line-height:1.45;font-size:.96rem}.brand-logo{width:60px;height:60px;flex-basis:60px;border-radius:18px}.brand-logo svg{width:46px;height:46px}.hero-head h1{font-size:clamp(1.8rem,3vw,2.7rem)}.tank{height:190px}.tank-wrap{gap:12px}.level{font-size:36px;margin-top:9px}.customer-hero-grid{gap:10px}.customer-hero-main,.customer-control-card{min-height:auto}.customer-hero-meta{margin-top:10px}.customer-status-bar{padding:9px 12px}.sync-strip{padding:8px 11px}.hero-actions{gap:7px}
+.priority-metrics{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.priority-card{border-left:4px solid var(--primary)}.priority-card.ok{border-left-color:var(--good)}.priority-card.warn{border-left-color:var(--warn)}.priority-card.bad{border-left-color:var(--danger)}
+.system-health-grid{display:grid;grid-template-columns:minmax(180px,.7fr) repeat(4,minmax(130px,1fr));gap:10px;margin-top:14px}.health-score-card{background:linear-gradient(135deg,color-mix(in srgb,var(--good) 14%,var(--card-bg)),var(--card-bg))}.health-score-card .value{font-size:34px}
+.info-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.info-group{padding:16px;border-radius:22px;background:var(--card-bg);border:1px solid var(--line)}.info-group h3{display:flex;gap:8px;align-items:center;margin-bottom:14px}.info-row{padding:10px 0;border-top:1px solid var(--line)}.info-row:first-of-type{border-top:0}.info-row .value{font-size:22px;font-weight:800}.info-row .subvalue{color:var(--muted);font-size:13px;margin-top:4px}
+.timeline li{display:grid;grid-template-columns:auto 1fr;column-gap:10px}.timeline li time{grid-column:2}.event-icon{grid-row:1 / span 2}.timeline .event-pump-started{border-left-color:var(--good)}.timeline .event-pump-stopped{border-left-color:var(--danger)}.timeline .event-leak{border-left-color:var(--warn)}.timeline .event-sync{border-left-color:var(--primary)}
+.settings-disclosure{margin-top:18px}.settings-disclosure summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800}.settings-disclosure summary::-webkit-details-marker{display:none}.settings-disclosure summary::after{content:"Open";font-size:12px;color:var(--primary)}.settings-disclosure[open] summary::after{content:"Close"}
+.confirm-dialog{max-width:440px;border:1px solid var(--line);border-radius:24px;background:var(--panel-strong);color:var(--text);padding:0;box-shadow:var(--shadow)}.confirm-dialog::backdrop{background:rgba(3,18,26,.62);backdrop-filter:blur(4px)}.confirm-dialog-body{padding:24px}.confirm-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.guidance-action-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+@media(max-width:1080px){.ops-sticky{grid-template-columns:repeat(3,1fr)}.info-groups,.system-health-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:720px){.ops-sticky{top:4px;grid-template-columns:repeat(2,1fr);padding:7px}.ops-sticky-item{padding:6px 8px}.ops-sticky .compact-action{min-height:40px}.hero .panel{padding:14px}.tank{height:170px}.priority-metrics,.info-groups,.system-health-grid{grid-template-columns:1fr}.hero-lead{display:none}}
 </style>
 </head>
 <body class="{% if is_admin %}admin-dashboard{% else %}customer-dashboard{% endif %}">
 <div class="shell">
+    <nav class="ops-sticky" aria-label="Live system summary">
+        <div class="ops-sticky-item"><span class="ops-icon">💧</span><div><span>Tank</span><strong id="stickyTankLevel">--</strong></div></div>
+        <div class="ops-sticky-item"><span class="ops-icon">⚡</span><div><span>Pump</span><strong id="stickyPumpStatus">--</strong></div></div>
+        <div class="ops-sticky-item"><span class="ops-icon">⚙</span><div><span>Mode</span><strong id="stickyAutoMode">--</strong></div></div>
+        <div class="ops-sticky-item"><span class="ops-icon">☁</span><div><span>Connection</span><strong id="stickyConnection">--</strong></div></div>
+        <div class="ops-sticky-item"><span class="ops-icon">🤖</span><div><span>AI alert</span><strong id="stickyAiAlert">Monitoring</strong></div></div>
+        <button class="btn-lite compact-action" type="button" onclick="manualRefresh()">↻ Refresh</button>
+    </nav>
     <section class="hero">
         <div class="panel tank-wrap">
             <div id="tankStack" class="tank-stack">
@@ -301,16 +322,16 @@ canvas{height:260px!important}
             <div id="commandBanner" class="banner info" role="status" aria-live="polite"></div>
             <div id="warningBanner" class="banner warn" role="status" aria-live="polite"></div>
             <div class="status-row">
-                <div class="chip admin-only"><strong>Cloud service</strong><div id="serverStatus">--</div></div>
-                <div class="chip"><strong>Tank device</strong><div id="deviceStatus">--</div></div>
-                <div class="chip"><strong>Sync status</strong><div id="telemetryStatus">--</div></div>
-                <div class="chip"><strong>Last update</strong><div id="lastSync">--</div></div>
-                <div class="chip admin-only"><strong>Signal quality</strong><div id="signalQuality">--</div></div>
+                <div class="chip admin-only"><strong>☁ Cloud</strong><div id="serverStatus">--</div></div>
+                <div class="chip"><strong>💧 Tank</strong><div id="deviceStatus">--</div></div>
+                <div class="chip"><strong>🔵 Sync</strong><div id="telemetryStatus">--</div></div>
+                <div class="chip"><strong>🕐 Last update</strong><div id="lastSync">--</div></div>
+                <div class="chip admin-only"><strong>📶 Wi-Fi</strong><div id="signalQuality">--</div></div>
                 <div class="chip admin-only"><strong>Dashboard version</strong><div id="apiVersion">--</div></div>
             </div>
             <div class="split">
                 <div class="card">
-                    <span class="label">Quick Actions</span>
+                    <span class="label">⚡ Quick Actions</span>
                     <div class="controls">
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
@@ -371,6 +392,18 @@ canvas{height:260px!important}
         </div>
     </section>
 
+    <section class="panel" style="margin-top:12px" aria-labelledby="systemHealthTitle">
+        <div class="eyebrow"><span class="section-icon">🩺</span> System Health</div>
+        <h2 id="systemHealthTitle">Overall system condition</h2>
+        <div class="system-health-grid">
+            <div class="card health-score-card"><span class="label">System health</span><div id="systemHealthScore" class="value">--</div><div id="systemHealthNote" class="subvalue">Waiting for verified readings.</div></div>
+            <div class="card"><span class="label">⚡ Pump</span><div id="systemPumpHealth" class="statuscopy">--</div></div>
+            <div class="card"><span class="label">📡 Sensors</span><div id="systemSensorHealth" class="statuscopy">--</div></div>
+            <div class="card"><span class="label">☁ Cloud</span><div id="systemCloudHealth" class="statuscopy">--</div></div>
+            <div class="card"><span class="label">🤖 AI</span><div id="systemAiHealth" class="statuscopy">Monitoring</div></div>
+        </div>
+    </section>
+
     {% if not is_admin %}
     <section class="panel customer-only customer-summary-panel" style="margin-top:18px">
         <div class="eyebrow">Water Snapshot</div>
@@ -393,11 +426,11 @@ canvas{height:260px!important}
             </article>
         </div>
         <div class="status-row customer-status-row">
-            <div class="chip"><strong>Tank device</strong><div id="deviceStatus">--</div></div>
-            <div class="chip"><strong>Sync status</strong><div id="telemetryStatus">--</div></div>
-            <div class="chip"><strong>Pump mode</strong><div id="heroModeChip">--</div></div>
+            <div class="chip"><strong>💧 Tank</strong><div id="deviceStatus">--</div></div>
+            <div class="chip"><strong>🔵 Sync</strong><div id="telemetryStatus">--</div></div>
+            <div class="chip"><strong>⚡ Pump mode</strong><div id="heroModeChip">--</div></div>
             <div class="chip"><strong>Source tank</strong><div id="heroSourceChip">--</div></div>
-            <div class="chip"><strong>Cloud Feed</strong><div id="cloudFeedStatus">{{ "Enabled" if cloud_feed_enabled else "Disabled" }}</div></div>
+            <div class="chip"><strong>☁ Cloud Feed</strong><div id="cloudFeedStatus">{{ "Enabled" if cloud_feed_enabled else "Disabled" }}</div></div>
             <div class="chip"><strong>Last update</strong><div id="lastSync">--</div></div>
         </div>
     </section>
@@ -530,15 +563,15 @@ canvas{height:260px!important}
             <ul id="eventTimeline" class="list timeline" style="margin-top:16px"></ul>
         </div>
         <div class="panel customer-guidance-panel">
-            <div class="eyebrow">AI Guidance</div>
+            <div class="eyebrow">🤖 AI Guidance</div>
             <h3>What is happening and what to do</h3>
             <div class="customer-guidance-lists">
                 <div>
-                    <span class="label">What is happening</span>
+                    <span class="label">Problem detected and supporting evidence</span>
                     <ul id="customerWhatHappening" class="list" style="margin-top:12px"></ul>
                 </div>
                 <div>
-                    <span class="label">What to do</span>
+                    <span class="label">Recommended action</span>
                     <ul id="customerWhatToDo" class="list" style="margin-top:12px"></ul>
                 </div>
             </div>
@@ -554,12 +587,15 @@ canvas{height:260px!important}
                     <div id="customerConfidenceGuidanceNote" class="detail">Confidence follows telemetry freshness and analytics depth.</div>
                 </div>
             </div>
+            <div class="guidance-action-row">
+                <button id="viewLeakReportButton" class="btn-outline" type="button" onclick="scrollToAnalyticsReport()">📋 View Leak Report</button>
+                <span class="muted">AI leakage actions appear only above 90% confidence; device safety alerts remain immediate.</span>
+            </div>
         </div>
     </section>
 
-    <section class="panel customer-only" style="margin-top:18px">
-        <div class="eyebrow">Preferences</div>
-        <h3>Choose how the dashboard warns you</h3>
+    <details id="dashboardSettings" class="panel customer-only settings-disclosure">
+        <summary><span>⚙ Settings and notification preferences</span></summary>
         <div class="grid settings" style="margin-top:14px">
             <div class="setting"><label>Low-level threshold <input id="lowThreshold" type="number" min="5" max="50"></label><span>Warn when tank drops below this percent.</span></div>
             <div class="setting"><label>Overflow threshold <input id="overflowThreshold" type="number" min="80" max="100"></label><span>Warn when tank is near full.</span></div>
@@ -568,7 +604,19 @@ canvas{height:260px!important}
             <div class="setting"><label>Desktop notifications <input id="toggleDesktop" type="checkbox"></label><span>Use browser notifications on this device.</span></div>
             <div class="setting"><button class="btn-lite" onclick="savePreferences()">Save Preferences</button><span>Your preferences are stored in this browser.</span></div>
         </div>
-    </section>
+    </details>
+
+    <dialog id="motorConfirmDialog" class="confirm-dialog">
+        <div class="confirm-dialog-body">
+            <div class="eyebrow">⚡ Manual Pump Control</div>
+            <h2 id="motorConfirmTitle">Confirm pump action</h2>
+            <p id="motorConfirmMessage" class="muted" style="margin-top:10px;line-height:1.6">Confirm this supervised request.</p>
+            <div class="confirm-dialog-actions">
+                <button class="btn-outline" type="button" onclick="closeMotorConfirmation(false)">Cancel</button>
+                <button id="motorConfirmButton" class="btn-on" type="button" onclick="closeMotorConfirmation(true)">Confirm</button>
+            </div>
+        </div>
+    </dialog>
 
 </div>
 
@@ -871,12 +919,45 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     canvas.__swtChartRender=(nextHoverIndex=null)=>drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime,pumpActivity,xLabelMode,hoverIndex:nextHoverIndex});
     const hoverPoint=points[hoverIndex]||null;
     if(hoverPoint){
-        const label=`${hoverPoint.stateLabel} ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`;
-        const valueText=hoverPoint.stateLabel==="ON"?`Run duration ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`:`Idle duration ${formatDurationSeconds(hoverPoint.durationSeconds)}`;
+        const label=`${hoverPoint.stateLabel}: ${chartTooltipTimeLabel(hoverPoint.label)} → ${chartTooltipTimeLabel(hoverPoint.endLabel)}`;
+        const valueText=hoverPoint.stateLabel==="ON"?`Runtime ${formatDurationSeconds(hoverPoint.durationSeconds)}${hoverPoint.ongoing?" so far":""}`:`Stopped for ${formatDurationSeconds(hoverPoint.durationSeconds)}`;
         drawChartTooltip(ctx,width,height,box,hoverPoint,{label,valueText,color:barColor(hoverPoint.value)});
     }
 }
 function applyStatusTone(id,tone){const el=document.getElementById(id);if(!el)return;el.style.fontWeight="700";if(tone==="ok"){el.style.color="var(--good)";return;}if(tone==="warn"){el.style.color="var(--warn)";return;}if(tone==="bad"){el.style.color="var(--danger)";return;}el.style.color="";}
+function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics){
+    snapshot=snapshot||{};system=system||{};analytics=analytics||{};
+    const level=Number(snapshot.level);
+    const motor=String(snapshot.motor||"--").toUpperCase();
+    const mode=String(snapshot.mode||"--").toUpperCase();
+    const telemetry=String(snapshot.telemetry_status||system.telemetry_status||"--");
+    const hardwareLeak=["pipe_leak","slow_leak","drip"].some((key)=>String(snapshot[key]||"").toUpperCase()==="YES");
+    const leakage=analytics.analysis?.leakage||{};
+    const aiLeakConfidence=Number(leakage.confidence||0);
+    const aiLeak=(["likely_leak","possible_leak"].includes(String(leakage.status||"").toLowerCase())&&aiLeakConfidence>90);
+    const aiAlert=hardwareLeak?"Leak sensor alert":aiLeak?`Leak alert ${aiLeakConfidence.toFixed(0)}%`:analytics.analysis?.anomaly_count>0?`${analytics.analysis.anomaly_count} alert${analytics.analysis.anomaly_count===1?"":"s"}`:"Monitoring";
+    setText("stickyTankLevel",Number.isFinite(level)?`${level.toFixed(1)}%`:"--");
+    setText("stickyPumpStatus",motor==="ON"?"Running":motor==="OFF"?"Stopped":motor);
+    setText("stickyAutoMode",mode);
+    setText("stickyConnection",telemetryLabel(telemetry));
+    setText("stickyAiAlert",aiAlert);
+    applyStatusTone("stickyTankLevel",Number.isFinite(level)&&level<=state.preferences.lowThreshold?"warn":"ok");
+    applyStatusTone("stickyPumpStatus",motor==="ON"?"ok":"");
+    applyStatusTone("stickyConnection",String(telemetry).toLowerCase()==="stale"?"warn":"ok");
+    applyStatusTone("stickyAiAlert",hardwareLeak||aiLeak?"bad":analytics.analysis?.anomaly_count>0?"warn":"ok");
+    const health=Number(snapshot.tank_health??analytics.health?.score);
+    setText("systemHealthScore",Number.isFinite(health)?`${Math.round(health)}%`:"--");
+    setText("systemHealthNote",Number.isFinite(health)?(health>=90?"All monitored systems look healthy.":health>=70?"Some items need attention.":"Immediate review recommended."):"Waiting for verified readings.");
+    const pumpFault=String(snapshot.pump_failure||"").toUpperCase()==="YES"||String(snapshot.dry_run||"").toUpperCase()==="YES";
+    const sensorHealthy=!snapshot.sensor||String(snapshot.sensor).toUpperCase()==="OK";
+    const cloudHealthy=["live","recent","online"].includes(String(telemetry).toLowerCase());
+    setText("systemPumpHealth",pumpFault?"Needs attention":"Healthy");
+    setText("systemSensorHealth",sensorHealthy?"Healthy":"Needs attention");
+    setText("systemCloudHealth",cloudHealthy?"Connected":"Delayed");
+    setText("systemAiHealth",hardwareLeak||aiLeak?"Alert active":analytics.analysis?.quality?.status?`Monitoring · ${analytics.analysis.quality.status}`:"Monitoring");
+    applyStatusTone("systemPumpHealth",pumpFault?"bad":"ok");applyStatusTone("systemSensorHealth",sensorHealthy?"ok":"bad");applyStatusTone("systemCloudHealth",cloudHealthy?"ok":"warn");applyStatusTone("systemAiHealth",hardwareLeak||aiLeak?"bad":"ok");
+}
+function scrollToAnalyticsReport(){document.querySelector(".customer-guidance-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}
 function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
 function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
@@ -1596,7 +1677,7 @@ function drawChartTooltip(ctx,width,height,box,point,{label,valueText,color}){
     rows.forEach((row,index)=>ctx.fillText(row,x+padding,y+padding+12+(index*rowHeight)));
     ctx.restore();
 }
-function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index",xLabelMode="auto",hoverIndex=null}={}){
+function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index",xLabelMode="auto",hoverIndex=null,showValues=false,highlightPeak=false,eventMarkers=[]}={}){
     const {ctx,width,height}=resizeCanvasChart(canvas);
     const box=drawCanvasChrome(ctx,width,height,title);
     const numericValues=Array.isArray(values)?values.map((value)=>value===null||value===undefined?null:Number(value)):[];
@@ -1649,6 +1730,7 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
             const rawHeight=box.top+box.plotHeight-y;
             const visibleHeight=Math.max(rawHeight,Math.abs(value)<=0.0001?2:1);
             ctx.fillRect(x,box.top+box.plotHeight-visibleHeight,barWidth,visibleHeight);
+            if(showValues&&value>0){ctx.save();ctx.fillStyle=themeVar("--text");ctx.font='700 10px "Trebuchet MS","Segoe UI",sans-serif';ctx.textAlign="center";ctx.fillText(tickFormatter?tickFormatter(value):value.toFixed(1),centerX,Math.max(box.top+10,y-6));ctx.restore();}
         });
         ctx.fillStyle=themeVar("--chart-ticks");
         ctx.textAlign="center";
@@ -1658,7 +1740,7 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
             ctx.fillText(shortLabel,barCenterForIndex(index),Math.min(height-6,box.top+box.plotHeight+20));
         });
         canvas.__swtChartPoints=points.filter(Boolean);
-        canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex});
+        canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex,showValues,highlightPeak,eventMarkers});
         const hoverPoint=points[hoverIndex]||null;
         if(hoverPoint){
             const valueText=tickFormatter?tickFormatter(hoverPoint.value):hoverPoint.value.toFixed(1);
@@ -1682,6 +1764,11 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
         prevY=y;
     });
     ctx.stroke();
+    if(highlightPeak&&finiteValues.length){
+        const peakValue=Math.max(...finiteValues);const peakIndex=numericValues.indexOf(peakValue);const peakPoint=points[peakIndex];
+        if(peakPoint){ctx.save();ctx.fillStyle=themeVar("--warn");ctx.strokeStyle=themeVar("--panel-strong");ctx.lineWidth=2;ctx.beginPath();ctx.arc(peakPoint.x,peakPoint.y,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle=themeVar("--warn");ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';ctx.textAlign="center";ctx.fillText(`Peak ${tickFormatter?tickFormatter(peakValue):peakValue.toFixed(1)}`,peakPoint.x,Math.max(box.top+12,peakPoint.y-12));ctx.restore();}
+    }
+    if(useTimeScale&&Array.isArray(eventMarkers))eventMarkers.forEach((marker)=>{const ms=chartTimeMs(marker?.time);if(!Number.isFinite(ms)||ms<minTime||ms>maxTime)return;const x=box.left+((ms-minTime)/(maxTime-minTime))*box.plotWidth;const markerColor=marker.tone==="bad"?themeVar("--danger"):marker.tone==="warn"?themeVar("--warn"):marker.tone==="ok"?themeVar("--good"):themeVar("--primary");ctx.save();ctx.strokeStyle=markerColor;ctx.setLineDash([3,4]);ctx.beginPath();ctx.moveTo(x,box.top);ctx.lineTo(x,box.top+box.plotHeight);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=markerColor;ctx.beginPath();ctx.moveTo(x-5,box.top+2);ctx.lineTo(x+5,box.top+2);ctx.lineTo(x,box.top+10);ctx.closePath();ctx.fill();ctx.restore();});
     if(fillColor){
         ctx.lineTo(box.left+box.plotWidth,box.top+box.plotHeight);
         ctx.lineTo(box.left,box.top+box.plotHeight);
@@ -1700,7 +1787,7 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
     ctx.fillText(endLabel,box.left+box.plotWidth,Math.min(height-6,box.top+box.plotHeight+20));
     ctx.textAlign="left";
     canvas.__swtChartPoints=points.filter(Boolean);
-    canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex});
+    canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex,showValues,highlightPeak,eventMarkers});
     const hoverPoint=points[hoverIndex]||null;
     if(hoverPoint){
         const valueText=tickFormatter?tickFormatter(hoverPoint.value):hoverPoint.value.toFixed(1);
@@ -1712,12 +1799,13 @@ function drawAnalyticsCharts(data){
     data=analyticsChartsPayload(data);
     const todayAxis=analyticsRangeIsToday();
     const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),180);
-    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
+    const levelEvents=(state.data.events||[]).map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
+    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
     const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const usageLiters=(liters,percentValues)=>Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
-    drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,usageLiters(data.daily?.liters,data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`});
-    drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),usageLiters(data.pattern?.liters,data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`});
+    drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,usageLiters(data.daily?.liters,data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,showValues:true});
+    drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),usageLiters(data.pattern?.liters,data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,highlightPeak:true});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
     drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"datetime"});
 }
@@ -2017,6 +2105,7 @@ function renderSnapshot(snapshot){
     setText("healthSummary",snapshot.tank_health_reasons?.[0]||"No health issues detected.");
     renderCustomerOverview(snapshot,state.data.systemStatus);
     updateCustomerSpotlightCards({snapshot,system:state.data.systemStatus,analytics:state.data.analytics});
+    renderOperationalSummary(snapshot,state.data.systemStatus,state.data.analytics);
     setText("actionHint",sourceState.hintText);
     applyStatusTone("actionHint",sourceState.hintTone);
     ["btn_on","btn_off"].forEach((id)=>nodesById(id).forEach((button)=>button.classList.remove("active")));
@@ -2073,6 +2162,7 @@ function renderSystemStatus(system){
     applyStatusTone("signalQuality",toneForSignalQuality(system.signal_quality));
     renderCustomerOverview(state.data.snapshot,system);
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system,analytics:state.data.analytics});
+    renderOperationalSummary(state.data.snapshot,system,state.data.analytics);
     const capacityInput=document.getElementById("tankCapacityLiters");
     if(capacityInput&&document.activeElement!==capacityInput&&Number(system.capacity_liters)>0)capacityInput.value=Number(system.capacity_liters).toFixed(0);
 }
@@ -2123,6 +2213,7 @@ function renderAnalytics(data){
             :(data.prediction?.limitations?.[0]||"Not enough reliable history to forecast.");
     });
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
+    renderOperationalSummary(state.data.snapshot,state.data.systemStatus,data);
     const renderCharts=()=>drawAnalyticsCharts(chartData);
     if(typeof window.requestAnimationFrame==="function"){
         window.requestAnimationFrame(renderCharts);
@@ -2131,10 +2222,34 @@ function renderAnalytics(data){
     }
 }
 
-function renderEvents(events){const timeline=document.getElementById("eventTimeline");timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");li.innerHTML="<time>No timeline yet</time>No data available yet. Wait for the next sync or activity.";timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const li=document.createElement("li");li.classList.add(event.severity||"info");li.innerHTML=`<time>${localizedTimeText(event.time)}</time>${event.message||"--"}`;timeline.appendChild(li);});}
+function eventPresentation(event){const text=`${event?.kind||""} ${event?.type||""} ${event?.message||""}`.toLowerCase();if(text.includes("pump")&&(text.includes("start")||text.includes(" on")))return{icon:"🟢",className:"event-pump-started"};if(text.includes("pump")&&(text.includes("stop")||text.includes(" off")))return{icon:"🔴",className:"event-pump-stopped"};if(text.includes("leak")||text.includes("drip"))return{icon:"🟠",className:"event-leak"};if(text.includes("sync")||text.includes("cloud")||text.includes("telemetry"))return{icon:"🔵",className:"event-sync"};if(text.includes("config")||text.includes("setting")||text.includes("threshold"))return{icon:"⚙",className:"event-config"};return{icon:"🔔",className:"event-info"};}
+function renderEvents(events){const timeline=document.getElementById("eventTimeline");if(!timeline)return;timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");const time=document.createElement("time");time.textContent="No timeline yet";const text=document.createElement("span");text.textContent="No data available yet. Wait for the next sync or activity.";li.append(time,text);timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=event.message||"--";li.append(icon,time,text);timeline.appendChild(li);});if(state.data.analytics)window.requestAnimationFrame(()=>drawAnalyticsCharts(state.data.analytics));}
 
 function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCommandAvailability();}
-async function sendMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
+function sendMotorCommand(path,label){
+    const action=String(label||"").toUpperCase();
+    const startRequest=action==="ON";
+    const sourceState=buildSourceTankState(state.data.snapshot);
+    if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}
+    const dialog=document.getElementById("motorConfirmDialog");
+    state.pendingMotorConfirmation={path,label:action};
+    setText("motorConfirmTitle",startRequest?"Start the pump?":"Stop the pump?");
+    setText("motorConfirmMessage",startRequest
+        ?"This sends a supervised manual Start request. Source-tank and high-level safety protection remain active."
+        :"This sends a supervised manual Stop request. Auto protection remains enabled.");
+    const confirmButton=document.getElementById("motorConfirmButton");
+    if(confirmButton){confirmButton.textContent=startRequest?"Start Pump":"Stop Pump";confirmButton.className=startRequest?"btn-on":"btn-off";}
+    if(dialog&&typeof dialog.showModal==="function")dialog.showModal();
+    else if(window.confirm(startRequest?"Start the pump now?":"Stop the pump now?"))closeMotorConfirmation(true);
+}
+function closeMotorConfirmation(confirmed){
+    const dialog=document.getElementById("motorConfirmDialog");
+    if(dialog?.open)dialog.close();
+    const request=state.pendingMotorConfirmation;
+    state.pendingMotorConfirmation=null;
+    if(confirmed&&request)executeMotorCommand(request.path,request.label);
+}
+async function executeMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will use the current sensor reading.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(capacity)){banner("commandBanner","Enter tank capacity in liters.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});let message=`Tank capacity queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.capacity_liters).toFixed(1)} L.`;if(calibrateAfter){const calibrationPayload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});message+=` Calibration queued at ${localizedTimeText(calibrationPayload.queued_at,"now")} to learn tank height.`;}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
@@ -2149,7 +2264,7 @@ function initDates(){if(restoreAnalyticsRange())return;const today=new Date();co
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_STALE_MS)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}
-Object.assign(window,{manualRefresh,sendMotorCommand,sendCalibrateCommand,sendTankConfig,setQuickRange,applyCustomRange,resetFilters,savePreferences});
+Object.assign(window,{manualRefresh,sendMotorCommand,closeMotorConfirmation,sendCalibrateCommand,sendTankConfig,setQuickRange,applyCustomRange,resetFilters,savePreferences,scrollToAnalyticsReport});
 window.swtPageTeardown=()=>{pageTimers.forEach((timer)=>clearInterval(timer));if(state.controllers.analytics)state.controllers.analytics.abort();};
 try{initCharts();}catch(error){chartsAvailable=false;console.error("Dashboard chart initialization failed",error);}
 initDates();loadPreferences();initTankConfigInputs();updateCommandAvailability();applyCloudFeedAvailability();restoreAnalyticsCache();if(!chartsAvailable)banner("commandBanner","Charts are unavailable right now, but live tank data and controls are still loading.","warn");if(!customerFeedBlocked()){bootstrapDashboard();loadAnalytics({force:true});}startPolling();
