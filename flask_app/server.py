@@ -1684,20 +1684,29 @@ def device_scoped_app_setting_keys(device_id):
 
 def purge_device_app_settings(cursor, device_id):
     normalized_device_id = normalize_device_id(device_id)
-    deleted_rows = 0
-    key_identifier = quote_mysql_identifier("key")
-    for setting_key in device_scoped_app_setting_keys(device_id):
-        deleted_rows += int(
-            cursor.execute(f"DELETE FROM app_settings WHERE {key_identifier} = ?", (setting_key,)).rowcount or 0
-        )
-    if normalized_device_id:
-        deleted_rows += int(
-            cursor.execute(
-                f"DELETE FROM app_settings WHERE {key_identifier} LIKE ?",
-                (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
-            ).rowcount or 0
-        )
-    return deleted_rows
+
+    def delete_app_settings():
+        deleted_rows = 0
+        key_identifier = quote_mysql_identifier("key")
+        for setting_key in device_scoped_app_setting_keys(device_id):
+            deleted_rows += int(
+                cursor.execute(f"DELETE FROM app_settings WHERE {key_identifier} = ?", (setting_key,)).rowcount or 0
+            )
+        if normalized_device_id:
+            deleted_rows += int(
+                cursor.execute(
+                    f"DELETE FROM app_settings WHERE {key_identifier} LIKE ?",
+                    (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
+                ).rowcount or 0
+            )
+        return deleted_rows
+
+    return run_with_database_lock_retries(
+        delete_app_settings,
+        operation_name=f"purge app settings for {normalized_device_id or device_id}",
+        attempts=6,
+        initial_delay_s=0.5,
+    )
 
 
 def purge_device_table_rows(cursor, table_name, normalized_device_id):
@@ -1746,18 +1755,66 @@ def purge_device_table_rows(cursor, table_name, normalized_device_id):
     )
 
 def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
-    return int(
-        cursor.execute(
-            """
-            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT(device_id) DO UPDATE SET
-                note=excluded.note,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (normalized_device_id, note),
-        ).rowcount or 0
+    def insert_marker():
+        return int(
+            cursor.execute(
+                """
+                INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    note=excluded.note,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, note),
+            ).rowcount or 0
+        )
+
+    return run_with_database_lock_retries(
+        insert_marker,
+        operation_name=f"mark deleted device {normalized_device_id}",
+        attempts=6,
+        initial_delay_s=0.5,
     )
+
+
+def purge_device_data_fallback(cursor, normalized_device_id):
+    deleted_counts = {}
+    direct_deletes = [
+        ("tank_data", "device_id"),
+        ("device_events", "device_id"),
+        ("ops_alerts", "device_id"),
+        ("registered_devices", "device_id"),
+        ("device_auth_keys", "device_id"),
+        ("device_service_configs", "device_id"),
+        ("device_command_queue", "target_device"),
+        ("device_mobile_action_queue", "target_device"),
+        ("customer_accounts", "device_id"),
+        ("customer_password_reset_tokens", "device_id"),
+        ("firmware_artifacts", "target_device"),
+    ]
+    for table_name, column_name in direct_deletes:
+        try:
+            deleted_rows = int(
+                cursor.execute(
+                    f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {quote_mysql_identifier(column_name)} = ?",
+                    (normalized_device_id,),
+                ).rowcount or 0
+            )
+        except Exception as exc:
+            logger.warning("Fallback purge skipped %s for %s: %s", table_name, normalized_device_id, exc)
+            continue
+        if deleted_rows:
+            deleted_counts[table_name] = deleted_rows
+
+    try:
+        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+    except Exception as exc:
+        logger.warning("Fallback purge skipped app_settings for %s: %s", normalized_device_id, exc)
+        app_settings_count = 0
+    if app_settings_count:
+        deleted_counts["app_settings"] = app_settings_count
+
+    return deleted_counts
 
 
 def purge_device_data(device_id, remember_deleted_device=False):
@@ -1772,33 +1829,52 @@ def purge_device_data(device_id, remember_deleted_device=False):
             # check-ins are rejected instead of racing with row deletion.
             with get_db() as db:
                 add_deleted_device_marker(db.cursor(), normalized_device_id)
-        with get_db() as db:
-            cursor = db.cursor()
-            for table_name in list_database_table_names(cursor):
-                if remember_deleted_device and table_name == "ignored_devices":
-                    continue
-                deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-                if deleted_rows is not None:
-                    deleted_counts[table_name] = deleted_rows
 
-            app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-            if app_settings_count or "app_settings" not in deleted_counts:
-                deleted_counts["app_settings"] = app_settings_count
+        try:
+            with get_db() as db:
+                cursor = db.cursor()
+                for table_name in list_database_table_names(cursor):
+                    if remember_deleted_device and table_name == "ignored_devices":
+                        continue
+                    deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                    if deleted_rows is not None:
+                        deleted_counts[table_name] = deleted_rows
 
-        # Commit source deletions before the final pass so generated event rows cannot
-        # be recreated from pre-purge telemetry seen by another request/thread.
-        with get_db() as db:
-            cursor = db.cursor()
-            for table_name in list_database_table_names(cursor):
-                if remember_deleted_device and table_name == "ignored_devices":
-                    continue
-                deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-                if deleted_rows is not None:
-                    deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
+                app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+                if app_settings_count or "app_settings" not in deleted_counts:
+                    deleted_counts["app_settings"] = app_settings_count
 
-            app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-            if app_settings_count:
-                deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+            # Commit source deletions before the final pass so generated event rows cannot
+            # be recreated from pre-purge telemetry seen by another request/thread.
+            with get_db() as db:
+                cursor = db.cursor()
+                for table_name in list_database_table_names(cursor):
+                    if remember_deleted_device and table_name == "ignored_devices":
+                        continue
+                    deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                    if deleted_rows is not None:
+                        deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
+
+                app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+                if app_settings_count:
+                    deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+        except Exception as exc:
+            if not database_is_locked_error(exc):
+                raise
+            logger.warning(
+                "Primary device purge hit lock pressure for %s; falling back to direct row cleanup before marking ignored: %s",
+                normalized_device_id,
+                exc,
+            )
+            deleted_counts = {}
+            with get_db() as db:
+                cursor = db.cursor()
+                deleted_counts.update(purge_device_data_fallback(cursor, normalized_device_id))
+                if remember_deleted_device:
+                    marker_count = add_deleted_device_marker(cursor, normalized_device_id)
+                    deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
+                else:
+                    deleted_counts["ignored_devices"] = 0
 
         if remember_deleted_device:
             with get_db() as db:

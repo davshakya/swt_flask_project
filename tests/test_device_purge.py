@@ -32,6 +32,30 @@ def test_purge_device_app_settings_uses_quoted_key_identifier(monkeypatch):
     assert any(sql == "DELETE FROM app_settings WHERE `key` LIKE ?" for sql, _ in cursor.executed_sql)
 
 
+def test_purge_device_app_settings_retries_transient_deadlock(monkeypatch):
+    class FlakyCursor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, sql, params=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+            return type("Result", (), {"rowcount": 1})()
+
+    cursor = FlakyCursor()
+    monkeypatch.setattr(
+        server,
+        "device_scoped_app_setting_keys",
+        lambda device_id: ["device-setting"],
+    )
+
+    deleted_rows = server.purge_device_app_settings(cursor, "swt-purge-app-settings-retry")
+
+    assert deleted_rows == 2
+    assert cursor.calls == 3
+
+
 def test_purge_device_data_removes_device_scoped_tables_and_settings():
     device_id = "swt-purge-device-001"
     now = server.now_utc().strftime(server.TIMESTAMP_FORMAT)
@@ -278,6 +302,42 @@ def test_purge_device_table_rows_retries_transient_deadlock(monkeypatch):
             assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
     finally:
         monkeypatch.setattr(server, "table_column_names", original_table_column_names)
+        server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_falls_back_when_purge_keep_deadlocking(monkeypatch):
+    device_id = "swt-purge-fallback-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+    original_purge = server.purge_device_table_rows
+    original_app_settings = server.purge_device_app_settings
+
+    def always_deadlock(cursor, table_name, normalized_device_id):
+        raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+
+    def always_deadlock_app_settings(cursor, device_id):
+        raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 71, "OFF", "AUTO"),
+            )
+
+        monkeypatch.setattr(server, "purge_device_table_rows", always_deadlock)
+        monkeypatch.setattr(server, "purge_device_app_settings", always_deadlock_app_settings)
+        deleted_counts = server.delete_known_device(device_id)
+
+        assert deleted_counts["tank_data"] >= 1
+        with server.get_db() as db:
+            assert count_device_rows(db, "ignored_devices", "device_id", device_id) == 1
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+    finally:
+        monkeypatch.setattr(server, "purge_device_table_rows", original_purge)
+        monkeypatch.setattr(server, "purge_device_app_settings", original_app_settings)
         server.purge_device_data(device_id, remember_deleted_device=False)
 
 
