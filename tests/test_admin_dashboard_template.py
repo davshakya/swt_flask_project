@@ -209,6 +209,23 @@ def test_admin_customer_page_renders_string_sensor_distance():
     assert response.status_code == 200
 
 
+def test_admin_lower_sensor_status_uses_saved_enable_flag_not_raw_off_snapshot():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    fields = server.admin_relay_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "lower_sensor": "OFF",
+        },
+        {"source_tank_monitoring_enabled": True},
+    )
+
+    assert fields["lower_sensor_status_label"] == "Unreachable"
+    assert fields["lower_sensor_status_tone"] == "offline"
+
+
 def test_dashboards_render_company_icon_home_links():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

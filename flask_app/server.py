@@ -3263,8 +3263,6 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
 
     lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
     lower_enabled = bool(service_config.get("source_tank_monitoring_enabled", True))
-    if str(lower_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
-        lower_enabled = False
     lower_label, lower_tone = admin_reachable_status_fields(
         lower_enabled,
         online and lower_enabled and admin_sensor_reachable(lower_sensor),
