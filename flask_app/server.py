@@ -3438,12 +3438,62 @@ def build_admin_device_summary(available_devices):
     total_registered_devices = len(seen_device_ids)
     warning_alert_devices = len(seen_device_ids.intersection(alert_device_ids))
     offline_devices = max(0, total_registered_devices - online_devices)
+    critical_devices = sum(1 for device in available_devices if str(device.get("latest_alert_severity") or "").lower() == "danger")
+    warning_devices = sum(1 for device in available_devices if str(device.get("latest_alert_severity") or "").lower() == "warning")
+    maintenance_devices = sum(1 for device in available_devices if not bool(device.get("service_updates_enabled", True)))
+    healthy_devices = max(0, total_registered_devices - critical_devices - warning_devices - maintenance_devices)
+    average_health = round(
+        sum(safe_float(device.get("admin_health_score"), 0) for device in available_devices) / total_registered_devices
+    ) if total_registered_devices else 0
 
     return {
         "total_registered_devices": total_registered_devices,
         "online_devices": online_devices,
         "offline_devices": offline_devices,
         "warning_alert_devices": warning_alert_devices,
+        "healthy_devices": healthy_devices,
+        "critical_devices": critical_devices,
+        "warning_devices": warning_devices,
+        "maintenance_devices": maintenance_devices,
+        "online_percent": round((online_devices / total_registered_devices) * 100) if total_registered_devices else 0,
+        "offline_percent": round((offline_devices / total_registered_devices) * 100) if total_registered_devices else 0,
+        "average_health": average_health,
+    }
+
+
+def admin_device_health_fields(entry):
+    online = admin_device_is_online(entry)
+    telemetry = str(entry.get("telemetry_status") or "no-data").strip().lower()
+    score = 100.0
+    if not online:
+        score -= 35
+    if telemetry in {"stale", "offline", "no-data"}:
+        score -= 20
+    rssi = safe_float(entry.get("wifi_rssi"), None)
+    if rssi is None:
+        score -= 5
+    elif rssi <= -80:
+        score -= 18
+    elif rssi <= -70:
+        score -= 10
+    for sensor_key in ("upper_sensor_status_tone", "lower_sensor_status_tone"):
+        if str(entry.get(sensor_key) or "").lower() in {"danger", "bad", "offline"}:
+            score -= 10
+    severity = str(entry.get("latest_alert_severity") or "").lower()
+    if severity == "danger":
+        score -= 20
+    elif severity == "warning":
+        score -= 10
+    score = int(round(max(0, min(100, score))))
+    tone = "online" if score >= 85 else "warning" if score >= 60 else "danger"
+    age_seconds = safe_float(entry.get("seconds_since_sync"), None)
+    if age_seconds is None and entry.get("last_sync_at"):
+        parsed = parse_timestamp(entry.get("last_sync_at"))
+        age_seconds = max(0, (now_utc() - parsed).total_seconds()) if parsed else None
+    return {
+        "admin_health_score": score,
+        "admin_health_tone": tone,
+        "last_seen_age_seconds": int(age_seconds) if age_seconds is not None else None,
     }
 
 
@@ -3555,6 +3605,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
+        entry.update(admin_device_health_fields(entry))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
@@ -3586,6 +3637,9 @@ def filter_admin_search_results(items, search_query):
                 item.get("device_local_url"),
                 item.get("display_name"),
                 item.get("email"),
+                item.get("cloud_device_id"),
+                item.get("firmware_version"),
+                item.get("swt_version"),
             )
         )
         if normalized_query in haystack:
@@ -16339,7 +16393,9 @@ def admin_customers_device_table_json():
                 "device_id": device.get("device_id") or "",
                 "search": (
                     f"{device.get('device_id') or ''} {device.get('source_ip') or ''} "
-                    f"{device.get('device_local_host') or ''} {device.get('display_name') or ''}"
+                    f"{device.get('device_local_host') or ''} {device.get('display_name') or ''} "
+                    f"{device.get('email') or ''} {device.get('cloud_device_id') or ''} "
+                    f"{device.get('firmware_version') or device.get('swt_version') or ''}"
                 ).lower(),
                 "status_rank": device.get("status_sort_value") or 1,
                 "alert_count": active_alert_count,
@@ -16370,6 +16426,9 @@ def admin_customers_device_table_json():
                     else "clear" if active_alert_count == 0
                     else "info"
                 ),
+                "health_score": int(device.get("admin_health_score") or 0),
+                "health_tone": device.get("admin_health_tone") or "danger",
+                "last_seen_age_seconds": device.get("last_seen_age_seconds"),
                 "last_sync_at": last_sync_at,
             }
         )

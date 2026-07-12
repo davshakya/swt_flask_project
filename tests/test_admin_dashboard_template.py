@@ -412,6 +412,25 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert "aiLeakConfidence>90" in customer_template
 
 
+def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'class="searchBar fleet-toolbar-sticky"' in admin_template
+    for filter_name in ("all", "online", "offline", "critical", "warning", "recent", "poor-signal", "telemetry-missing"):
+        assert f'data-quick-filter="{filter_name}"' in admin_template
+    assert 'id="customer_filter"' in admin_template
+    assert 'data-resolve-alert="{{ lead_alert.id }}"' in admin_template
+    assert 'data-device-field="health_score"' in admin_template
+    assert 'data-last-seen-age=' in admin_template
+    assert 'id="export_visible_devices"' in admin_template
+    assert "priorityDifference" in admin_template
+    assert "function formatAgeSeconds(seconds)" in admin_template
+    assert "def admin_device_health_fields(entry):" in server_source
+    assert '"health_score": int(device.get("admin_health_score") or 0)' in server_source
+    assert 'item.get("firmware_version")' in server_source
+
+
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")

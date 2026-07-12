@@ -421,6 +421,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .table-shell{border-radius:18px}
 .admin-table{min-width:920px}
 }
+.hero-panel{padding:14px 16px}.hero-grid{gap:12px}.hero-copy{gap:9px}.hero-title{font-size:clamp(1.8rem,2.8vw,2.5rem)}.hero-lead{line-height:1.38}.system-status-bar{padding:11px 13px}.hero-focus-card{min-height:108px;padding:12px}.hero-actions a,.hero-actions button{min-height:34px;padding:7px 11px}.fleet-pie{width:108px}
+.critical-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.critical-detail{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.42);border:1px solid var(--admin-border)}.critical-detail span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}.critical-detail strong{display:block;margin-top:3px;font-size:12px;overflow-wrap:anywhere}.critical-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.critical-actions a,.critical-actions button{min-height:34px;padding:7px 11px}
+.fleet-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.fleet-breakdown span{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.12)}
+.summary-ratio{display:flex;align-items:baseline;gap:7px}.summary-percent{font-size:13px;font-weight:800;color:var(--primary)}
+.fleet-toolbar-sticky{position:sticky;top:8px;z-index:25;padding:10px;border:1px solid var(--admin-border);border-radius:18px;background:color-mix(in srgb,var(--admin-surface) 94%,transparent);box-shadow:0 12px 30px rgba(7,44,57,.16);backdrop-filter:blur(16px)}.quick-filters{display:flex;gap:6px;flex-wrap:wrap}.quick-filter{min-height:32px;padding:6px 10px;border:1px solid var(--admin-border);background:rgba(255,255,255,.7);color:var(--text)}.quick-filter.is-active{background:var(--primary);color:#fff}.customer-filter{width:auto;min-width:160px;min-height:32px;padding:6px 10px;border-radius:12px;border:1px solid var(--admin-border);background:var(--input-bg);color:var(--text)}
+.device-table-row.is-critical td{background:rgba(218,79,99,.12)!important}.device-table-row.is-warning td{background:rgba(245,155,65,.08)!important}.device-table-row.is-critical td:first-child{box-shadow:inset 5px 0 0 var(--error-text)!important}.device-table-row.is-critical .device-link:first-child::before{content:"🔴 ";}.device-table-row.is-warning .device-link:first-child::before{content:"🟠 ";}
+.health-score{font-size:15px;font-weight:900}.last-seen-age{display:block;font-weight:800}.device-actions{display:flex;gap:5px;flex-wrap:wrap}.device-actions a,.device-actions button{min-height:28px;padding:5px 7px;border-radius:9px;font-size:10px}.device-actions .is-disabled{opacity:.5;cursor:not-allowed}
+.alert-actions{display:flex;gap:6px}.alert-actions button,.alert-actions a{min-height:30px;padding:5px 8px;border-radius:10px;font-size:10px}.alert-duration{font-weight:800}
+@media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
 </style>
 </head>
 <body class="admin-control-room">
@@ -457,6 +466,12 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 {% set confidence_penalty = ((offline_devices * 30) // (total_devices if total_devices else 1)) + (active_alert_count * 4) + (ns.cloud_feed_off * 2) %}
 {% set system_confidence = [96 - confidence_penalty, 58]|max %}
 {% set lead_alert = global_alerts[0] if global_alerts else None %}
+{% set lead = namespace(customer="Unassigned") %}
+{% if lead_alert and lead_alert.device_id %}
+    {% for device in available_devices if device.device_id == lead_alert.device_id %}
+        {% set lead.customer = device.display_name or "Unassigned" %}
+    {% endfor %}
+{% endif %}
 {% set status_tone = "critical" if ns.critical_alerts else "warn" if active_alert_count or offline_devices or ns.cloud_feed_off else "ok" %}
 <div class="shell">
     <div class="panel hero-panel">
@@ -499,6 +514,18 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             No urgent blockers are ahead of onboarding, firmware prep, or routine cleanup.
                         {% endif %}
                     </p>
+                    {% if lead_alert %}
+                    <div class="critical-action-grid">
+                        <div class="critical-detail"><span>Device</span><strong>{{ lead_alert.device_id or "System" }}</strong></div>
+                        <div class="critical-detail"><span>Issue</span><strong>{{ (lead_alert.kind or "Operational alert")|replace("_", " ")|title }}</strong></div>
+                        <div class="critical-detail"><span>Duration</span><strong class="alert-duration" data-alert-start="{{ lead_alert.created_at or lead_alert.updated_at or '' }}">Calculating…</strong></div>
+                        <div class="critical-detail"><span>Customer</span><strong>{{ lead.customer }}</strong></div>
+                    </div>
+                    <div class="critical-actions">
+                        {% if lead_alert.device_id %}<a href="/devices/{{ lead_alert.device_id }}">Open Device</a>{% endif %}
+                        <button type="button" data-resolve-alert="{{ lead_alert.id }}">Acknowledge</button>
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="hero-pill-row">
                     <span class="hero-pill">Registered <strong>{{ total_devices }}</strong></span>
@@ -529,7 +556,13 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <div class="eyebrow">Fleet Health</div>
                             <strong>{{ online_percent }}% online coverage</strong>
                             <p>{{ online_devices }} of {{ total_devices }} registered devices are online right now{% if total_devices == 0 %}; devices appear here after the first registration or check-in{% endif %}.</p>
-                            <div class="focus-mini">Alerts first, fleet recovery second, onboarding third.</div>
+                            <div class="fleet-breakdown" aria-label="Fleet health categories">
+                                <span>🟢 Healthy <b>{{ device_summary.healthy_devices }}</b></span>
+                                <span>🟠 Warning <b>{{ device_summary.warning_devices }}</b></span>
+                                <span>🔴 Critical <b>{{ device_summary.critical_devices }}</b></span>
+                                <span>⚪ Maintenance <b>{{ device_summary.maintenance_devices }}</b></span>
+                            </div>
+                            <div class="focus-mini">Average health {{ device_summary.average_health }}%. Alerts first, recovery second.</div>
                         </div>
                         <div class="fleet-health-chart" aria-label="{{ online_devices }} online and {{ offline_devices }} offline devices">
                             <div class="fleet-pie" style="--online-pct: {{ online_percent }}%" role="img" aria-label="{{ online_percent }} percent online">
@@ -562,22 +595,22 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     <div class="summary-grid">
         <div class="summary-card">
             <div class="eyebrow">Total Registered Devices</div>
-            <div class="summary-value" data-summary-field="total_registered_devices">{{ device_summary.total_registered_devices }}</div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="total_registered_devices">{{ device_summary.total_registered_devices }}</div><span class="summary-percent">100%</span></div>
             <div class="summary-caption">Tracked devices with either telemetry history or configured credentials.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Online Devices</div>
-            <div class="summary-value" data-summary-field="online_devices">{{ device_summary.online_devices }}</div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="online_devices">{{ device_summary.online_devices }} / {{ total_devices }}</div><span class="summary-percent" data-summary-field="online_percent" data-summary-suffix="%">{{ device_summary.online_percent }}%</span></div>
             <div class="summary-caption">Devices reporting fresh or recent telemetry right now.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Offline Devices</div>
-            <div class="summary-value" data-summary-field="offline_devices">{{ device_summary.offline_devices }}</div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="offline_devices">{{ device_summary.offline_devices }}</div><span class="summary-percent" data-summary-field="offline_percent" data-summary-suffix="%">{{ device_summary.offline_percent }}%</span></div>
             <div class="summary-caption">Devices with stale or missing telemetry that likely need follow-up.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Warning / Alert Devices</div>
-            <div class="summary-value" data-summary-field="warning_alert_devices">{{ device_summary.warning_alert_devices }}</div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="warning_alert_devices">{{ device_summary.warning_alert_devices }}</div><span class="summary-percent">Prioritize</span></div>
             <div class="summary-caption">Devices carrying active warnings or higher-severity operational alerts.</div>
         </div>
     </div>
@@ -601,7 +634,10 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                         <th>Device ID</th>
                         <th>Severity</th>
                         <th>Alert</th>
+                        <th>Duration</th>
+                        <th>Status</th>
                         <th>Updated</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -622,12 +658,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 <div class="cell-main">{{ alert.message or "--" }}</div>
                                 <div class="cell-sub">{{ alert.kind or "alert" }}</div>
                             </td>
+                            <td><span class="alert-duration" data-alert-start="{{ alert.created_at or alert.updated_at or '' }}">--</span></td>
+                            <td><span class="pill pill-danger">Open</span></td>
                             <td><span data-utc-datetime="{{ alert.updated_at or '' }}">{{ alert.updated_at or "--" }}</span></td>
+                            <td><div class="alert-actions">{% if alert.device_id %}<a href="/devices/{{ alert.device_id }}">View</a>{% endif %}<button type="button" data-resolve-alert="{{ alert.id }}">Acknowledge</button></div></td>
                         </tr>
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="4" class="empty-state">No active alerts right now.</td>
+                            <td colspan="8" class="empty-state">No active alerts right now.</td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -648,17 +687,32 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <span class="pill pill-clear">Sort by status or alerts to triage first</span>
                 </div>
             </div>
-            <form method="get" action="/admin/customers" class="searchBar">
+            <form method="get" action="/admin/customers" class="searchBar fleet-toolbar-sticky">
                 <label for="device_search" style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800">Search Devices</label>
                 <div class="searchControls">
-                    <input id="device_search" name="q" class="searchInput" type="search" placeholder="Search by device ID, IP, or customer name" value="{{ search_query or '' }}">
+                    <input id="device_search" name="q" class="searchInput" type="search" placeholder="Device ID, customer, email, IP, cloud ID, or firmware" value="{{ search_query or '' }}">
                     <button id="device_search_button" type="submit">Search</button>
                     <a id="device_search_clear" class="clearLink" href="/admin/customers">Clear</a>
                     <div class="searchActionGroup" aria-label="Device actions">
                         <a class="actionLauncher" href="{{ url_for('home_automation') }}">Home Automation</a>
                         <button class="actionLauncher" type="button" data-panel-toggle aria-controls="release_channel_panel" aria-expanded="false">Android Updates</button>
                         <button class="actionLauncher" type="button" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</button>
+                        <button id="export_visible_devices" class="actionLauncher" type="button">Export Visible</button>
                     </div>
+                </div>
+                <div class="quick-filters" aria-label="Quick device filters">
+                    <button class="quick-filter is-active" type="button" data-quick-filter="all">All</button>
+                    <button class="quick-filter" type="button" data-quick-filter="online">Online</button>
+                    <button class="quick-filter" type="button" data-quick-filter="offline">Offline</button>
+                    <button class="quick-filter" type="button" data-quick-filter="critical">Critical</button>
+                    <button class="quick-filter" type="button" data-quick-filter="warning">Warning</button>
+                    <button class="quick-filter" type="button" data-quick-filter="recent">Last seen &lt; 1h</button>
+                    <button class="quick-filter" type="button" data-quick-filter="poor-signal">Signal poor</button>
+                    <button class="quick-filter" type="button" data-quick-filter="telemetry-missing">Telemetry missing</button>
+                    <select id="customer_filter" class="customer-filter" aria-label="Filter by customer">
+                        <option value="">All customers</option>
+                        {% for name in available_devices|map(attribute='display_name')|select|unique|sort %}<option value="{{ name|lower }}">{{ name }}</option>{% endfor %}
+                    </select>
                 </div>
                 <div class="table-toolbar">
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
@@ -684,13 +738,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <th>Lower Sensor</th>
                             <th>Municipal Sensor</th>
                             <th>Tank</th>
+                            <th><button type="button" class="sort-button" data-device-sort="health" data-sort-default="desc">Health</button></th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts</button></th>
-                            <th>Last Sync</th>
+                            <th>Last Seen</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody id="device_table_body">
                         {% for device in available_devices %}
-                        <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.source_ip or '') ~ ' ' ~ (device.device_local_host or '') ~ ' ' ~ (device.display_name or ''))|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-alert-count="{{ device.active_alert_count or 0 }}">
+                        <tr id="device_{{ device.device_id }}" class="searchable-device device-table-row{% if (device.active_alert_count or 0) > 0 %} has-alerts{% endif %}{% if device.latest_alert_severity == 'danger' %} is-critical{% elif device.latest_alert_severity == 'warning' %} is-warning{% endif %}" data-search="{{ (device.device_id ~ ' ' ~ (device.source_ip or '') ~ ' ' ~ (device.device_local_host or '') ~ ' ' ~ (device.display_name or '') ~ ' ' ~ (device.email or '') ~ ' ' ~ (device.cloud_device_id or '') ~ ' ' ~ (device.firmware_version or device.swt_version or ''))|lower }}" data-customer="{{ (device.display_name or '')|lower }}" data-device-id="{{ (device.device_id or '')|lower }}" data-status-rank="{{ device.status_sort_value or 1 }}" data-online="{{ '1' if device.admin_status == 'online' else '0' }}" data-severity="{{ device.latest_alert_severity or 'clear' }}" data-alert-count="{{ device.active_alert_count or 0 }}" data-health-score="{{ device.admin_health_score or 0 }}" data-last-seen-age="{{ device.last_seen_age_seconds if device.last_seen_age_seconds is not none else '' }}" data-signal="{{ device.wifi_rssi if device.wifi_rssi is not none else '' }}" data-telemetry="{{ device.telemetry_status or 'no-data' }}">
                             <td class="device-id-cell">
                                 <a class="device-link" href="/devices/{{ device.device_id }}">{{ device.device_id }}</a>
                                 <div class="cell-sub">Local IP: {% if device.device_local_url %}<a class="device-link" href="{{ device.device_local_url }}" target="_blank" rel="noopener">{{ device.device_local_host or device.device_local_url }}</a>{% else %}--{% endif %}</div>
@@ -741,17 +797,20 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                     {% endif %}
                                 </div>
                             </td>
+                            <td><span class="pill health-score pill-{{ device.admin_health_tone or 'danger' }}" data-device-field="health_score">{{ device.admin_health_score or 0 }}%</span></td>
                             <td>
                                 <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}" data-device-field="alerts">{{ device.warning_alert_label or "Clear" }}</span>
                             </td>
                             <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}" data-device-field="last_sync">
                                 {% if device.last_sync_at %}
+                                <span class="last-seen-age" data-age-seconds="{{ device.last_seen_age_seconds or 0 }}">-- ago</span>
                                 <span class="sync-date" data-utc-date="{{ device.last_sync_at }}">{{ device.last_sync_at[:10] }}</span>
                                 <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }} UTC</span>
                                 {% else %}
                                 <span class="sync-date">--</span>
                                 {% endif %}
                             </td>
+                            <td><div class="device-actions"><a href="/devices/{{ device.device_id }}">View</a><a href="/devices/{{ device.device_id }}#configuration">Configure</a><a href="/devices/{{ device.device_id }}#event-log">Logs</a><a href="/devices/{{ device.device_id }}#firmware">OTA</a><button type="button" class="is-disabled" disabled title="Use the device detail page to confirm restart">Restart</button></div></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -967,6 +1026,47 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     applyLocaleDateTime(document);
     window.addEventListener("DOMContentLoaded", () => applyLocaleDateTime(document));
 
+    function formatAgeSeconds(seconds) {
+        const value = Math.max(0, Number(seconds) || 0);
+        if (value < 60) return `${Math.round(value)} sec ago`;
+        if (value < 3600) return `${Math.round(value / 60)} min ago`;
+        if (value < 86400) return `${Math.round(value / 3600)} hr ago`;
+        return `${Math.round(value / 86400)} day ago`;
+    }
+    function refreshAgeLabels() {
+        document.querySelectorAll("[data-age-seconds]").forEach((node) => {
+            const base = Number(node.dataset.ageSeconds || 0);
+            const loaded = Number(node.dataset.loadedAt || Date.now());
+            if (!node.dataset.loadedAt) node.dataset.loadedAt = String(Date.now());
+            node.textContent = formatAgeSeconds(base + Math.max(0, (Date.now() - loaded) / 1000));
+        });
+        document.querySelectorAll("[data-alert-start]").forEach((node) => {
+            const raw = node.dataset.alertStart;
+            if (!raw) return;
+            const parsed = new Date(`${raw.replace(" ", "T")}Z`).getTime();
+            if (Number.isFinite(parsed)) node.textContent = formatAgeSeconds((Date.now() - parsed) / 1000).replace(" ago", "");
+        });
+    }
+    refreshAgeLabels();
+    window.setInterval(refreshAgeLabels, 30000);
+
+    document.addEventListener("click", async (event) => {
+        const button = event.target.closest?.("[data-resolve-alert]");
+        if (!button) return;
+        const alertId = button.dataset.resolveAlert;
+        if (!alertId || !window.confirm("Acknowledge and resolve this alert?")) return;
+        button.disabled = true;
+        const csrf = document.querySelector('input[name="csrf_token"]')?.value || "";
+        try {
+            const response = await fetch(`/monitoring/alerts/${encodeURIComponent(alertId)}/resolve`, {method:"POST",credentials:"same-origin",headers:{"X-CSRF-Token":csrf,"Accept":"application/json"}});
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            window.location.reload();
+        } catch (error) {
+            button.disabled = false;
+            button.textContent = "Retry acknowledge";
+        }
+    });
+
     const input = document.getElementById("device_search");
     const meta = document.getElementById("device_search_meta");
     const visibilityStatus = document.getElementById("device_visibility_status");
@@ -975,6 +1075,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     const tableBody = document.getElementById("device_table_body");
     let deviceRows = tableBody ? Array.from(tableBody.querySelectorAll(".device-table-row")) : [];
     const sortButtons = Array.from(document.querySelectorAll("[data-device-sort]"));
+    const quickFilterButtons = Array.from(document.querySelectorAll("[data-quick-filter]"));
+    const customerFilter = document.getElementById("customer_filter");
+    let activeQuickFilter = "all";
     let currentSort = { key: "device_id", direction: "asc" };
     let refreshInFlight = false;
 
@@ -989,10 +1092,14 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     function sortValue(row, key) {
         if (key === "status") return Number(row.dataset.statusRank || 1);
         if (key === "alerts") return Number(row.dataset.alertCount || 0);
+        if (key === "health") return Number(row.dataset.healthScore || 0);
         return normalizeText(row.dataset.deviceId || "");
     }
 
     function compareRows(left, right, key, direction) {
+        const priority = (row) => row.dataset.severity === "danger" ? 0 : row.dataset.severity === "warning" ? 1 : 2;
+        const priorityDifference = priority(left) - priority(right);
+        if (priorityDifference !== 0) return priorityDifference;
         const multiplier = direction === "desc" ? -1 : 1;
         const leftValue = sortValue(left, key);
         const rightValue = sortValue(right, key);
@@ -1025,10 +1132,23 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 
     function applyFilter() {
         const query = normalizeText(input ? input.value : "");
+        const customer = normalizeText(customerFilter?.value);
         let visibleDevices = 0;
 
         deviceRows.forEach((row) => {
-            const matches = !query || normalizeText(row.dataset.search || "").includes(query);
+            const searchMatch = !query || normalizeText(row.dataset.search || "").includes(query);
+            const customerMatch = !customer || normalizeText(row.dataset.customer) === customer;
+            const age = Number(row.dataset.lastSeenAge);
+            const signal = Number(row.dataset.signal);
+            const quickMatch = activeQuickFilter === "all"
+                || (activeQuickFilter === "online" && row.dataset.online === "1")
+                || (activeQuickFilter === "offline" && row.dataset.online !== "1")
+                || (activeQuickFilter === "critical" && row.dataset.severity === "danger")
+                || (activeQuickFilter === "warning" && row.dataset.severity === "warning")
+                || (activeQuickFilter === "recent" && Number.isFinite(age) && age < 3600)
+                || (activeQuickFilter === "poor-signal" && Number.isFinite(signal) && signal <= -70)
+                || (activeQuickFilter === "telemetry-missing" && ["stale","offline","no-data"].includes(row.dataset.telemetry));
+            const matches = searchMatch && customerMatch && quickMatch;
             row.classList.toggle("hidden-result", !matches);
             row.classList.toggle("is-match", !!query && matches);
             if (matches) visibleDevices += 1;
@@ -1127,7 +1247,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         document.querySelectorAll("[data-summary-field]").forEach((node) => {
             const key = node.dataset.summaryField;
             if (!key || !Object.prototype.hasOwnProperty.call(summary, key)) return;
-            setTextIfChanged(node, summary[key]);
+            const suffix = node.dataset.summarySuffix || "";
+            const value = key === "online_devices" ? `${summary.online_devices} / ${summary.total_registered_devices}` : `${summary[key]}${suffix}`;
+            setTextIfChanged(node, value);
         });
     }
 
@@ -1136,7 +1258,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         row.dataset.search = device.search || row.dataset.search || "";
         row.dataset.statusRank = String(device.status_rank || 1);
         row.dataset.alertCount = String(device.alert_count || 0);
+        row.dataset.online = device.telemetry_status === "live" || device.telemetry_status === "recent" ? "1" : "0";
+        row.dataset.severity = device.alert_tone === "danger" ? "danger" : device.alert_tone === "warning" ? "warning" : "clear";
+        row.dataset.healthScore = String(device.health_score || 0);
+        row.dataset.lastSeenAge = device.last_seen_age_seconds == null ? "" : String(device.last_seen_age_seconds);
+        row.dataset.signal = device.wifi_rssi === "--" ? "" : String(device.wifi_rssi);
+        row.dataset.telemetry = device.telemetry_status || "no-data";
         row.classList.toggle("has-alerts", Boolean(device.has_alerts));
+        row.classList.toggle("is-critical", row.dataset.severity === "danger");
+        row.classList.toggle("is-warning", row.dataset.severity === "warning");
 
         const master = row.querySelector('[data-device-field="master_status"]');
         setTextIfChanged(master, device.master_status || "Unreachable");
@@ -1165,6 +1295,10 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setTextIfChanged(row.querySelector('[data-device-field="pump_mode"]'), device.pump_mode || "Pump --");
         setTextIfChanged(row.querySelector('[data-device-field="depth_echo"]'), device.depth_echo || "Depth -- / Echo --");
 
+        const health = row.querySelector('[data-device-field="health_score"]');
+        setTextIfChanged(health, `${device.health_score || 0}%`);
+        setPillTone(health, device.health_tone || "danger");
+
         const alert = row.querySelector('[data-device-field="alerts"]');
         setTextIfChanged(alert, device.alert_label || "Clear");
         setPillTone(alert, device.alert_tone || "clear");
@@ -1174,7 +1308,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             lastSync.classList.toggle("is-live", device.telemetry_status === "live");
             lastSync.classList.toggle("is-stale", device.telemetry_status !== "live");
             if (device.last_sync_at) {
-                const next = `<span class="sync-date" data-utc-date="${device.last_sync_at}">${device.last_sync_at.slice(0, 10)}</span> <span class="sync-time" data-utc-time="${device.last_sync_at}">${device.last_sync_at.slice(11)} UTC</span>`;
+                const next = `<span class="last-seen-age" data-age-seconds="${device.last_seen_age_seconds || 0}" data-loaded-at="${Date.now()}">${formatAgeSeconds(device.last_seen_age_seconds || 0)}</span><span class="sync-date" data-utc-date="${device.last_sync_at}">${device.last_sync_at.slice(0, 10)}</span> <span class="sync-time" data-utc-time="${device.last_sync_at}">${device.last_sync_at.slice(11)} UTC</span>`;
                 if (lastSync.innerHTML !== next) lastSync.innerHTML = next;
                 applyLocaleDateTime(lastSync);
             } else {
@@ -1215,6 +1349,30 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     }
 
     if (input) input.addEventListener("input", applyFilter);
+    quickFilterButtons.forEach((button) => button.addEventListener("click", () => {
+        activeQuickFilter = button.dataset.quickFilter || "all";
+        quickFilterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
+        applyFilter();
+    }));
+    customerFilter?.addEventListener("change", applyFilter);
+    document.getElementById("export_visible_devices")?.addEventListener("click", () => {
+        const rows = deviceRows.filter((row) => !row.classList.contains("hidden-result"));
+        const quote = (value) => `"${String(value || "").replaceAll('"','""')}"`;
+        const lines = [["Device ID","Customer","Status","Telemetry","Signal","Tank","Health","Alerts","Last Seen"]];
+        rows.forEach((row) => lines.push([
+            row.dataset.deviceId,
+            row.dataset.customer,
+            row.dataset.online === "1" ? "Online" : "Offline",
+            row.dataset.telemetry,
+            row.dataset.signal,
+            row.querySelector('[data-device-field="tank_level"]')?.textContent.trim(),
+            `${row.dataset.healthScore}%`,
+            row.querySelector('[data-device-field="alerts"]')?.textContent.trim(),
+            row.querySelector('.last-seen-age')?.textContent.trim(),
+        ]));
+        const blob = new Blob([lines.map((line) => line.map(quote).join(",")).join("\r\n")], {type:"text/csv;charset=utf-8"});
+        const link = document.createElement("a");link.href=URL.createObjectURL(blob);link.download="smart-water-tank-visible-devices.csv";link.click();URL.revokeObjectURL(link.href);
+    });
     if (input) {
         input.addEventListener("keydown", (event) => {
             if (event.key !== "Escape") return;
