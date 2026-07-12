@@ -3214,14 +3214,10 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
     if not online:
         return "Offline/Stale", "offline"
     if simulated:
-        return "Simulated", "warning"
-    if state == "available":
-        return "Available", "online"
-    if state == "unavailable":
-        return "Unavailable", "warning"
+        reachable = True
     if reachable:
-        return "Unknown", "warning"
-    return "Offline/Stale", "offline"
+        return "Reachable", "online"
+    return "Unreachable", "offline"
 
 
 def admin_sensor_reachable(raw_status):
