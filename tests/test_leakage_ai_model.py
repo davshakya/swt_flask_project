@@ -33,7 +33,8 @@ def test_leakage_ai_model_flags_unusual_off_pump_drop_pattern():
     assert model["status"] in {"likely_leak", "possible_leak"}
     assert model["score"] >= 45
     assert model["leak_type"] in {"pipe_leak", "slow_leak", "usage_anomaly"}
-    assert model["confidence"] >= 80
+    assert model["confidence"] > 90
+    assert model["alert_eligible"] is True
 
 
 def test_leakage_ai_model_keeps_normal_usage_clear():
@@ -50,10 +51,42 @@ def test_leakage_ai_model_keeps_normal_usage_clear():
         pump_activity_metrics={"duty_cycle_pct": 4.0, "short_cycle_count": 0},
     )
 
-    assert model["status"] == "normal"
+    assert model["status"] == "insufficient_data"
     assert model["score"] < 30
     assert model["leak_type"] == "none"
     assert model["features"]["pump_duty_cycle_pct"] == 4.0
+    assert model["features"]["sufficient_evidence"] is False
+
+
+def test_quality_score_reflects_window_coverage_and_evidence():
+    quality = server.build_analytics_quality_payload(
+        row_count=120,
+        valid_hours=2,
+        gap_count=8,
+        valid_drop_count=1,
+        latest_seconds_since_sync=30,
+        window_hours=168,
+    )
+
+    assert quality["coverage_percent"] < 2
+    assert quality["status"] == "limited"
+    assert quality["sufficient_for_anomaly"] is False
+    assert quality["sufficient_for_forecast"] is False
+    assert quality["limitations"]
+
+
+def test_daily_forecast_requires_complete_history_and_reports_interval():
+    insufficient = server.build_daily_usage_forecast([12.0], {"score": 90, "sufficient_for_forecast": True})
+    assert insufficient["status"] == "insufficient_data"
+    assert insufficient["value"] is None
+
+    forecast = server.build_daily_usage_forecast(
+        [10.0, 11.0, 10.5, 12.0, 11.5],
+        {"score": 88, "sufficient_for_forecast": True},
+    )
+    assert forecast["status"] == "ready"
+    assert forecast["lower"] < forecast["value"] < forecast["upper"]
+    assert forecast["sample_days"] == 5
 
 
 def test_motor_activity_metrics_use_actual_time_gaps():
@@ -79,6 +112,7 @@ def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
         "status": "possible_leak",
         "severity": "warning",
         "score": 58,
+        "confidence": 91,
         "model": "telemetry-leakage-ai-v1",
     }
 
@@ -100,3 +134,27 @@ def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
     assert any(item["kind"] == "ai_leakage" for item in payload["anomalies"])
     assert any(item["kind"] == "short_cycling" for item in payload["anomalies"])
     assert payload["event_window"]["telemetry_short_cycle_count"] == 4
+
+
+def test_ai_leakage_alert_requires_confidence_strictly_above_90():
+    base = {
+        "status": "possible_leak",
+        "severity": "warning",
+        "score": 68,
+    }
+    assert server.ai_leakage_alert_eligible({**base, "confidence": 90}) is False
+    assert server.ai_leakage_alert_eligible({**base, "confidence": 90.0}) is False
+    assert server.ai_leakage_alert_eligible({**base, "confidence": 91}) is True
+
+    low_confidence_payload = server.build_analysis_payload(
+        quality={"score": 95, "sufficient_for_anomaly": True},
+        current_level=50,
+        consumption_rate=8,
+        empty_prediction=None,
+        usage_change_pct=None,
+        leak_events=0,
+        motor_cycles=2,
+        refill_events=0,
+        leakage_model={**base, "confidence": 90},
+    )
+    assert not any(item["kind"] == "ai_leakage" for item in low_confidence_payload["anomalies"])

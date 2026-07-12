@@ -264,7 +264,8 @@ def test_empty_cloud_analytics_do_not_emit_zero_liter_predictions():
     function_body = server_source[function_start : server_source.index("\n\ndef meaningful_forecast_hours", function_start)]
 
     assert '"avg_daily_usage": None' in function_body
-    assert '"prediction": {"tomorrow_usage": None}' in function_body
+    assert '"tomorrow_usage": None' in function_body
+    assert '"status": "insufficient_data"' in function_body
     assert '"daily": {"dates": daily_dates, "values": daily_values}' in function_body
     assert '"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."' in function_body
 

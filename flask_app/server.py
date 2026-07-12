@@ -710,6 +710,7 @@ ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
+AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
@@ -8344,7 +8345,7 @@ def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_s
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
-               ai_usage_rate, tomorrow_prediction, created_at
+               ai_usage_rate, tomorrow_prediction, tank_capacity_liters, created_at
         FROM tank_data
         WHERE """
     params = []
@@ -8921,32 +8922,47 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "previous_day_usage": 0,
             "change_pct": None
         },
-        "prediction": {"tomorrow_usage": None},
+        "prediction": {
+            "tomorrow_usage": None,
+            "tomorrow_usage_liters": None,
+            "confidence": 0,
+            "sample_days": 0,
+            "status": "insufficient_data",
+            "method": "robust_weighted_daily_baseline_v2",
+            "limitations": ["At least two complete days with reliable telemetry are required."],
+        },
         "analysis": {
             "quality": {
-                "score": 20,
+                "score": 0,
                 "row_count": 0,
                 "usable_hours": 0,
+                "requested_hours": round(max(0.0, (end_exclusive - start_dt).total_seconds() / 3600.0), 2),
+                "coverage_ratio": 0,
+                "coverage_percent": 0,
                 "gap_count": 0,
                 "valid_drop_count": 0,
                 "status": "limited",
+                "sufficient_for_anomaly": False,
+                "sufficient_for_forecast": False,
+                "limitations": ["Historical telemetry is not available."],
             },
-            "forecast_confidence": 20,
+            "forecast_confidence": 0,
             "anomaly_count": 0,
             "anomalies": [],
             "leakage": {
-                "model": "telemetry-leakage-ai-v1",
-                "status": "normal",
-                "label": "No leakage pattern",
-                "severity": "ok",
+                "model": "telemetry-leakage-ai-v2",
+                "status": "insufficient_data",
+                "label": "Not enough reliable data",
+                "severity": "info",
                 "score": 0,
-                "confidence": 20,
+                "confidence": 0,
                 "leak_type": "none",
                 "features": {},
                 "reasons": ["Not enough telemetry is available for leakage analysis."],
             },
             "model": {
-                "family": "robust-rule-ml-hybrid",
+                "family": "coverage-aware-robust-hybrid-v2",
+                "calibration": "evidence-gated",
                 "signals": ["live_snapshot_fallback"] if live_snapshot_available else [],
             },
             "live_snapshot_fallback": live_snapshot_available,
@@ -8998,6 +9014,8 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     leak_signal = any(bool_flag((snapshot or {}).get(key)) for key in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     ai_leak_status = str(leakage_model.get("status") or "").lower()
     ai_leak_score = safe_float(leakage_model.get("score"), 0)
+    if confidence < 60 or not bool(quality.get("sufficient_for_forecast", confidence >= 60)):
+        return None
     # A short extrapolated empty-time from noisy history should not override a
     # clearly full live tank. Keep the forecast actionable only near the working
     # range or when current consumption is extremely high.
@@ -9006,7 +9024,7 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     if level >= 75 and forecast_hours < 6 and consumption_rate < 12:
         return None
     if level >= 70 and forecast_hours < 6 and not leak_signal:
-        if ai_leak_status != "likely_leak" or ai_leak_score < 70 or confidence < 90:
+        if not ai_leakage_alert_eligible(leakage_model) or ai_leak_status != "likely_leak" or ai_leak_score < 70:
             return None
     if level >= 70 and forecast_hours < 4 and confidence < 75 and not leak_signal:
         return None
@@ -9096,37 +9114,85 @@ def robust_consumption_rate(mean_rate, segment_rates, valid_hours, valid_drop_co
     return round(float(blended_rate), 4)
 
 
-def build_analytics_quality_payload(row_count, valid_hours, gap_count, valid_drop_count, latest_seconds_since_sync):
-    score = 35
-    score += min(25, int(row_count / 4))
-    score += min(25, int(valid_hours * 3))
-    score += min(15, valid_drop_count * 3)
-    score -= min(20, gap_count * 4)
-    if latest_seconds_since_sync is not None and latest_seconds_since_sync > STALE_AFTER_SECONDS:
-        score -= 20
-    score = max(20, min(96, score))
+def build_analytics_quality_payload(
+    row_count,
+    valid_hours,
+    gap_count,
+    valid_drop_count,
+    latest_seconds_since_sync,
+    window_hours=None,
+):
+    requested_hours = max(0.0, safe_float(window_hours, valid_hours))
+    coverage_ratio = min(1.0, (float(valid_hours) / requested_hours)) if requested_hours > 0 else 0.0
+    row_score = min(20.0, (max(0, int(row_count)) / 48.0) * 20.0)
+    duration_target = min(max(requested_hours, 1.0), 24.0)
+    duration_score = min(25.0, (max(0.0, float(valid_hours)) / duration_target) * 25.0)
+    evidence_score = min(15.0, (max(0, int(valid_drop_count)) / 8.0) * 15.0)
+    coverage_score = coverage_ratio * 25.0
+    freshness_score = 15.0
+    stale = latest_seconds_since_sync is None or latest_seconds_since_sync > STALE_AFTER_SECONDS
+    if stale:
+        freshness_score = 0.0
+    gap_penalty = min(20.0, max(0, int(gap_count)) * 2.5)
+    score = int(round(max(0.0, min(96.0, row_score + duration_score + evidence_score + coverage_score + freshness_score - gap_penalty))))
+    limitations = []
+    if row_count < 4:
+        limitations.append("Too few telemetry samples.")
+    if coverage_ratio < 0.5:
+        limitations.append("Less than half of the selected time range has continuous telemetry.")
+    if valid_drop_count < 3:
+        limitations.append("Too few validated off-pump level drops for pattern detection.")
+    if stale:
+        limitations.append("The latest telemetry is stale or unavailable.")
+    sufficient_for_anomaly = score >= 60 and valid_hours >= 2 and valid_drop_count >= 3 and row_count >= 8
+    sufficient_for_forecast = score >= 60 and valid_hours >= 6 and row_count >= 12
     return {
         "score": score,
         "row_count": int(row_count),
         "usable_hours": round(float(valid_hours), 2),
+        "requested_hours": round(requested_hours, 2),
+        "coverage_ratio": round(coverage_ratio, 3),
+        "coverage_percent": round(coverage_ratio * 100.0, 1),
         "gap_count": int(gap_count),
         "valid_drop_count": int(valid_drop_count),
         "status": "strong" if score >= 80 else "moderate" if score >= 60 else "limited",
+        "sufficient_for_anomaly": sufficient_for_anomaly,
+        "sufficient_for_forecast": sufficient_for_forecast,
+        "limitations": limitations,
     }
 
 
 def forecast_confidence_from_quality(quality, consumption_rate, current_level, leak_events=0):
-    score = safe_float((quality or {}).get("score"), 35)
+    score = safe_float((quality or {}).get("score"), 0)
+    if not bool((quality or {}).get("sufficient_for_forecast", score >= 60)):
+        score = min(score, 45)
     if consumption_rate <= 0:
         score -= 25
     if current_level >= 70 and consumption_rate >= 25 and leak_events <= 0:
         score -= 18
     if leak_events > 0:
         score += 8
-    return max(20, min(96, int(round(score))))
+    return max(0, min(95, int(round(score))))
 
 
-def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usage, peak_value):
+def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usage, peak_value, daily_history=None):
+    if daily_history is not None:
+        history = [float(value) for value in daily_history if value is not None and math.isfinite(float(value)) and float(value) >= 0]
+        if len(history) < 2:
+            return None
+        recent = history[-7:]
+        median = percentile_value(recent, 50)
+        weights = list(range(1, len(recent) + 1))
+        weighted_mean = sum(value * weight for value, weight in zip(recent, weights)) / sum(weights)
+        changes = [
+            (current - previous) / previous
+            for previous, current in zip(recent, recent[1:])
+            if previous > 0
+        ]
+        trend = percentile_value(changes, 50) if changes else 0.0
+        trend = max(-0.25, min(0.25, trend))
+        robust_baseline = (median * 0.6) + (weighted_mean * 0.4)
+        return round(max(0.0, robust_baseline * (1.0 + trend * 0.35)), 2)
     values = [float(value or 0.0) for value in (avg_daily_usage, latest_day_usage, previous_day_usage, peak_value)]
     avg_usage, latest_usage, previous_usage, peak_usage = values
     if max(values) <= 0:
@@ -9135,6 +9201,46 @@ def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usag
     if latest_usage > previous_usage > 0:
         baseline *= min(1.18, 1.0 + ((latest_usage - previous_usage) / previous_usage) * 0.12)
     return round(max(0.0, baseline), 2)
+
+
+def build_daily_usage_forecast(daily_history, quality):
+    history = [float(value) for value in (daily_history or []) if value is not None and math.isfinite(float(value)) and float(value) >= 0]
+    quality_score = int(safe_float((quality or {}).get("score"), 0))
+    sufficient_quality = bool((quality or {}).get("sufficient_for_forecast", quality_score >= 60))
+    if len(history) < 2 or not sufficient_quality:
+        reasons = []
+        if len(history) < 2:
+            reasons.append("At least two complete days are required.")
+        if not sufficient_quality:
+            reasons.append("Telemetry coverage is insufficient for a reliable forecast.")
+        return {
+            "value": None,
+            "lower": None,
+            "upper": None,
+            "confidence": min(45, quality_score),
+            "sample_days": len(history),
+            "status": "insufficient_data",
+            "method": "robust_weighted_daily_baseline_v2",
+            "limitations": reasons,
+        }
+
+    value = estimate_tomorrow_usage(0, 0, 0, 0, daily_history=history)
+    median = percentile_value(history, 50)
+    deviations = [abs(item - median) for item in history]
+    mad = percentile_value(deviations, 50)
+    relative_variability = (mad / median) if median > 0 else (1.0 if mad > 0 else 0.0)
+    uncertainty_fraction = max(0.10, min(0.60, 0.12 + relative_variability * 1.5 + (0.12 if len(history) < 4 else 0.0)))
+    confidence = int(round(max(0.0, min(95.0, quality_score - relative_variability * 35.0 - (12 if len(history) < 4 else 0)))))
+    return {
+        "value": round(float(value), 2),
+        "lower": round(max(0.0, float(value) * (1.0 - uncertainty_fraction)), 2),
+        "upper": round(float(value) * (1.0 + uncertainty_fraction), 2),
+        "confidence": confidence,
+        "sample_days": len(history),
+        "status": "ready" if confidence >= 60 else "low_confidence",
+        "method": "robust_weighted_daily_baseline_v2",
+        "limitations": [] if confidence >= 60 else ["Recent daily usage varies substantially."],
+    }
 
 
 def percentile_value(values, percentile):
@@ -9219,13 +9325,24 @@ def build_leakage_ai_model(
         score = max(0.0, score - min(12.0, refill_events * 3.0))
 
     quality_score = safe_float((quality or {}).get("score"), 35)
+    sufficient_evidence = bool(
+        (quality or {}).get(
+            "sufficient_for_anomaly",
+            quality_score >= 60 and valid_hours >= 2 and valid_drop_count >= 3,
+        )
+    )
     if quality_score < 60:
         score *= 0.82
         reasons.append("Telemetry quality is limited, so the model reduced confidence.")
 
     score = round(max(0.0, min(100.0, score)), 1)
-    confidence = int(max(20, min(96, quality_score + (10 if len(rates) >= 6 else -8) + (8 if leak_events > 0 else 0))))
-    if score >= 70:
+    confidence = int(max(0, min(95, quality_score + (10 if len(rates) >= 6 else -12) + (8 if leak_events > 0 else 0))))
+    if leak_events <= 0 and not sufficient_evidence:
+        status = "insufficient_data"
+        severity = "info"
+        label = "Not enough reliable data"
+        reasons.insert(0, "More continuous off-pump telemetry is required before classifying leakage.")
+    elif score >= 70:
         status = "likely_leak"
         severity = "danger"
         label = "Likely leakage"
@@ -9243,7 +9360,7 @@ def build_leakage_ai_model(
         label = "No leakage pattern"
 
     leak_type = "none"
-    if score >= 45:
+    if status in {"likely_leak", "possible_leak"}:
         if leak_events > 0 or p90_rate >= 20:
             leak_type = "pipe_leak"
         elif valid_drop_count >= 3 or rate_ratio >= 1.7:
@@ -9251,13 +9368,16 @@ def build_leakage_ai_model(
         else:
             leak_type = "usage_anomaly"
 
+    alert_eligible = status in {"likely_leak", "possible_leak"} and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
     return {
-        "model": "telemetry-leakage-ai-v1",
+        "model": "telemetry-leakage-ai-v2",
         "status": status,
         "label": label,
         "severity": severity,
         "score": score,
         "confidence": confidence,
+        "alert_confidence_threshold": AI_LEAK_ALERT_MIN_CONFIDENCE,
+        "alert_eligible": alert_eligible,
         "leak_type": leak_type,
         "features": {
             "off_pump_drop_count": int(valid_drop_count),
@@ -9271,9 +9391,17 @@ def build_leakage_ai_model(
             "pump_duty_cycle_pct": round(duty_cycle_pct, 2),
             "pump_short_cycle_count": short_cycle_count,
             "avg_pump_run_seconds": int(safe_float(pump_activity_metrics.get("avg_run_seconds"), 0)),
+            "sufficient_evidence": sufficient_evidence,
         },
         "reasons": reasons[:5] or ["No unusual off-pump water loss pattern was found."],
     }
+
+
+def ai_leakage_alert_eligible(leakage_model):
+    model = leakage_model or {}
+    status = str(model.get("status") or "").strip().lower()
+    confidence = safe_float(model.get("confidence"), 0)
+    return status in {"likely_leak", "possible_leak"} and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
 
 
 def build_analysis_payload(
@@ -9295,25 +9423,27 @@ def build_analysis_payload(
     pump_activity_metrics = pump_activity_metrics or {}
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
+    sufficient_anomaly_evidence = bool((quality or {}).get("sufficient_for_anomaly", safe_float((quality or {}).get("score"), 0) >= 60))
     anomalies = []
     event_leak_count = sum(int(event_counts.get(kind, 0) or 0) for kind in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     if leak_events > 0 or event_leak_count > 0:
         anomalies.append({"kind": "leak_signal", "severity": "danger", "message": "Leak indicators were active in this range."})
-    if leakage_model.get("status") in {"likely_leak", "possible_leak"} and leak_events <= 0 and event_leak_count <= 0:
+    if ai_leakage_alert_eligible(leakage_model) and leak_events <= 0 and event_leak_count <= 0:
         anomalies.append(
             {
                 "kind": "ai_leakage",
                 "severity": leakage_model.get("severity") or "warning",
                 "message": "AI/ML telemetry pattern suggests possible leakage.",
                 "score": leakage_model.get("score"),
+                "confidence": leakage_model.get("confidence"),
             }
         )
-    if usage_change_pct is not None and usage_change_pct >= 60:
+    if sufficient_anomaly_evidence and usage_change_pct is not None and usage_change_pct >= 60:
         anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
-    elif usage_change_pct is not None and usage_change_pct >= 25:
+    elif sufficient_anomaly_evidence and usage_change_pct is not None and usage_change_pct >= 25:
         anomalies.append({"kind": "usage_spike", "severity": "warning", "message": "Usage is above the recent baseline."})
     telemetry_short_cycles = int(safe_float(pump_activity_metrics.get("short_cycle_count"), 0))
-    if motor_cycles > 12 or int(event_counts.get("pump_started", 0) or 0) > 12 or telemetry_short_cycles >= 4:
+    if int(event_counts.get("pump_started", 0) or 0) > 12 or (sufficient_anomaly_evidence and (motor_cycles > 12 or telemetry_short_cycles >= 4)):
         anomalies.append({"kind": "short_cycling", "severity": "warning", "message": "Pump cycling is higher than expected."})
     if int(severity_counts.get("warning", 0) or 0) >= 3:
         anomalies.append({"kind": "event_warning_pattern", "severity": "warning", "message": "Several warning events were recorded in the event history."})
@@ -9326,7 +9456,7 @@ def build_analysis_payload(
         current_level,
         leak_events=max(leak_events, event_leak_count),
     )
-    if empty_prediction is not None and empty_prediction <= 6:
+    if forecast_confidence >= 60 and empty_prediction is not None and empty_prediction <= 6:
         severity = "danger" if empty_prediction <= 3 else "warning"
         anomalies.append({"kind": "empty_forecast", "severity": severity, "message": "Tank may run low soon if the current trend continues."})
 
@@ -9346,7 +9476,8 @@ def build_analysis_payload(
         },
         "leakage": leakage_model,
         "model": {
-            "family": "robust-rule-ml-hybrid",
+            "family": "coverage-aware-robust-hybrid-v2",
+            "calibration": "evidence-gated",
             "signals": [
                 "level_trend",
                 "consumption_rate",
@@ -9439,6 +9570,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     severity_counts = event_analysis.get("severity_counts") or {}
     comparison = analytics_payload.get("comparison") or {}
     leakage_model = analysis.get("leakage") or {}
+    sufficient_anomaly_evidence = bool(quality.get("sufficient_for_anomaly", safe_float(quality.get("score"), 0) >= 60))
 
     level = safe_float(snapshot.get("level"), 0)
     motor = str(snapshot.get("motor") or "").upper()
@@ -9457,7 +9589,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
 
     pipe_leak = any(bool_flag(snapshot.get(key)) for key in ("pipe_leak", "slow_leak", "drip"))
     ai_leak_status = str(leakage_model.get("status") or "").lower()
-    ai_leak_active = ai_leak_status in {"likely_leak", "possible_leak"}
+    ai_leak_active = ai_leakage_alert_eligible(leakage_model)
     dry_run = effective_dry_run_active(snapshot)
     source_monitoring_active = source_service == "ON"
     source_blocked = (
@@ -9544,7 +9676,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         action_title = "Let the cycle finish"
         action_note = "Auto protection still controls the stop point while the tank fills."
         observations.append("The pump is currently running and the tank is refilling.")
-    elif usage_change is not None and usage_change >= 35:
+    elif sufficient_anomaly_evidence and usage_change is not None and usage_change >= 35:
         severity = "warning"
         tone = "warn"
         title = "Water use is higher than normal"
@@ -9569,27 +9701,29 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     motor_cycles = safe_float(insights.get("motor_cycles"), safe_float(snapshot.get("motor_cycles"), 0))
     event_pump_cycles = safe_float(event_counts.get("pump_started"), 0)
     telemetry_short_cycles = safe_float(pump_activity.get("short_cycle_count"), 0)
-    if max(motor_cycles, event_pump_cycles) > 12 or telemetry_short_cycles >= 4:
+    if event_pump_cycles > 12 or (sufficient_anomaly_evidence and (motor_cycles > 12 or telemetry_short_cycles >= 4)):
         observations.append("Pump cycling is higher than normal.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
     if safe_float(severity_counts.get("warning"), 0) >= 3:
         observations.append("Event history shows repeated warnings in this range.")
         actions.append("Review recent device events before changing automation settings.")
 
-    confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 0)))
-    if confidence <= 0:
-        confidence = 72
-    if telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
-        confidence = max(confidence, 72)
-    if severity == "normal" and telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
-        confidence = max(confidence, 80 if analytics_payload else 74)
+    quality_confidence = int(safe_float(quality.get("score"), 0))
+    confidence = int(safe_float(analysis.get("forecast_confidence"), quality_confidence))
+    direct_hardware_signal = dry_run or source_blocked or main_sensor_bad or pipe_leak
+    if direct_hardware_signal and telemetry in {"live", "recent", "online"}:
+        confidence = max(confidence, 85)
+    elif analytics_payload:
+        confidence = min(confidence, quality_confidence)
+    else:
+        confidence = 0
     if telemetry == "stale":
         confidence -= 20
     if not analytics_payload or not (analytics_payload.get("levels") or {}).get("values"):
         confidence -= 10
     if main_sensor_bad:
         confidence -= 8
-    confidence = max(45, min(96, confidence))
+    confidence = max(0, min(95, confidence))
 
     return {
         "severity": severity,
@@ -9600,6 +9734,8 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         "action_note": action_note,
         "time_to_empty_hours": effective_empty,
         "confidence_percent": int(confidence),
+        "confidence_basis": "direct_device_signal" if direct_hardware_signal else "telemetry_quality",
+        "limitations": list(quality.get("limitations") or [])[:4],
         "observations": observations[:5],
         "actions": list(dict.fromkeys(actions))[:5],
         "source": "shared_server_guidance",
@@ -10067,8 +10203,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
         hourly_usage[created_at.hour] += usage
 
+        implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         level_times.append(timestamp_label)
-        level_values.append(None if gap_break else level)
+        level_values.append(None if gap_break or implausible_level_jump else level)
         motor_times.append(timestamp_label)
         motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
 
@@ -10107,17 +10244,41 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     empty_prediction = current_level / consumption_rate if consumption_rate > 0 else None
     daily_dates = list(daily_usage.keys())
     daily_values = list(daily_usage.values())
+    configured_capacity = safe_float(latest_row.get("tank_capacity_liters"), None)
+    if configured_capacity is None or configured_capacity <= 0:
+        service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
+        configured_capacity = safe_float(service_config.get("tank_capacity_liters"), TANK_CAPACITY_LITERS)
+    tank_capacity_liters = configured_capacity if configured_capacity and configured_capacity > 0 else TANK_CAPACITY_LITERS
+    def percent_to_liters(value):
+        if value is None:
+            return None
+        return round((float(value) * tank_capacity_liters) / 100.0, 1)
+    daily_liters = [percent_to_liters(value) for value in daily_values]
+    hourly_liters = [percent_to_liters(value) for value in hourly_usage]
 
-    peak_day = max(daily_usage, key=daily_usage.get) if daily_usage else "--"
-    lowest_day = min(daily_usage, key=daily_usage.get) if daily_usage else "--"
-    peak_value = float(daily_usage.get(peak_day, 0.0)) if daily_usage else 0.0
-    lowest_value = float(daily_usage.get(lowest_day, 0.0)) if daily_usage else 0.0
-    avg_daily_usage = float(sum(daily_values) / len(daily_values)) if daily_values else 0.0
+    daily_complete = []
+    for date_text in daily_dates:
+        day_start = datetime.strptime(date_text, DATE_ONLY_FORMAT)
+        daily_complete.append(start_dt <= day_start and end_exclusive >= day_start + timedelta(days=1))
+    complete_usage = {
+        date_text: daily_usage[date_text]
+        for date_text, is_complete in zip(daily_dates, daily_complete)
+        if is_complete
+    }
+    comparison_usage = complete_usage or daily_usage
+    comparison_dates = list(comparison_usage.keys())
+    comparison_values = list(comparison_usage.values())
 
-    latest_day = str(daily_dates[-1]) if daily_dates else "--"
-    previous_day = str(daily_dates[-2]) if len(daily_dates) >= 2 else "--"
-    latest_day_usage = float(daily_values[-1]) if daily_values else 0.0
-    previous_day_usage = float(daily_values[-2]) if len(daily_values) >= 2 else 0.0
+    peak_day = max(comparison_usage, key=comparison_usage.get) if comparison_usage else "--"
+    lowest_day = min(comparison_usage, key=comparison_usage.get) if comparison_usage else "--"
+    peak_value = float(comparison_usage.get(peak_day, 0.0)) if comparison_usage else 0.0
+    lowest_value = float(comparison_usage.get(lowest_day, 0.0)) if comparison_usage else 0.0
+    avg_daily_usage = float(sum(comparison_values) / len(comparison_values)) if comparison_values else 0.0
+
+    latest_day = str(comparison_dates[-1]) if comparison_dates else "--"
+    previous_day = str(comparison_dates[-2]) if len(comparison_dates) >= 2 else "--"
+    latest_day_usage = float(comparison_values[-1]) if comparison_values else 0.0
+    previous_day_usage = float(comparison_values[-2]) if len(comparison_values) >= 2 else 0.0
     if previous_day_usage >= ANALYTICS_MIN_BASELINE_USAGE_PCT:
         usage_change_pct = ((latest_day_usage - previous_day_usage) / previous_day_usage) * 100
     else:
@@ -10131,7 +10292,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         gap_count=gap_count,
         valid_drop_count=valid_drop_count,
         latest_seconds_since_sync=latest_row["seconds_since_sync"],
+        window_hours=max(0.0, (end_exclusive - start_dt).total_seconds() / 3600.0),
     )
+    if not analytics_quality.get("sufficient_for_anomaly"):
+        usage_change_pct = None
+    usage_forecast = build_daily_usage_forecast(comparison_values, analytics_quality)
     leakage_model = build_leakage_ai_model(
         leak_events=leak_events,
         consumption_rate=consumption_rate,
@@ -10154,19 +10319,21 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     alerts = []
     if leak_events > 0:
         alerts.append("Possible pipe leak detected in the selected period.")
-    elif leakage_model.get("status") == "likely_leak":
+    elif leakage_model.get("status") == "likely_leak" and ai_leakage_alert_eligible(leakage_model):
         alerts.append("AI/ML model found a likely leakage pattern in tank level history.")
-    elif leakage_model.get("status") == "possible_leak":
+    elif leakage_model.get("status") == "possible_leak" and ai_leakage_alert_eligible(leakage_model):
         alerts.append("AI/ML model found a possible leakage pattern. Inspect pipes and taps.")
-    if consumption_rate > 15:
+    if analytics_quality.get("sufficient_for_anomaly") and consumption_rate > 15:
         alerts.append("Water consumption is above the usual range.")
-    if empty_prediction is not None and empty_prediction < 6:
+    if analytics_quality.get("sufficient_for_forecast") and empty_prediction is not None and empty_prediction < 6:
         alerts.append("Tank may empty within the next 6 hours.")
-    if motor_cycles > 12 or int(pump_activity_metrics.get("short_cycle_count", 0) or 0) >= 4:
+    if analytics_quality.get("sufficient_for_anomaly") and (motor_cycles > 12 or int(pump_activity_metrics.get("short_cycle_count", 0) or 0) >= 4):
         alerts.append("Motor is cycling frequently. Check automation thresholds.")
     if latest_row["seconds_since_sync"] > STALE_AFTER_SECONDS:
         alerts.append("Live telemetry looks stale. Check device connectivity.")
-    if not alerts:
+    if not alerts and analytics_quality.get("status") == "limited":
+        alerts.append("More continuous telemetry is needed before AI/ML conclusions are reliable.")
+    elif not alerts:
         alerts.append("System is stable for the selected range.")
 
     level_times, level_values = downsample_series(
@@ -10199,22 +10366,34 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "consumption_rate": round(float(consumption_rate), 2),
             "leak_events": leak_events,
             "avg_daily_usage": round(avg_daily_usage, 2),
+            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage),
             "peak_usage_day": peak_day,
             "peak_usage_value": round(peak_value, 2),
+            "peak_usage_liters": percent_to_liters(peak_value),
             "lowest_usage_day": lowest_day,
             "lowest_usage_value": round(lowest_value, 2),
+            "lowest_usage_liters": percent_to_liters(lowest_value),
             "latest_day_usage": round(latest_day_usage, 2),
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage),
             "previous_day_usage": round(previous_day_usage, 2),
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage),
             "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "health": health,
         "daily": {
             "dates": daily_dates,
             "values": [round(float(value), 2) for value in daily_values],
+            "liters": daily_liters,
+            "unit": "L",
+            "measurement": "estimated_from_level_change",
+            "complete": daily_complete,
         },
         "pattern": {
             "hours": list(range(24)),
             "values": [round(float(value), 2) for value in hourly_usage],
+            "liters": hourly_liters,
+            "unit": "L",
+            "measurement": "estimated_from_level_change",
         },
         "levels": {
             "time": level_times,
@@ -10228,17 +10407,29 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "comparison": {
             "latest_day": latest_day,
             "latest_day_usage": round(latest_day_usage, 2),
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage),
             "previous_day": previous_day,
             "previous_day_usage": round(previous_day_usage, 2),
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage),
             "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "prediction": {
-            "tomorrow_usage": estimate_tomorrow_usage(
-                avg_daily_usage,
-                latest_day_usage,
-                previous_day_usage,
-                peak_value,
-            ),
+            "tomorrow_usage": usage_forecast["value"],
+            "tomorrow_usage_liters": percent_to_liters(usage_forecast["value"]),
+            "lower_usage": usage_forecast["lower"],
+            "upper_usage": usage_forecast["upper"],
+            "lower_usage_liters": percent_to_liters(usage_forecast["lower"]),
+            "upper_usage_liters": percent_to_liters(usage_forecast["upper"]),
+            "confidence": usage_forecast["confidence"],
+            "sample_days": usage_forecast["sample_days"],
+            "status": usage_forecast["status"],
+            "method": usage_forecast["method"],
+            "limitations": usage_forecast["limitations"],
+        },
+        "usage": {
+            "unit": "L",
+            "tank_capacity_liters": round(tank_capacity_liters, 1),
+            "measurement": "estimated_from_level_change",
         },
         "alerts": alerts,
     }
@@ -10492,21 +10683,21 @@ def build_analytics_csv_rows(payload, device_id=None):
     )
     append_series(
         "daily_water_use",
-        "Daily Water Use",
+        "Estimated Daily Water Use",
         (payload.get("daily") or {}).get("dates") or [],
-        (payload.get("daily") or {}).get("values") or [],
-        "percent",
+        (payload.get("daily") or {}).get("liters") or [],
+        "L",
         label_builder=lambda _x, y: format_analytics_csv_value(y),
     )
     append_series(
         "hourly_water_pattern",
-        "24-Hour Water Pattern",
+        "Estimated 24-Hour Water Pattern",
         [
             f"{int(hour):02d}:00" if str(hour).strip() not in {"", "None"} else ""
             for hour in ((payload.get("pattern") or {}).get("hours") or [])
         ],
-        (payload.get("pattern") or {}).get("values") or [],
-        "percent",
+        (payload.get("pattern") or {}).get("liters") or [],
+        "L",
         label_builder=lambda _x, y: format_analytics_csv_value(y),
     )
     append_series(

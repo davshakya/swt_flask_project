@@ -7,9 +7,10 @@
 <title>SaleWell Smart Tank Dashboard</title>
 {% include '_pwa_head.html' %}
 <style>
-:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--link-blue:#0b63ce;--link-blue-hover:#084fa8;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#22c55e;--chart-motor-on:#22c55e;--chart-motor-off:#2563eb;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
+:root{color-scheme:light dark;--bg:#eef8f8;--bg-deep:#d9eff0;--panel:rgba(255,255,255,.86);--panel-strong:#ffffff;--line:rgba(19,78,94,.1);--text:#12303a;--muted:#5f7d86;--primary:#1389a5;--primary-deep:#0f667d;--link-blue:#0b63ce;--link-blue-hover:#084fa8;--good:#1f9d68;--warn:#de8d1d;--danger:#da4f63;--shadow:0 28px 60px rgba(17,52,64,.12);--body-bg:radial-gradient(circle at top left,rgba(19,137,165,.16),transparent 22%),radial-gradient(circle at top right,rgba(31,157,104,.12),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(19,137,165,.08),rgba(255,255,255,.84));--chip-bg:rgba(244,251,251,.82);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.55);--tank-wrap-bg:linear-gradient(180deg,rgba(15,102,125,.08),rgba(255,255,255,.72));--tank-shell-border:rgba(18,48,58,.18);--tank-shell-bg:linear-gradient(180deg,rgba(255,255,255,.66),rgba(244,251,251,.3));--tank-inner-bg:linear-gradient(180deg,rgba(12,44,56,.92),rgba(16,57,72,.9));--tank-water-top:rgba(255,255,255,.24);--card-bg:rgba(255,255,255,.74);--input-bg:rgba(247,252,252,.92);--list-bg:rgba(248,252,252,.86);--setting-bg:rgba(248,252,252,.82);--button-outline:rgba(19,78,94,.14);--button-lite-bg:rgba(19,137,165,.1);--button-lite-ring:rgba(19,137,165,.12);--info-bg:rgba(19,137,165,.12);--info-line:rgba(19,137,165,.18);--warn-bg:rgba(222,141,29,.12);--warn-line:rgba(222,141,29,.2);--danger-bg:rgba(218,79,99,.12);--danger-line:rgba(218,79,99,.2);--text-strong:var(--text);--chart-grid:rgba(19,78,94,.12);--chart-ticks:var(--muted);--chart-level:#38bdf8;--chart-level-fill:rgba(56,189,248,.16);--chart-daily:#22c55e;--chart-pattern:#f59e0b;--chart-motor:#22c55e;--chart-motor-on:#22c55e;--chart-motor-off:#94a3b8;--water-low:linear-gradient(180deg,#fda4af 0%,#dc2626 100%);--water-mid:linear-gradient(180deg,#55d2ff 0%,#1184c7 100%);--water-high:linear-gradient(180deg,#86efac 0%,#15803d 100%)}
 @media (prefers-color-scheme: dark){
 :root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.86);--panel-strong:#0f2430;--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--primary-deep:#8fe5ff;--link-blue:#83c5ff;--link-blue-hover:#b7ddff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 30%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--panel-live-bg:linear-gradient(180deg,rgba(85,193,221,.12),rgba(15,36,48,.88));--chip-bg:rgba(15,36,48,.84);--chip-shadow:inset 0 1px 0 rgba(255,255,255,.04);--tank-wrap-bg:linear-gradient(180deg,rgba(85,193,221,.08),rgba(10,22,32,.72));--tank-shell-border:rgba(173,219,235,.18);--tank-shell-bg:linear-gradient(180deg,rgba(16,34,45,.94),rgba(11,26,35,.9));--tank-inner-bg:linear-gradient(180deg,rgba(4,17,24,.96),rgba(8,28,38,.94));--tank-water-top:rgba(255,255,255,.18);--card-bg:rgba(14,31,41,.84);--input-bg:rgba(10,26,35,.92);--list-bg:rgba(12,29,39,.88);--setting-bg:rgba(12,29,39,.84);--button-outline:rgba(154,202,221,.16);--button-lite-bg:rgba(85,193,221,.12);--button-lite-ring:rgba(85,193,221,.16);--info-bg:rgba(85,193,221,.14);--info-line:rgba(85,193,221,.22);--warn-bg:rgba(244,178,76,.14);--warn-line:rgba(244,178,76,.2);--danger-bg:rgba(255,125,145,.14);--danger-line:rgba(255,125,145,.22);--text-strong:#f7fcfd;--chart-grid:rgba(154,202,221,.12);--chart-ticks:#9fb7c0;--chart-level:#67d6ff;--chart-level-fill:rgba(103,214,255,.16);--chart-daily:#46d18f;--chart-pattern:#f4b24c;--chart-motor:#46d18f;--chart-motor-on:#46d18f;--chart-motor-off:#60a5fa;--water-low:linear-gradient(180deg,#ff9aa9 0%,#e64559 100%);--water-mid:linear-gradient(180deg,#62ddff 0%,#1794d6 100%);--water-high:linear-gradient(180deg,#90f1b7 0%,#1ea45d 100%)}
+    :root{--chart-motor-off:#aeb4bd}
 }
 *{box-sizing:border-box}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -621,7 +622,15 @@ const localeTools=window.swtLocale||{};
 
 const fmtPct=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)}%`;
 const fmtHours=(v)=>v===null||v===undefined||Number.isNaN(Number(v))||Number(v)<=0?"--":`${Number(v).toFixed(1)} hrs`;
-const fmtUsage=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%`;
+const fmtUsage=(v)=>{
+    const capacity=Number(state.data.snapshot?.capacity_liters??state.data.systemStatus?.capacity_liters);
+    if(v===null||v===undefined||Number.isNaN(Number(v))||!Number.isFinite(capacity)||capacity<=0)return"--";
+    return`${((Number(v)*capacity)/100).toFixed(1)} L`;
+};
+const fmtUsageLiters=(liters,percentFallback=null)=>{
+    if(liters!==null&&liters!==undefined&&!Number.isNaN(Number(liters)))return`${Number(liters).toFixed(1)} L`;
+    return fmtUsage(percentFallback);
+};
 const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)} L`;
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
@@ -766,79 +775,51 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     const useTimeLabels=xLabelMode==="time";
     const useDurationLabels=xLabelMode==="duration";
     const onColor=themeVar("--chart-motor-on")||themeVar("--chart-motor")||"#22c55e";
-    const offColor=themeVar("--chart-motor-off")||"#2563eb";
+    const offColor=themeVar("--chart-motor-off")||"#94a3b8";
     const barColor=(state)=>state===1?onColor:offColor;
     const highY=box.top+Math.max(20,box.plotHeight*0.28);
     const lowY=box.top+Math.min(box.plotHeight-16,box.plotHeight*0.74);
-    const barHeight=Math.max(16,Math.min(38,box.plotHeight*0.24));
     const stateY=(state)=>state===1?highY:lowY;
 
     ctx.fillStyle=themeVar("--chart-ticks");
     ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="right";
-    ctx.fillText("ON",box.left-10,highY+4);
-    ctx.fillText("OFF",box.left-10,lowY+4);
+    ctx.fillStyle=onColor;
+    ctx.fillText("1 (ON)",box.left-10,highY+4);
+    ctx.fillStyle=offColor;
+    ctx.fillText("0 (OFF)",box.left-10,lowY+4);
 
     [{state:1,y:highY},{state:0,y:lowY}].forEach((lane)=>{
         ctx.save();
-        ctx.fillStyle=barColor(lane.state);
-        ctx.globalAlpha=0.08;
+        ctx.strokeStyle=themeVar("--chart-grid");
+        ctx.setLineDash([4,4]);
+        ctx.lineWidth=1;
         ctx.beginPath();
-        const laneTop=lane.y-barHeight/2;
-        if(typeof ctx.roundRect==="function")ctx.roundRect(box.left,laneTop,box.plotWidth,barHeight,10);
-        else ctx.rect(box.left,laneTop,box.plotWidth,barHeight);
-        ctx.fill();
-        ctx.restore();
-    });
-
-    finiteSegments.forEach((segment)=>{
-        const startX=xForTime(segment.startMs);
-        const endX=xForTime(segment.endMs);
-        const drawEndX=Math.min(box.left+box.plotWidth,Math.max(endX,startX+2));
-        const laneY=stateY(segment.state);
-        const rectY=laneY-barHeight/2;
-        ctx.save();
-        ctx.fillStyle=barColor(segment.state);
-        ctx.globalAlpha=segment.state===1?0.94:0.82;
-        ctx.beginPath();
-        if(typeof ctx.roundRect==="function")ctx.roundRect(startX,rectY,drawEndX-startX,barHeight,9);
-        else ctx.rect(startX,rectY,drawEndX-startX,barHeight);
-        ctx.fill();
-        ctx.restore();
-    });
-
-    ctx.save();
-    ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
-    ctx.strokeStyle=onColor;
-    ctx.font='700 11px "Trebuchet MS","Segoe UI",sans-serif';
-    ctx.textAlign="center";
-    ctx.textBaseline="middle";
-    finiteSegments.forEach((segment)=>{
-        if(segment.state!==1)return;
-        const startX=xForTime(segment.startMs);
-        const endX=xForTime(segment.endMs);
-        const segmentWidth=endX-startX;
-        if(segmentWidth<=28)return;
-        const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`;
-        const textWidth=ctx.measureText(labelText).width;
-        const badgeWidth=textWidth+14;
-        if(segmentWidth<badgeWidth+6)return;
-        const badgeHeight=18;
-        const badgeX=startX+(segmentWidth-badgeWidth)/2;
-        const badgeY=Math.max(box.top+2,highY-barHeight/2-badgeHeight-6);
-        ctx.globalAlpha=0.94;
-        ctx.beginPath();
-        if(typeof ctx.roundRect==="function")ctx.roundRect(badgeX,badgeY,badgeWidth,badgeHeight,9);
-        else ctx.rect(badgeX,badgeY,badgeWidth,badgeHeight);
-        ctx.fill();
-        ctx.globalAlpha=0.42;
+        ctx.moveTo(box.left,lane.y);
+        ctx.lineTo(box.left+box.plotWidth,lane.y);
         ctx.stroke();
-        ctx.globalAlpha=1;
-        ctx.fillStyle=onColor;
-        ctx.fillText(labelText,badgeX+badgeWidth/2,badgeY+badgeHeight/2+0.5);
-        ctx.fillStyle=themeVar("--panel-strong")||themeVar("--bg");
+        ctx.restore();
     });
-    ctx.restore();
+
+    finiteSegments.forEach((segment,index)=>{
+        const startX=xForTime(segment.startMs);
+        const endX=xForTime(segment.endMs);
+        const laneY=stateY(segment.state);
+        ctx.save();
+        ctx.strokeStyle=barColor(segment.state);
+        ctx.lineWidth=3;
+        ctx.lineCap="round";
+        ctx.lineJoin="round";
+        ctx.beginPath();
+        ctx.moveTo(startX,laneY);
+        ctx.lineTo(endX,laneY);
+        const next=finiteSegments[index+1];
+        if(next&&Math.abs(next.startMs-segment.endMs)<1&&next.state!==segment.state){
+            ctx.lineTo(endX,stateY(next.state));
+        }
+        ctx.stroke();
+        ctx.restore();
+    });
 
     const points=finiteSegments.map((segment,index)=>{
         const startX=xForTime(segment.startMs);
@@ -847,7 +828,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         return {x:startX+(endX-startX)/2,y:laneY,index,value:segment.state,label:segment.startLabel,endLabel:segment.endLabel,durationSeconds:segment.durationSeconds,ongoing:segment.ongoing,stateLabel:segment.state===1?"ON":"OFF"};
     });
 
-    const summaryParts=["Green ON","Blue OFF"];
+    const summaryParts=["Green ON","Gray OFF"];
     const completedRuns=Number(pumpActivity?.completed_runs);
     const avgRunSeconds=Number(pumpActivity?.avg_run_seconds);
     const dutyCycle=Number(pumpActivity?.duty_cycle_pct);
@@ -871,12 +852,12 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         ctx.textAlign="right";
         ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY);
     }else{
-        const axisStartLabel=chartAxisLabel(finiteSegments[0]?.startLabel??labels[0]??"",{timeOnly:useTimeLabels});
-        const axisEndLabel=chartAxisLabel(finiteSegments[finiteSegments.length-1]?.endLabel??labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});
-        [
-            {x:box.left,label:axisStartLabel,align:"left"},
-            {x:box.left+box.plotWidth,label:axisEndLabel,align:"right"},
-        ].forEach((tick)=>{
+        const tickCount=Math.max(2,Math.min(7,Math.round(box.plotWidth/120)));
+        Array.from({length:tickCount},(_,index)=>{
+            const ratio=index/(tickCount-1);
+            const tickMs=minTime+(timeSpan*ratio);
+            return{x:box.left+(box.plotWidth*ratio),label:chartAxisLabel(new Date(tickMs).toISOString(),{timeOnly:useTimeLabels}),align:index===0?"left":index===tickCount-1?"right":"center"};
+        }).forEach((tick)=>{
             ctx.beginPath();
             ctx.moveTo(tick.x,axisY);
             ctx.lineTo(tick.x,axisY+5);
@@ -1732,8 +1713,11 @@ function drawAnalyticsCharts(data){
     const todayAxis=analyticsRangeIsToday();
     const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),180);
     drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
-    drawCanvasSeries(charts.daily.canvas,"Daily Usage %",data.daily?.dates||[],toChartNumberArray(data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>value>=100?Math.round(value).toString():value.toFixed(1)});
-    drawCanvasSeries(charts.pattern.canvas,"Hourly Usage %",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),toChartNumberArray(data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>value>=10?value.toFixed(0):value.toFixed(1)});
+    const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
+    const usageLiters=(liters,percentValues)=>Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);
+    const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
+    drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,usageLiters(data.daily?.liters,data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`});
+    drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),usageLiters(data.pattern?.liters,data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`});
     const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
     drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"datetime"});
 }
@@ -1928,7 +1912,7 @@ function applyCloudFeedAvailability(){
 
 function initCharts(){
     chartsAvailable=true;
-    [["level","levelChart","Tank Level %"],["daily","dailyChart","Daily Usage %"],["pattern","patternChart","Hourly Usage %"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
 }
 
 function refreshChartsTheme(){
@@ -2100,26 +2084,28 @@ function renderAnalytics(data){
     const analyticsReady=hasMeaningfulAnalyticsData(chartData);
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
-    document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsage(data.insights?.avg_daily_usage):"--";
+    document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--";
+    const coverage=Number(data.analysis?.quality?.coverage_percent);
+    const sampleDays=Number(data.prediction?.sample_days);
     document.getElementById("avg_daily_usage_text").textContent=analyticsReady&&String(data.comparison?.latest_day||"").trim()&&String(data.comparison?.latest_day||"").trim()!=="--"
-        ?`${formatLocaleDate(data.comparison?.latest_day)} current benchmark`
+        ?`${Number.isFinite(sampleDays)?sampleDays:"--"} complete day${sampleDays===1?"":"s"}${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% telemetry coverage`:""}`
         :"Not enough history yet for a reliable daily comparison.";
     document.getElementById("peak_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.peak_usage_day):"--";
-    document.getElementById("peak_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.peak_usage_value):"--";
+    document.getElementById("peak_usage_value").textContent=analyticsReady?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--";
     document.getElementById("lowest_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.lowest_usage_day):"--";
-    document.getElementById("lowest_usage_value").textContent=analyticsReady?fmtUsage(data.insights?.lowest_usage_value):"--";
+    document.getElementById("lowest_usage_value").textContent=analyticsReady?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--";
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
     const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
     document.getElementById("usage_change").textContent=hasChange?`${changeNumber>0?"+":""}${changeNumber.toFixed(1)}%`:"--";
     document.getElementById("usage_change_text").textContent=hasChange
         ?changeNumber>=35
-            ?`Much higher than normal. ${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} yesterday.`
+            ?`Much higher than normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
             :changeNumber>=15
-                ?`Higher than normal. ${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} yesterday.`
+                ?`Higher than normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
                 :changeNumber<=-20
-                    ?`Lower than normal. ${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} yesterday.`
-                    :`Close to normal. ${fmtUsage(data.comparison?.latest_day_usage)} vs ${fmtUsage(data.comparison?.previous_day_usage)} yesterday.`
+                    ?`Lower than normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
+                    :`Close to normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
         :"Previous-day comparison is not reliable yet.";
     document.getElementById("avg_level").textContent=analyticsReady?fmtPct(data.insights?.avg_level):"--";
     document.getElementById("min_max_level").textContent=analyticsReady
@@ -2128,7 +2114,14 @@ function renderAnalytics(data){
     document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
         ?fmtRatePerHour(data.insights?.consumption_rate)
         :"--";
-    document.getElementById("ai_tomorrow_usage").textContent=analyticsReady?fmtUsage(data.prediction?.tomorrow_usage):"--";
+    const forecastReady=analyticsReady&&data.prediction?.status!=="insufficient_data"&&hasDisplayNumber(data.prediction?.tomorrow_usage_liters??data.prediction?.tomorrow_usage);
+    nodesById("ai_tomorrow_usage").forEach((node)=>{
+        node.textContent=forecastReady?fmtUsageLiters(data.prediction?.tomorrow_usage_liters,data.prediction?.tomorrow_usage):"--";
+        const note=node.parentElement?.querySelector(".subvalue");
+        if(note)note.textContent=forecastReady
+            ?`${Number(data.prediction?.confidence||0).toFixed(0)}% confidence | ${sampleDays} complete days`
+            :(data.prediction?.limitations?.[0]||"Not enough reliable history to forecast.");
+    });
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     const renderCharts=()=>drawAnalyticsCharts(chartData);
     if(typeof window.requestAnimationFrame==="function"){

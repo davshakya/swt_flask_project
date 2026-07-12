@@ -217,7 +217,9 @@ def test_analytics_recovers_history_from_device_events_when_tank_rows_are_thin()
         assert payload["analysis"]["quality"]["row_count"] == 3
         assert payload["levels"]["values"] == levels
         assert payload["insights"]["consumption_rate"] > 0
-        assert payload["prediction"]["tomorrow_usage"] is not None
+        assert payload["prediction"]["tomorrow_usage"] is None
+        assert payload["prediction"]["status"] == "insufficient_data"
+        assert payload["analysis"]["quality"]["sufficient_for_forecast"] is False
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))

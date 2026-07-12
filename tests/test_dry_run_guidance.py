@@ -79,10 +79,11 @@ def test_recovered_dry_run_flag_no_longer_drives_guidance_or_alerts():
     assert server.effective_dry_run_active(snapshot) is False
     assert server.effective_pump_failure_active(snapshot) is False
     assert guidance["title"] == "Water system is stable"
-    assert guidance["confidence_percent"] >= 70
+    assert guidance["confidence_percent"] == 60
+    assert guidance["confidence_basis"] == "telemetry_quality"
 
 
-def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_leak():
+def test_shared_guidance_suppresses_low_confidence_ai_leak_for_high_tank():
     guidance = server.build_shared_guidance_payload(
         {
             "level": 75.9,
@@ -113,7 +114,7 @@ def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_
         },
     )
 
-    assert guidance["title"] == "AI found a possible leakage pattern"
+    assert guidance["title"] == "Water system is stable"
     assert guidance["time_to_empty_hours"] is None
     assert "1.3" not in guidance["summary"]
 
