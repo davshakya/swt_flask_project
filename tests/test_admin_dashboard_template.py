@@ -168,6 +168,16 @@ def test_admin_slave_status_uses_direct_peer_packet_freshness():
     assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source
 
 
+def test_admin_dashboard_maps_municipal_sensor_snapshot_fields():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '"municipal_sensor_enabled": payload.get("municipal_sensor_enabled")' in server_source
+    assert '"municipal_sensor_state": payload.get("municipal_sensor_state")' in server_source
+    assert '"municipal_sensor_simulated": payload.get("municipal_sensor_simulated")' in server_source
+    assert '"municipal_sensor_reachable": payload.get("municipal_sensor_reachable")' in server_source
+    assert '"municipal_sensor_last_updated": payload.get("municipal_sensor_last_updated")' in server_source
+
+
 def test_admin_device_table_shows_raw_upper_echo_distance():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
