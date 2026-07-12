@@ -654,6 +654,8 @@ def test_device_detail_has_device_purge_action():
     assert 'logger.exception("Admin device purge failed for %s", normalized_device_id)' not in server_source
     assert 'error=f"Delete failed for {normalized_device_id}. Check the server log for details."' in server_source
     assert 'error=f"Purge failed for {normalized_device_id}. Check the server log for details."' not in server_source
+    assert '"DELETE FROM app_settings WHERE `key` LIKE ?"' in server_source
+    assert 're.sub(r"\\bWHERE\\s+key\\s+LIKE\\b", "WHERE `key` LIKE", sql, flags=re.I)' in server_source
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():

@@ -1647,7 +1647,7 @@ def purge_device_app_settings(cursor, device_id):
     if normalized_device_id:
         deleted_rows += int(
             cursor.execute(
-                "DELETE FROM app_settings WHERE key LIKE ?",
+                "DELETE FROM app_settings WHERE `key` LIKE ?",
                 (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
             ).rowcount or 0
         )
@@ -4682,6 +4682,7 @@ def translate_mysql_query(sql, params=None):
     sql = translate_mysql_upsert_sql(sql)
     sql = sql.replace("app_settings(key", "app_settings(`key`")
     sql = re.sub(r"\bWHERE\s+key\s*=", "WHERE `key` =", sql, flags=re.I)
+    sql = re.sub(r"\bWHERE\s+key\s+LIKE\b", "WHERE `key` LIKE", sql, flags=re.I)
     sql = re.sub(r"\bLIMIT\s+-1\s+OFFSET\b", "LIMIT 18446744073709551615 OFFSET", sql, flags=re.I)
     sql = sql.replace("?", "%s")
     return sql, tuple(params or ())
