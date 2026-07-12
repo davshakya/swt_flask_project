@@ -257,3 +257,14 @@ def test_delete_known_device_retries_transient_database_deadlock(monkeypatch):
     finally:
         monkeypatch.setattr(server, "purge_device_table_rows", original_purge)
         server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_marks_ignored_before_table_purge():
+    server_source = (server.PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "attempts=6" in server_source
+    assert "initial_delay_s=0.5" in server_source
+    assert "if remember_deleted_device:" in server_source
+    assert "add_deleted_device_marker(db.cursor(), normalized_device_id)" in server_source
+    assert 'if remember_deleted_device and table_name == "ignored_devices":' in server_source
+    assert "check-ins are rejected instead of racing with row deletion" in server_source

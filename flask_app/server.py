@@ -1299,8 +1299,8 @@ def run_with_database_lock_retries(
     operation,
     *,
     operation_name="database operation",
-    attempts=4,
-    initial_delay_s=0.2,
+    attempts=6,
+    initial_delay_s=0.5,
 ):
     last_exc = None
     for attempt in range(max(1, int(attempts or 1))):
@@ -1744,9 +1744,16 @@ def purge_device_data(device_id, remember_deleted_device=False):
 
     def execute_purge():
         deleted_counts = {}
+        if remember_deleted_device:
+            # Mark the device as ignored before the main purge so new telemetry
+            # check-ins are rejected instead of racing with row deletion.
+            with get_db() as db:
+                add_deleted_device_marker(db.cursor(), normalized_device_id)
         with get_db() as db:
             cursor = db.cursor()
             for table_name in list_database_table_names(cursor):
+                if remember_deleted_device and table_name == "ignored_devices":
+                    continue
                 deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
                 if deleted_rows is not None:
                     deleted_counts[table_name] = deleted_rows
@@ -1760,6 +1767,8 @@ def purge_device_data(device_id, remember_deleted_device=False):
         with get_db() as db:
             cursor = db.cursor()
             for table_name in list_database_table_names(cursor):
+                if remember_deleted_device and table_name == "ignored_devices":
+                    continue
                 deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
                 if deleted_rows is not None:
                     deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
