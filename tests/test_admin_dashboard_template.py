@@ -395,7 +395,10 @@ def test_customer_dashboard_motor_chart_shows_stepped_digital_state():
 def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert 'class="ops-sticky"' in customer_template
+    sticky_start = customer_template.index('<nav class="ops-sticky"')
+    sticky_end = customer_template.index("</nav>", sticky_start)
+    assert customer_template.rfind("{% if is_admin %}", 0, sticky_start) > customer_template.rfind("{% endif %}", 0, sticky_start)
+    assert customer_template.index("{% endif %}", sticky_end) > sticky_end
     assert 'id="stickyTankLevel"' in customer_template
     assert 'id="stickyPumpStatus"' in customer_template
     assert 'id="stickyAiAlert"' in customer_template
@@ -411,6 +414,23 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert "eventMarkers:levelEvents" in customer_template
     assert 'id="viewLeakReportButton"' in customer_template
     assert "aiLeakConfidence>90" in customer_template
+
+
+def test_customer_usage_cards_show_live_values_while_history_confidence_builds():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    usage_start = customer_template.index("function updateCustomerUsageCards(")
+    usage_end = customer_template.index("function updateCustomerSpotlightCards", usage_start)
+    usage_body = customer_template[usage_start:usage_end]
+
+    assert 'setText("usage_change",latestLiters!==null?' in usage_body
+    assert 'Number(snapshot.tomorrow_prediction)' in usage_body
+    assert 'Number(snapshot.ai_usage_rate)' in usage_body
+    assert '"Live device estimate; historical confidence is still building."' in usage_body
+    assert '"Live device usage-rate estimate."' in usage_body
+    assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
+    assert "function customerUsageSavings(" in customer_template
+    assert 'value:"0.0 L"' in customer_template
 
 
 def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
