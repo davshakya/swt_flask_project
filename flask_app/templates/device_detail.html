@@ -656,9 +656,9 @@ function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceCo
   if(snapshot.motor||snapshot.mode){
     add("pump_current_status","info",`Pump is ${String(snapshot.motor||"not reported").toUpperCase()} in ${String(snapshot.mode||"unknown").toUpperCase()} mode.`,{motor:snapshot.motor,mode:snapshot.mode});
   }
-  const masterStatus=systemStatus.master_status_label||"Reachable";
-  const slaveStatus=systemStatus.slave_status_label||(usesSlave?"Reachable":"Disabled");
-  add("node_current_status",String(masterStatus).toLowerCase()==="reachable"&&["reachable","disabled"].includes(String(slaveStatus).toLowerCase())?"success":"warning",`Master ${String(masterStatus).toLowerCase()}, slave ${String(slaveStatus).toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
+  const masterStatus=onlineOfflineLabel(systemStatus.master_status_label);
+  const slaveStatus=usesSlave?onlineOfflineLabel(systemStatus.slave_status_label):"Disabled";
+  add("node_current_status",masterStatus==="Online"&&["Online","Disabled"].includes(slaveStatus)?"success":"warning",`Master ${masterStatus.toLowerCase()}, slave ${slaveStatus.toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
   if(usesSlave||snapshot.direct_peer){
     const age=snapshot.direct_peer_last_packet_age_s;
     const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
@@ -1111,6 +1111,11 @@ function displayValue(value,fallback="--"){
   if(value===undefined||value===null||value==="")return fallback;
   return String(value);
 }
+function onlineOfflineLabel(value,fallback="Offline"){
+  const normalized=String(value||fallback).trim().toLowerCase();
+  if(normalized.includes("disabled")) return "Disabled";
+  return (normalized.includes("reachable")&&!normalized.includes("unreachable"))||normalized.includes("online")?"Online":"Offline";
+}
 function infoValue(value,fallback="Not reported"){
   if(value===undefined||value===null)return fallback;
   const text=String(value).trim();
@@ -1402,8 +1407,8 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const items=[
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
-    {label:"Master Reachability",value:infoValue(systemStatus?.master_status_label,"Unreachable"),show:true},
-    {label:"Slave Reachability",value:infoValue(systemStatus?.slave_status_label,usesSlave?"Unreachable":"Disabled"),show:true},
+    {label:"Master Status",value:onlineOfflineLabel(systemStatus?.master_status_label),show:true},
+    {label:"Slave Status",value:usesSlave?onlineOfflineLabel(systemStatus?.slave_status_label):"Disabled",show:true},
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},

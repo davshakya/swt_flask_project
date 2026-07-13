@@ -427,8 +427,8 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .summary-ratio{display:flex;align-items:baseline;gap:7px}
 .fleet-toolbar-sticky{position:sticky;top:8px;z-index:25;padding:10px;border:1px solid var(--admin-border);border-radius:18px;background:color-mix(in srgb,var(--admin-surface) 94%,transparent);box-shadow:0 12px 30px rgba(7,44,57,.16);backdrop-filter:blur(16px)}.quick-filters{display:flex;gap:6px;flex-wrap:wrap}.quick-filter{min-height:32px;padding:6px 10px;border:1px solid var(--admin-border);background:rgba(255,255,255,.7);color:var(--text)}.quick-filter.is-active{background:var(--primary);color:#fff}.customer-filter{width:auto;min-width:160px;min-height:32px;padding:6px 10px;border-radius:12px;border:1px solid var(--admin-border);background:var(--input-bg);color:var(--text)}
 .device-table-row.is-critical td{background:rgba(218,79,99,.12)!important}.device-table-row.is-warning td{background:rgba(245,155,65,.08)!important}.device-table-row.is-critical td:first-child{box-shadow:inset 5px 0 0 var(--error-text)!important}.device-table-row.is-critical .device-link:first-child::before{content:"🔴 ";}.device-table-row.is-warning .device-link:first-child::before{content:"🟠 ";}
-.health-score{font-size:15px;font-weight:900}.last-seen-age{display:block;font-weight:800}.device-actions{display:flex;gap:5px;flex-wrap:nowrap;white-space:nowrap}.device-actions a,.device-actions button{min-height:28px;padding:5px 7px;border-radius:9px;font-size:10px}.device-actions .is-disabled{opacity:.5;cursor:not-allowed}
 .device-table-shell{max-height:35rem;overflow:auto;scrollbar-gutter:stable}.device-table-shell .admin-table{min-width:1760px;table-layout:auto}.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:6px 8px;line-height:1.25}.device-table-shell .admin-table th:last-child,.device-table-shell .admin-table td:last-child{min-width:250px}.device-horizontal-scroll{height:17px;margin:0 4px 5px;overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.25)}.device-horizontal-scroll>div{height:1px}.device-pagination{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:10px}.device-pagination button{min-height:32px;padding:6px 10px;border-radius:10px}.device-pagination button:disabled{opacity:.42;cursor:not-allowed}.device-pagination select{min-height:32px;padding:5px 28px 5px 9px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text)}.device-page-size{display:flex;align-items:center;gap:6px;margin-right:auto;color:var(--muted);font-size:11px;font-weight:800}.device-page-status{min-width:90px;text-align:center;color:var(--muted);font-size:11px;font-weight:800}
+.device-table-shell .admin-table{min-width:1420px}.device-table-shell .admin-table th,.device-table-shell .admin-table td{text-align:center;vertical-align:middle}.device-table-shell .admin-table thead .sort-button{justify-content:center;text-align:center}.device-table-shell .admin-table th:last-child,.device-table-shell .admin-table td:last-child{min-width:0}.device-table-row.is-critical .device-link:first-child::before,.device-table-row.is-warning .device-link:first-child::before{content:none}.last-seen-indicator{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:900;white-space:nowrap}.last-seen-indicator::before{content:"";width:9px;height:9px;border-radius:50%;background:#9aa9af;box-shadow:0 0 0 3px rgba(154,169,175,.14)}.last-seen-indicator.is-fresh::before{background:#28c982;box-shadow:0 0 0 3px rgba(40,201,130,.14)}.last-seen-indicator.is-recent::before{background:#f0b33a;box-shadow:0 0 0 3px rgba(240,179,58,.16)}.last-seen-indicator.is-stale::before{background:#dc5368;box-shadow:0 0 0 3px rgba(220,83,104,.15)}.empty-state-positive{display:grid;place-items:center;gap:5px;min-height:120px;text-align:center}.empty-state-positive strong{font-size:16px;color:var(--ok-text)}.empty-state-positive span{color:var(--muted)}
 .alert-actions{display:flex;gap:6px}.alert-actions button,.alert-actions a{min-height:30px;padding:5px 8px;border-radius:10px;font-size:10px}.alert-duration{font-weight:800}
 @media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
 </style>
@@ -667,7 +667,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="8" class="empty-state">No active alerts right now.</td>
+                            <td colspan="7"><div class="empty-state-positive"><strong>&#9989; No Active Alerts</strong><span>Everything is operating normally.</span></div></td>
                         </tr>
                     {% endif %}
                 </tbody>
@@ -734,16 +734,14 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <th>Customer</th>
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Master Status</button></th>
                             <th>Slave Status</th>
-                            <th>Telemetry</th>
-                            <th>Signal</th>
+                            <th data-tooltip-key="telemetry">Telemetry</th>
+                            <th data-tooltip-key="signal">Signal</th>
                             <th>Upper Sensor</th>
                             <th>Lower Sensor</th>
-                            <th>Municipal Sensor</th>
+                            <th data-tooltip-key="municipal sensor">Municipal Sensor</th>
                             <th>Tank</th>
-                            <th><button type="button" class="sort-button" data-device-sort="health" data-sort-default="desc">Health</button></th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts</button></th>
-                            <th>Last Seen</th>
-                            <th>Actions</th>
+                            <th>Last Sync</th>
                         </tr>
                     </thead>
                     <tbody id="device_table_body">
@@ -758,23 +756,23 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 <div class="cell-sub">{{ device.email or "Email not added" }}</div>
                             </td>
                             <td>
-                                {% set master_node_label = (device.master_status_label or "Unreachable")|replace("Master ", "")|replace("Slave ", "") %}
+                                {% set master_node_label = "Online" if device.master_status_tone == "online" else "Offline" %}
                                 <span class="pill node-status-pill pill-{{ device.master_status_tone or 'offline' }}" data-device-field="master_status">{{ master_node_label }}</span>
                             </td>
                             <td>
-                                {% set slave_node_label = (device.slave_status_label or "Unreachable")|replace("Master ", "")|replace("Slave ", "") %}
+                                {% set slave_node_label = "Online" if device.slave_status_tone == "online" else "Disabled" if device.slave_status_tone == "clear" else "Offline" %}
                                 <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}" data-device-field="slave_status">{{ slave_node_label }}</span>
                             </td>
                             <td data-device-field="telemetry_status">{{ device.telemetry_status_label or "--" }}</td>
                             <td data-device-field="wifi_rssi">{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ device.upper_sensor_status_label or "Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ "Online" if device.upper_sensor_status_tone == "online" else "Disabled" if device.upper_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ device.lower_sensor_status_label or "Unreachable" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ "Online" if device.lower_sensor_status_tone == "online" else "Disabled" if device.lower_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ device.municipal_sensor_status_label or "Disabled" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ "Online" if device.municipal_sensor_status_tone == "online" else "Disabled" if device.municipal_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main" data-device-field="tank_level">
@@ -784,35 +782,17 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                     --
                                     {% endif %}
                                 </div>
-                                <div class="cell-sub" data-device-field="pump_mode">
-                                    {% if device.last_sync_at %}
-                                    Pump {{ device.motor or "--" }} / {{ device.mode or "--" }}
-                                    {% else %}
-                                    Pump --
-                                    {% endif %}
-                                </div>
-                                <div class="cell-sub" data-device-field="depth_echo">
-                                    {% if device.last_sync_at %}
-                                    Depth {{ device.water_depth_label or "--" }} / Echo {{ device.sensor_distance_label or "--" }}
-                                    {% else %}
-                                    Depth -- / Echo --
-                                    {% endif %}
-                                </div>
                             </td>
-                            <td><span class="pill health-score pill-{{ device.admin_health_tone or 'danger' }}" data-device-field="health_score">{{ device.admin_health_score or 0 }}%</span></td>
                             <td>
                                 <span class="pill pill-{{ 'danger' if device.latest_alert_severity == 'danger' else 'warning' if device.latest_alert_severity == 'warning' else 'clear' if (device.active_alert_count or 0) == 0 else 'info' }}" data-device-field="alerts">{{ device.warning_alert_label or "Clear" }}</span>
                             </td>
                             <td class="last-sync-cell {{ 'is-live' if device.telemetry_status == 'live' else 'is-stale' }}" data-device-field="last_sync">
                                 {% if device.last_sync_at %}
-                                <span class="last-seen-age" data-age-seconds="{{ device.last_seen_age_seconds or 0 }}">-- ago</span>
-                                <span class="sync-date" data-utc-date="{{ device.last_sync_at }}">{{ device.last_sync_at[:10] }}</span>
-                                <span class="sync-time" data-utc-time="{{ device.last_sync_at }}">{{ device.last_sync_at[11:] }} UTC</span>
+                                <span class="last-seen-indicator" data-age-seconds="{{ device.last_seen_age_seconds or 0 }}" data-last-sync-at="{{ device.last_sync_at }}">-- ago</span>
                                 {% else %}
                                 <span class="sync-date">--</span>
                                 {% endif %}
                             </td>
-                            <td><div class="device-actions"><a href="/devices/{{ device.device_id }}">View</a><a href="/devices/{{ device.device_id }}#configuration">Configure</a><a href="/devices/{{ device.device_id }}#event-log">Logs</a><a href="/devices/{{ device.device_id }}#firmware">OTA</a><button type="button" class="is-disabled" disabled title="Use the device detail page to confirm restart">Restart</button></div></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -1050,7 +1030,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             const base = Number(node.dataset.ageSeconds || 0);
             const loaded = Number(node.dataset.loadedAt || Date.now());
             if (!node.dataset.loadedAt) node.dataset.loadedAt = String(Date.now());
-            node.textContent = formatAgeSeconds(base + Math.max(0, (Date.now() - loaded) / 1000));
+            const age = base + Math.max(0, (Date.now() - loaded) / 1000);
+            node.textContent = formatAgeSeconds(age);
+            if (node.classList.contains("last-seen-indicator")) {
+                node.classList.toggle("is-fresh", age < 60);
+                node.classList.toggle("is-recent", age >= 60 && age < 900);
+                node.classList.toggle("is-stale", age >= 900);
+                const exact = node.dataset.lastSyncAt || "";
+                node.title = exact ? `Last telemetry received ${exact} UTC` : "Exact last-sync time unavailable";
+            }
         });
         document.querySelectorAll("[data-alert-start]").forEach((node) => {
             const raw = node.dataset.alertStart;
@@ -1286,6 +1274,14 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         node.classList.add(`${prefix}${tone || "offline"}`);
     }
 
+    function connectivityLabel(label, tone) {
+        const value = normalizeText(label);
+        if (value.includes("disabled") || tone === "clear") return "Disabled";
+        if (value.includes("reachable") && !value.includes("unreachable")) return "Online";
+        if (value.includes("online") || tone === "online") return "Online";
+        return "Offline";
+    }
+
     function updateSummaryFromJson(summary) {
         if (!summary || typeof summary !== "object") return;
         document.querySelectorAll("[data-summary-field]").forEach((node) => {
@@ -1313,35 +1309,29 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         row.classList.toggle("is-warning", row.dataset.severity === "warning");
 
         const master = row.querySelector('[data-device-field="master_status"]');
-        setTextIfChanged(master, device.master_status || "Unreachable");
+        setTextIfChanged(master, connectivityLabel(device.master_status, device.master_status_tone));
         setPillTone(master, device.master_status_tone || "offline");
 
         const slave = row.querySelector('[data-device-field="slave_status"]');
-        setTextIfChanged(slave, device.slave_status || "Unreachable");
+        setTextIfChanged(slave, connectivityLabel(device.slave_status, device.slave_status_tone));
         setPillTone(slave, device.slave_status_tone || "offline");
 
         setTextIfChanged(row.querySelector('[data-device-field="telemetry_status"]'), device.telemetry_status_label || "--");
         setTextIfChanged(row.querySelector('[data-device-field="wifi_rssi"]'), device.wifi_rssi ?? "--");
 
         const upper = row.querySelector('[data-device-field="upper_sensor_status"]');
-        setTextIfChanged(upper, device.upper_sensor_status || "Unreachable");
+        setTextIfChanged(upper, connectivityLabel(device.upper_sensor_status, device.upper_sensor_status_tone));
         setPillTone(upper, device.upper_sensor_status_tone || "offline");
 
         const lower = row.querySelector('[data-device-field="lower_sensor_status"]');
-        setTextIfChanged(lower, device.lower_sensor_status || "Unreachable");
+        setTextIfChanged(lower, connectivityLabel(device.lower_sensor_status, device.lower_sensor_status_tone));
         setPillTone(lower, device.lower_sensor_status_tone || "offline");
 
         const municipal = row.querySelector('[data-device-field="municipal_sensor_status"]');
-        setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled");
+        setTextIfChanged(municipal, connectivityLabel(device.municipal_sensor_status, device.municipal_sensor_status_tone));
         setPillTone(municipal, device.municipal_sensor_status_tone || "clear");
 
         setTextIfChanged(row.querySelector('[data-device-field="tank_level"]'), device.tank_level || "--");
-        setTextIfChanged(row.querySelector('[data-device-field="pump_mode"]'), device.pump_mode || "Pump --");
-        setTextIfChanged(row.querySelector('[data-device-field="depth_echo"]'), device.depth_echo || "Depth -- / Echo --");
-
-        const health = row.querySelector('[data-device-field="health_score"]');
-        setTextIfChanged(health, `${device.health_score || 0}%`);
-        setPillTone(health, device.health_tone || "danger");
 
         const alert = row.querySelector('[data-device-field="alerts"]');
         setTextIfChanged(alert, device.alert_label || "Clear");
@@ -1352,9 +1342,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             lastSync.classList.toggle("is-live", device.telemetry_status === "live");
             lastSync.classList.toggle("is-stale", device.telemetry_status !== "live");
             if (device.last_sync_at) {
-                const next = `<span class="last-seen-age" data-age-seconds="${device.last_seen_age_seconds || 0}" data-loaded-at="${Date.now()}">${formatAgeSeconds(device.last_seen_age_seconds || 0)}</span><span class="sync-date" data-utc-date="${device.last_sync_at}">${device.last_sync_at.slice(0, 10)}</span> <span class="sync-time" data-utc-time="${device.last_sync_at}">${device.last_sync_at.slice(11)} UTC</span>`;
+                const next = `<span class="last-seen-indicator" data-age-seconds="${device.last_seen_age_seconds || 0}" data-loaded-at="${Date.now()}" data-last-sync-at="${device.last_sync_at}">${formatAgeSeconds(device.last_seen_age_seconds || 0)}</span>`;
                 if (lastSync.innerHTML !== next) lastSync.innerHTML = next;
-                applyLocaleDateTime(lastSync);
+                refreshAgeLabels();
             } else {
                 setTextIfChanged(lastSync, "--");
             }

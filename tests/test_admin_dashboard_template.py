@@ -178,15 +178,16 @@ def test_admin_dashboard_maps_municipal_sensor_snapshot_fields():
     assert '"municipal_sensor_last_updated": payload.get("municipal_sensor_last_updated")' in server_source
 
 
-def test_admin_device_table_shows_raw_upper_echo_distance():
+def test_admin_device_table_keeps_echo_data_available_but_shows_only_tank_level():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
     assert '"sensor_distance_cm": payload.get("sensor_distance_cm")' in server_source
     assert '"sensor_distance_label": sensor_distance_label' in server_source
     assert '"water_depth_label": payload.get("water_depth_label")' in server_source
-    assert "Depth {{ device.water_depth_label" in admin_template
-    assert "Echo {{ device.sensor_distance_label" in admin_template
+    assert "Depth {{ device.water_depth_label" not in admin_template
+    assert "Echo {{ device.sensor_distance_label" not in admin_template
+    assert 'data-device-field="tank_level"' in admin_template
     assert '"%.1f"|format(device.sensor_distance_cm)' not in admin_template
 
 
@@ -421,7 +422,7 @@ def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
         assert f'data-quick-filter="{filter_name}"' in admin_template
     assert 'id="customer_filter"' in admin_template
     assert 'data-resolve-alert="{{ lead_alert.id }}"' in admin_template
-    assert 'data-device-field="health_score"' in admin_template
+    assert 'data-device-field="health_score"' not in admin_template
     assert 'data-last-seen-age=' in admin_template
     assert 'id="export_visible_devices"' in admin_template
     assert 'id="device_table_top_scroll"' in admin_template
@@ -432,7 +433,13 @@ def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
     assert 'id="device_page_next"' in admin_template
     assert 'id="device_page_last"' in admin_template
     assert "function syncDeviceTableScrollerWidth()" in admin_template
-    assert ".device-actions{display:flex;gap:5px;flex-wrap:nowrap;white-space:nowrap}" in admin_template
+    assert '<th>Actions</th>' not in admin_template
+    assert 'class="device-actions"' not in admin_template
+    assert 'data-device-field="pump_mode"' not in admin_template
+    assert 'data-device-field="depth_echo"' not in admin_template
+    assert 'class="last-seen-indicator"' in admin_template
+    assert "connectivityLabel(device.master_status" in admin_template
+    assert "&#9989; No Active Alerts" in admin_template
     assert 'data-summary-field="online_percent"' not in admin_template
     assert 'class="summary-percent"' not in admin_template
     assert "priorityDifference" in admin_template
@@ -978,3 +985,14 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
     assert "&#10004; Yes" in template
     assert "&#10006; No" in template
+
+
+def test_flask_pages_share_explanatory_term_tooltips():
+    tooltip_source = (PROJECT_ROOT / "flask_app" / "static" / "js" / "global-tooltips.js").read_text(encoding="utf-8")
+    pwa_head = (PROJECT_ROOT / "flask_app" / "templates" / "_pwa_head.html").read_text(encoding="utf-8")
+    home_automation = (PROJECT_ROOT / "flask_app" / "templates" / "home_automation.html").read_text(encoding="utf-8")
+
+    for term in ("telemetry", "rssi", "signal", '"municipal sensor"', "health"):
+        assert term in tooltip_source
+    assert "global-tooltips.js" in pwa_head
+    assert "{% include '_pwa_head.html' %}" in home_automation
