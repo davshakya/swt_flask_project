@@ -4,7 +4,7 @@ import json
 from flask_app import server
 
 
-def test_default_seven_day_payload_embeds_today_level_and_pump_windows(monkeypatch):
+def test_explicit_seven_day_payload_uses_the_selected_range_for_all_charts(monkeypatch):
     today_payload = {
         "range": {"label": "Today"},
         "levels": {"time": ["today"], "values": [75]},
@@ -19,10 +19,7 @@ def test_default_seven_day_payload_embeds_today_level_and_pump_windows(monkeypat
             device_id="swt-test",
         )
 
-    windows = payload["default_chart_windows"]
-    assert windows["tank_level"]["range"]["label"] == "Today"
-    assert windows["pump_activity"]["motor"]["time"] == ["today"]
-    assert windows["daily_use"]["range"]["label"] == "Last 7 days"
+    assert payload == {"range": {"label": "Last 7 days"}, "daily": {"dates": ["day-1"]}}
 
 
 def test_service_config_upsert_persists_ai_and_cloud_mode():

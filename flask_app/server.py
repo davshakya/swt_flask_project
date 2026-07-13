@@ -8391,18 +8391,21 @@ def resolve_date_window():
         return start_dt, end_exclusive, label
 
     days = max(1, min(days or 7, 365))
-    end_exclusive = now_utc() + timedelta(seconds=1)
-    start_dt = now_utc() - timedelta(days=days)
-    label = f"Last {days} days"
+    now = now_utc()
+    now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days - 1)
+    start_dt = start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    end_exclusive = now + timedelta(seconds=1)
+    label = "Today" if days == 1 else f"Last {days} days"
     return start_dt, end_exclusive, label
 
 
 def attach_default_chart_windows(payload, device_id=None):
-    """Keep seven-day habits while supplying today's level and pump charts."""
+    """Supply legacy default chart windows only when no range was requested."""
     if not isinstance(payload, dict):
         return payload
     requested_days = request.args.get("days", type=int)
-    if request.args.get("start_date") or request.args.get("end_date") or (requested_days not in (None, 7)):
+    if request.args.get("start_date") or request.args.get("end_date") or requested_days is not None:
         return payload
     now = now_utc()
     now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
@@ -9809,6 +9812,15 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         action_note = "Clean wiring and sensor placement, then wait for the next telemetry sync."
         observations.append("The main tank sensor needs attention.")
         actions.append(action_title)
+    elif quality.get("usage_physically_plausible") is False:
+        severity = "warning"
+        tone = "warn"
+        title = "Usage history needs review"
+        summary = "Live tank status is available, but historical level changes cannot support a reliable usage estimate."
+        action_title = "Verify sensor stability and refill reporting"
+        action_note = "Keep auto protection enabled; review sensor mounting and pump-state telemetry before using forecasts."
+        observations.append("Recorded level changes exceed the water supported by observed refill cycles.")
+        actions.append("Check sensor mounting, wiring, tank dimensions, and whether pump ON/OFF states are reported correctly.")
     else:
         observations.append("Tank level, pump state, and connection look steady right now.")
         actions.append("Keep auto protection enabled and review the chart trend later today.")
@@ -9838,6 +9850,8 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         confidence -= 10
     if main_sensor_bad:
         confidence -= 8
+    if quality.get("usage_physically_plausible") is False:
+        confidence = min(confidence, 45)
     confidence = max(0, min(95, confidence))
 
     if ai_leak_active:

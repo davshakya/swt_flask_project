@@ -363,21 +363,13 @@ canvas{height:260px!important}
                     <span class="label">Main Insight</span>
                     <strong id="customerHeroInsightTitle">Waiting for the next sync</strong>
                     <p id="customerHeroInsightLead">Live tank level and usage insight will appear here as soon as fresh data arrives.</p>
-                    <div class="customer-hero-meta">
-                        <div class="customer-hero-stat">
-                            <span>Tank level</span>
-                            <strong id="customerHeroTankLevel">--</strong>
-                            <div id="customerHeroTankLevelNote">Current usable water appears after sync.</div>
-                        </div>
-                        <div class="customer-hero-stat">
-                            <span>Reliability</span>
-                            <strong id="customerConfidenceScore">--</strong>
-                            <div id="customerConfidenceNote">Reliability improves with fresh device readings and history.</div>
-                        </div>
-                    </div>
                 </div>
                 <div class="card customer-control-card">
                     <span class="label">Pump Control</span>
+                    <div class="customer-hero-meta">
+                        <div class="customer-hero-stat"><span>Current state</span><strong id="motor">--</strong></div>
+                        <div class="customer-hero-stat"><span>Mode</span><strong id="mode">--</strong></div>
+                    </div>
                     <div class="controls">
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
@@ -406,38 +398,6 @@ canvas{height:260px!important}
         </div>
     </section>
 
-    {% if not is_admin %}
-    <section class="panel customer-only customer-summary-panel" style="margin-top:18px">
-        <div class="eyebrow">Water Snapshot</div>
-        <h3>Current home status</h3>
-        <div class="customer-pulse-grid" style="margin-top:16px">
-            <article class="customer-pulse-card is-featured">
-                <span>Available now</span>
-                <strong id="customerAvailabilityNow">--</strong>
-                <p id="customerAvailabilityNote">Waiting for current tank capacity and level data.</p>
-            </article>
-            <article class="customer-pulse-card">
-                <span>Use trend</span>
-                <strong id="customerUsageNow">--</strong>
-                <p id="customerUsageNote">Water-use pattern will appear after analytics loads.</p>
-            </article>
-            <article class="customer-pulse-card">
-                <span>Connection</span>
-                <strong id="customerConnectionNow">--</strong>
-                <p id="customerConnectionNote">Waiting for live cloud and device sync status.</p>
-            </article>
-        </div>
-        <div class="status-row customer-status-row">
-            <div class="chip"><strong>💧 Tank</strong><div id="deviceStatus">--</div></div>
-            <div class="chip"><strong>🔵 Sync</strong><div id="telemetryStatus">--</div></div>
-            <div class="chip"><strong>⚡ Pump mode</strong><div id="heroModeChip">--</div></div>
-            <div class="chip"><strong>Source tank</strong><div id="heroSourceChip">--</div></div>
-            <div class="chip"><strong>☁ Cloud Feed</strong><div id="cloudFeedStatus">{{ "Enabled" if cloud_feed_enabled else "Disabled" }}</div></div>
-            <div class="chip"><strong>Last update</strong><div id="lastSync">--</div></div>
-        </div>
-    </section>
-    {% endif %}
-
     {% if is_admin %}
     <section class="panel" style="margin-top:16px">
         <div class="grid metrics">
@@ -459,37 +419,7 @@ canvas{height:260px!important}
         </div>
     </section>
     {% else %}
-    <section class="customer-only customer-section-grid" style="margin-top:18px">
-        <div class="panel customer-group-panel">
-            <div class="eyebrow">Pump Section</div>
-            <h3>Status and mode</h3>
-            <div class="customer-stat-grid">
-                <div class="card"><span class="label">Pump state</span><div id="motor" class="value">--</div><div id="mode" class="subvalue">--</div></div>
-                <div class="card"><span class="label">Pump guidance</span><div id="auto_status" class="statuscopy">--</div><div id="auto_timer" class="subvalue">--</div><div id="auto_status_note" class="subvalue">Waiting for device telemetry</div></div>
-            </div>
-            <div class="glance-grid customer-health-card">
-                <div class="glance-item">
-                    <span>Home status</span>
-                    <strong id="healthStatus">--</strong>
-                    <div id="healthSummary" class="detail">Waiting for fresh tank data.</div>
-                </div>
-                <div class="glance-item">
-                    <span>Pump</span>
-                    <strong id="heroPumpState">--</strong>
-                    <div id="heroPumpDetail" class="detail">Waiting for fresh tank data.</div>
-                </div>
-                <div class="glance-item">
-                    <span>Mode</span>
-                    <strong id="heroModeDetail">--</strong>
-                    <div id="heroModeHint" class="detail">Waiting for device guidance.</div>
-                </div>
-                <div class="glance-item">
-                    <span>Source tank</span>
-                    <strong id="heroSourceDetail">--</strong>
-                    <div id="heroSourceHint" class="detail">Monitoring will appear here when available.</div>
-                </div>
-            </div>
-        </div>
+    <section class="customer-only" style="margin-top:18px">
         <div class="panel customer-group-panel">
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
@@ -500,18 +430,6 @@ canvas{height:260px!important}
                 <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">--</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
             </div>
-            <div class="glance-grid customer-health-card">
-                <div class="glance-item">
-                    <span>Connection</span>
-                    <strong id="heroConnectionStatus">--</strong>
-                    <div id="heroConnectionInfo" class="detail">Waiting for signal quality data.</div>
-                </div>
-                <div class="glance-item">
-                    <span>Reliability</span>
-                    <strong id="customerConfidenceDetail">--</strong>
-                    <div id="customerConfidenceDetailNote" class="detail">Based on sync freshness and usable history.</div>
-                </div>
-            </div>
         </div>
     </section>
     {% endif %}
@@ -520,7 +438,7 @@ canvas{height:260px!important}
         <div class="eyebrow">Water Habits</div>
         <div class="split" style="align-items:center">
             <div>
-                <h2>{% if is_admin %}Usage trends and helpful forecasts{% else %}How water use is changing through the week{% endif %}</h2>
+                <h2 id="waterHabitsTitle">{% if is_admin %}Usage trends and helpful forecasts{% else %}Today’s water activity{% endif %}</h2>
                 <p id="rangeLabel" class="muted">Loading range...</p>
             </div>
             <div class="range-buttons" style="justify-content:flex-end">
@@ -542,11 +460,6 @@ canvas{height:260px!important}
             <div class="card"><span class="label">Peak Usage Day</span><div id="peak_usage_day" class="value">--</div><div id="peak_usage_value" class="subvalue">--</div></div>
             <div class="card"><span class="label">Lowest Usage Day</span><div id="lowest_usage_day" class="value">--</div><div id="lowest_usage_value" class="subvalue">--</div></div>
             <div class="card"><span class="label">Usage Change</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">--</div></div>
-            <div class="card"><span class="label">Average Level</span><div id="avg_level" class="value">--</div><div id="min_max_level" class="subvalue">--</div></div>
-            {% else %}
-            <div class="card"><span class="label">Average Daily Usage</span><div id="avg_daily_usage" class="value">--</div><div id="avg_daily_usage_text" class="subvalue">--</div></div>
-            <div class="card"><span class="label">Peak Usage Day</span><div id="peak_usage_day" class="value">--</div><div id="peak_usage_value" class="subvalue">--</div></div>
-            <div class="card"><span class="label">Lowest Usage Day</span><div id="lowest_usage_day" class="value">--</div><div id="lowest_usage_value" class="subvalue">--</div></div>
             <div class="card"><span class="label">Average Level</span><div id="avg_level" class="value">--</div><div id="min_max_level" class="subvalue">--</div></div>
             {% endif %}
         </div>
@@ -581,11 +494,6 @@ canvas{height:260px!important}
             </div>
             <div class="customer-guidance-meta">
                 <div class="glance-item">
-                    <span>System status</span>
-                    <strong id="customerGuidanceStatus">--</strong>
-                    <div id="customerGuidanceStatusNote" class="detail">Guidance status updates with new telemetry.</div>
-                </div>
-                <div class="glance-item">
                     <span>Risk level</span>
                     <strong id="customerRiskLevel">--</strong>
                     <div class="detail">How urgently this needs attention.</div>
@@ -599,11 +507,6 @@ canvas{height:260px!important}
                     <span>Possible water loss</span>
                     <strong id="customerEstimatedImpact">--</strong>
                     <div id="customerEstimatedImpactNote" class="detail">Shown only when liters can be estimated reliably.</div>
-                </div>
-                <div class="glance-item">
-                    <span>Reliability</span>
-                    <strong id="customerConfidenceGuidance">--</strong>
-                    <div id="customerConfidenceGuidanceNote" class="detail">Based on fresh device readings and usable history.</div>
                 </div>
             </div>
             <details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div></details>
@@ -762,6 +665,11 @@ function formatLocaleDateTime(value,fallback="--",options={dateStyle:"medium",ti
             catch(error){return raw||fallback;}
         }
     }
+    const parsedMs=Date.parse(raw);
+    if(Number.isFinite(parsedMs)){
+        try{return new Intl.DateTimeFormat(undefined,{...options,timeZone:"Asia/Kolkata"}).format(new Date(parsedMs));}
+        catch(error){return raw||fallback;}
+    }
     return raw||fallback;
 }
 function formatLocaleDate(value,fallback="--",options={dateStyle:"medium"}){
@@ -777,7 +685,13 @@ function formatHourBucket(value){
 function compactLocaleLabel(value){
     const tools=window.swtLocale||localeTools||{};
     if(typeof tools.compactLabel==="function")return tools.compactLabel(value);
-    return String(value??"").trim();
+    const raw=String(value??"").trim();
+    const parsedMs=Date.parse(raw);
+    if(Number.isFinite(parsedMs)){
+        try{return new Intl.DateTimeFormat(undefined,{month:"short",day:"numeric",timeZone:"Asia/Kolkata"}).format(new Date(parsedMs));}
+        catch(error){return raw;}
+    }
+    return raw;
 }
 function localizedTimeText(value,fallback="--"){
     return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
@@ -922,7 +836,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
         ctx.textAlign="right";
         ctx.fillText(formatDurationSeconds(totalDurationSeconds),box.left+box.plotWidth,axisLabelY);
     }else{
-        const tickCount=Math.max(2,Math.min(7,Math.round(box.plotWidth/120)));
+        const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));
         Array.from({length:tickCount},(_,index)=>{
             const ratio=index/(tickCount-1);
             const tickMs=minTime+(timeSpan*ratio);
@@ -968,17 +882,19 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     applyStatusTone("stickyPumpStatus",motor==="ON"?"ok":"");
     applyStatusTone("stickyConnection",String(telemetry).toLowerCase()==="stale"?"warn":"ok");
     applyStatusTone("stickyAiAlert",hardwareLeak||aiLeak?"bad":analytics.analysis?.anomaly_count>0?"warn":"ok");
-    const health=Number(snapshot.tank_health??analytics.health?.score);
+    const dataQualityIssue=analytics.analysis?.quality?.usage_physically_plausible===false;
+    const rawHealth=Number(snapshot.tank_health??analytics.health?.score);
+    const health=Number.isFinite(rawHealth)&&dataQualityIssue?Math.min(rawHealth,69):rawHealth;
     setText("systemHealthScore",Number.isFinite(health)?`${Math.round(health)}%`:"--");
-    setText("systemHealthNote",Number.isFinite(health)?(health>=90?"All monitored systems look healthy.":health>=70?"Some items need attention.":"Immediate review recommended."):"Waiting for verified readings.");
+    setText("systemHealthNote",dataQualityIssue?"Live controls are healthy, but usage history needs sensor/refill verification.":Number.isFinite(health)?(health>=90?"All monitored systems look healthy.":health>=70?"Some items need attention.":"Immediate review recommended."):"Waiting for verified readings.");
     const pumpFault=String(snapshot.pump_failure||"").toUpperCase()==="YES"||String(snapshot.dry_run||"").toUpperCase()==="YES";
     const sensorHealthy=!snapshot.sensor||String(snapshot.sensor).toUpperCase()==="OK";
     const cloudHealthy=["live","recent","online"].includes(String(telemetry).toLowerCase());
     setText("systemPumpHealth",pumpFault?"Needs attention":"Healthy");
-    setText("systemSensorHealth",sensorHealthy?"Healthy":"Needs attention");
+    setText("systemSensorHealth",!sensorHealthy?"Needs attention":dataQualityIssue?"Data needs review":"Healthy");
     setText("systemCloudHealth",cloudHealthy?"Connected":"Delayed");
-    setText("systemAiHealth",hardwareLeak||aiLeak?"Alert active":analytics.analysis?.quality?.status?`Monitoring · ${analytics.analysis.quality.status}`:"Monitoring");
-    applyStatusTone("systemPumpHealth",pumpFault?"bad":"ok");applyStatusTone("systemSensorHealth",sensorHealthy?"ok":"bad");applyStatusTone("systemCloudHealth",cloudHealthy?"ok":"warn");applyStatusTone("systemAiHealth",hardwareLeak||aiLeak?"bad":"ok");
+    setText("systemAiHealth",hardwareLeak||aiLeak?"Alert active":dataQualityIssue?"Limited · verify history":analytics.analysis?.quality?.status?`Monitoring · ${analytics.analysis.quality.status}`:"Monitoring");
+    applyStatusTone("systemPumpHealth",pumpFault?"bad":"ok");applyStatusTone("systemSensorHealth",!sensorHealthy?"bad":dataQualityIssue?"warn":"ok");applyStatusTone("systemCloudHealth",cloudHealthy?"ok":"warn");applyStatusTone("systemAiHealth",hardwareLeak||aiLeak?"bad":dataQualityIssue?"warn":"ok");
 }
 function scrollToAnalyticsReport(){document.querySelector(".customer-guidance-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}
 function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
@@ -1717,6 +1633,9 @@ function selectedAnalyticsRangeLabel(){
 function updateAnalyticsRangeContext(data=null,{loading=false}={}){
     const label=data?.range?.label||selectedAnalyticsRangeLabel();
     setText("rangeLabel",loading?`Loading ${label.toLowerCase()}...`:label);
+    if(VIEWER_ROLE==="customer"){
+        setText("waterHabitsTitle",label==="Today"?"Today’s water activity":"Water activity over the selected period");
+    }
     const scope=loading?`Updating AI/ML analysis · ${label}`:`AI/ML analysis · ${label}`;
     ["customerUsageRange","customerGuidanceRange","levelChartRange","dailyChartRange","patternChartRange","motorChartRange"].forEach((id)=>setText(id,scope));
 }
@@ -1767,22 +1686,6 @@ function drawCanvasEmpty(canvas,title,message){
     canvas.__swtChartRender=null;
     const {ctx,width,height}=resizeCanvasChart(canvas);
     const box=drawCanvasChrome(ctx,width,height,title);
-    const accent=themeVar("--chart-level");
-    ctx.strokeStyle=`${accent}55`;
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.moveTo(box.left,box.top+box.plotHeight*0.72);
-    ctx.bezierCurveTo(
-        box.left+box.plotWidth*0.18,box.top+box.plotHeight*0.54,
-        box.left+box.plotWidth*0.38,box.top+box.plotHeight*0.82,
-        box.left+box.plotWidth*0.58,box.top+box.plotHeight*0.48
-    );
-    ctx.bezierCurveTo(
-        box.left+box.plotWidth*0.72,box.top+box.plotHeight*0.3,
-        box.left+box.plotWidth*0.86,box.top+box.plotHeight*0.64,
-        box.left+box.plotWidth,box.top+box.plotHeight*0.42
-    );
-    ctx.stroke();
     ctx.fillStyle=themeVar("--muted");
     ctx.font='500 14px "Trebuchet MS","Segoe UI",sans-serif';
     ctx.textAlign="center";
@@ -1958,7 +1861,11 @@ function drawAnalyticsCharts(data){
     const pumpMetricsPayload=defaultWindows.pump_activity?.pump_activity||data.pump_activity||{};
     const levelSeries=downsampleSeries(levelPayload.time||[],toChartNumberArray(levelPayload.values,{allowNull:true}),180);
     const levelEvents=(state.data.events||[]).map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
-    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
+    if(data.analysis?.quality?.usage_physically_plausible===false){
+        drawCanvasEmpty(charts.level.canvas,"Tank Level %","Level history hidden because sensor changes failed validation.");
+    }else{
+        drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
+    }
     const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const usageLiters=(liters,percentValues)=>Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
@@ -2331,18 +2238,18 @@ function renderAnalytics(data){
     const dailyUsageReliable=data.daily?.reliable===true&&Number(data.analysis?.quality?.complete_day_count)>=2;
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     updateAnalyticsRangeContext(data);
-    document.getElementById("avg_daily_usage").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--";
+    setText("avg_daily_usage",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--");
     const coverage=Number(data.analysis?.quality?.coverage_percent);
     const sampleDays=Number(data.prediction?.sample_days);
-    document.getElementById("avg_daily_usage_text").textContent=dailyUsageReliable
+    setText("avg_daily_usage_text",dailyUsageReliable
         ?`${Number(data.analysis?.quality?.complete_day_count)} complete days${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% device-reading coverage`:""}`
         :(data.analysis?.quality?.usage_physically_plausible===false
             ?"Hidden because level changes conflict with observed refill cycles."
-            :"At least two complete days of reliable readings are required.");
-    document.getElementById("peak_usage_day").textContent=analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.peak_usage_day):"--";
-    document.getElementById("peak_usage_value").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--";
-    document.getElementById("lowest_usage_day").textContent=analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.lowest_usage_day):"--";
-    document.getElementById("lowest_usage_value").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--";
+            :"At least two complete days of reliable readings are required."));
+    setText("peak_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.peak_usage_day):"--");
+    setText("peak_usage_value",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--");
+    setText("lowest_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.lowest_usage_day):"--");
+    setText("lowest_usage_value",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--");
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
     const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
@@ -2358,10 +2265,10 @@ function renderAnalytics(data){
                     ?`Lower than normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
                     :`Close to normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
         :"Previous-day comparison is not reliable yet.";
-    document.getElementById("avg_level").textContent=analyticsReady?fmtPct(data.insights?.avg_level):"--";
-    document.getElementById("min_max_level").textContent=analyticsReady
+    setText("avg_level",analyticsReady?fmtPct(data.insights?.avg_level):"--");
+    setText("min_max_level",analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
-        :"Waiting for more synced level history.";
+        :"Waiting for more synced level history.");
     const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const ratePercent=Number(data.insights?.consumption_rate);
     const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
@@ -2387,7 +2294,13 @@ function renderAnalytics(data){
 }
 
 function eventPresentation(event){const text=`${event?.kind||""} ${event?.type||""} ${event?.message||""}`.toLowerCase();if(text.includes("pump")&&(text.includes("start")||text.includes(" on")))return{icon:"🟢",className:"event-pump-started"};if(text.includes("pump")&&(text.includes("stop")||text.includes(" off")))return{icon:"🔴",className:"event-pump-stopped"};if(text.includes("leak")||text.includes("drip"))return{icon:"🟠",className:"event-leak"};if(text.includes("sync")||text.includes("cloud")||text.includes("telemetry"))return{icon:"🔵",className:"event-sync"};if(text.includes("config")||text.includes("setting")||text.includes("threshold"))return{icon:"⚙",className:"event-config"};return{icon:"🔔",className:"event-info"};}
-function renderEvents(events){const timeline=document.getElementById("eventTimeline");if(!timeline)return;timeline.innerHTML="";const recentEvents=(events||[]).slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");const time=document.createElement("time");time.textContent="No timeline yet";const text=document.createElement("span");text.textContent="No data available yet. Wait for the next sync or activity.";li.append(time,text);timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=event.message||"--";li.append(icon,time,text);timeline.appendChild(li);});if(state.data.analytics)window.requestAnimationFrame(()=>drawAnalyticsCharts(state.data.analytics));}
+function isCustomerWaterEvent(event){
+    const text=`${event?.kind||""} ${event?.type||""} ${event?.message||""}`.toLowerCase();
+    const waterActivity=/pump|motor|tank|water|level|refill|overflow|leak|drip|dry.?run/.test(text);
+    const diagnostic=/config|firmware|memory|channel|slave|peer|rssi|packet|controller|reachable|wi-?fi/.test(text);
+    return waterActivity&&!diagnostic;
+}
+function renderEvents(events){const timeline=document.getElementById("eventTimeline");if(!timeline)return;timeline.innerHTML="";const visibleEvents=VIEWER_ROLE==="customer"?(events||[]).filter(isCustomerWaterEvent):(events||[]);const recentEvents=visibleEvents.slice(0,EVENT_FEED_LIMIT);if(!recentEvents.length){const li=document.createElement("li");const time=document.createElement("time");time.textContent=VIEWER_ROLE==="customer"?"No recent water activity":"No timeline yet";const text=document.createElement("span");text.textContent="No data available yet. Wait for the next sync or activity.";li.append(time,text);timeline.appendChild(li);return;}recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=event.message||"--";li.append(icon,time,text);timeline.appendChild(li);});if(state.data.analytics)window.requestAnimationFrame(()=>drawAnalyticsCharts(state.data.analytics));}
 
 function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCommandAvailability();}
 function sendMotorCommand(path,label){

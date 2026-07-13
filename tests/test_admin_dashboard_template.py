@@ -389,7 +389,10 @@ def test_customer_dashboard_motor_chart_shows_stepped_digital_state():
     assert 'ctx.fillText("1 (ON)",box.left-10,highY+4);' in customer_template
     assert 'ctx.fillText("0 (OFF)",box.left-10,lowY+4);' in customer_template
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
-    assert 'const tickCount=Math.max(2,Math.min(7,Math.round(box.plotWidth/120)));' in customer_template
+    assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
+    assert 'function isCustomerWaterEvent(event)' in customer_template
+    assert 'Level history hidden because sensor changes failed validation.' in customer_template
+    assert 'label==="Today"?"Today’s water activity":"Water activity over the selected period"' in customer_template
 
 
 def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
@@ -436,6 +439,23 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'value:"0.0 L"' in customer_template
     assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
+
+
+def test_customer_dashboard_avoids_duplicate_summary_cards():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert '<section class="panel customer-only customer-summary-panel"' not in customer_template
+    assert '<div class="eyebrow">Pump Section</div>' not in customer_template
+    assert 'id="customerHeroTankLevel"' not in customer_template
+    assert 'id="customerConfidenceScore"' not in customer_template
+    assert 'id="heroConnectionStatus"' not in customer_template
+    assert 'id="customerConfidenceGuidance"' not in customer_template
+    assert '<span>Current state</span><strong id="motor">' in customer_template
+    assert '<span>Mode</span><strong id="mode">' in customer_template
+    assert 'id="customerUsageMetricLabel"' in customer_template
+    assert 'id="ai_tomorrow_usage"' in customer_template
+    assert 'id="consumption_rate"' in customer_template
+    assert 'id="customerSavingsNow"' in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():

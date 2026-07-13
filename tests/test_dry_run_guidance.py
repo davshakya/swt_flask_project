@@ -36,6 +36,29 @@ def test_shared_guidance_prioritizes_dry_run_as_critical_pump_protection():
     assert guidance["action_title"] == "Check the source of water before starting the pump"
 
 
+def test_shared_guidance_warns_when_usage_history_is_physically_implausible():
+    guidance = server.build_shared_guidance_payload(
+        {"level": 87, "motor": "OFF", "sensor": "OK", "telemetry_status": "online"},
+        {
+            "insights": {},
+            "analysis": {
+                "quality": {
+                    "score": 97,
+                    "usage_physically_plausible": False,
+                    "reading_count": 1035,
+                }
+            },
+            "comparison": {},
+            "events_analysis": {},
+            "levels": {"values": [87, 40, 90]},
+        },
+    )
+
+    assert guidance["severity"] == "warning"
+    assert guidance["title"] == "Usage history needs review"
+    assert guidance["confidence_percent"] <= 45
+
+
 def test_shared_guidance_names_source_tank_only_when_source_monitoring_is_active():
     guidance = server.build_shared_guidance_payload(
         {
