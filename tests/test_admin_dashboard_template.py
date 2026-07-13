@@ -959,3 +959,22 @@ def test_homepage_shows_active_identity_and_logout():
     assert "active_homepage_user = nav_auth.active_user|default(homepage_user)" in login_template
     assert "Logged in as - {{ active_homepage_user.display_name }}" in login_template
     assert '<form class="logout-form" method="post" action="/logout">' in login_template
+
+
+def test_landing_page_has_compact_conversion_and_mobile_contact_content():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert "Prevent overflow, protect your motor and control your pump from anywhere." in template
+    assert '>Buy Now</a>' in template
+    assert 'id="buyer-confidence"' in template
+    assert 'aria-label="Pricing preview"' in template
+    assert "From &#8377;3,999" in template
+    assert "From &#8377;9,999" in template
+    assert 'class="faq-list"' in template
+    assert "Does it work without Wi-Fi?" in template
+    assert 'class="mobile-contact-bar"' in template
+    assert "&#128222; Call" in template
+    assert "&#128172; WhatsApp" in template
+    assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
+    assert "&#10004; Yes" in template
+    assert "&#10006; No" in template

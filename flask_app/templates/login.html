@@ -4374,6 +4374,8 @@ display:none;
 min-width:0;
 }
 }
+.conversion-strip{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:22px;background:linear-gradient(135deg,rgba(24,157,180,.12),rgba(41,196,132,.09));border:1px solid var(--line)}.conversion-strip strong{display:block;font-size:clamp(18px,2vw,25px)}.conversion-actions{display:flex;gap:9px;flex-wrap:wrap;flex:0 0 auto}.feature-icon{display:grid;place-items:center;width:42px;height:42px;margin-bottom:10px;border-radius:13px;background:rgba(24,157,180,.12);font-size:22px}.confidence-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}.trust-grid,.price-preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.trust-item,.price-preview{padding:14px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.42)}.trust-item span{font-size:21px}.trust-item strong,.price-preview strong{display:block;margin:6px 0 3px}.price-preview .price-from{color:var(--primary);font-size:20px;font-weight:950}.faq-list{display:grid;gap:8px;margin-top:14px}.faq-list details{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.38)}.faq-list summary{cursor:pointer;font-weight:900}.faq-list p{margin:8px 0 0;color:var(--muted);line-height:1.55}.comparison-table th:last-child,.comparison-table td:last-child{background:rgba(41,196,132,.1);font-weight:900}.mobile-contact-bar{display:none}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:inherit;font-weight:800}
+@media(max-width:760px){body{padding-bottom:74px}.confidence-grid{grid-template-columns:1fr}.trust-grid,.price-preview-grid{grid-template-columns:1fr}.conversion-strip{align-items:stretch;flex-direction:column}.conversion-actions>*{flex:1}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(3,1fr);gap:7px;left:8px;right:8px;bottom:8px;z-index:90;padding:7px;border:1px solid var(--line);border-radius:17px;background:rgba(244,252,252,.96);box-shadow:0 10px 34px rgba(9,47,58,.24);backdrop-filter:blur(14px)}.mobile-contact-bar a{min-height:44px;padding:8px 6px;border-radius:12px;font-size:12px}.whatsapp-float{display:none}.comparison-table th:first-child,.comparison-table td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}.comparison-table th:first-child{z-index:2}.hero-actions>*{flex:1;min-width:140px}}
 </style>
 </head>
 <body data-default-login-mode="{{ login_mode }}">
@@ -4451,9 +4453,9 @@ min-width:0;
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
             <div class="eyebrow">SaleWell Smart Tank</div>
-            <p class="hero-kicker">Avoid overflow, dry-run damage and empty-tank surprises before they become urgent calls.</p>
-            <h1 class="hero-title">Stop Water Overflow &amp; Motor Damage &mdash; Automatically</h1>
-            <p class="hero-text">A smart tank controller that shows live water level, pump status and alerts on your phone.</p>
+            <p class="hero-kicker">Smart water tank automation for homes, apartments and managed properties.</p>
+            <h1 class="hero-title">Prevent overflow, protect your motor and control your pump from anywhere.</h1>
+            <p class="hero-text">Monitor water levels in real time, automate pump decisions and receive reliable alerts from one mobile and web dashboard.</p>
 
             <div class="hero-bullet-grid" aria-label="Hero product benefits">
                 <div class="hero-bullet">&#10003; Protect the pump<span>Avoid dry-run damage that can cost &#8377;5,000 to &#8377;15,000.</span></div>
@@ -4464,6 +4466,7 @@ min-width:0;
 
             <div class="hero-actions">
                 <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">Buy Now</a>
                 <a class="button-secondary is-primary-cta" href="#demo">Watch 2-Min Video</a>
             </div>
         </div>
@@ -4566,7 +4569,7 @@ min-width:0;
 
         <div class="value-grid is-collapsed" id="benefitCards">
             <article class="card">
-                <div class="card-tag">Overflow</div>
+                <div class="feature-icon" aria-hidden="true">&#128167;</div><div class="card-tag">Water Level Monitoring</div>
                 <h3>Stop overflow before water spills from the overhead tank</h3>
                 <p>Full-tank alerts help prevent water waste and complaints.</p>
                 <ul>
@@ -4575,7 +4578,7 @@ min-width:0;
                 </ul>
             </article>
             <article class="card">
-                <div class="card-tag">Motor Safety</div>
+                <div class="feature-icon" aria-hidden="true">&#9889;</div><div class="card-tag">Automatic Pump Control</div>
                 <h3>Keep the motor protected when water runs too low</h3>
                 <p>Tank and pump status stay linked, so dry-run risk is easier to catch.</p>
                 <ul>
@@ -4584,7 +4587,7 @@ min-width:0;
                 </ul>
             </article>
             <article class="card">
-                <div class="card-tag">Leak Alerts</div>
+                <div class="feature-icon" aria-hidden="true">&#129302;</div><div class="card-tag">AI Leak Detection</div>
                 <h3>Get alert before unusual water loss turns into a bigger leak</h3>
                 <p>Continuous monitoring catches patterns manual checks miss.</p>
                 <ul>
@@ -4639,16 +4642,16 @@ min-width:0;
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td>Overflow protection</td><td class="no">No</td><td class="partial">Partial</td><td class="yes">Yes</td></tr>
-                    <tr><td>Automatic Start/Stop Pump</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Leak detection</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Mobile alerts</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Remote pump control</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Pump Usage history</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Estimated Pump Electricity Cost</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>AI-Powered System Analysis</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Schedule Pump Start/Stop Times</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
-                    <tr><td>Water Consumption Insights</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+                    <tr><td>Overflow protection</td><td class="no">&#10006; No</td><td class="partial">Partial</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Automatic Start/Stop Pump</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Leak detection</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Mobile alerts</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Remote pump control</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Pump Usage history</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Estimated Pump Electricity Cost</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>AI-Powered System Analysis</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Schedule Pump Start/Stop Times</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                    <tr><td>Water Consumption Insights</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                 </tbody>
             </table>
         </div>
@@ -5195,28 +5198,28 @@ min-width:0;
 
             <div class="steps">
                 <article class="step">
-                    <div class="step-number">1</div>
+                        <div class="step-number" aria-label="Step 1">&#128230;</div>
                     <div>
                         <strong>Wireless sensor installed in the tank</strong>
                         <p>A compact smart sensor is placed at the overhead/main tank. It needs power, but no long signal wire is pulled from the tank to the main controller.</p>
                     </div>
                 </article>
                 <article class="step">
-                    <div class="step-number">2</div>
+                        <div class="step-number" aria-label="Step 2">&#128295;</div>
                     <div>
                         <strong>Tank data travels over Wi-Fi</strong>
                         <p>Water level readings are sent wirelessly to the main pump/controller device through the site Wi-Fi network.</p>
                     </div>
                 </article>
                 <article class="step">
-                    <div class="step-number">3</div>
+                        <div class="step-number" aria-label="Step 3">&#128241;</div>
                     <div>
                         <strong>Main controller handles pump safety</strong>
                         <p>The main device stays near the pump/control area, receives tank readings wirelessly, and manages alerts, relay control and dashboard updates.</p>
                     </div>
                 </article>
                 <article class="step">
-                    <div class="step-number">4</div>
+                        <div class="step-number" aria-label="Step 4">&#10004;</div>
                     <div>
                         <strong>Live dashboard on your phone</strong>
                         <p>Open the app or web dashboard to check tank level, pump status, alerts and remote actions without climbing up to inspect the tank.</p>
@@ -5298,6 +5301,41 @@ min-width:0;
         </div>
     </section>
 
+    <section id="buyer-confidence" class="section surface">
+        <div class="section-header">
+            <div><div class="eyebrow">Choose With Confidence</div><h2>Clear pricing, practical support and answers before installation.</h2></div>
+        </div>
+        <div class="confidence-grid">
+            <div>
+                <div class="trust-grid" aria-label="Product trust indicators">
+                    <article class="trust-item"><span aria-hidden="true">&#128274;</span><strong>Secure access</strong><p>Separate customer and admin access with local and cloud connectivity.</p></article>
+                    <article class="trust-item"><span aria-hidden="true">&#128295;</span><strong>Installation support</strong><p>A site check confirms tank, pump, power and Wi-Fi requirements.</p></article>
+                    <article class="trust-item"><span aria-hidden="true">&#128260;</span><strong>OTA updates</strong><p>Supported devices receive managed firmware improvements without replacement.</p></article>
+                </div>
+                <div class="price-preview-grid" aria-label="Pricing preview" style="margin-top:10px">
+                    <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;3,999</strong><small>No monthly fee on the starter plan.</small></article>
+                    <article class="price-preview"><span>Home automation</span><strong class="price-from">From &#8377;5,999</strong><small>Cloud service is optional by plan.</small></article>
+                    <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;9,999</strong><small>Final scope depends on tanks and site layout.</small></article>
+                </div>
+                <div class="conversion-strip" style="margin-top:10px">
+                    <div><strong>See the exact kit and recurring cost.</strong><span class="muted">Compare inclusions before booking installation.</span></div>
+                    <div class="conversion-actions"><a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">View Pricing &amp; Buy</a><a class="button is-primary-cta" href="#enquiry">Book Free Demo</a></div>
+                </div>
+            </div>
+            <div>
+                <div class="eyebrow">Frequently Asked Questions</div>
+                <div class="faq-list">
+                    <details><summary>Does it work without Wi-Fi?</summary><p>Local controller protections can continue according to the installed configuration, but remote dashboards, cloud history and mobile alerts require connectivity.</p></details>
+                    <details><summary>Can it work with an existing tank and pump?</summary><p>Usually yes. The setup check confirms tank access, sensor position, pump controls, power and relay or contactor compatibility.</p></details>
+                    <details><summary>Is professional installation required?</summary><p>Sensor placement and low-voltage setup are straightforward, while mains pump wiring must be completed or approved by a qualified electrician.</p></details>
+                    <details><summary>What happens during a power cut?</summary><p>The controller restarts when power returns. Remote data is unavailable during the outage, and retained behavior depends on the selected hardware and configuration.</p></details>
+                    <details><summary>Does it support multiple tanks?</summary><p>Yes. Multi-tank and source-tank designs are available for apartments, societies and managed properties after a site assessment.</p></details>
+                    <details><summary>Is there a warranty?</summary><p>Warranty and installation terms vary by kit and project scope. The applicable coverage is shown with the final quotation before purchase.</p></details>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section id="setup-check" class="section surface">
         <div class="support-layout">
             <div class="support-panel">
@@ -5356,6 +5394,7 @@ min-width:0;
         </div>
         <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
+        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Sales</a></nav>
         <div class="visitor-count" aria-label="Homepage visitor count">
             <span>Visitors</span>
             <strong>{{ homepage_visitor_count|default("0") }}</strong>
@@ -5371,6 +5410,12 @@ min-width:0;
         <div class="footer-note">&copy; SaleWell IoT Solutions Pvt. Ltd. All rights reserved.</div>
     </footer>
 </div>
+
+<nav class="mobile-contact-bar" aria-label="Quick contact options">
+    <a class="button-secondary" href="tel:+918796452878">&#128222; Call</a>
+    <a class="button-secondary" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener">&#128172; WhatsApp</a>
+    <a class="button is-primary-cta" href="#enquiry">&#128197; Book Demo</a>
+</nav>
 
 <a class="whatsapp-float" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" draggable="false" aria-label="Talk to SaleWell installation expert on WhatsApp">
     <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
