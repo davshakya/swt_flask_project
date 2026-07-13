@@ -69,6 +69,14 @@ body{font-size:16px}
 .hero-actions form,.hero-actions .btn{width:auto}
 .info-grid{grid-template-columns:1fr}
 }
+.device-action-bar{position:sticky;top:8px;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 12px 30px rgba(17,52,64,.16);backdrop-filter:blur(16px)}.device-action-group,.quick-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.device-action-bar .btn{min-height:34px;height:34px;padding:0 10px;font-size:11px}.quick-nav a{padding:7px 9px;border-radius:9px;text-decoration:none;font-size:11px;background:rgba(255,255,255,.24)}
+.summary-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.summary-card.is-primary{border-left:4px solid var(--primary)}.summary-card.is-healthy{border-left:4px solid var(--good)}.summary-card.is-warning{border-left:4px solid var(--warn)}.summary-card.is-critical{border-left:4px solid var(--danger)}.last-seen-value{font-size:20px}
+.section-panel.is-collapsed>*:not(.section-head){display:none}.section-toggle{min-height:34px;padding:7px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.24);color:var(--text);font:800 11px inherit;cursor:pointer}.section-panel{scroll-margin-top:74px}
+.info-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}.info-tab{min-height:32px;padding:6px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.22);color:var(--text);font-weight:800;cursor:pointer}.info-tab.is-active{background:var(--primary);color:#fff}.info-item.is-tab-hidden{display:none}
+.command-group{border-left:4px solid var(--primary)}.command-group.simulation{border-left-color:var(--good)}.command-group.maintenance{border-left-color:var(--warn)}.command-group.destructive{border-left-color:var(--danger)}
+.threshold-visual{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--good),var(--warn),var(--danger));position:relative}.threshold-visual::after{content:"";position:absolute;left:var(--threshold);top:-4px;width:4px;height:18px;border-radius:4px;background:var(--text)}
+.log-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.log-tools input,.log-tools select{min-height:38px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text)}.activity-table tr.log-error td{background:color-mix(in srgb,var(--danger) 9%,transparent)}.activity-table tr.log-warning td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
+@media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
 </style>
 </head>
 <body>
@@ -96,6 +104,18 @@ body{font-size:16px}
             </div>
         </div>
     </div>
+
+    <nav class="device-action-bar" aria-label="Device actions and section navigation">
+        <div class="quick-nav">
+            <a href="#device-overview">Overview</a><a href="#device-memory">Diagnostics</a><a href="#device-configuration">Configuration</a><a href="#device-firmware">Firmware</a><a href="#device-logs">Logs</a>
+        </div>
+        <div class="device-action-group">
+            <a class="btn" href="{{ url_for('admin_customers') }}">← Back to Devices</a>
+            <button id="deviceRefreshButton" class="btn" type="button">↻ Refresh</button>
+            {% if is_admin %}<button id="deviceSaveConfigButton" class="btn btn-admin" type="button"><span>Save Configuration</span></button><button id="deviceRestartButton" class="btn btn-danger" type="button">Restart</button><a class="btn" href="#device-firmware">OTA Update</a>{% endif %}
+            <a class="btn" href="#device-logs">Open Logs</a>
+        </div>
+    </nav>
 
     {% set config_type = "master_slave" if service_config.get("slave_device_enabled") else "master_only" %}
     {% set slave_device_checked = service_config.get("slave_device_enabled", True) %}
@@ -134,34 +154,39 @@ body{font-size:16px}
         {% endif %}
     {% endif %}
     <section class="summary-grid">
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Tank Level</div>
             <div id="level" class="summary-value">{% if live_snapshot.get("level") is not none %}{{ live_snapshot.get("level") }}%{% else %}--{% endif %}</div>
             <div id="levelNote" class="summary-note">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L available right now.{% else %}Waiting for telemetry.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Available Water</div>
             <div id="availableWater" class="summary-value">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L{% else %}--{% endif %}</div>
             <div id="availableWaterNote" class="summary-note">{% if live_snapshot.get("capacity_liters") is not none %}Out of {{ live_snapshot.get("capacity_liters") }} L total tank capacity.{% else %}Capacity information will appear here.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-healthy">
             <div class="summary-label">Pump</div>
             <div id="motor" class="summary-value">{% if live_snapshot.get("motor") %}{{ live_snapshot.get("motor")|title }}{% else %}--{% endif %}</div>
             <div id="pumpNote" class="summary-note">{% if live_snapshot.get("motor") and live_snapshot.get("motor")|upper == "ON" %}The pump is currently running.{% elif live_snapshot.get("motor") %}The pump is currently stopped.{% else %}Current motor state.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Mode</div>
             <div id="mode" class="summary-value">{% if live_snapshot.get("mode") %}{{ live_snapshot.get("mode")|title }}{% else %}--{% endif %}</div>
             <div id="modeNote" class="summary-note">{% if live_snapshot.get("mode") and live_snapshot.get("mode")|upper == "MANUAL" %}Manual control is active.{% elif live_snapshot.get("mode") %}Automatic control is active.{% else %}Auto or manual control.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Connection</div>
             <div id="connection" class="summary-value">{{ ((live_snapshot.get("telemetry_status") or "--")|replace("_", " ")|title) if live_snapshot else "--" }}</div>
             <div id="connectionNote" class="summary-note">{% if live_snapshot.get("last_sync_at") %}Last updated {{ live_snapshot.get("last_sync_at") }}.{% else %}Last update will appear here.{% endif %}</div>
         </div>
+        <div class="summary-card is-healthy"><div class="summary-label">Device Health</div><div id="deviceHealthScore" class="summary-value">{% if live_snapshot.get("tank_health") is not none %}{{ live_snapshot.get("tank_health") }}%{% else %}--{% endif %}</div><div id="deviceHealthNote" class="summary-note">Sensors, telemetry, pump, and alerts.</div></div>
+        <div class="summary-card"><div class="summary-label">Last Seen</div><div id="lastSeenAge" class="summary-value last-seen-value" data-age-seconds="{{ live_snapshot.get('seconds_since_sync') if live_snapshot.get('seconds_since_sync') is not none else '' }}">--</div><div id="lastSeenTimestamp" class="summary-note">{{ live_snapshot.get("last_sync_at") or "No communication yet" }}</div></div>
+        <div class="summary-card"><div class="summary-label">Firmware</div><div id="firmwareVersion" class="summary-value">{{ live_snapshot.get("firmware_version") or live_snapshot.get("swt_version") or "--" }}</div><div class="summary-note">Current installed version.</div></div>
+        <div class="summary-card"><div class="summary-label">RSSI Signal</div><div id="rssiSignal" class="summary-value">{% if live_snapshot.get("wifi_rssi") is not none %}{{ live_snapshot.get("wifi_rssi") }} dBm{% else %}--{% endif %}</div><div id="rssiNote" class="summary-note">{{ live_snapshot.get("signal_quality") or "Signal not reported" }}</div></div>
+        <div class="summary-card"><div class="summary-label">Uptime</div><div id="deviceUptime" class="summary-value">{{ live_snapshot.get("uptime_label") or live_snapshot.get("runtime") or "--" }}</div><div class="summary-note">Since the last controller restart.</div></div>
     </section>
 
-    <section class="panel">
+    <section id="device-overview" class="panel section-panel" data-collapsible data-expanded="true">
         <div class="section-head">
             <div>
                 <div class="eyebrow">Device Configuration</div>
@@ -180,6 +205,7 @@ body{font-size:16px}
                 <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
             </div>
         </div>
+        <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
         <div id="deviceInfoGrid" class="info-grid">
             {% if initial_info_cards %}
                 {% for card in initial_info_cards %}
@@ -194,7 +220,7 @@ body{font-size:16px}
         </div>
     </section>
 
-    <section class="panel">
+    <section id="device-memory" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Memory Health</div>
@@ -220,7 +246,7 @@ body{font-size:16px}
     </section>
 
     {% if is_admin %}
-    <section class="panel">
+    <section id="device-configuration" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Admin Configuration</div>
@@ -271,11 +297,11 @@ body{font-size:16px}
                 <h3>Tank Auto Thresholds</h3>
                 <div class="form-group">
                     <label for="auto_start_pct">Start Pump At Or Below (%)</label>
-                    <input id="auto_start_pct" name="auto_start_pct" type="number" min="0" max="95" step="0.1" inputmode="decimal" value="{{ automation_settings.get('auto_start_pct', 25) }}">
+                    <input id="auto_start_pct" name="auto_start_pct" type="range" min="0" max="95" step="0.1" value="{{ automation_settings.get('auto_start_pct', 25) }}"><output id="autoStartOutput" for="auto_start_pct">{{ automation_settings.get('auto_start_pct', 25) }}%</output>
                 </div>
                 <div class="form-group">
                     <label for="auto_stop_pct">Stop Pump At Or Above (%)</label>
-                    <input id="auto_stop_pct" name="auto_stop_pct" type="number" min="5" max="100" step="0.1" inputmode="decimal" value="{{ automation_settings.get('auto_stop_pct', 95) }}">
+                    <input id="auto_stop_pct" name="auto_stop_pct" type="range" min="5" max="100" step="0.1" value="{{ automation_settings.get('auto_stop_pct', 95) }}"><output id="autoStopOutput" for="auto_stop_pct">{{ automation_settings.get('auto_stop_pct', 95) }}%</output>
                 </div>
                 <div class="helper-text">These thresholds are shared across Flask, Android, and firmware. Saving here queues the update for the controller and keeps the cloud copy aligned.</div>
                 <button class="btn btn-admin" type="submit"><span>Save Tank Thresholds</span></button>
@@ -310,8 +336,9 @@ body{font-size:16px}
                 {% endif %}
             </form>
 
-            <div class="admin-form">
+            <div class="admin-form command-group maintenance">
                 <h3>Device Commands</h3>
+                <div class="summary-label">Simulation, diagnostics, and maintenance</div>
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="{{ 'Disable simulator?' if simulator_enabled|default(false) else 'Enable simulator?' }}" data-confirm-message="{{ 'Queue a simulator disable command for device ' ~ device_id ~ '?' if simulator_enabled|default(false) else 'Queue a simulator enable command for device ' ~ device_id ~ '? The device will apply it using the current service configuration.' }}" data-confirm-button="{{ 'Disable Simulator' if simulator_enabled|default(false) else 'Enable Simulator' }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
@@ -406,7 +433,7 @@ body{font-size:16px}
         </div>
     </section>
 
-    <section class="panel">
+    <section id="device-firmware" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Admin Actions</div>
@@ -416,7 +443,7 @@ body{font-size:16px}
         <div class="firmware-upload-grid">
             {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
             {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload master firmware?" data-confirm-message="Store this master firmware binary for device {{ device_id }}? Verify the selected build and profile before continuing." data-confirm-button="Upload Master Firmware">
                 <h3>Master Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -439,7 +466,7 @@ body{font-size:16px}
                 <label class="service-option upload-override"><input type="checkbox" name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override> <span><strong>Store for recovery/profile change</strong><span>Profile mismatch is allowed for master uploads. Apply the correct MCU runtime configuration before upgrade/install.</span></span></label>
                 <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
             </form>
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload slave firmware?" data-confirm-message="Store this slave firmware binary for device {{ device_id }}? Verify that it matches the slave hardware before continuing." data-confirm-button="Upload Slave Firmware">
                 <h3>Slave Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -476,7 +503,7 @@ body{font-size:16px}
     </section>
     {% endif %}
 
-    <section class="panel">
+    <section id="device-logs" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Activity Log</div>
@@ -484,6 +511,13 @@ body{font-size:16px}
             </div>
         </div>
         <div class="activity-toolbar">
+            <div class="log-tools">
+                <input id="activitySearch" type="search" placeholder="Search logs" aria-label="Search activity logs">
+                <select id="activitySeverity" aria-label="Filter log severity"><option value="">All levels</option><option value="info">Info</option><option value="success">Success</option><option value="warning">Warning</option><option value="danger">Error/Critical</option></select>
+                <button id="activityPause" class="btn" type="button">Pause auto-scroll</button>
+                <button id="activityCopy" class="btn" type="button">Copy</button>
+                <button id="activityDownload" class="btn" type="button">Download</button>
+            </div>
             <label class="activity-page-size" for="activityPageSize">Display
                 <select id="activityPageSize">
                     <option value="10">10 logs</option>
@@ -568,6 +602,10 @@ let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
 let activityRefreshTimer=0;
 let latestHistory=[];
+let activitySearch="";
+let activitySeverity="";
+let activityPaused=false;
+let activeInfoTab="overview";
 function compactClientNumber(value,digits=1){
   const number=Number(value);
   return Number.isFinite(number)?number.toFixed(digits):"not reported";
@@ -1414,8 +1452,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
   ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
-  setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
+  setStableHtml(root,items.map(({label,value})=>`<div class="info-item" data-info-category="${categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  applyInfoTab();
 }
+function applyInfoTab(){document.querySelectorAll("#deviceInfoGrid [data-info-category]").forEach((item)=>item.classList.toggle("is-tab-hidden",item.dataset.infoCategory!==activeInfoTab));document.querySelectorAll("[data-info-tab]").forEach((button)=>button.classList.toggle("is-active",button.dataset.infoTab===activeInfoTab));}
 function uniqueFeedItems(items){
   const seen=new Set();
   return (items||[]).filter((item)=>{
@@ -1509,11 +1550,17 @@ function setButtonDisabled(id,disabled){
 function renderActivityTable(){
   const root=document.getElementById("events");
   if(!root)return;
-  const total=latestEvents.length;
+  const filteredEvents=latestEvents.filter((entry)=>{
+    const severity=String(entry?.severity||"info").toLowerCase();
+    const severityMatch=!activitySeverity||(activitySeverity==="danger"?["danger","error","critical"].includes(severity):severity===activitySeverity);
+    const searchMatch=!activitySearch||`${entry?.message||""} ${entry?.kind||""} ${activityNodeLabel(entry)}`.toLowerCase().includes(activitySearch);
+    return severityMatch&&searchMatch;
+  });
+  const total=filteredEvents.length;
   const pageCount=Math.max(1,Math.ceil(total/activityPageSize));
   activityPage=Math.min(Math.max(1,activityPage),pageCount);
   const start=(activityPage-1)*activityPageSize;
-  const pageItems=latestEvents.slice(start,start+activityPageSize);
+  const pageItems=filteredEvents.slice(start,start+activityPageSize);
   const count=document.getElementById("activityCount");
   const status=document.getElementById("activityPageStatus");
   if(count){
@@ -1531,7 +1578,7 @@ function renderActivityTable(){
     return;
   }
   setStableHtml(root,pageItems.map((entry)=>`
-    <tr>
+    <tr class="${["danger","error","critical"].includes(String(entry.severity||"").toLowerCase())?"log-error":String(entry.severity||"").toLowerCase().includes("warn")?"log-warning":""}">
       <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
       <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
       <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div></td>
@@ -1544,7 +1591,7 @@ function setActivityPage(nextPage){
   renderActivityTable();
 }
 async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
-  if(activityRefreshInFlight)return;
+  if(activityRefreshInFlight||activityPaused)return;
   activityRefreshInFlight=true;
   try{
     const eventsUrl=new URL("/events",window.location.origin);
@@ -1642,6 +1689,14 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
     setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
     setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
   }
+  setText("deviceHealthScore",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}%`:"--");
+  setText("deviceHealthNote",firstReason(snapshot.tank_health_reasons,"Sensors, telemetry, pump, and alerts."));
+  setText("firmwareVersion",snapshot.firmware_version||snapshot.swt_version||"--");
+  setText("rssiSignal",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`${snapshot.wifi_rssi} dBm`:"--");
+  setText("rssiNote",snapshot.signal_quality||systemStatus.signal_quality||"Signal not reported");
+  setText("deviceUptime",snapshot.uptime_label||snapshot.runtime||"--");
+  const lastSeen=document.getElementById("lastSeenAge");if(lastSeen){lastSeen.dataset.ageSeconds=snapshot.seconds_since_sync??"";lastSeen.dataset.loadedAt=String(Date.now());lastSeen.textContent=snapshot.seconds_since_sync!==undefined&&snapshot.seconds_since_sync!==null?`${formatDurationSeconds(snapshot.seconds_since_sync)} ago`:"--";}
+  setText("lastSeenTimestamp",lastSync?formatLocaleDateTime(lastSync):"No communication yet");
   setVisible("sourceCard",sourceMonitoringActive);
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
@@ -1680,6 +1735,21 @@ document.getElementById("activityPageSize")?.addEventListener("change",(event)=>
     refreshActivityEvents({limit:activityPageSize});
   }
 });
+document.querySelectorAll("[data-collapsible]").forEach((section)=>{const head=section.querySelector(".section-head");if(!head)return;const button=document.createElement("button");button.type="button";button.className="section-toggle";const sync=()=>button.textContent=section.classList.contains("is-collapsed")?"Expand":"Collapse";sync();button.addEventListener("click",()=>{section.classList.toggle("is-collapsed");sync();});head.appendChild(button);});
+document.querySelectorAll(".quick-nav a,.device-action-group a[href^='#']").forEach((link)=>link.addEventListener("click",()=>{const section=document.querySelector(link.getAttribute("href"));section?.classList.remove("is-collapsed");section?.querySelector(".section-toggle")&&(section.querySelector(".section-toggle").textContent="Collapse");}));
+document.querySelectorAll("[data-info-tab]").forEach((button)=>button.addEventListener("click",()=>{activeInfoTab=button.dataset.infoTab||"overview";applyInfoTab();}));
+document.getElementById("deviceRefreshButton")?.addEventListener("click",()=>loadDevice({silent:false,includeHistory:true,includeEvents:true}));
+document.getElementById("deviceSaveConfigButton")?.addEventListener("click",()=>{document.querySelector(".config-form")?.requestSubmit();});
+document.getElementById("deviceRestartButton")?.addEventListener("click",()=>{document.querySelector('form[action$="/reboot"]')?.requestSubmit();});
+[["auto_start_pct","autoStartOutput"],["auto_stop_pct","autoStopOutput"]].forEach(([inputId,outputId])=>document.getElementById(inputId)?.addEventListener("input",(event)=>setText(outputId,`${event.target.value}%`)));
+document.getElementById("activitySearch")?.addEventListener("input",(event)=>{activitySearch=String(event.target.value||"").trim().toLowerCase();activityPage=1;renderActivityTable();});
+document.getElementById("activitySeverity")?.addEventListener("change",(event)=>{activitySeverity=event.target.value||"";activityPage=1;renderActivityTable();});
+document.getElementById("activityPause")?.addEventListener("click",(event)=>{activityPaused=!activityPaused;event.currentTarget.textContent=activityPaused?"Resume auto-scroll":"Pause auto-scroll";});
+function activityLogText(){return latestEvents.map((entry)=>`${entry.time||"--"}\t${activityNodeLabel(entry)}\t${entry.severity||"info"}\t${entry.message||"Event"}`).join("\n");}
+document.getElementById("activityCopy")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(activityLogText());}catch(error){}});
+document.getElementById("activityDownload")?.addEventListener("click",()=>{const blob=new Blob([activityLogText()],{type:"text/plain;charset=utf-8"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${DEVICE_ID}-activity.log`;link.click();URL.revokeObjectURL(link.href);});
+function refreshLastSeenAge(){const node=document.getElementById("lastSeenAge");if(!node||node.dataset.ageSeconds==="")return;const base=Number(node.dataset.ageSeconds||0);const loaded=Number(node.dataset.loadedAt||Date.now());if(!node.dataset.loadedAt)node.dataset.loadedAt=String(Date.now());node.textContent=`${formatDurationSeconds(base+Math.max(0,(Date.now()-loaded)/1000))} ago`;}
+refreshLastSeenAge();window.setInterval(refreshLastSeenAge,30000);
 document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
   document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
   document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));

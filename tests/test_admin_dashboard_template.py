@@ -431,6 +431,31 @@ def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
     assert 'item.get("firmware_version")' in server_source
 
 
+def test_device_detail_reduces_density_and_keeps_critical_actions_safe():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert 'class="device-action-bar"' in template
+    for section_id in ("device-overview", "device-memory", "device-configuration", "device-firmware", "device-logs"):
+        assert f'id="{section_id}"' in template
+    assert 'id="deviceHealthScore"' in template
+    assert 'id="lastSeenAge"' in template
+    assert 'id="firmwareVersion"' in template
+    assert 'id="rssiSignal"' in template
+    assert 'id="deviceUptime"' in template
+    assert 'data-info-tab="network"' in template
+    assert 'data-info-tab="sensors"' in template
+    assert 'type="range" min="0" max="95"' in template
+    assert 'id="activitySearch"' in template
+    assert 'id="activitySeverity"' in template
+    assert 'id="activityPause"' in template
+    assert 'id="activityCopy"' in template
+    assert 'id="activityDownload"' in template
+    assert 'data-confirm-title="Upload master firmware?"' in template
+    assert 'data-confirm-title="Upload slave firmware?"' in template
+    assert 'document.getElementById("deviceRestartButton")' in template
+    assert "function refreshLastSeenAge()" in template
+
+
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
