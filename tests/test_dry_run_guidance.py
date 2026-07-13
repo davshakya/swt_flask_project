@@ -134,7 +134,7 @@ def test_shared_guidance_explains_high_confidence_leak_in_customer_language():
                 "forecast_confidence": 92,
                 "leakage": {
                     "status": "possible_leak",
-                    "score": 68,
+                    "score": 94,
                     "confidence": 94,
                     "reasons": [
                         "Tank level dropped repeatedly while the pump was off.",

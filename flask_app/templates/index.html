@@ -550,10 +550,10 @@ canvas{height:260px!important}
     </section>
 
     <section class="charts" style="margin-top:16px">
-        <div class="panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><canvas id="levelChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><canvas id="dailyChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p class="muted">Current day</p><canvas id="levelChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p class="muted">Last 7 days</p><canvas id="dailyChart"></canvas></div>
         <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><canvas id="patternChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><canvas id="motorChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p class="muted">Current day</p><canvas id="motorChart"></canvas></div>
     </section>
 
     <section class="customer-only customer-section-grid" style="margin-top:18px">
@@ -950,7 +950,8 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     const hardwareLeak=["pipe_leak","slow_leak","drip"].some((key)=>String(snapshot[key]||"").toUpperCase()==="YES");
     const leakage=analytics.analysis?.leakage||{};
     const aiLeakConfidence=Number(leakage.confidence||0);
-    const aiLeak=(["likely_leak","possible_leak"].includes(String(leakage.status||"").toLowerCase())&&aiLeakConfidence>90);
+    const aiLeakScore=Number(leakage.score||0);
+    const aiLeak=(["likely_leak","possible_leak"].includes(String(leakage.status||"").toLowerCase())&&aiLeakConfidence>90&&aiLeakScore>90);
     const aiAlert=hardwareLeak?"Leak sensor alert":aiLeak?`Leak alert ${aiLeakConfidence.toFixed(0)}%`:analytics.analysis?.anomaly_count>0?`${analytics.analysis.anomaly_count} alert${analytics.analysis.anomaly_count===1?"":"s"}`:"Monitoring";
     setText("stickyTankLevel",Number.isFinite(level)?`${level.toFixed(1)}%`:"--");
     setText("stickyPumpStatus",motor==="ON"?"Running":motor==="OFF"?"Stopped":motor);
@@ -1838,7 +1839,11 @@ function drawAnalyticsCharts(data){
     if(!chartsAvailable||!data)return;
     data=analyticsChartsPayload(data);
     const todayAxis=analyticsRangeIsToday();
-    const levelSeries=downsampleSeries(data.levels?.time||[],toChartNumberArray(data.levels?.values,{allowNull:true}),180);
+    const defaultWindows=data.default_chart_windows||{};
+    const levelPayload=defaultWindows.tank_level?.levels||data.levels||{};
+    const pumpMotorPayload=defaultWindows.pump_activity?.motor||data.motor||{};
+    const pumpMetricsPayload=defaultWindows.pump_activity?.pump_activity||data.pump_activity||{};
+    const levelSeries=downsampleSeries(levelPayload.time||[],toChartNumberArray(levelPayload.values,{allowNull:true}),180);
     const levelEvents=(state.data.events||[]).map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
     drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
     const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
@@ -1846,8 +1851,8 @@ function drawAnalyticsCharts(data){
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
     drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,usageLiters(data.daily?.liters,data.daily?.values),{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,showValues:true});
     drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",(data.pattern?.hours||[]).map((hour)=>formatHourBucket(`${hour}:00`)),usageLiters(data.pattern?.liters,data.pattern?.values),{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,highlightPeak:true});
-    const motorSeriesRaw=buildMotorBehaviorSeries({time:data.motor?.time||[],values:toChartNumberArray(data.motor?.values,{allowNull:true})});
-    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:data.pump_activity||{},xLabelMode:"datetime"});
+    const motorSeriesRaw=buildMotorBehaviorSeries({time:pumpMotorPayload.time||[],values:toChartNumberArray(pumpMotorPayload.values,{allowNull:true})});
+    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:pumpMetricsPayload,xLabelMode:"datetime"});
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
     const chartData=analyticsChartsPayload(data,{remember:false,key});
@@ -2212,18 +2217,21 @@ function renderAnalytics(data){
     const chartData=analyticsChartsPayload(data);
     data=chartData;
     const analyticsReady=hasMeaningfulAnalyticsData(chartData);
+    const dailyUsageReliable=data.daily?.reliable===true&&Number(data.analysis?.quality?.complete_day_count)>=2;
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     document.getElementById("rangeLabel").textContent=data.range?.label||"--";
-    document.getElementById("avg_daily_usage").textContent=analyticsReady?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--";
+    document.getElementById("avg_daily_usage").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--";
     const coverage=Number(data.analysis?.quality?.coverage_percent);
     const sampleDays=Number(data.prediction?.sample_days);
-    document.getElementById("avg_daily_usage_text").textContent=analyticsReady&&String(data.comparison?.latest_day||"").trim()&&String(data.comparison?.latest_day||"").trim()!=="--"
-        ?`${Number.isFinite(sampleDays)?sampleDays:"--"} complete day${sampleDays===1?"":"s"}${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% telemetry coverage`:""}`
-        :"Not enough history yet for a reliable daily comparison.";
-    document.getElementById("peak_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.peak_usage_day):"--";
-    document.getElementById("peak_usage_value").textContent=analyticsReady?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--";
-    document.getElementById("lowest_usage_day").textContent=analyticsReady?formatLocaleDate(data.insights?.lowest_usage_day):"--";
-    document.getElementById("lowest_usage_value").textContent=analyticsReady?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--";
+    document.getElementById("avg_daily_usage_text").textContent=dailyUsageReliable
+        ?`${Number(data.analysis?.quality?.complete_day_count)} complete days${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% device-reading coverage`:""}`
+        :(data.analysis?.quality?.usage_physically_plausible===false
+            ?"Hidden because level changes conflict with observed refill cycles."
+            :"At least two complete days of reliable readings are required.");
+    document.getElementById("peak_usage_day").textContent=analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.peak_usage_day):"--";
+    document.getElementById("peak_usage_value").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--";
+    document.getElementById("lowest_usage_day").textContent=analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.lowest_usage_day):"--";
+    document.getElementById("lowest_usage_value").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--";
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
     const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
@@ -2246,7 +2254,7 @@ function renderAnalytics(data){
     const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const ratePercent=Number(data.insights?.consumption_rate);
     const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
-    document.getElementById("consumption_rate").textContent=analyticsReady&&rateLiters!==null
+    document.getElementById("consumption_rate").textContent=analyticsReady&&data.analysis?.quality?.usage_rate_reliable===true&&rateLiters!==null
         ?`${rateLiters.toFixed(0)} L/hr`
         :"--";
     const forecastReady=analyticsReady&&data.prediction?.status!=="insufficient_data"&&hasDisplayNumber(data.prediction?.tomorrow_usage_liters??data.prediction?.tomorrow_usage);

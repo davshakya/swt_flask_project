@@ -8395,6 +8395,36 @@ def resolve_date_window():
     return start_dt, end_exclusive, label
 
 
+def attach_default_chart_windows(payload, device_id=None):
+    """Keep seven-day habits while supplying today's level and pump charts."""
+    if not isinstance(payload, dict):
+        return payload
+    requested_days = request.args.get("days", type=int)
+    if request.args.get("start_date") or request.args.get("end_date") or (requested_days not in (None, 7)):
+        return payload
+    now = now_utc()
+    now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    midnight_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = midnight_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    today_payload = build_analytics(today_start, now + timedelta(seconds=1), "Today", device_id=device_id)
+    payload["default_chart_windows"] = {
+        "tank_level": {
+            "range": today_payload.get("range") or {},
+            "levels": today_payload.get("levels") or {},
+        },
+        "pump_activity": {
+            "range": today_payload.get("range") or {},
+            "motor": today_payload.get("motor") or {},
+            "pump_activity": today_payload.get("pump_activity") or {},
+        },
+        "daily_use": {
+            "range": payload.get("range") or {},
+            "daily": payload.get("daily") or {},
+        },
+    }
+    return payload
+
+
 def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_sources=False):
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
@@ -9168,6 +9198,19 @@ def robust_consumption_rate(mean_rate, segment_rates, valid_hours, valid_drop_co
     return round(float(blended_rate), 4)
 
 
+def level_usage_matches_observed_refills(total_usage_pct, motor_cycles, allowance_per_fill_pct=120.0):
+    """Reject accumulated level drops that exceed observed available tank volume.
+
+    The opening tank contributes one fill. Each observed pump start can contribute at
+    most roughly one additional fill; a 20% allowance covers thresholds and rounding.
+    Missing pump history cannot prove a high usage estimate, so callers should hide it.
+    """
+    total = max(0.0, safe_float(total_usage_pct, 0.0))
+    cycles = max(0, int(safe_float(motor_cycles, 0)))
+    limit = float((cycles + 1) * max(100.0, safe_float(allowance_per_fill_pct, 120.0)))
+    return total <= limit, round(limit, 1)
+
+
 def build_analytics_quality_payload(
     row_count,
     valid_hours,
@@ -9422,7 +9465,11 @@ def build_leakage_ai_model(
         else:
             leak_type = "usage_anomaly"
 
-    alert_eligible = status in {"likely_leak", "possible_leak"} and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+    alert_eligible = (
+        status in {"likely_leak", "possible_leak"}
+        and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+        and score > 90.0
+    )
     return {
         "model": "telemetry-leakage-ai-v2",
         "status": status,
@@ -9455,7 +9502,12 @@ def ai_leakage_alert_eligible(leakage_model):
     model = leakage_model or {}
     status = str(model.get("status") or "").strip().lower()
     confidence = safe_float(model.get("confidence"), 0)
-    return status in {"likely_leak", "possible_leak"} and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+    score = safe_float(model.get("score"), 0)
+    return (
+        status in {"likely_leak", "possible_leak"}
+        and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+        and score > 90.0
+    )
 
 
 def build_analysis_payload(
@@ -10399,6 +10451,37 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         latest_seconds_since_sync=latest_row["seconds_since_sync"],
         window_hours=max(0.0, (end_exclusive - start_dt).total_seconds() / 3600.0),
     )
+    # A level-derived usage total cannot reliably exceed the water made available by
+    # the opening tank plus observed refill cycles. Large excesses usually indicate
+    # sensor bounce (repeated false drops and recoveries), not real consumption.
+    usage_physically_plausible, plausible_usage_limit_pct = level_usage_matches_observed_refills(
+        total_usage, motor_cycles
+    )
+    complete_day_count = len(complete_usage)
+    usage_rate_reliable = bool(
+        usage_physically_plausible and analytics_quality.get("sufficient_for_anomaly")
+    )
+    daily_usage_reliable = bool(
+        usage_physically_plausible
+        and analytics_quality.get("sufficient_for_forecast")
+        and complete_day_count >= 2
+    )
+    analytics_quality["usage_physically_plausible"] = usage_physically_plausible
+    analytics_quality["usage_plausibility_limit_pct"] = round(plausible_usage_limit_pct, 1)
+    analytics_quality["complete_day_count"] = complete_day_count
+    analytics_quality["usage_rate_reliable"] = usage_rate_reliable
+    analytics_quality["daily_usage_reliable"] = daily_usage_reliable
+    if not usage_physically_plausible:
+        analytics_quality["sufficient_for_forecast"] = False
+        analytics_quality["sufficient_for_anomaly"] = False
+        analytics_quality["status"] = "limited"
+        analytics_quality.setdefault("limitations", []).append(
+            "Level changes exceed the volume supported by observed refill cycles; daily usage is hidden as unreliable."
+        )
+    if complete_day_count < 2:
+        analytics_quality.setdefault("limitations", []).append(
+            "At least two complete days are required for average daily usage."
+        )
     if not analytics_quality.get("sufficient_for_anomaly"):
         usage_change_pct = None
     usage_forecast = build_daily_usage_forecast(comparison_values, analytics_quality)
@@ -10470,14 +10553,14 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "motor_cycles": motor_cycles,
             "consumption_rate": round(float(consumption_rate), 2),
             "leak_events": leak_events,
-            "avg_daily_usage": round(avg_daily_usage, 2),
-            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage),
-            "peak_usage_day": peak_day,
-            "peak_usage_value": round(peak_value, 2),
-            "peak_usage_liters": percent_to_liters(peak_value),
-            "lowest_usage_day": lowest_day,
-            "lowest_usage_value": round(lowest_value, 2),
-            "lowest_usage_liters": percent_to_liters(lowest_value),
+            "avg_daily_usage": round(avg_daily_usage, 2) if daily_usage_reliable else None,
+            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage) if daily_usage_reliable else None,
+            "peak_usage_day": peak_day if daily_usage_reliable else "--",
+            "peak_usage_value": round(peak_value, 2) if daily_usage_reliable else None,
+            "peak_usage_liters": percent_to_liters(peak_value) if daily_usage_reliable else None,
+            "lowest_usage_day": lowest_day if daily_usage_reliable else "--",
+            "lowest_usage_value": round(lowest_value, 2) if daily_usage_reliable else None,
+            "lowest_usage_liters": percent_to_liters(lowest_value) if daily_usage_reliable else None,
             "latest_day_usage": round(latest_day_usage, 2),
             "latest_day_usage_liters": percent_to_liters(latest_day_usage),
             "previous_day_usage": round(previous_day_usage, 2),
@@ -10488,15 +10571,16 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "daily": {
             "dates": daily_dates,
             "values": [round(float(value), 2) for value in daily_values],
-            "liters": daily_liters,
+            "liters": daily_liters if daily_usage_reliable else [None for _ in daily_liters],
             "unit": "L",
             "measurement": "estimated_from_level_change",
             "complete": daily_complete,
+            "reliable": daily_usage_reliable,
         },
         "pattern": {
             "hours": list(range(24)),
             "values": [round(float(value), 2) for value in hourly_usage],
-            "liters": hourly_liters,
+            "liters": hourly_liters if usage_rate_reliable else [None for _ in hourly_liters],
             "unit": "L",
             "measurement": "estimated_from_level_change",
         },
@@ -10535,6 +10619,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "unit": "L",
             "tank_capacity_liters": round(tank_capacity_liters, 1),
             "measurement": "estimated_from_level_change",
+            "reliable": daily_usage_reliable,
         },
         "alerts": alerts,
     }
@@ -15401,6 +15486,7 @@ def mobile_analytics():
             device_id=scoped_device_id,
             reason="AI analysis is using the last successful result while fresh analytics catches up.",
         )
+    payload = attach_default_chart_windows(payload, device_id=scoped_device_id)
     return jsonify(payload)
 
 
@@ -18915,6 +19001,7 @@ def analytics():
             device_id=scoped_device_id,
             reason="AI analysis is using the last successful result while fresh analytics catches up.",
         )
+    payload = attach_default_chart_windows(payload, device_id=scoped_device_id)
     return jsonify(payload)
 
 

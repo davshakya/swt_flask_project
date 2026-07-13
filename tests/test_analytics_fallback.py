@@ -4,6 +4,27 @@ import json
 from flask_app import server
 
 
+def test_default_seven_day_payload_embeds_today_level_and_pump_windows(monkeypatch):
+    today_payload = {
+        "range": {"label": "Today"},
+        "levels": {"time": ["today"], "values": [75]},
+        "motor": {"time": ["today"], "values": [0]},
+        "pump_activity": {"completed_runs": 0},
+    }
+    monkeypatch.setattr(server, "build_analytics", lambda *_args, **_kwargs: today_payload)
+
+    with server.app.test_request_context("/analytics?days=7"):
+        payload = server.attach_default_chart_windows(
+            {"range": {"label": "Last 7 days"}, "daily": {"dates": ["day-1"]}},
+            device_id="swt-test",
+        )
+
+    windows = payload["default_chart_windows"]
+    assert windows["tank_level"]["range"]["label"] == "Today"
+    assert windows["pump_activity"]["motor"]["time"] == ["today"]
+    assert windows["daily_use"]["range"]["label"] == "Last 7 days"
+
+
 def test_service_config_upsert_persists_ai_and_cloud_mode():
     device_id = "swt-analytics-config-001"
     server.analytics_cache.clear()

@@ -34,7 +34,7 @@ def test_leakage_ai_model_flags_unusual_off_pump_drop_pattern():
     assert model["score"] >= 45
     assert model["leak_type"] in {"pipe_leak", "slow_leak", "usage_anomaly"}
     assert model["confidence"] > 90
-    assert model["alert_eligible"] is True
+    assert model["alert_eligible"] is (model["score"] > 90 and model["confidence"] > 90)
 
 
 def test_leakage_ai_model_keeps_normal_usage_clear():
@@ -75,6 +75,16 @@ def test_quality_score_reflects_window_coverage_and_evidence():
     assert quality["limitations"]
 
 
+def test_daily_usage_plausibility_rejects_more_water_than_observed_refills_supply():
+    plausible, limit = server.level_usage_matches_observed_refills(450.0, motor_cycles=3)
+    assert plausible is True
+    assert limit == 480.0
+
+    plausible, limit = server.level_usage_matches_observed_refills(2281.6, motor_cycles=3)
+    assert plausible is False
+    assert limit == 480.0
+
+
 def test_daily_forecast_requires_complete_history_and_reports_interval():
     insufficient = server.build_daily_usage_forecast([12.0], {"score": 90, "sufficient_for_forecast": True})
     assert insufficient["status"] == "insufficient_data"
@@ -107,7 +117,7 @@ def test_motor_activity_metrics_use_actual_time_gaps():
     assert metrics["duty_cycle_pct"] == 43.33
 
 
-def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
+def test_analysis_payload_hides_ai_leakage_anomaly_until_score_and_confidence_exceed_90():
     leakage = {
         "status": "possible_leak",
         "severity": "warning",
@@ -131,20 +141,22 @@ def test_analysis_payload_includes_ai_leakage_anomaly_without_firmware_flag():
     )
 
     assert payload["leakage"] == leakage
-    assert any(item["kind"] == "ai_leakage" for item in payload["anomalies"])
+    assert not any(item["kind"] == "ai_leakage" for item in payload["anomalies"])
     assert any(item["kind"] == "short_cycling" for item in payload["anomalies"])
     assert payload["event_window"]["telemetry_short_cycle_count"] == 4
 
 
-def test_ai_leakage_alert_requires_confidence_strictly_above_90():
+def test_ai_leakage_alert_requires_score_and_confidence_strictly_above_90():
     base = {
         "status": "possible_leak",
         "severity": "warning",
-        "score": 68,
+        "score": 91,
     }
     assert server.ai_leakage_alert_eligible({**base, "confidence": 90}) is False
     assert server.ai_leakage_alert_eligible({**base, "confidence": 90.0}) is False
     assert server.ai_leakage_alert_eligible({**base, "confidence": 91}) is True
+    assert server.ai_leakage_alert_eligible({**base, "score": 90, "confidence": 91}) is False
+    assert server.ai_leakage_alert_eligible({**base, "score": 89, "confidence": 99}) is False
 
     low_confidence_payload = server.build_analysis_payload(
         quality={"score": 95, "sufficient_for_anomaly": True},
