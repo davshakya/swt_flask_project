@@ -493,6 +493,7 @@ canvas{height:260px!important}
         <div class="panel customer-group-panel">
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
+            <p id="customerUsageRange" class="muted">AI/ML analysis · Today</p>
             <div class="customer-stat-grid">
                 <div class="card"><span class="label">Water used today</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">A plain-language comparison appears after two complete days.</div></div>
                 <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Estimated next complete day</div></div>
@@ -523,8 +524,8 @@ canvas{height:260px!important}
                 <p id="rangeLabel" class="muted">Loading range...</p>
             </div>
             <div class="range-buttons" style="justify-content:flex-end">
-                <button id="range_1" class="btn-lite" onclick="setQuickRange(1)">Today</button>
-                <button id="range_7" class="btn-lite active" onclick="setQuickRange(7)">7 Days</button>
+                <button id="range_1" class="btn-lite active" onclick="setQuickRange(1)">Today</button>
+                <button id="range_7" class="btn-lite" onclick="setQuickRange(7)">7 Days</button>
                 <button id="range_30" class="btn-lite" onclick="setQuickRange(30)">30 Days</button>
             </div>
         </div>
@@ -552,10 +553,10 @@ canvas{height:260px!important}
     </section>
 
     <section class="charts" style="margin-top:16px">
-        <div class="panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p class="muted">Current day</p><canvas id="levelChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p class="muted">Last 7 days</p><canvas id="dailyChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><canvas id="patternChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p class="muted">Current day</p><canvas id="motorChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Today</p><canvas id="levelChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Today</p><canvas id="dailyChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><p id="patternChartRange" class="muted">AI/ML analysis · Today</p><canvas id="patternChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Today</p><canvas id="motorChart"></canvas></div>
     </section>
 
     <section class="customer-only customer-section-grid" style="margin-top:18px">
@@ -567,6 +568,7 @@ canvas{height:260px!important}
         <div class="panel customer-guidance-panel">
             <div class="eyebrow">🤖 AI Guidance</div>
             <h3>Smart Water Assistant</h3>
+            <p id="customerGuidanceRange" class="muted">AI/ML analysis · Today</p>
             <div class="customer-guidance-lists">
                 <div>
                     <span class="label">What happened and why</span>
@@ -657,11 +659,12 @@ const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
 const ANALYTICS_CACHE_SCHEMA_VERSION="v4";
+const DEFAULT_ANALYTICS_RANGE_DAYS=1;
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
 const state={
-    quickRange:7,
+    quickRange:DEFAULT_ANALYTICS_RANGE_DAYS,
     customRange:false,
     lastAlert:"",
     pendingPumpStart:false,
@@ -675,6 +678,7 @@ const state={
     upperTankIncreasing:false,
     inFlight:{bootstrap:false,live:false,events:false,analytics:false},
     controllers:{analytics:null},
+    analyticsRequestQuery:"",
     lastRefreshAt:null,
     refreshStatus:"Connecting...",
     refreshTone:"warn",
@@ -1676,9 +1680,32 @@ function markTelemetryRefresh(snapshot,system,freshStatus="Live status synced"){
 function updateRefreshClock(){if(!state.lastRefreshAt)return;if(state.refreshDetailKind==="telemetry"){const meta=telemetryRefreshMeta(state.data.snapshot,state.data.systemStatus,state.refreshStatus);setRefreshMeta(meta.status,meta.tone,meta.detail,"telemetry");return;}setRefreshMeta(state.refreshStatus,state.refreshTone,`Updated ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`,"api");}
 function setRefreshBusy(status){if(state.lastRefreshAt){setRefreshMeta(status,"warn",`Last good update ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);return;}setRefreshMeta(status,"warn","Waiting for the first successful sync.");}
 function updateAnalyticsDownloadLink(){const link=document.getElementById("analyticsDownloadLink");if(!link)return;const blocked=customerFeedBlocked();const queryString=query();link.href=blocked?"#":(queryString?`${ANALYTICS_EXPORT_PATH}?${queryString}`:ANALYTICS_EXPORT_PATH);link.classList.toggle("is-disabled",blocked);link.setAttribute("aria-disabled",blocked?"true":"false");link.tabIndex=blocked?-1:0;}
-function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));saveAnalyticsRangeState();updateAnalyticsDownloadLink();loadAnalytics({force:true});}
-function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));saveAnalyticsRangeState();updateAnalyticsDownloadLink();loadAnalytics({force:true});}
-function resetFilters(){setQuickRange(7);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
+function selectedAnalyticsRangeLabel(){
+    if(state.customRange){
+        const start=document.getElementById("startDate")?.value;
+        const end=document.getElementById("endDate")?.value;
+        if(start&&end)return`${formatLocaleDate(start)} to ${formatLocaleDate(end)}`;
+    }
+    const days=Number(state.quickRange)||DEFAULT_ANALYTICS_RANGE_DAYS;
+    return days===1?"Today":`Last ${days} days`;
+}
+function updateAnalyticsRangeContext(data=null,{loading=false}={}){
+    const label=data?.range?.label||selectedAnalyticsRangeLabel();
+    setText("rangeLabel",loading?`Loading ${label.toLowerCase()}...`:label);
+    const scope=loading?`Updating AI/ML analysis · ${label}`:`AI/ML analysis · ${label}`;
+    ["customerUsageRange","customerGuidanceRange","levelChartRange","dailyChartRange","patternChartRange","motorChartRange"].forEach((id)=>setText(id,scope));
+}
+function beginAnalyticsRangeChange(){
+    state.data.analytics=null;
+    state.cache.analytics="";
+    state.analyticsUpdatedAt=0;
+    updateAnalyticsRangeContext(null,{loading:true});
+    updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null});
+    renderOperationalSummary(state.data.snapshot,state.data.systemStatus,null);
+}
+function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
+function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}if(s>e){banner("commandBanner","Start date must be on or before the end date.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
+function resetFilters(){setQuickRange(DEFAULT_ANALYTICS_RANGE_DAYS);banner("commandBanner","Analytics range reset to today.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
 function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
 function query(){const p=scopedParams();if(state.customRange){p.set("start_date",document.getElementById("startDate").value);p.set("end_date",document.getElementById("endDate").value);}else{p.set("days",state.quickRange);}return p.toString();}
@@ -1964,7 +1991,7 @@ function loadAnalyticsRangeState(){
 function saveAnalyticsRangeState(){
     try{
         localStorage.setItem(ANALYTICS_RANGE_STORAGE_KEY,JSON.stringify({
-            quickRange:Number(state.quickRange)||7,
+            quickRange:Number(state.quickRange)||DEFAULT_ANALYTICS_RANGE_DAYS,
             customRange:Boolean(state.customRange),
             startDate:document.getElementById("startDate")?.value||"",
             endDate:document.getElementById("endDate")?.value||"",
@@ -1981,14 +2008,14 @@ function applyAnalyticsRangeState(saved){
     const hasCustomRange=Boolean(saved?.customRange&&saved?.startDate&&saved?.endDate);
     if(hasCustomRange){
         state.customRange=true;
-        state.quickRange=Number.isFinite(quickRange)&&quickRange>0?quickRange:7;
+        state.quickRange=Number.isFinite(quickRange)&&quickRange>0?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
         startInput.value=saved.startDate;
         endInput.value=saved.endDate;
         [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));
         return true;
     }
     state.customRange=false;
-    state.quickRange=[1,7,30].includes(quickRange)?quickRange:7;
+    state.quickRange=[1,7,30].includes(quickRange)?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
     startInput.value="";
     endInput.value="";
     [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===state.quickRange));
@@ -1999,12 +2026,10 @@ function restoreAnalyticsRange(){
     const applied=applyAnalyticsRangeState(saved);
     if(!applied){
         const today=new Date();
-        const start=new Date(today);
-        start.setDate(today.getDate()-6);
-        document.getElementById("startDate").value=isoDate(start);
-        document.getElementById("endDate").value=isoDate(today);
-        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===7));
-        state.quickRange=7;
+        document.getElementById("startDate").value="";
+        document.getElementById("endDate").value="";
+        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===DEFAULT_ANALYTICS_RANGE_DAYS));
+        state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS;
         state.customRange=false;
     }
     updateAnalyticsDownloadLink();
@@ -2280,7 +2305,7 @@ function renderAnalytics(data){
     const analyticsReady=hasMeaningfulAnalyticsData(chartData);
     const dailyUsageReliable=data.daily?.reliable===true&&Number(data.analysis?.quality?.complete_day_count)>=2;
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
-    document.getElementById("rangeLabel").textContent=data.range?.label||"--";
+    updateAnalyticsRangeContext(data);
     document.getElementById("avg_daily_usage").textContent=analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--";
     const coverage=Number(data.analysis?.quality?.coverage_percent);
     const sampleDays=Number(data.prediction?.sample_days);
@@ -2374,12 +2399,12 @@ async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(d
 async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
 async function refreshLive({force=false}={}){if(customerFeedBlocked()||state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{await syncLocalDashboardSnapshot({force});const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markTelemetryRefresh(snapshot,system,"Live status synced");if((changed||force)&&(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS))loadAnalytics({force:true});}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
 async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
-async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||state.inFlight.analytics||(!force&&isPageHidden()))return;state.inFlight.analytics=true;if(state.controllers.analytics)state.controllers.analytics.abort();const controller=new AbortController();state.controllers.analytics=controller;try{const cached=loadAnalyticsCache();if(cached?.data&&state.cache.analytics!==JSON.stringify(cached.data))syncSection("analytics",cached.data,renderAnalytics);const data=await fetchJSON(`${API}/analytics?${query()}`,{signal:controller.signal});if(data.error){banner("commandBanner",data.error,"danger");return;}const merged=analyticsChartsPayload(data);saveAnalyticsCache(merged);const changed=syncSection("analytics",merged,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Existing charts are still shown.","warn");}finally{if(state.controllers.analytics===controller)state.controllers.analytics=null;state.inFlight.analytics=false;}}
+async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||(!force&&isPageHidden()))return;const requestQuery=query();if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}const controller=new AbortController();state.controllers.analytics=controller;state.analyticsRequestQuery=requestQuery;state.inFlight.analytics=true;try{const cached=loadAnalyticsCache();if(cached?.data&&state.cache.analytics!==JSON.stringify(cached.data))syncSection("analytics",cached.data,renderAnalytics);const data=await fetchJSON(`${API}/analytics?${requestQuery}`,{signal:controller.signal});if(state.controllers.analytics!==controller)return;if(data.error){banner("commandBanner",data.error,"danger");return;}const merged=analyticsChartsPayload(data);saveAnalyticsCache(merged);const changed=syncSection("analytics",merged,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Adjust the range or retry.","warn");}finally{if(state.controllers.analytics===controller){state.controllers.analytics=null;state.analyticsRequestQuery="";state.inFlight.analytics=false;}}}
 async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}try{const tasks=[refreshLive({force}),refreshEvents({force})];if(force||!state.analyticsUpdatedAt)tasks.push(loadAnalytics({force}));await Promise.all(tasks);}catch(error){console.log("refresh error",error);banner("commandBanner","Dashboard refresh failed. Check the Flask server connection.","danger");}}
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
 function startPolling(){if(customerFeedBlocked())return;pageTimers.push(setInterval(()=>refreshLive(),FAST_POLL_MS),setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS),setInterval(updateRefreshClock,15000));}
 
-function initDates(){if(restoreAnalyticsRange())return;const today=new Date();const start=new Date(today);start.setDate(today.getDate()-6);document.getElementById("startDate").value=isoDate(start);document.getElementById("endDate").value=isoDate(today);state.quickRange=7;state.customRange=false;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===7));updateAnalyticsDownloadLink();}
+function initDates(){document.getElementById("startDate").value="";document.getElementById("endDate").value="";state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS;state.customRange=false;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===DEFAULT_ANALYTICS_RANGE_DAYS));updateAnalyticsRangeContext();updateAnalyticsDownloadLink();saveAnalyticsRangeState();}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});if(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_STALE_MS)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}

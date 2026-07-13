@@ -433,6 +433,28 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'value:"0.0 L"' in customer_template
 
 
+def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "const DEFAULT_ANALYTICS_RANGE_DAYS=1;" in customer_template
+    assert 'quickRange:DEFAULT_ANALYTICS_RANGE_DAYS' in customer_template
+    assert 'id="range_1" class="btn-lite active"' in customer_template
+    assert "function updateAnalyticsRangeContext(" in customer_template
+    assert "function beginAnalyticsRangeChange()" in customer_template
+    assert 'updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null})' in customer_template
+    assert 'const requestQuery=query();' in customer_template
+    assert 'if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}' in customer_template
+    for range_id in (
+        "customerUsageRange",
+        "customerGuidanceRange",
+        "levelChartRange",
+        "dailyChartRange",
+        "patternChartRange",
+        "motorChartRange",
+    ):
+        assert f'id="{range_id}"' in customer_template
+
+
 def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
