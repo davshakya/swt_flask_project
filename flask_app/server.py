@@ -708,13 +708,15 @@ level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
+ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
+ANALYTICS_MIN_REFILL_DELTA_PCT = max(0.5, env_float("ANALYTICS_MIN_REFILL_DELTA_PCT", 2.0))
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
-ANALYTICS_LAST_VALID_SCHEMA_VERSION = 1
+ANALYTICS_LAST_VALID_SCHEMA_VERSION = 2
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -10308,6 +10310,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     prev_created_at = None
     prev_level = None
     prev_motor = "OFF"
+    usage_floor_level = None
     latest_row = None
 
     for row in analytics_rows:
@@ -10334,21 +10337,27 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
                 gap_count += 1
 
         drop = 0.0 if prev_level is None else level - prev_level
-        refill_event = (
-            prev_level is not None
-            and (not gap_break)
-            and drop > 0.25
-            and abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
-        )
-        if refill_event:
-            refill_events += 1
-        valid_drop = (
-            (not gap_break)
-            and (drop < -0.05)
-            and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-        )
+        implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         stable_consumption_window = prev_motor != "ON" and motor != "ON"
-        usage = abs(drop) if valid_drop and stable_consumption_window else 0.0
+        usage = 0.0
+        if prev_level is None or gap_break or implausible_level_jump or not stable_consumption_window:
+            usage_floor_level = level
+        else:
+            if usage_floor_level is None:
+                usage_floor_level = prev_level
+            rise_from_floor = level - usage_floor_level
+            if rise_from_floor >= ANALYTICS_MIN_REFILL_DELTA_PCT:
+                # A rising level while both samples report pump OFF is not proof of
+                # a refill. Keep the previous low-water floor so sensor bounce cannot
+                # create another full tank of apparent consumption.
+                pass
+            elif usage_floor_level - level >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+                # Count only new lows inside an off-pump drawdown. Small upward
+                # sensor oscillations do not reset the floor and cannot be counted
+                # repeatedly as household consumption.
+                usage = usage_floor_level - level
+                usage_floor_level = level
+        valid_drop = usage > 0.0
         total_usage += usage
         if not gap_break:
             valid_hours += delta_hours
@@ -10360,7 +10369,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
         hourly_usage[created_at.hour] += usage
 
-        implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         level_times.append(timestamp_label)
         level_values.append(None if gap_break or implausible_level_jump else level)
         motor_times.append(timestamp_label)
@@ -10368,6 +10376,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
         if motor == "ON" and prev_motor != "ON":
             motor_cycles += 1
+            refill_events += 1
         if pipe_leak == "YES":
             leak_events += 1
 
@@ -10414,9 +10423,10 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     hourly_liters = [percent_to_liters(value) for value in hourly_usage]
 
     daily_complete = []
+    completed_through = min(end_exclusive, now_utc())
     for date_text in daily_dates:
         day_start = datetime.strptime(date_text, DATE_ONLY_FORMAT)
-        daily_complete.append(start_dt <= day_start and end_exclusive >= day_start + timedelta(days=1))
+        daily_complete.append(start_dt <= day_start and completed_through >= day_start + timedelta(days=1))
     complete_usage = {
         date_text: daily_usage[date_text]
         for date_text, is_complete in zip(daily_dates, daily_complete)

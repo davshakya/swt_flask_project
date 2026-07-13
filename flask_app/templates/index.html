@@ -495,7 +495,7 @@ canvas{height:260px!important}
             <h3>Rate, trend, and forecast</h3>
             <p id="customerUsageRange" class="muted">AI/ML analysis · Today</p>
             <div class="customer-stat-grid">
-                <div class="card"><span class="label">Water used today</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">A plain-language comparison appears after two complete days.</div></div>
+                <div class="card"><span id="customerUsageMetricLabel" class="label">Water used today</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">A reliable estimate appears after usable tank-level changes.</div></div>
                 <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Estimated next complete day</div></div>
                 <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">--</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
@@ -658,7 +658,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v4";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";
 const DEFAULT_ANALYTICS_RANGE_DAYS=1;
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
@@ -1174,6 +1174,19 @@ function customerConfidenceScore(snapshot,system,analytics,sourceState){
     if(!system?.last_sync_at)score-=8;
     return Math.max(48,Math.min(98,Math.round(score)));
 }
+function analyticsReliabilityNote(analytics){
+    const quality=analytics?.analysis?.quality;
+    if(!quality)return"";
+    const parts=[];
+    const coverage=Number(quality.coverage_percent);
+    const rowCount=Number(quality.row_count);
+    const completeDays=Number(quality.complete_day_count);
+    if(Number.isFinite(coverage))parts.push(`${coverage.toFixed(0)}% selected-range coverage`);
+    if(Number.isFinite(rowCount))parts.push(`${rowCount} reading${rowCount===1?"":"s"}`);
+    if(Number.isFinite(completeDays))parts.push(`${completeDays} complete day${completeDays===1?"":"s"}`);
+    const limitation=Array.isArray(quality.limitations)?quality.limitations.find(Boolean):"";
+    return`${parts.join(" · ")}${limitation?`. ${limitation}`:""}`;
+}
 function confidenceTone(score){
     if(score>=85)return"ok";
     if(score>=70)return"warn";
@@ -1499,12 +1512,13 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerHeroTankLevelNote",model.waterLevelNote);
     setText("customerSuggestedAction",model.actionTitle);
     setText("customerSuggestedActionNote",model.actionNote);
+    const reliabilityNote=analyticsReliabilityNote(analytics)||model.confidenceNote;
     setText("customerConfidenceScore",model.confidenceText);
-    setText("customerConfidenceNote",model.confidenceNote);
+    setText("customerConfidenceNote",reliabilityNote);
     setText("customerConfidenceDetail",model.confidenceText);
-    setText("customerConfidenceDetailNote",model.confidenceNote);
+    setText("customerConfidenceDetailNote",reliabilityNote);
     setText("customerConfidenceGuidance",model.confidenceText);
-    setText("customerConfidenceGuidanceNote",model.confidenceNote);
+    setText("customerConfidenceGuidanceNote",reliabilityNote);
     setText("customerTechnicalConfidence",model.technicalConfidenceText||`${model.confidenceScore}%`);
     setText("customerRiskLevel",model.riskLevel||((model.statusTone==="bad")?"High":(model.statusTone==="warn")?"Medium":"Low"));
     setText("customerMotorSafety",model.motorSafety||"No immediate motor-safety alert detected");
@@ -1536,15 +1550,26 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     const capacity=Number(analytics?.usage?.tank_capacity_liters??snapshot.capacity_liters);
     const dailyValues=Array.isArray(analytics?.daily?.values)?analytics.daily.values:[];
     const dailyLiters=Array.isArray(analytics?.daily?.liters)?analytics.daily.liters:[];
-    const latestIndex=dailyValues.length-1;
-    const latestPercent=latestIndex>=0?dailyValues[latestIndex]:null;
-    const latestLiters=latestIndex>=0&&hasDisplayNumber(dailyLiters[latestIndex])
-        ?Number(dailyLiters[latestIndex])
-        :estimateUsageLiters(latestPercent,capacity);
-    setText("usage_change",latestLiters!==null?`~${latestLiters.toFixed(1)} L`:"--");
-    setText("usage_change_text",latestLiters!==null
-        ?"Current-day estimate from recorded tank-level changes."
-        :"Today's estimate will appear after enough level change is recorded.");
+    const usagePlausible=analytics?.analysis?.quality?.usage_physically_plausible!==false;
+    const observedLiters=dailyValues.map((percent,index)=>hasDisplayNumber(dailyLiters[index])
+        ?Number(dailyLiters[index])
+        :estimateUsageLiters(percent,capacity)
+    ).filter((value)=>value!==null&&Number.isFinite(value));
+    const todayRange=analyticsRangeIsToday();
+    const displayedLiters=usagePlausible&&observedLiters.length
+        ?todayRange
+            ?observedLiters[observedLiters.length-1]
+            :observedLiters.reduce((total,value)=>total+value,0)
+        :null;
+    setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use");
+    setText("usage_change",displayedLiters!==null?`~${displayedLiters.toFixed(1)} L`:"--");
+    setText("usage_change_text",displayedLiters!==null
+        ?todayRange
+            ?"Current-day estimate from validated tank drawdown."
+            :`${observedLiters.length} observed day${observedLiters.length===1?"":"s"} within ${selectedAnalyticsRangeLabel().toLowerCase()}.`
+        :usagePlausible
+            ?"A usage estimate will appear after enough validated level change is recorded."
+            :"Hidden because sensor changes exceed the water supported by observed refill cycles.");
 
     const analyticsForecastRaw=analytics?.prediction?.tomorrow_usage_liters;
     const analyticsForecast=analytics?.prediction?.status!=="insufficient_data"&&hasDisplayNumber(analyticsForecastRaw)

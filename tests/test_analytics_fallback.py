@@ -329,3 +329,57 @@ def test_analytics_skips_invalid_levels_and_recovers_all_source_rows():
         server.set_device_source_mode(original_mode)
         server.clear_runtime_caches(device_id)
         server.analytics_cache.clear()
+
+
+def test_usage_estimate_does_not_recount_off_pump_sensor_oscillation():
+    device_id = "swt-analytics-oscillation-001"
+    now = server.now_utc()
+    start_dt = now - timedelta(hours=1)
+    end_exclusive = now + timedelta(hours=1)
+    cache_key = server.build_analytics_cache_key(start_dt, end_exclusive, device_id)
+    levels = [80.0, 70.0, 80.0, 70.0, 80.0, 70.0, 80.0, 70.0]
+
+    server.analytics_cache.clear()
+    server.clear_runtime_caches(device_id)
+    server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        for index, level in enumerate(levels):
+            created_at = now - timedelta(minutes=(len(levels) - index) * 2)
+            db.execute(
+                """
+                INSERT INTO tank_data(
+                    device_id, device_source, level, motor, mode, sensor, wifi,
+                    tank_capacity_liters, tank_health, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    device_id,
+                    server.DEVICE_SOURCE_REAL,
+                    level,
+                    "OFF",
+                    "AUTO",
+                    "OK",
+                    "connected",
+                    1000,
+                    100,
+                    created_at.strftime(server.TIMESTAMP_FORMAT),
+                ),
+            )
+
+    try:
+        payload = server.build_analytics(start_dt, end_exclusive, "Today", device_id=device_id)
+
+        assert payload["daily"]["values"] == [10.0]
+        assert payload["daily"]["complete"] == [False]
+        assert payload["insights"]["latest_day_usage_liters"] == 100.0
+        assert payload["analysis"]["quality"]["usage_physically_plausible"] is True
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        server.delete_app_setting(server.analytics_last_valid_setting_key(cache_key))
+        server.clear_runtime_caches(device_id)
+        server.analytics_cache.clear()

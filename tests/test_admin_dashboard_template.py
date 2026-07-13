@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v4";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -423,7 +423,10 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     usage_end = customer_template.index("function updateCustomerSpotlightCards", usage_start)
     usage_body = customer_template[usage_start:usage_end]
 
-    assert 'setText("usage_change",latestLiters!==null?' in usage_body
+    assert 'setText("usage_change",displayedLiters!==null?' in usage_body
+    assert "usage_physically_plausible!==false" in usage_body
+    assert 'setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use")' in usage_body
+    assert "Hidden because sensor changes exceed the water supported by observed refill cycles." in usage_body
     assert 'Number(snapshot.tomorrow_prediction)' in usage_body
     assert 'Number(snapshot.ai_usage_rate)' in usage_body
     assert '"Live device estimate; historical confidence is still building."' in usage_body
@@ -431,6 +434,8 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";' in customer_template
+    assert "function analyticsReliabilityNote(" in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():
