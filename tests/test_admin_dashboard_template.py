@@ -424,6 +424,17 @@ def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
     assert 'data-device-field="health_score"' in admin_template
     assert 'data-last-seen-age=' in admin_template
     assert 'id="export_visible_devices"' in admin_template
+    assert 'id="device_table_top_scroll"' in admin_template
+    assert 'id="device_table_scroll"' in admin_template
+    assert 'id="device_page_status"' in admin_template
+    assert 'id="device_page_first"' in admin_template
+    assert 'id="device_page_previous"' in admin_template
+    assert 'id="device_page_next"' in admin_template
+    assert 'id="device_page_last"' in admin_template
+    assert "function syncDeviceTableScrollerWidth()" in admin_template
+    assert ".device-actions{display:flex;gap:5px;flex-wrap:nowrap;white-space:nowrap}" in admin_template
+    assert 'data-summary-field="online_percent"' not in admin_template
+    assert 'class="summary-percent"' not in admin_template
     assert "priorityDifference" in admin_template
     assert "function formatAgeSeconds(seconds)" in admin_template
     assert "def admin_device_health_fields(entry):" in server_source

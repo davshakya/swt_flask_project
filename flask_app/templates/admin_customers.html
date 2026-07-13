@@ -424,10 +424,11 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .hero-panel{padding:14px 16px}.hero-grid{gap:12px}.hero-copy{gap:9px}.hero-title{font-size:clamp(1.8rem,2.8vw,2.5rem)}.hero-lead{line-height:1.38}.system-status-bar{padding:11px 13px}.hero-focus-card{min-height:108px;padding:12px}.hero-actions a,.hero-actions button{min-height:34px;padding:7px 11px}.fleet-pie{width:108px}
 .critical-action-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:10px}.critical-detail{padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.42);border:1px solid var(--admin-border)}.critical-detail span{display:block;font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:800}.critical-detail strong{display:block;margin-top:3px;font-size:12px;overflow-wrap:anywhere}.critical-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.critical-actions a,.critical-actions button{min-height:34px;padding:7px 11px}
 .fleet-breakdown{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}.fleet-breakdown span{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:10px;background:rgba(255,255,255,.12)}
-.summary-ratio{display:flex;align-items:baseline;gap:7px}.summary-percent{font-size:13px;font-weight:800;color:var(--primary)}
+.summary-ratio{display:flex;align-items:baseline;gap:7px}
 .fleet-toolbar-sticky{position:sticky;top:8px;z-index:25;padding:10px;border:1px solid var(--admin-border);border-radius:18px;background:color-mix(in srgb,var(--admin-surface) 94%,transparent);box-shadow:0 12px 30px rgba(7,44,57,.16);backdrop-filter:blur(16px)}.quick-filters{display:flex;gap:6px;flex-wrap:wrap}.quick-filter{min-height:32px;padding:6px 10px;border:1px solid var(--admin-border);background:rgba(255,255,255,.7);color:var(--text)}.quick-filter.is-active{background:var(--primary);color:#fff}.customer-filter{width:auto;min-width:160px;min-height:32px;padding:6px 10px;border-radius:12px;border:1px solid var(--admin-border);background:var(--input-bg);color:var(--text)}
 .device-table-row.is-critical td{background:rgba(218,79,99,.12)!important}.device-table-row.is-warning td{background:rgba(245,155,65,.08)!important}.device-table-row.is-critical td:first-child{box-shadow:inset 5px 0 0 var(--error-text)!important}.device-table-row.is-critical .device-link:first-child::before{content:"🔴 ";}.device-table-row.is-warning .device-link:first-child::before{content:"🟠 ";}
-.health-score{font-size:15px;font-weight:900}.last-seen-age{display:block;font-weight:800}.device-actions{display:flex;gap:5px;flex-wrap:wrap}.device-actions a,.device-actions button{min-height:28px;padding:5px 7px;border-radius:9px;font-size:10px}.device-actions .is-disabled{opacity:.5;cursor:not-allowed}
+.health-score{font-size:15px;font-weight:900}.last-seen-age{display:block;font-weight:800}.device-actions{display:flex;gap:5px;flex-wrap:nowrap;white-space:nowrap}.device-actions a,.device-actions button{min-height:28px;padding:5px 7px;border-radius:9px;font-size:10px}.device-actions .is-disabled{opacity:.5;cursor:not-allowed}
+.device-table-shell{max-height:35rem;overflow:auto;scrollbar-gutter:stable}.device-table-shell .admin-table{min-width:1760px;table-layout:auto}.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:6px 8px;line-height:1.25}.device-table-shell .admin-table th:last-child,.device-table-shell .admin-table td:last-child{min-width:250px}.device-horizontal-scroll{height:17px;margin:0 4px 5px;overflow-x:auto;overflow-y:hidden;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.25)}.device-horizontal-scroll>div{height:1px}.device-pagination{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;margin-top:10px}.device-pagination button{min-height:32px;padding:6px 10px;border-radius:10px}.device-pagination button:disabled{opacity:.42;cursor:not-allowed}.device-pagination select{min-height:32px;padding:5px 28px 5px 9px;border:1px solid var(--line);border-radius:10px;background:var(--input-bg);color:var(--text)}.device-page-size{display:flex;align-items:center;gap:6px;margin-right:auto;color:var(--muted);font-size:11px;font-weight:800}.device-page-status{min-width:90px;text-align:center;color:var(--muted);font-size:11px;font-weight:800}
 .alert-actions{display:flex;gap:6px}.alert-actions button,.alert-actions a{min-height:30px;padding:5px 8px;border-radius:10px;font-size:10px}.alert-duration{font-weight:800}
 @media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
 </style>
@@ -595,22 +596,22 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     <div class="summary-grid">
         <div class="summary-card">
             <div class="eyebrow">Total Registered Devices</div>
-            <div class="summary-ratio"><div class="summary-value" data-summary-field="total_registered_devices">{{ device_summary.total_registered_devices }}</div><span class="summary-percent">100%</span></div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="total_registered_devices">{{ device_summary.total_registered_devices }}</div></div>
             <div class="summary-caption">Tracked devices with either telemetry history or configured credentials.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Online Devices</div>
-            <div class="summary-ratio"><div class="summary-value" data-summary-field="online_devices">{{ device_summary.online_devices }} / {{ total_devices }}</div><span class="summary-percent" data-summary-field="online_percent" data-summary-suffix="%">{{ device_summary.online_percent }}%</span></div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="online_devices">{{ device_summary.online_devices }} / {{ total_devices }}</div></div>
             <div class="summary-caption">Devices reporting fresh or recent telemetry right now.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Offline Devices</div>
-            <div class="summary-ratio"><div class="summary-value" data-summary-field="offline_devices">{{ device_summary.offline_devices }}</div><span class="summary-percent" data-summary-field="offline_percent" data-summary-suffix="%">{{ device_summary.offline_percent }}%</span></div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="offline_devices">{{ device_summary.offline_devices }}</div></div>
             <div class="summary-caption">Devices with stale or missing telemetry that likely need follow-up.</div>
         </div>
         <div class="summary-card">
             <div class="eyebrow">Warning / Alert Devices</div>
-            <div class="summary-ratio"><div class="summary-value" data-summary-field="warning_alert_devices">{{ device_summary.warning_alert_devices }}</div><span class="summary-percent">Prioritize</span></div>
+            <div class="summary-ratio"><div class="summary-value" data-summary-field="warning_alert_devices">{{ device_summary.warning_alert_devices }}</div></div>
             <div class="summary-caption">Devices carrying active warnings or higher-severity operational alerts.</div>
         </div>
     </div>
@@ -724,8 +725,9 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                 </div>
             </form>
 
-            <div class="table-shell device-table-shell">
-                <table class="admin-table">
+            <div id="device_table_top_scroll" class="device-horizontal-scroll" aria-label="Horizontal device table scrollbar" tabindex="0"><div id="device_table_top_scroll_inner"></div></div>
+            <div id="device_table_scroll" class="table-shell device-table-shell">
+                <table id="device_table" class="admin-table">
                     <thead>
                         <tr>
                             <th><button type="button" class="sort-button is-active" data-device-sort="device_id" data-sort-default="asc" data-direction="asc">Device ID</button></th>
@@ -816,6 +818,16 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     </tbody>
                 </table>
             </div>
+            <nav class="device-pagination" aria-label="Device table pagination">
+                <label class="device-page-size" for="device_page_size">Rows per page
+                    <select id="device_page_size"><option value="10">10</option><option value="25">25</option><option value="50">50</option></select>
+                </label>
+                <button id="device_page_first" type="button">First</button>
+                <button id="device_page_previous" type="button">Previous</button>
+                <span id="device_page_status" class="device-page-status" aria-live="polite">Page 1 of 1</span>
+                <button id="device_page_next" type="button">Next</button>
+                <button id="device_page_last" type="button">Last</button>
+            </nav>
             <div id="search_empty_devices" class="empty-state{% if available_devices %} hidden-result{% endif %}">{% if search_query %}No known devices match this search.{% else %}No known devices have checked in yet.{% endif %}</div>
 
             <div id="register_device_panel" class="inline-panel" data-panel-mode="modal" hidden>
@@ -1077,8 +1089,20 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     const sortButtons = Array.from(document.querySelectorAll("[data-device-sort]"));
     const quickFilterButtons = Array.from(document.querySelectorAll("[data-quick-filter]"));
     const customerFilter = document.getElementById("customer_filter");
+    const deviceTable = document.getElementById("device_table");
+    const deviceTableScroll = document.getElementById("device_table_scroll");
+    const deviceTableTopScroll = document.getElementById("device_table_top_scroll");
+    const deviceTableTopScrollInner = document.getElementById("device_table_top_scroll_inner");
+    const devicePageSizeSelect = document.getElementById("device_page_size");
+    const devicePageStatus = document.getElementById("device_page_status");
+    const devicePageFirst = document.getElementById("device_page_first");
+    const devicePagePrevious = document.getElementById("device_page_previous");
+    const devicePageNext = document.getElementById("device_page_next");
+    const devicePageLast = document.getElementById("device_page_last");
     let activeQuickFilter = "all";
     let currentSort = { key: "device_id", direction: "asc" };
+    let devicePage = 1;
+    let devicePageSize = Number(devicePageSizeSelect?.value || 10);
     let refreshInFlight = false;
 
     function refreshDeviceRows() {
@@ -1133,7 +1157,6 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     function applyFilter() {
         const query = normalizeText(input ? input.value : "");
         const customer = normalizeText(customerFilter?.value);
-        let visibleDevices = 0;
 
         deviceRows.forEach((row) => {
             const searchMatch = !query || normalizeText(row.dataset.search || "").includes(query);
@@ -1149,25 +1172,46 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                 || (activeQuickFilter === "poor-signal" && Number.isFinite(signal) && signal <= -70)
                 || (activeQuickFilter === "telemetry-missing" && ["stale","offline","no-data"].includes(row.dataset.telemetry));
             const matches = searchMatch && customerMatch && quickMatch;
-            row.classList.toggle("hidden-result", !matches);
+            row.dataset.filterMatch = matches ? "1" : "0";
             row.classList.toggle("is-match", !!query && matches);
-            if (matches) visibleDevices += 1;
         });
+
+        const matchedRows = deviceRows.filter((row) => row.dataset.filterMatch === "1");
+        const pageCount = Math.max(1, Math.ceil(matchedRows.length / devicePageSize));
+        devicePage = Math.min(Math.max(1, devicePage), pageCount);
+        const start = (devicePage - 1) * devicePageSize;
+        const end = Math.min(start + devicePageSize, matchedRows.length);
+        const visibleRows = new Set(matchedRows.slice(start, end));
+        deviceRows.forEach((row) => row.classList.toggle("hidden-result", !visibleRows.has(row)));
 
         if (emptyDevices) {
             emptyDevices.textContent = query ? "No known devices match this search." : "No known devices have checked in yet.";
-            emptyDevices.classList.toggle("hidden-result", query ? visibleDevices !== 0 : deviceRows.length !== 0);
+            emptyDevices.classList.toggle("hidden-result", matchedRows.length !== 0);
         }
 
-        if (!meta) return;
-        if (!query) {
-            meta.textContent = `${visibleDevices} device${visibleDevices === 1 ? "" : "s"}`;
-        } else {
-            meta.textContent = `${visibleDevices} device match${visibleDevices === 1 ? "" : "es"}`;
+        const shown = Math.max(0, end - start);
+        if (meta) {
+            meta.textContent = matchedRows.length
+                ? `${matchedRows.length} matching · showing ${start + 1}–${end}`
+                : "0 matching devices";
         }
         if (visibilityStatus) {
-            visibilityStatus.textContent = `${visibleDevices} visible`;
+            visibilityStatus.textContent = `${shown} shown`;
         }
+        if (devicePageStatus) devicePageStatus.textContent = `Page ${devicePage} of ${pageCount}`;
+        [devicePageFirst, devicePagePrevious].forEach((button) => { if (button) button.disabled = devicePage <= 1; });
+        [devicePageNext, devicePageLast].forEach((button) => { if (button) button.disabled = devicePage >= pageCount; });
+        syncDeviceTableScrollerWidth();
+    }
+
+    function syncDeviceTableScrollerWidth() {
+        if (!deviceTable || !deviceTableTopScrollInner) return;
+        deviceTableTopScrollInner.style.width = `${deviceTable.scrollWidth}px`;
+    }
+
+    function resetDevicePageAndFilter() {
+        devicePage = 1;
+        applyFilter();
     }
 
     function setAutoRefreshStatus(message, tone = "clear") {
@@ -1348,13 +1392,42 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         }
     }
 
-    if (input) input.addEventListener("input", applyFilter);
+    let syncingDeviceScroll = false;
+    deviceTableTopScroll?.addEventListener("scroll", () => {
+        if (!deviceTableScroll || syncingDeviceScroll) return;
+        syncingDeviceScroll = true;
+        deviceTableScroll.scrollLeft = deviceTableTopScroll.scrollLeft;
+        syncingDeviceScroll = false;
+    });
+    deviceTableScroll?.addEventListener("scroll", () => {
+        if (!deviceTableTopScroll || syncingDeviceScroll) return;
+        syncingDeviceScroll = true;
+        deviceTableTopScroll.scrollLeft = deviceTableScroll.scrollLeft;
+        syncingDeviceScroll = false;
+    });
+    window.addEventListener("resize", syncDeviceTableScrollerWidth);
+    if (window.ResizeObserver && deviceTable) new ResizeObserver(syncDeviceTableScrollerWidth).observe(deviceTable);
+
+    devicePageSizeSelect?.addEventListener("change", () => {
+        devicePageSize = Math.max(1, Number(devicePageSizeSelect.value) || 10);
+        resetDevicePageAndFilter();
+    });
+    devicePageFirst?.addEventListener("click", () => { devicePage = 1; applyFilter(); });
+    devicePagePrevious?.addEventListener("click", () => { devicePage -= 1; applyFilter(); });
+    devicePageNext?.addEventListener("click", () => { devicePage += 1; applyFilter(); });
+    devicePageLast?.addEventListener("click", () => {
+        const matchedCount = deviceRows.filter((row) => row.dataset.filterMatch === "1").length;
+        devicePage = Math.max(1, Math.ceil(matchedCount / devicePageSize));
+        applyFilter();
+    });
+
+    if (input) input.addEventListener("input", resetDevicePageAndFilter);
     quickFilterButtons.forEach((button) => button.addEventListener("click", () => {
         activeQuickFilter = button.dataset.quickFilter || "all";
         quickFilterButtons.forEach((item) => item.classList.toggle("is-active", item === button));
-        applyFilter();
+        resetDevicePageAndFilter();
     }));
-    customerFilter?.addEventListener("change", applyFilter);
+    customerFilter?.addEventListener("change", resetDevicePageAndFilter);
     document.getElementById("export_visible_devices")?.addEventListener("click", () => {
         const rows = deviceRows.filter((row) => !row.classList.contains("hidden-result"));
         const quote = (value) => `"${String(value || "").replaceAll('"','""')}"`;
@@ -1377,12 +1450,12 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         input.addEventListener("keydown", (event) => {
             if (event.key !== "Escape") return;
             input.value = "";
-            applyFilter();
+            resetDevicePageAndFilter();
         });
     }
     document.getElementById("device_search_button")?.closest("form")?.addEventListener("submit", (event) => {
         event.preventDefault();
-        applyFilter();
+        resetDevicePageAndFilter();
         if (input) {
             try { input.focus({ preventScroll: true }); } catch (error) { input.focus(); }
         }
@@ -1390,7 +1463,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     document.getElementById("device_search_clear")?.addEventListener("click", (event) => {
         event.preventDefault();
         if (input) input.value = "";
-        applyFilter();
+        resetDevicePageAndFilter();
         if (input) {
             try { input.focus({ preventScroll: true }); } catch (error) { input.focus(); }
         }
