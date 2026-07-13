@@ -9693,15 +9693,22 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         severity = "critical" if ai_leak_status == "likely_leak" else "warning"
         tone = "bad" if severity == "critical" else "warn"
         if ai_leak_status == "likely_leak":
-            title = "AI found a leakage pattern"
+            title = "Possible Water Leak Detected"
             action_title = "Inspect pipes and taps"
         else:
-            title = "AI found a possible leakage pattern"
+            title = "Possible Water Leak Detected"
             action_title = "Check pipes and taps"
-        summary = f"Telemetry leakage score is {safe_float(leakage_model.get('score'), 0):.0f}%."
-        action_note = "Check outlets, flush lines, valves, overflow, and hidden damp areas, then compare the next trend."
-        observations.extend((leakage_model.get("reasons") or [])[:2])
-        actions.append("Inspect pipes, taps, valves, overflow, and pump line for continuous water loss.")
+        summary = "Unusual water loss was observed while the pump was off. No motor-safety alert is active."
+        action_note = "Check taps and toilet flush tanks first, then inspect visible pipes, overflow, and the pump outlet valve."
+        observations.extend((leakage_model.get("reasons") or [])[:4])
+        actions.extend(
+            [
+                "Check kitchen and bathroom taps.",
+                "Check toilet flush tanks for continuous flow.",
+                "Check visible pipes, tank overflow, garden lines, and the pump outlet valve.",
+                "Review the leak report after the next device update.",
+            ]
+        )
     elif source_blocked:
         severity = "warning"
         tone = "warn"
@@ -9756,10 +9763,10 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     event_pump_cycles = safe_float(event_counts.get("pump_started"), 0)
     telemetry_short_cycles = safe_float(pump_activity.get("short_cycle_count"), 0)
     if event_pump_cycles > 12 or (sufficient_anomaly_evidence and (motor_cycles > 12 or telemetry_short_cycles >= 4)):
-        observations.append("Pump cycling is higher than normal.")
+        observations.append("Your pump is starting more often than usual.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
     if safe_float(severity_counts.get("warning"), 0) >= 3:
-        observations.append("Event history shows repeated warnings in this range.")
+        observations.append("This issue has occurred several times in the selected period.")
         actions.append("Review recent device events before changing automation settings.")
 
     quality_confidence = int(safe_float(quality.get("score"), 0))
@@ -9779,6 +9786,37 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         confidence -= 8
     confidence = max(0, min(95, confidence))
 
+    if ai_leak_active:
+        confidence = max(confidence, int(safe_float(leakage_model.get("confidence"), 0)))
+        confidence = min(95, confidence)
+
+    friendly_reason_map = {
+        "Device leak flags were active.": "The device reported a leak-related signal.",
+        "Tank level dropped repeatedly while the pump was off.": "The tank level dropped repeatedly while the pump was off.",
+        "Peak off-pump loss rate is very high.": "Water was being used even while the pump was off.",
+        "Peak off-pump loss rate is above normal.": "Water use while the pump was off was above the normal range.",
+        "Average consumption rate is high for the selected range.": "Water use was high during the selected period.",
+        "Recent usage is much higher than the learned baseline.": "Recent water use was much higher than usual.",
+        "Daily usage jumped sharply against the previous day.": "Daily water use increased sharply compared with the previous day.",
+        "Daily usage is above the recent baseline.": "Daily water use was above its recent normal range.",
+        "Pump activity shows repeated short runs.": "The pump started repeatedly for short periods.",
+        "Pump duty cycle is high during this range.": "The pump ran for an unusually large part of this period.",
+        "Telemetry quality is limited, so the model reduced confidence.": "Some device readings are missing, so this result is less reliable.",
+    }
+    observations = [friendly_reason_map.get(item, item) for item in observations]
+    reliability_label = "High" if confidence >= 90 else "Medium" if confidence >= 70 else "Limited"
+    risk_label = "High" if severity == "critical" else "Medium" if severity == "warning" else "Low"
+    motor_safety = (
+        "Motor protection is active; do not restart until source water is available."
+        if dry_run
+        else "No immediate motor-safety alert was detected."
+    )
+    possible_causes = (
+        ["Tap left open", "Toilet flush leak", "Visible pipe or valve leak", "Tank overflow"]
+        if ai_leak_active or pipe_leak
+        else []
+    )
+
     return {
         "severity": severity,
         "tone": tone,
@@ -9788,6 +9826,19 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         "action_note": action_note,
         "time_to_empty_hours": effective_empty,
         "confidence_percent": int(confidence),
+        "reliability_label": reliability_label,
+        "risk_label": risk_label,
+        "motor_safety": motor_safety,
+        "possible_causes": possible_causes,
+        "estimated_impact": {
+            "water_loss_liters": None,
+            "period": None,
+            "cost_inr": None,
+            "message": "Not enough evidence to estimate water or cost loss reliably."
+            if ai_leak_active or pipe_leak
+            else "No estimated abnormal loss is available.",
+        },
+        "last_checked_at": snapshot.get("last_sync_at") or snapshot.get("updated_at"),
         "confidence_basis": "direct_device_signal" if direct_hardware_signal else "telemetry_quality",
         "limitations": list(quality.get("limitations") or [])[:4],
         "observations": observations[:5],

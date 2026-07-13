@@ -119,6 +119,44 @@ def test_shared_guidance_suppresses_low_confidence_ai_leak_for_high_tank():
     assert "1.3" not in guidance["summary"]
 
 
+def test_shared_guidance_explains_high_confidence_leak_in_customer_language():
+    guidance = server.build_shared_guidance_payload(
+        {
+            "level": 72,
+            "motor": "OFF",
+            "sensor": "OK",
+            "telemetry_status": "live",
+            "last_sync_at": "2026-07-13 08:10:00",
+        },
+        {
+            "analysis": {
+                "quality": {"score": 92},
+                "forecast_confidence": 92,
+                "leakage": {
+                    "status": "possible_leak",
+                    "score": 68,
+                    "confidence": 94,
+                    "reasons": [
+                        "Tank level dropped repeatedly while the pump was off.",
+                        "Peak off-pump loss rate is very high.",
+                    ],
+                },
+            },
+            "levels": {"values": [78, 75, 72]},
+        },
+    )
+
+    assert guidance["title"] == "Possible Water Leak Detected"
+    assert guidance["risk_label"] == "Medium"
+    assert guidance["reliability_label"] == "High"
+    assert guidance["confidence_percent"] == 94
+    assert guidance["motor_safety"] == "No immediate motor-safety alert was detected."
+    assert "Water was being used even while the pump was off." in guidance["observations"]
+    assert guidance["possible_causes"]
+    assert guidance["estimated_impact"]["water_loss_liters"] is None
+    assert "Not enough evidence" in guidance["estimated_impact"]["message"]
+
+
 def test_evaluate_snapshot_alerts_maps_dry_run_to_active_alert(monkeypatch):
     calls = []
 

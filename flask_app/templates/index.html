@@ -368,9 +368,9 @@ canvas{height:260px!important}
                             <div id="customerHeroTankLevelNote">Current usable water appears after sync.</div>
                         </div>
                         <div class="customer-hero-stat">
-                            <span>AI confidence</span>
+                            <span>Reliability</span>
                             <strong id="customerConfidenceScore">--</strong>
-                            <div id="customerConfidenceNote">Confidence improves with fresh telemetry and history.</div>
+                            <div id="customerConfidenceNote">Reliability improves with fresh device readings and history.</div>
                         </div>
                     </div>
                 </div>
@@ -492,9 +492,9 @@ canvas{height:260px!important}
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
             <div class="customer-stat-grid">
-                <div class="card"><span class="label">Usage trend</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">Trend updates after analytics loads.</div></div>
-                <div class="card"><span class="label">Forecast tomorrow</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Expected demand for the next day</div></div>
-                <div class="card"><span class="label">Consumption rate</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Average draw per hour</div></div>
+                <div class="card"><span class="label">Water used today</span><div id="usage_change" class="value">--</div><div id="usage_change_text" class="subvalue">A plain-language comparison appears after two complete days.</div></div>
+                <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">--</div><div class="subvalue">Estimated next complete day</div></div>
+                <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">--</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">--</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
             </div>
             <div class="glance-grid customer-health-card">
@@ -504,9 +504,9 @@ canvas{height:260px!important}
                     <div id="heroConnectionInfo" class="detail">Waiting for signal quality data.</div>
                 </div>
                 <div class="glance-item">
-                    <span>AI confidence</span>
+                    <span>Reliability</span>
                     <strong id="customerConfidenceDetail">--</strong>
-                    <div id="customerConfidenceDetailNote" class="detail">Confidence follows sync freshness and data quality.</div>
+                    <div id="customerConfidenceDetailNote" class="detail">Based on sync freshness and usable history.</div>
                 </div>
             </div>
         </div>
@@ -564,10 +564,10 @@ canvas{height:260px!important}
         </div>
         <div class="panel customer-guidance-panel">
             <div class="eyebrow">🤖 AI Guidance</div>
-            <h3>What is happening and what to do</h3>
+            <h3>Smart Water Assistant</h3>
             <div class="customer-guidance-lists">
                 <div>
-                    <span class="label">Problem detected and supporting evidence</span>
+                    <span class="label">What happened and why</span>
                     <ul id="customerWhatHappening" class="list" style="margin-top:12px"></ul>
                 </div>
                 <div>
@@ -582,11 +582,27 @@ canvas{height:260px!important}
                     <div id="customerGuidanceStatusNote" class="detail">Guidance status updates with new telemetry.</div>
                 </div>
                 <div class="glance-item">
-                    <span>AI confidence</span>
+                    <span>Risk level</span>
+                    <strong id="customerRiskLevel">--</strong>
+                    <div class="detail">How urgently this needs attention.</div>
+                </div>
+                <div class="glance-item">
+                    <span>Motor safety</span>
+                    <strong id="customerMotorSafety">--</strong>
+                    <div class="detail">Based on current pump and protection signals.</div>
+                </div>
+                <div class="glance-item">
+                    <span>Possible water loss</span>
+                    <strong id="customerEstimatedImpact">--</strong>
+                    <div id="customerEstimatedImpactNote" class="detail">Shown only when liters can be estimated reliably.</div>
+                </div>
+                <div class="glance-item">
+                    <span>Reliability</span>
                     <strong id="customerConfidenceGuidance">--</strong>
-                    <div id="customerConfidenceGuidanceNote" class="detail">Confidence follows telemetry freshness and analytics depth.</div>
+                    <div id="customerConfidenceGuidanceNote" class="detail">Based on fresh device readings and usable history.</div>
                 </div>
             </div>
+            <details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div></details>
             <div class="guidance-action-row">
                 <button id="viewLeakReportButton" class="btn-outline" type="button" onclick="scrollToAnalyticsReport()">📋 View Leak Report</button>
                 <span class="muted">AI leakage actions appear only above 90% confidence; device safety alerts remain immediate.</span>
@@ -1160,6 +1176,16 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
     const summary=guidance.summary||"Tank level, pump state, and connection look steady right now.";
     const actionTitle=guidance.action_title||actions[0]||"No urgent action";
     const actionNote=guidance.action_note||"Auto protection is active and the tank trend looks manageable.";
+    const reliability=guidance.reliability_label||reliabilityLabel(confidenceScore);
+    const riskLevel=guidance.risk_label||(tone==="bad"?"High":tone==="warn"?"Medium":"Low");
+    const motorSafety=guidance.motor_safety||"No immediate motor-safety alert was detected.";
+    const impact=guidance.estimated_impact||{};
+    const impactLiters=Number(impact.water_loss_liters);
+    const impactText=Number.isFinite(impactLiters)&&impactLiters>0?`~${impactLiters.toFixed(0)} L${impact.period?` ${impact.period}`:""}`:"Not estimated";
+    const impactNote=impact.message||"Not enough evidence to estimate water loss reliably.";
+    const possibleCauses=Array.isArray(guidance.possible_causes)?guidance.possible_causes.filter(Boolean):[];
+    const friendlyObservations=[...observations];
+    if(possibleCauses.length)friendlyObservations.push(`Possible causes: ${possibleCauses.join(", ")}.`);
     let savingsNow="--";
     let savingsNote="Savings insight appears when a usable comparison is available.";
     const usageChange=Number(analytics?.comparison?.change_pct);
@@ -1182,13 +1208,19 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
         timeLabel,
         timeNote:timeLabel==="--"?"Time-to-empty needs a little more live history.":summary,
         confidenceScore,
-        confidenceText:`${confidenceScore}%`,
-        confidenceNote:confidenceNote(confidenceScore),
+        confidenceText:reliability,
+        confidenceNote:`${reliability} reliability based on current device readings and usable history.`,
+        technicalConfidenceText:`${confidenceScore}%`,
+        riskLevel,
+        motorSafety,
+        impactText,
+        impactNote,
+        lastCheckedAt:guidance.last_checked_at||snapshot.last_sync_at||"",
         guidanceStatus:title,
         guidanceNote:summary,
         healthLabel:title,
         healthNote:summary,
-        whatList:observations.length?observations:[summary],
+        whatList:friendlyObservations.length?friendlyObservations:[summary],
         actionList:actions.length?actions:[actionTitle],
         savingsNow,
         savingsNote,
@@ -1457,6 +1489,12 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerConfidenceDetailNote",model.confidenceNote);
     setText("customerConfidenceGuidance",model.confidenceText);
     setText("customerConfidenceGuidanceNote",model.confidenceNote);
+    setText("customerTechnicalConfidence",model.technicalConfidenceText||`${model.confidenceScore}%`);
+    setText("customerRiskLevel",model.riskLevel||((model.statusTone==="bad")?"High":(model.statusTone==="warn")?"Medium":"Low"));
+    setText("customerMotorSafety",model.motorSafety||"No immediate motor-safety alert detected");
+    setText("customerEstimatedImpact",model.impactText||"Not estimated");
+    setText("customerEstimatedImpactNote",model.impactNote||"Not enough evidence to estimate water loss reliably.");
+    setText("customerAiLastChecked",model.lastCheckedAt?localizedTimeText(model.lastCheckedAt):"Waiting for a fresh update");
     setText("customerGuidanceStatus",model.guidanceStatus);
     setText("customerGuidanceStatusNote",model.guidanceNote);
     setText("healthStatus",model.healthLabel);
@@ -1465,6 +1503,8 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerSavingsNote",model.savingsNote);
     applyStatusTone("customerSuggestedAction",model.statusTone);
     applyStatusTone("customerGuidanceStatus",model.statusTone);
+    applyStatusTone("customerRiskLevel",model.statusTone);
+    applyStatusTone("customerMotorSafety",model.statusTone==="bad"?"warn":"ok");
     applyStatusTone("healthStatus",model.statusTone);
     ["customerConfidenceScore","customerConfidenceDetail","customerConfidenceGuidance"].forEach((id)=>applyStatusTone(id,confidenceTone(model.confidenceScore)));
     renderDecisionList("customerWhatHappening",model.whatList,"Fresh guidance will appear after the next useful sync.");
@@ -2187,7 +2227,9 @@ function renderAnalytics(data){
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
     const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
-    document.getElementById("usage_change").textContent=hasChange?`${changeNumber>0?"+":""}${changeNumber.toFixed(1)}%`:"--";
+    document.getElementById("usage_change").textContent=hasChange
+        ?changeNumber>=35?"Much higher than usual":changeNumber>=15?"Higher than usual":changeNumber<=-20?"Much lower than usual":"Close to usual"
+        :"--";
     document.getElementById("usage_change_text").textContent=hasChange
         ?changeNumber>=35
             ?`Much higher than normal. ${fmtUsageLiters(data.comparison?.latest_day_usage_liters,data.comparison?.latest_day_usage)} vs ${fmtUsageLiters(data.comparison?.previous_day_usage_liters,data.comparison?.previous_day_usage)} yesterday.`
@@ -2201,12 +2243,15 @@ function renderAnalytics(data){
     document.getElementById("min_max_level").textContent=analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
         :"Waiting for more synced level history.";
-    document.getElementById("consumption_rate").textContent=analyticsReady&&hasDisplayNumber(data.insights?.consumption_rate)
-        ?fmtRatePerHour(data.insights?.consumption_rate)
+    const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
+    const ratePercent=Number(data.insights?.consumption_rate);
+    const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
+    document.getElementById("consumption_rate").textContent=analyticsReady&&rateLiters!==null
+        ?`${rateLiters.toFixed(0)} L/hr`
         :"--";
     const forecastReady=analyticsReady&&data.prediction?.status!=="insufficient_data"&&hasDisplayNumber(data.prediction?.tomorrow_usage_liters??data.prediction?.tomorrow_usage);
     nodesById("ai_tomorrow_usage").forEach((node)=>{
-        node.textContent=forecastReady?fmtUsageLiters(data.prediction?.tomorrow_usage_liters,data.prediction?.tomorrow_usage):"--";
+        node.textContent=forecastReady?`≈ ${fmtUsageLiters(data.prediction?.tomorrow_usage_liters,data.prediction?.tomorrow_usage)}`:"--";
         const note=node.parentElement?.querySelector(".subvalue");
         if(note)note.textContent=forecastReady
             ?`${Number(data.prediction?.confidence||0).toFixed(0)}% confidence | ${sampleDays} complete days`
@@ -2241,6 +2286,11 @@ function sendMotorCommand(path,label){
     if(confirmButton){confirmButton.textContent=startRequest?"Start Pump":"Stop Pump";confirmButton.className=startRequest?"btn-on":"btn-off";}
     if(dialog&&typeof dialog.showModal==="function")dialog.showModal();
     else if(window.confirm(startRequest?"Start the pump now?":"Stop the pump now?"))closeMotorConfirmation(true);
+}
+function reliabilityLabel(score){
+    if(score>=90)return"High";
+    if(score>=70)return"Medium";
+    return"Limited";
 }
 function closeMotorConfirmation(confirmed){
     const dialog=document.getElementById("motorConfirmDialog");
