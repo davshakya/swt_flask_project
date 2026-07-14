@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v6-level-fill-inference";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v7-ready-quick-ranges";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -437,7 +437,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v6-level-fill-inference";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v7-ready-quick-ranges";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 
@@ -500,6 +500,14 @@ def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days()
     assert 'updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null})' in customer_template
     assert 'const requestQuery=query();' in customer_template
     assert 'if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}' in customer_template
+    assert 'const READY_ANALYTICS_RANGE_DAYS=[1,7,30];' in customer_template
+    assert 'function quickRangeQuery(days)' in customer_template
+    assert 'async function prefetchReadyAnalyticsRanges()' in customer_template
+    assert 'function scheduleReadyAnalyticsPrefetch()' in customer_template
+    assert 'saveAnalyticsCache(data,requestQuery,{remember:false})' in customer_template
+    assert 'function analyticsCacheKey(queryString=query())' in customer_template
+    assert 'function loadAnalyticsCache(queryString=query())' in customer_template
+    assert 'scheduleReadyAnalyticsPrefetch();' in customer_template
     for range_id in (
         "customerUsageRange",
         "customerGuidanceRange",
