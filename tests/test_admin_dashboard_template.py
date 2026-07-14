@@ -411,6 +411,7 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert "executeMotorCommand(request.path,request.label)" in customer_template
     assert 'id="dashboardSettings"' in customer_template
     assert '<details id="dashboardSettings"' in customer_template
+    assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
     assert "function eventPresentation(event)" in customer_template
     assert 'showValues:true' in customer_template
     assert 'highlightPeak:true' in customer_template
@@ -460,10 +461,10 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert '.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}' in customer_template
     assert '.customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}' in customer_template
     assert '.customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue' in customer_template
-    assert 'id="customerPumpRuntime"' in customer_template
-    assert 'id="customerPumpStarts"' in customer_template
-    assert 'id="customerPumpDuty"' in customer_template
-    assert 'id="customerPumpStopThreshold"' in customer_template
+    assert 'id="customerPumpRuntime"' not in customer_template
+    assert 'id="customerPumpStarts"' not in customer_template
+    assert 'id="customerPumpDuty"' not in customer_template
+    assert 'id="customerPumpStopThreshold"' not in customer_template
     assert 'class="analytics-toolbar"' in customer_template
     assert 'class="panel tank-chart-panel"' in customer_template
     assert 'id="chartLevelHigh"' in customer_template
@@ -484,8 +485,8 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert '.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' in customer_template
     assert '.customer-dashboard .customer-insight-card strong{align-self:end;' in customer_template
     assert 'id="headerLastSync"' in customer_template
-    assert 'id="customerPumpLastStarted"' in customer_template
-    assert 'id="customerPumpLastStopped"' in customer_template
+    assert 'id="customerPumpLastStarted"' not in customer_template
+    assert 'id="customerPumpLastStopped"' not in customer_template
     assert 'id="chartLevelCurrent"' in customer_template
     assert 'function analyticsReadinessText(' in customer_template
     assert 'Need ${remaining} more complete day' in customer_template
@@ -498,11 +499,8 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert '"pump_started","pump_stopped","pump_no_level_rise","mode_changed"' in customer_template
     assert 'VIEWER_ROLE==="customer"?customerEventMessage(event)' in customer_template
     assert '(state.data.events||[]).filter(isCustomerWaterEvent)' in customer_template
-    assert 'Derived from validated tank-level fill cycles; relay pulse state is ignored.' in customer_template
-    assert 'pump.last_started_at?localizedTimeText(pump.last_started_at)' in customer_template
-    assert 'tank-level rise until the first observed reading' in customer_template
-    assert '.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}' in customer_template
-    assert '.customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;' in customer_template
+    assert 'id="pumpAnalyticsSourceNote"' not in customer_template
+    assert 'class="pump-facts"' not in customer_template
     assert 'const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);' in customer_template
     assert 'id="customerMonthlyEstimate"' in customer_template
     assert 'id="assistantTankRange"' in customer_template

@@ -130,12 +130,8 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-recommendation strong{display:block;margin-top:7px;font-size:1.18rem}.customer-dashboard .customer-recommendation p{margin-top:5px;line-height:1.45;color:var(--customer-text-soft)}
 .metric-help{display:inline-flex!important;align-items:center;justify-content:center;width:17px;height:17px;margin-left:5px;border-radius:50%;background:var(--button-lite-bg);color:var(--primary)!important;font-size:10px!important;line-height:1!important;letter-spacing:0!important;text-transform:none!important;cursor:help;vertical-align:middle}
 .customer-dashboard .tank-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.customer-dashboard .tank-detail-grid .mini{min-width:0;padding:11px 12px;border-radius:15px}.customer-dashboard .tank-detail-grid strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
-.customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:112px;padding:17px 19px;border:1px solid var(--line);border-radius:20px;background:var(--list-bg);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 24px rgba(15,84,98,.07)}
-.customer-dashboard .pump-fact span,.customer-dashboard .chart-kpi span{display:block;font-size:11px;line-height:1.2;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:800}
-.customer-dashboard .pump-fact span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.customer-dashboard .pump-fact strong,.customer-dashboard .chart-kpi strong{display:block;margin-top:7px;font-size:1.05rem}
-.customer-dashboard .pump-fact strong{align-self:end;min-width:0;margin-top:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.08;letter-spacing:-.025em}
+.customer-dashboard .chart-kpi span{display:block;font-size:11px;line-height:1.2;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.customer-dashboard .chart-kpi strong{display:block;margin-top:7px;font-size:1.05rem}
 .customer-dashboard .analytics-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .customer-dashboard .analytics-toolbar-heading{margin-right:auto;min-width:240px}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{flex-wrap:nowrap}
@@ -180,7 +176,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 @media (max-width:760px){
 .customer-dashboard .shell{width:min(100% - 18px,var(--customer-shell-max));padding-top:22px}
 .customer-dashboard .status-row,.customer-pulse-grid,.customer-dashboard .grid.metrics,.customer-dashboard .glance-grid,.customer-dashboard .customer-hero-meta,.customer-dashboard .customer-stat-grid{grid-template-columns:1fr}
-.customer-dashboard .customer-insight-kpis,.customer-dashboard .pump-facts,.customer-dashboard .chart-summary,.customer-dashboard .technical-grid,.customer-dashboard .header-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+.customer-dashboard .customer-insight-kpis,.customer-dashboard .chart-summary,.customer-dashboard .technical-grid,.customer-dashboard .header-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{display:grid;grid-template-columns:1fr;width:100%}.customer-dashboard .analytics-toolbar input[type="date"]{width:100%}
 .customer-dashboard .hero-head{gap:16px}
 .customer-dashboard .controls{grid-template-columns:1fr}
@@ -190,7 +186,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(220px,1fr));overflow-x:auto;padding-bottom:3px}
 .customer-dashboard .assistant-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media (max-width:520px){.customer-dashboard .customer-insight-kpis,.customer-dashboard .pump-facts{grid-template-columns:1fr}.customer-dashboard .customer-insight-card,.customer-dashboard .pump-fact{min-height:112px}}
+@media (max-width:520px){.customer-dashboard .customer-insight-kpis{grid-template-columns:1fr}.customer-dashboard .customer-insight-card{min-height:112px}}
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
@@ -433,15 +429,6 @@ canvas{height:260px!important}
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
                     </div>
-                    <div class="pump-facts">
-                        <div class="pump-fact"><span>Runtime</span><strong id="customerPumpRuntime">Collecting</strong></div>
-                        <div class="pump-fact"><span>Starts</span><strong id="customerPumpStarts">Collecting</strong></div>
-                        <div class="pump-fact"><span>Duty cycle <span class="metric-help" title="Percentage of the selected period spent filling to the configured stop threshold.">i</span></span><strong id="customerPumpDuty">Collecting</strong></div>
-                        <div class="pump-fact"><span>Stop threshold</span><strong id="customerPumpStopThreshold">Collecting</strong></div>
-                        <div class="pump-fact"><span>Last started</span><strong id="customerPumpLastStarted">Not recorded</strong></div>
-                        <div class="pump-fact"><span>Last stopped</span><strong id="customerPumpLastStopped">Not recorded</strong></div>
-                    </div>
-                    <div id="pumpAnalyticsSourceNote" class="subvalue">Derived from validated tank-level fill cycles; relay pulse state is ignored.</div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if viewer_role == "customer" and not cloud_feed_enabled %}Cloud feed is disabled for this customer account.{% elif can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
                     <div id="commandBanner" class="banner info" role="status" aria-live="polite"></div>
@@ -542,11 +529,17 @@ canvas{height:260px!important}
     </section>
 
     <section class="customer-only customer-section-grid" style="margin-top:18px">
-        <div class="panel customer-timeline-panel">
-            <div class="eyebrow">Timeline</div>
-            <h3>Recent water events</h3>
-            <ul id="eventTimeline" class="list timeline" style="margin-top:16px"></ul>
-        </div>
+        <details id="dashboardSettings" class="panel settings-disclosure" style="margin-top:0">
+            <summary><span>⚙ Settings and notification preferences</span></summary>
+            <div class="grid settings" style="margin-top:14px">
+                <div class="setting"><label>Low-level threshold <input id="lowThreshold" type="number" min="5" max="50"></label><span>Warn when tank drops below this percent.</span></div>
+                <div class="setting"><label>Overflow threshold <input id="overflowThreshold" type="number" min="80" max="100"></label><span>Warn when tank is near full.</span></div>
+                <div class="setting"><label>Leak alerts <input id="toggleLeak" type="checkbox"></label><span>Show leak-related warnings.</span></div>
+                <div class="setting"><label>System alerts <input id="toggleSystem" type="checkbox"></label><span>Show stale-data and hardware warnings.</span></div>
+                <div class="setting"><label>Desktop notifications <input id="toggleDesktop" type="checkbox"></label><span>Use browser notifications on this device.</span></div>
+                <div class="setting"><button class="btn-lite" onclick="savePreferences()">Save Preferences</button><span>Your preferences are stored in this browser.</span></div>
+            </div>
+        </details>
         <div class="panel customer-guidance-panel">
             <div class="eyebrow">🤖 AI Guidance</div>
             <h3>Smart Water Assistant</h3>
@@ -592,17 +585,11 @@ canvas{height:260px!important}
         </div>
     </section>
 
-    <details id="dashboardSettings" class="panel customer-only settings-disclosure">
-        <summary><span>⚙ Settings and notification preferences</span></summary>
-        <div class="grid settings" style="margin-top:14px">
-            <div class="setting"><label>Low-level threshold <input id="lowThreshold" type="number" min="5" max="50"></label><span>Warn when tank drops below this percent.</span></div>
-            <div class="setting"><label>Overflow threshold <input id="overflowThreshold" type="number" min="80" max="100"></label><span>Warn when tank is near full.</span></div>
-            <div class="setting"><label>Leak alerts <input id="toggleLeak" type="checkbox"></label><span>Show leak-related warnings.</span></div>
-            <div class="setting"><label>System alerts <input id="toggleSystem" type="checkbox"></label><span>Show stale-data and hardware warnings.</span></div>
-            <div class="setting"><label>Desktop notifications <input id="toggleDesktop" type="checkbox"></label><span>Use browser notifications on this device.</span></div>
-            <div class="setting"><button class="btn-lite" onclick="savePreferences()">Save Preferences</button><span>Your preferences are stored in this browser.</span></div>
-        </div>
-    </details>
+    <div class="panel customer-only customer-timeline-panel" style="margin-top:18px">
+        <div class="eyebrow">Timeline</div>
+        <h3>Recent water events</h3>
+        <ul id="eventTimeline" class="list timeline" style="margin-top:16px"></ul>
+    </div>
 
     <dialog id="motorConfirmDialog" class="confirm-dialog">
         <div class="confirm-dialog-body">
@@ -1649,12 +1636,6 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const starts=hasPumpData?String(Number(pump.completed_runs||0)):"Collecting";
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
     const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
-    const stopThreshold=hasDisplayNumber(pump.stop_threshold_pct)?fmtPct(pump.stop_threshold_pct):"Collecting";
-    setText("customerPumpRuntime",runtime);setText("customerPumpStarts",starts);setText("customerPumpDuty",duty);
-    setText("customerPumpStopThreshold",stopThreshold);
-    setText("customerPumpLastStarted",pump.last_started_at?localizedTimeText(pump.last_started_at):"No threshold cycle");
-    setText("customerPumpLastStopped",pump.last_stopped_at?localizedTimeText(pump.last_stopped_at):"No threshold cycle");
-    setText("pumpAnalyticsSourceNote",hasPumpData?`Runtime is measured from the confirmed tank-level rise until the first observed reading at the ${stopThreshold} stop threshold; relay pulse state is ignored.`:"Waiting for enough tank-level history to validate a threshold-reaching fill cycle.");
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
