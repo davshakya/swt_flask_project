@@ -469,6 +469,16 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="customerSignal"' in customer_template
     assert 'id="customerMemory"' in customer_template
     assert 'snapshot.firmware_version||"Not reported"' in customer_template
+    assert '<span>System confidence</span>' in customer_template
+    assert '<span>Water remaining</span>' in customer_template
+    assert 'id="headerLastSync"' in customer_template
+    assert 'id="customerPumpLastStarted"' in customer_template
+    assert 'id="customerPumpLastStopped"' in customer_template
+    assert 'id="chartLevelCurrent"' in customer_template
+    assert 'function analyticsReadinessText(' in customer_template
+    assert 'Need ${remaining} more complete day' in customer_template
+    assert 'No recent pump or water alerts were reported.' in customer_template
+    assert 'changeRaw!==null&&changeRaw!==undefined' in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():
