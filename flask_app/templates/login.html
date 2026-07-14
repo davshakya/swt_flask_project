@@ -4395,9 +4395,7 @@ min-width:0;
             <a href="#how-it-works">How It Works</a>
             <a href="#solutions">Property Types</a>
             <a href="#proof">Setup Check</a>
-            {% if show_pricing_links|default(false) %}
             <a href="{{ url_for('pricing_page') }}">Pricing</a>
-            {% endif %}
             <a href="#enquiry">Contact Sales</a>
         </nav>
         <div class="nav-actions">
@@ -5314,7 +5312,7 @@ min-width:0;
                 </div>
                 <div class="price-preview-grid" aria-label="Pricing preview" style="margin-top:10px">
                     <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;3,999</strong><small>No monthly fee on the starter plan.</small></article>
-                    <article class="price-preview"><span>Home automation</span><strong class="price-from">From &#8377;5,999</strong><small>Cloud service is optional by plan.</small></article>
+                    <article class="price-preview"><span>Local app monitoring</span><strong class="price-from">From &#8377;4,999</strong><small>Works on the same local Wi-Fi network.</small></article>
                     <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;9,999</strong><small>Final scope depends on tanks and site layout.</small></article>
                 </div>
                 <div class="conversion-strip" style="margin-top:10px">
@@ -6233,43 +6231,43 @@ const chatPlanCatalog = [
         name: "Starter Wi-Fi",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 3,999 one-time device price, no monthly subscription",
+        price: "Rs. 3,999 one-time wireless hardware price, no monthly subscription",
         shortPrice: "Rs. 3,999",
-        bestFor: "homes, shops and small buildings that need tank level visibility first",
-        includes: ["Wi-Fi based tank level device", "water level monitoring", "local dashboard on same Wi-Fi", "basic alerts", "single tank support", "no pump control included"],
-        strengths: ["lowest entry cost", "simple local tank visibility", "no monthly fee"],
-        keywords: ["starter wi-fi", "starter wifi", "home basic", "basic", "local", "no monthly", "without internet", "wifi only", "monitoring only"],
+        bestFor: "customers who only need the wireless tank sensor and controller hardware",
+        includes: ["wireless tank sensor and controller", "preconfigured wireless device link", "no mobile app support", "no live dashboard or monitoring"],
+        strengths: ["lowest entry cost", "complete wireless hardware", "no monthly fee"],
+        keywords: ["starter wi-fi", "starter wifi", "home basic", "basic", "hardware only", "no app", "no monthly"],
     },
     {
         name: "Home Control",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 5,999 one-time device price, optional cloud Rs. 99/month",
-        shortPrice: "Rs. 5,999 + optional Rs. 99/mo cloud",
-        bestFor: "homes and villas that need pump relay control, alerts and safer daily use",
-        includes: ["everything in Starter Wi-Fi", "pump relay control", "auto cut-off support", "alert notifications", "mobile dashboard on Wi-Fi", "cloud access add-on available"],
-        strengths: ["most practical home upgrade", "pump relay control", "overflow and dry-run support"],
-        keywords: ["home control", "home smart", "smart", "pump control", "motor control", "relay", "auto cut", "mobile control"],
+        price: "Rs. 4,999 one-time wireless hardware and local app price, no monthly subscription",
+        shortPrice: "Rs. 4,999, local Wi-Fi only",
+        bestFor: "homes and villas that need mobile app support and live monitoring on the same local Wi-Fi network",
+        includes: ["everything in Starter Wi-Fi", "mobile app support", "live tank level monitoring", "local dashboard on the same Wi-Fi", "local status updates", "no access outside the local network"],
+        strengths: ["local mobile app", "live tank monitoring", "no monthly fee"],
+        keywords: ["home control", "home smart", "smart", "local app", "mobile app", "live monitoring", "local wifi", "same network"],
     },
     {
         name: "Home Cloud Pro",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 7,499 one-time device price + Rs. 149/month",
+        price: "Rs. 7,499 one-time wireless hardware price + Rs. 149/month",
         shortPrice: "Rs. 7,499 + Rs. 149/mo",
-        bestFor: "premium homes, rental properties and families that need remote access, sharing, history and reports",
-        includes: ["everything in Home Control", "remote access from anywhere", "family sharing and customer login", "cloud history and usage trends", "AI insights preview", "monthly water report"],
-        strengths: ["remote access from anywhere", "family sharing", "history and report visibility"],
+        bestFor: "premium homes, rental properties and families that need cloud access, remote monitoring and AI support",
+        includes: ["everything in Home Control", "remote access from anywhere", "family sharing and customer login", "cloud history and usage trends", "AI analytics and insights", "monthly water report"],
+        strengths: ["cloud access from anywhere", "AI support", "history and report visibility"],
         keywords: ["home cloud pro", "cloud pro", "home ai", "ai home", "premium", "remote", "internet", "family sharing", "history", "report", "usage trend", "smart home"],
     },
     {
         name: "RWA Standard",
         segment: "Apartment / Hostel",
         devices: "6",
-        price: "Rs. 9,999 per tank/setup + Rs. 299/month cloud service",
+        price: "Rs. 9,999 starting wireless hardware price per setup + Rs. 299/month cloud service",
         shortPrice: "Rs. 9,999 + Rs. 299/mo",
         bestFor: "apartments, RWAs, small hotels, schools and shared buildings",
-        includes: ["remote monitoring over Internet", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
+        includes: ["remote monitoring over Internet", "wireless tank nodes and pump controller", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
         strengths: ["built for shared tanks", "admin visibility", "good RWA starting plan"],
         keywords: ["rwa standard", "commercial standard", "apartment", "rwa", "society", "hostel", "school", "small hotel", "managed", "shared building"],
     },
@@ -6277,7 +6275,7 @@ const chatPlanCatalog = [
         name: "Commercial AI Pro",
         segment: "Commercial Site",
         devices: "10",
-        price: "Rs. 12,999 per setup + Rs. 599/month cloud and reports",
+        price: "Rs. 12,999 starting wireless hardware price per setup + Rs. 599/month cloud and reports",
         shortPrice: "Rs. 12,999 + Rs. 599/mo",
         bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
         includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
@@ -6291,7 +6289,7 @@ const chatPlanCatalog = [
         price: "Rs. 11,999 starter partner kit, reseller pricing by volume",
         shortPrice: "Rs. 11,999 partner kit",
         bestFor: "dealers, plumbers, electricians and local installers who need a working starter kit",
-        includes: ["working device package", "installer checklist", "customer setup support", "plan and add-on menu", "partner follow-up support", "bulk pricing discussion"],
+        includes: ["complete wireless demo kit", "installer checklist", "customer setup support", "plan and add-on menu", "partner follow-up support", "bulk pricing discussion"],
         strengths: ["partner-ready kit", "installer setup flow", "volume pricing discussion"],
         keywords: ["dealer", "installer", "partner", "plumber", "electrician", "reseller", "partner kit", "dealer installer kit"],
     },
@@ -6302,7 +6300,7 @@ const chatPlanCatalog = [
         price: "custom pricing, usually starts from Rs. 24,999",
         shortPrice: "Custom, usually from Rs. 24,999",
         bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
-        includes: ["multiple device roles and dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],
+        includes: ["multiple wireless sensor and controller roles", "custom dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],
         strengths: ["custom rollout planning", "multi-site support", "API and role-based access"],
         keywords: ["enterprise modular", "enterprise", "builder", "township", "industrial", "api", "custom", "multi site", "large project", "bulk"],
     },
@@ -6321,19 +6319,19 @@ const chatAddOns = [
 
 const chatInstallationTypes = [
     {
-        name: "Single Controller Kit",
-        range: "under 10 m tank-to-motor route",
-        fit: "small homes and simple installations with a short practical JSN-SR04T wire run",
+        name: "Wireless Tank Sensor Node",
+        range: "tank side",
+        fit: "a powered smart sensor near the tank that sends live level readings over site Wi-Fi without a long signal cable",
     },
     {
-        name: "Shielded Wire or Dual Node",
-        range: "10-20 m route",
-        fit: "sites where shielded sensor extension passes testing, with dual-node upgrade when reliability matters",
+        name: "Wireless Pump Controller",
+        range: "pump side",
+        fit: "a controller near the pump panel that receives tank readings wirelessly and manages automation, alerts and fail-safe shutdown",
     },
     {
-        name: "NodeMCU UDP Dual Node Kit",
-        range: "20 m+ or multi-floor route",
-        fit: "customer-ready tall-building installs where the tank node reads level near the tank and the control node stays near pump/relay/contactor",
+        name: "Complete Wireless Smart Tank Kit",
+        range: "complete system",
+        fit: "the standard setup for homes and multi-floor sites, combining both devices with the app and cloud dashboard",
     },
 ];
 
@@ -6451,7 +6449,7 @@ function shortBookingInterruptAnswer(rawInput) {
         return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
     }
     if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
-        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet, city, cable route and whether the site needs Single Controller, Shielded Wire/Dual Node, or NodeMCU UDP Dual Node.`;
+        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet coverage, city, device power and electrician-approved relay/contactor wiring. Every current setup uses a wireless tank sensor node and pump-side controller, so no long tank-to-controller signal cable is required.`;
     }
     if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
         return `For apartments or managed sites, start with RWA Standard. Choose Commercial AI Pro for reports, leak insight, or many tanks.`;
@@ -6713,7 +6711,7 @@ function expertRecommendationText(plan, rawInput, count = "") {
 }
 
 function friendlyNextStepText(plan) {
-    return `Next: confirm tank count, pump location, Wi-Fi/internet, city, cable route and installation type.`;
+    return `Next: confirm tank count, pump location, Wi-Fi/internet coverage, city, device power and pump-panel installation details.`;
 }
 
 function isChatBookingIntent(input) {
@@ -6761,7 +6759,7 @@ function getChatbotResponse(rawInput) {
         const commercialPlans = chatPlanCatalog.slice(3, 5).map(planPricingLine).join(" | ");
         const extraInfo = wantsProductInfo
             ? `\n${productInfoText()}`
-            : `\nInstallation types depend on measured route: Single Controller under 10 m, Shielded Wire/Dual Node for 10-20 m, and NodeMCU UDP Dual Node for 20 m+ or multi-floor sites.`;
+            : `\nEvery current installation uses the complete wireless setup: a tank sensor node sends level data over site Wi-Fi to the pump-side controller. No long tank-to-controller signal cable is required.`;
         return {
             text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.${extraInfo}`,
             actions: [
@@ -6813,7 +6811,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `Installation is selected after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet, measured tank-to-motor route, power access and electrician approval for relay/contactor wiring.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet coverage, power access and electrician approval for relay/contactor wiring. The tank-to-controller data link is wireless.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",

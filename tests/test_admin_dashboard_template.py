@@ -1122,6 +1122,28 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert "&#10006; No" in template
 
 
+def test_sales_content_uses_current_complete_wireless_architecture():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    assert "Wireless Tank Sensor Node" in homepage
+    assert "Complete Wireless Smart Tank Kit" in homepage
+    assert "Single Controller Kit" not in homepage
+    assert "Shielded Wire or Dual Node" not in homepage
+    assert "One wireless setup for every building height." in pricing
+    assert "No long sensor signal cable" in pricing
+    assert "Every base plan uses the complete wireless tank-to-controller architecture." in pricing
+    assert "Wireless Hardware" in pricing
+    assert "one-time wireless hardware price" in homepage
+    assert "No mobile app support" in pricing
+    assert "No live dashboard or monitoring" in pricing
+    assert "&#8377;4,999" in pricing
+    assert "Local network only. No cloud or AI access." in pricing
+    assert "AI analytics and insights" in pricing
+    assert "Single Controller Kit" not in pricing
+    assert "Shielded Wire or Dual Node" not in pricing
+
+
 def test_flask_pages_share_explanatory_term_tooltips():
     tooltip_source = (PROJECT_ROOT / "flask_app" / "static" / "js" / "global-tooltips.js").read_text(encoding="utf-8")
     pwa_head = (PROJECT_ROOT / "flask_app" / "templates" / "_pwa_head.html").read_text(encoding="utf-8")
