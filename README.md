@@ -24,7 +24,7 @@ Within the wider workspace:
 - Customer forgot-password and reset-password flow when SMTP is configured
 - Browser dashboard, customer dashboard, and per-device detail pages
 - PWA manifest, service worker, install prompt, mobile-friendly public pages, and customer-facing homepage
-- Pricing/comparison page for Starter Wi-Fi, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
+- Pricing/comparison page for Home Basic, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
 - Sales/demo enquiry form with backup logging, support email, customer confirmation email, and optional WhatsApp webhook delivery
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
 - Admin service controls for source tank monitoring, municipal sensor enablement, buzzer, LED, cloud-feed mode, and customer AI access

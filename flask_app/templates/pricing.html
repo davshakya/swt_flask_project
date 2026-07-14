@@ -802,6 +802,19 @@ margin:0;
 line-height:1.58;
 color:var(--muted);
 }
+.addon-fit{
+display:inline-flex;
+width:max-content;
+max-width:100%;
+padding:6px 9px;
+border-radius:999px;
+background:var(--brand-soft);
+color:var(--brand-deep);
+font-size:11px;
+font-weight:900;
+letter-spacing:.05em;
+text-transform:uppercase;
+}
 .install-note{
 margin-top:16px;
 padding:16px 18px;
@@ -1258,7 +1271,7 @@ body{font-size:16px}
         <div class="hero-copy">
             <h1>Start simple. Add automation and AI when needed.</h1>
             <p>Pay only for the monitoring and control you need today, then expand with pump control, cloud access, source tank monitoring, AI insights or multi-site support.</p>
-            <div class="trust-line">Wi-Fi is required for every SaleWell device. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
+            <div class="trust-line">Home Basic and Home Control use ESP-NOW and do not require an external Wi-Fi router or internet. Cloud plans require internet access. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
                 <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                 <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
@@ -1305,11 +1318,11 @@ body{font-size:16px}
             <article class="module-card">
                 <span class="module-range">Tank side</span>
                 <strong>Wireless Tank Sensor Node</strong>
-                <p>A powered smart sensor stays close to the tank and sends live water-level readings over the site's Wi-Fi network.</p>
+                <p>A powered smart sensor stays close to the tank and sends live water-level readings directly to the controller over ESP-NOW.</p>
                 <ul class="feature-list">
                     <li>No long sensor signal cable</li>
                     <li>Accurate local level readings</li>
-                    <li>Works at any building height with Wi-Fi coverage</li>
+                    <li>No external Wi-Fi router required</li>
                 </ul>
             </article>
             <article class="module-card">
@@ -1334,7 +1347,7 @@ body{font-size:16px}
             </article>
         </div>
 
-        <div class="install-note">The tank-to-controller data link is wireless. Each device still needs suitable power, reliable site Wi-Fi and electrician approval for relay/contactor wiring at the pump panel.</div>
+        <div class="install-note">The tank-to-controller data link uses ESP-NOW. Home Basic and Home Control need no external router or internet, but each device still needs suitable power, a verified ESP-NOW signal path and electrician approval for relay/contactor wiring.</div>
     </section>
 
     <section class="section surface" id="plans">
@@ -1348,29 +1361,29 @@ body{font-size:16px}
         <div class="plan-group">
             <div class="plan-group-head">
                 <h3>Home, Villa and Small Shop Plans</h3>
-                <p>Start with wireless hardware, add local app monitoring when needed, or choose cloud and AI access from anywhere.</p>
+                <p>Choose how you want to use your system: hardware only, phone access at home, or full access from anywhere.</p>
             </div>
             <div class="plans-grid">
             <article class="plan-card" data-plan-segment="home">
                 <div class="plan-top">
                     <div class="plan-badges">
-                        <span class="plan-badge">Starter Wi-Fi</span>
+                        <span class="plan-badge">Home Basic</span>
                     </div>
-                    <h3>Wireless hardware without app monitoring</h3>
-                    <p>Best entry plan for customers who only need the wireless tank sensor and controller hardware.</p>
+                    <h3>A simple wireless tank setup without an app</h3>
+                    <p>Best for customers who want the tank sensor and controller at the lowest one-time price.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;3,999</div>
-                    <div class="price-note">One-time wireless hardware price</div>
+                    <div class="price-note">One-time equipment price</div>
                     <div class="price-note">No monthly subscription</div>
-                    <div class="price-note is-outcome">Wi-Fi required for device communication. App access is not included.</div>
+                    <div class="price-note is-outcome">Works without home Wi-Fi or internet.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Wireless tank sensor and controller</li>
-                    <li>Preconfigured wireless device link</li>
-                    <li>No mobile app support</li>
-                    <li>No live dashboard or monitoring</li>
+                    <li>Wireless tank sensor and main controller</li>
+                    <li>Ready-to-use connection between both devices</li>
+                    <li>No home Wi-Fi or internet needed</li>
+                    <li>Phone app and live screen not included</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
@@ -1380,8 +1393,8 @@ body{font-size:16px}
                     <li>Budget customers</li>
                 </ul>
                 <div class="plan-action">
-                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Starter Wi-Fi', segment='Home / Villa') }}#enquiry" data-plan="Starter Wi-Fi" data-segment="Home / Villa">Book Starter Wi-Fi</a>
-                    <span>Upgrade to Home Control when local app monitoring is needed.</span>
+                    <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book Home Basic</a>
+                    <span>Upgrade to Home Control when you want to see the tank level on your phone.</span>
                 </div>
             </article>
 
@@ -1391,23 +1404,23 @@ body{font-size:16px}
                         <span class="plan-badge">Home Control</span>
                         <span class="plan-badge is-recommended">Most Popular</span>
                     </div>
-                    <h3>For homes that want live monitoring on local Wi-Fi</h3>
-                    <p>Adds mobile app support and live tank monitoring while the phone is connected to the same local network.</p>
+                    <h3>See your tank level on your phone while at home</h3>
+                    <p>Connect your phone directly to the controller and check live tank information without home Wi-Fi or internet.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;4,999</div>
-                    <div class="price-note">One-time wireless hardware price</div>
+                    <div class="price-note">One-time equipment and app price</div>
                     <div class="price-note">No monthly subscription</div>
-                    <div class="price-note is-outcome">Local network only. No cloud or AI access.</div>
+                    <div class="price-note is-outcome">Phone access at the property only. Remote access and AI are not included.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Everything in Starter Wi-Fi</li>
-                    <li>Mobile app support</li>
-                    <li>Live tank level monitoring</li>
-                    <li>Local dashboard on the same Wi-Fi</li>
-                    <li>Local status updates</li>
-                    <li>No access from outside the local network</li>
+                    <li>Everything in Home Basic</li>
+                    <li>Mobile app included</li>
+                    <li>See the live tank level on your phone</li>
+                    <li>Connect directly to the controller</li>
+                    <li>No home Wi-Fi, internet or monthly fee</li>
+                    <li>Works only while you are at the property</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
@@ -1417,7 +1430,7 @@ body{font-size:16px}
                 </ul>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book Home Control</a>
-                    <span>Choose this for app monitoring inside the property.</span>
+                    <span>Choose this when you only need phone access at home.</span>
                 </div>
             </article>
 
@@ -1427,23 +1440,23 @@ body{font-size:16px}
                         <span class="plan-badge">Home Cloud Pro</span>
                         <span class="plan-badge is-accent">Remote Access</span>
                     </div>
-                    <h3>For families that want control from anywhere</h3>
-                    <p>Adds cloud connectivity, remote access and AI support for customers who need monitoring from anywhere.</p>
+                    <h3>Check your tank from anywhere</h3>
+                    <p>Best for families, rental homes and owners who want remote access, smart insights and useful reports.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;7,499</div>
-                    <div class="price-note">One-time wireless hardware price</div>
+                    <div class="price-note">One-time equipment and app price</div>
                     <div class="price-note">+ &#8377;149/month</div>
-                    <div class="price-note is-outcome">Cloud dashboard, remote access and AI support. Internet required.</div>
+                    <div class="price-note is-outcome">Use the app from anywhere. Home Wi-Fi and internet are required.</div>
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
                     <li>Everything in Home Control</li>
-                    <li>Remote access from anywhere</li>
-                    <li>Family sharing and customer login</li>
-                    <li>Cloud history and usage trends</li>
-                    <li>AI analytics and insights</li>
-                    <li>Monthly water report</li>
+                    <li>Check your tank from anywhere</li>
+                    <li>Share access with family members</li>
+                    <li>View past levels and usage patterns</li>
+                    <li>Smart warnings and helpful insights</li>
+                    <li>Easy-to-read monthly water report</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
@@ -1644,7 +1657,7 @@ body{font-size:16px}
                     <tr>
                         <th>Plan</th>
                         <th>Best For</th>
-                        <th>Wi-Fi</th>
+                        <th>Home Wi-Fi / Internet</th>
                         <th>Wireless Hardware</th>
                         <th>Pump Control</th>
                         <th>AI Analytics</th>
@@ -1655,29 +1668,29 @@ body{font-size:16px}
                 </thead>
                 <tbody>
                     <tr data-plan-row="home">
-                        <td><strong>Starter Wi-Fi</strong><span>Wireless hardware only</span></td>
+                        <td><strong>Home Basic</strong><span>Equipment only</span></td>
                         <td><span>Home / shop</span></td>
-                        <td><span class="yes">Required</span></td>
+                        <td><span class="no">Not needed</span></td>
                         <td><span class="yes">Included</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><strong>&#8377;3,999</strong><span>No monthly fee</span></td>
-                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Starter Wi-Fi', segment='Home / Villa') }}#enquiry" data-plan="Starter Wi-Fi" data-segment="Home / Villa">Book</a></td>
+                        <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr class="is-recommended-row" data-plan-row="home">
-                        <td><strong>Home Control</strong><span>Local app monitoring</span></td>
+                        <td><strong>Home Control</strong><span>Phone access at home</span></td>
                         <td><span>Home</span></td>
-                        <td><span class="yes">Required</span></td>
+                        <td><span class="no">Not needed</span></td>
                         <td><span class="yes">Included</span></td>
                         <td><span class="no">Add-on</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;4,999</strong><span>No monthly fee; local network only</span></td>
+                        <td><strong>&#8377;4,999</strong><span>No monthly fee; works at the property</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
-                        <td><strong>Home Cloud Pro</strong><span>Remote dashboard</span></td>
+                        <td><strong>Home Cloud Pro</strong><span>Phone access from anywhere</span></td>
                         <td><span>Home</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Included</span></td>
@@ -1739,61 +1752,82 @@ body{font-size:16px}
     <section class="section surface" id="addons">
         <div class="section-head">
             <div>
-                <h2>Add-ons make every device setup customizable.</h2>
+                <h2>Customize any plan with the add-ons you need.</h2>
             </div>
+            <p>Start with a base plan, then add local app access, pump control, more tanks, cloud services or site-specific hardware.</p>
         </div>
 
         <div class="addons-grid">
             <article class="addon-card">
+                <strong>Local mobile app and live monitoring</strong>
+                <div class="addon-price">+ &#8377;1,000 one-time</div>
+                <span class="addon-fit">Home Basic upgrade</span>
+                <p>Add controller-hosted local app access and live tank monitoring without an external Wi-Fi router or monthly fee. This upgrades Home Basic to Home Control capability.</p>
+            </article>
+            <article class="addon-card">
                 <strong>Pump relay control module</strong>
                 <div class="addon-price">+ &#8377;1,500 to &#8377;2,500</div>
+                <span class="addon-fit">All home plans</span>
                 <p>Add motor start/stop control, auto cut-off support and safer daily pump operation.</p>
             </article>
             <article class="addon-card">
                 <strong>Cloud dashboard and remote access</strong>
                 <div class="addon-price">+ &#8377;99 to &#8377;299/mo</div>
-                <p>Use mobile/web access from anywhere, cloud history, alerts and customer login. Wi-Fi and internet are required.</p>
+                <span class="addon-fit">Home Control and managed plans</span>
+                <p>Use mobile/web access from anywhere, cloud history, alerts and customer login. External Wi-Fi and internet are required; Home Cloud Pro already includes this service.</p>
             </article>
             <article class="addon-card">
                 <strong>AI analytics and leak insight</strong>
                 <div class="addon-price">+ &#8377;149 to &#8377;499/mo</div>
-                <p>Add usage trends, leak warning, unusual consumption alerts and monthly water reports.</p>
+                <span class="addon-fit">Cloud-capable plans</span>
+                <p>Add usage trends, leak warning, unusual consumption alerts and monthly water reports. Requires cloud access; included in Home Cloud Pro and Commercial AI Pro.</p>
             </article>
             <article class="addon-card">
                 <strong>Source tank monitoring</strong>
                 <div class="addon-price">+ &#8377;2,000 to &#8377;3,500</div>
+                <span class="addon-fit">Home Control and Home Cloud Pro</span>
                 <p>Add underground/source tank visibility for transfer logic, refill planning and pump lock protection.</p>
             </article>
             <article class="addon-card">
                 <strong>Extra tank or extra sensor node</strong>
                 <div class="addon-price">+ &#8377;2,500 to &#8377;4,500</div>
+                <span class="addon-fit">Monitoring and managed plans</span>
                 <p>Expand from one tank to overhead, underground, source, destination or multi-floor tank setups.</p>
+            </article>
+            <article class="addon-card">
+                <strong>ESP-NOW range extension node</strong>
+                <div class="addon-price">Quote after site survey</div>
+                <span class="addon-fit">Sites with difficult signal paths</span>
+                <p>Add a powered relay node when distance, reinforced walls or building layout prevents a reliable direct sensor-to-controller link.</p>
             </article>
             <article class="addon-card">
                 <strong>Installation and site survey</strong>
                 <div class="addon-price">By city</div>
-                <p>Quoted by city, tank access, wiring/power readiness, Wi-Fi coverage and number of devices.</p>
+                <span class="addon-fit">Every plan</span>
+                <p>Quoted by city, tank access, wiring/power readiness, ESP-NOW signal path, internet needs and number of devices.</p>
             </article>
             <article class="addon-card">
                 <strong>Custom reporting and user roles</strong>
                 <div class="addon-price">Quote-based</div>
+                <span class="addon-fit">RWA, commercial and enterprise</span>
                 <p>For RWAs and commercial users who need resident reports, admin roles, exports or custom summaries.</p>
             </article>
             <article class="addon-card">
                 <strong>Dealer branding and bulk kit</strong>
                 <div class="addon-price">Quote-based</div>
+                <span class="addon-fit">Dealer / Installer Kit</span>
                 <p>For partners who need demo units, installer material, local support process and volume pricing.</p>
             </article>
         </div>
 
-        <div class="install-note">Wi-Fi is mandatory for all devices. Installation can be separate or included by city. Final rollout pricing can change with tank count, source tank requirements, pump panel readiness, power access and site access conditions.</div>
+        <div class="install-note">External Wi-Fi is not required for Home Basic or Home Control because device communication uses ESP-NOW. Cloud, remote-access and AI services require internet connectivity. Installation can be separate or included by city.</div>
     </section>
 
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
                 <h2>Still not sure which setup fits your tank?</h2>
-                <p>Get a free 10-minute recommendation and site assessment. We will review tank count, Wi-Fi coverage, pump logic, source tank needs and add-ons before you choose.</p>
+                <p>Get a free 10-minute recommendation and site assessment. We will review tank count, ESP-NOW signal path, internet needs, pump logic, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
                     <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
                     <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>

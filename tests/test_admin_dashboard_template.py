@@ -1135,11 +1135,16 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Every base plan uses the complete wireless tank-to-controller architecture." in pricing
     assert "Wireless Hardware" in pricing
     assert "one-time wireless hardware price" in homepage
-    assert "No mobile app support" in pricing
-    assert "No live dashboard or monitoring" in pricing
+    assert "Phone app and live screen not included" in pricing
     assert "&#8377;4,999" in pricing
-    assert "Local network only. No cloud or AI access." in pricing
-    assert "AI analytics and insights" in pricing
+    assert "Phone access at the property only. Remote access and AI are not included." in pricing
+    assert "Home Basic and Home Control use ESP-NOW" in pricing
+    assert "<th>Home Wi-Fi / Internet</th>" in pricing
+    assert "Smart warnings and helpful insights" in pricing
+    assert "Local mobile app and live monitoring" in pricing
+    assert "+ &#8377;1,000 one-time" in pricing
+    assert "ESP-NOW range extension node" in pricing
+    assert pricing.count('class="addon-fit"') == 10
     assert "Single Controller Kit" not in pricing
     assert "Shielded Wire or Dual Node" not in pricing
 

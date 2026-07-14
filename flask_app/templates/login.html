@@ -5190,7 +5190,7 @@ min-width:0;
                 </picture>
                 <figcaption class="visual-copy">
                     <strong>Install once and see everything from your phone.</strong>
-                    <p>The tank sensor, main controller and live dashboard work together over Wi-Fi, so you can see what gets installed and avoid long signal wiring from the tank to the pump device.</p>
+                    <p>The tank sensor and main controller communicate over ESP-NOW. Home Control adds direct local app access, while Home Cloud Pro adds internet-based remote access.</p>
                 </figcaption>
             </figure>
 
@@ -5205,8 +5205,8 @@ min-width:0;
                 <article class="step">
                         <div class="step-number" aria-label="Step 2">&#128295;</div>
                     <div>
-                        <strong>Tank data travels over Wi-Fi</strong>
-                        <p>Water level readings are sent wirelessly to the main pump/controller device through the site Wi-Fi network.</p>
+                        <strong>Tank data travels over ESP-NOW</strong>
+                        <p>Water level readings are sent directly to the main pump/controller device over ESP-NOW, without an external Wi-Fi router or internet connection.</p>
                     </div>
                 </article>
                 <article class="step">
@@ -5219,8 +5219,8 @@ min-width:0;
                 <article class="step">
                         <div class="step-number" aria-label="Step 4">&#10004;</div>
                     <div>
-                        <strong>Live dashboard on your phone</strong>
-                        <p>Open the app or web dashboard to check tank level, pump status, alerts and remote actions without climbing up to inspect the tank.</p>
+                        <strong>Choose local or cloud app access</strong>
+                        <p>Home Control connects locally without an external router. Home Cloud Pro adds remote dashboards, history and AI through the internet.</p>
                     </div>
                 </article>
             </div>
@@ -5312,7 +5312,7 @@ min-width:0;
                 </div>
                 <div class="price-preview-grid" aria-label="Pricing preview" style="margin-top:10px">
                     <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;3,999</strong><small>No monthly fee on the starter plan.</small></article>
-                    <article class="price-preview"><span>Local app monitoring</span><strong class="price-from">From &#8377;4,999</strong><small>Works on the same local Wi-Fi network.</small></article>
+                    <article class="price-preview"><span>Local app monitoring</span><strong class="price-from">From &#8377;4,999</strong><small>Controller-hosted local access; no external Wi-Fi required.</small></article>
                     <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;9,999</strong><small>Final scope depends on tanks and site layout.</small></article>
                 </div>
                 <div class="conversion-strip" style="margin-top:10px">
@@ -5351,8 +5351,8 @@ min-width:0;
                         <p>Tell us where overflow, motor damage or shortage creates daily stress.</p>
                     </div>
                     <div class="support-check">
-                        <strong>Wi-Fi coverage near tank and pump</strong>
-                        <p>We check whether the tank sensor and main controller can both connect reliably, so no long tank-to-controller signal wiring is needed.</p>
+                        <strong>ESP-NOW signal path and internet needs</strong>
+                        <p>We verify the direct sensor-to-controller link. External Wi-Fi is checked only when cloud and remote-access features are selected.</p>
                     </div>
                     <div class="support-check">
                         <strong>Property type and device count</strong>
@@ -6228,25 +6228,25 @@ function applyChatRecommendation(fill = {}) {
 
 const chatPlanCatalog = [
     {
-        name: "Starter Wi-Fi",
+        name: "Home Basic",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 3,999 one-time wireless hardware price, no monthly subscription",
+        price: "Rs. 3,999 one-time equipment price, no monthly fee",
         shortPrice: "Rs. 3,999",
-        bestFor: "customers who only need the wireless tank sensor and controller hardware",
-        includes: ["wireless tank sensor and controller", "preconfigured wireless device link", "no mobile app support", "no live dashboard or monitoring"],
-        strengths: ["lowest entry cost", "complete wireless hardware", "no monthly fee"],
+        bestFor: "customers who want the tank sensor and controller at the lowest one-time price",
+        includes: ["wireless tank sensor and main controller", "ready-to-use device connection", "no home Wi-Fi or internet needed", "phone app and live screen not included"],
+        strengths: ["lowest entry cost", "simple wireless equipment", "no monthly fee"],
         keywords: ["starter wi-fi", "starter wifi", "home basic", "basic", "hardware only", "no app", "no monthly"],
     },
     {
         name: "Home Control",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 4,999 one-time wireless hardware and local app price, no monthly subscription",
-        shortPrice: "Rs. 4,999, local Wi-Fi only",
-        bestFor: "homes and villas that need mobile app support and live monitoring on the same local Wi-Fi network",
-        includes: ["everything in Starter Wi-Fi", "mobile app support", "live tank level monitoring", "local dashboard on the same Wi-Fi", "local status updates", "no access outside the local network"],
-        strengths: ["local mobile app", "live tank monitoring", "no monthly fee"],
+        price: "Rs. 4,999 one-time equipment and app price, no monthly fee",
+        shortPrice: "Rs. 4,999, phone access at home",
+        bestFor: "homes and villas that want to see live tank information on a phone while at the property",
+        includes: ["everything in Home Basic", "mobile app included", "live tank level on your phone", "direct connection to the controller", "no home Wi-Fi or internet needed", "works only at the property"],
+        strengths: ["phone app at home", "live tank information", "no monthly fee"],
         keywords: ["home control", "home smart", "smart", "local app", "mobile app", "live monitoring", "local wifi", "same network"],
     },
     {
@@ -6255,9 +6255,9 @@ const chatPlanCatalog = [
         devices: "1",
         price: "Rs. 7,499 one-time wireless hardware price + Rs. 149/month",
         shortPrice: "Rs. 7,499 + Rs. 149/mo",
-        bestFor: "premium homes, rental properties and families that need cloud access, remote monitoring and AI support",
-        includes: ["everything in Home Control", "remote access from anywhere", "family sharing and customer login", "cloud history and usage trends", "AI analytics and insights", "monthly water report"],
-        strengths: ["cloud access from anywhere", "AI support", "history and report visibility"],
+        bestFor: "families, rental homes and owners who want to check their tank from anywhere",
+        includes: ["everything in Home Control", "check your tank from anywhere", "share access with family", "past levels and usage patterns", "smart warnings and helpful insights", "monthly water report"],
+        strengths: ["phone access from anywhere", "smart insights", "history and reports"],
         keywords: ["home cloud pro", "cloud pro", "home ai", "ai home", "premium", "remote", "internet", "family sharing", "history", "report", "usage trend", "smart home"],
     },
     {
@@ -6307,21 +6307,23 @@ const chatPlanCatalog = [
 ];
 
 const chatAddOns = [
-    "Pump relay control module: Rs. 1,500 to Rs. 2,500",
-    "Cloud dashboard and remote access: Rs. 99 to Rs. 299/month",
-    "AI analytics and leak insight: Rs. 149 to Rs. 499/month",
-    "Source tank monitoring: Rs. 2,000 to Rs. 3,500",
-    "Extra tank or extra sensor node: Rs. 2,500 to Rs. 4,500",
-    "Installation and site survey: quoted by city and project size",
-    "Custom reporting: quote-based",
-    "Dealer branding and bulk kit: quote-based",
+    "Local mobile app and live monitoring: Rs. 1,000 one-time Home Basic upgrade",
+    "Pump relay control module: Rs. 1,500 to Rs. 2,500 for home plans",
+    "Cloud dashboard and remote access: Rs. 99 to Rs. 299/month for Home Control or managed plans; external Wi-Fi and internet required",
+    "AI analytics and leak insight: Rs. 149 to Rs. 499/month for cloud-capable plans",
+    "Source tank monitoring: Rs. 2,000 to Rs. 3,500 for Home Control or Home Cloud Pro",
+    "Extra tank or extra sensor node: Rs. 2,500 to Rs. 4,500 for monitoring and managed plans",
+    "ESP-NOW range extension node: quoted after site survey",
+    "Installation and site survey: quoted by city and project size for every plan",
+    "Custom reporting: quote-based for RWA, commercial and enterprise plans",
+    "Dealer branding and bulk kit: quote-based for Dealer / Installer Kit",
 ];
 
 const chatInstallationTypes = [
     {
         name: "Wireless Tank Sensor Node",
         range: "tank side",
-        fit: "a powered smart sensor near the tank that sends live level readings over site Wi-Fi without a long signal cable",
+        fit: "a powered smart sensor near the tank that sends live level readings directly over ESP-NOW without external Wi-Fi or a long signal cable",
     },
     {
         name: "Wireless Pump Controller",
@@ -6449,7 +6451,7 @@ function shortBookingInterruptAnswer(rawInput) {
         return `For overflow, you get live tank level and alerts before water spills. Choose AI only if you need leak or usage details.`;
     }
     if (chatHasAny(input, ["install", "installation", "setup", "sensor", "underground", "source", "overhead"])) {
-        return `For installation, we check tank count, tank type, pump location, Wi-Fi/internet coverage, city, device power and electrician-approved relay/contactor wiring. Every current setup uses a wireless tank sensor node and pump-side controller, so no long tank-to-controller signal cable is required.`;
+        return `For installation, we check tank count, tank type, pump location, ESP-NOW signal path, city, device power and electrician-approved relay/contactor wiring. External Wi-Fi and internet are checked only for cloud plans.`;
     }
     if (chatHasAny(input, ["apartment", "rwa", "society", "commercial", "hotel", "school", "factory"])) {
         return `For apartments or managed sites, start with RWA Standard. Choose Commercial AI Pro for reports, leak insight, or many tanks.`;
@@ -6684,7 +6686,7 @@ function recommendPlan(input) {
     if (commercial) return chatPlanCatalog.find((plan) => plan.name === "RWA Standard");
     if (wantsAI) return chatPlanCatalog.find((plan) => plan.name === "Home Cloud Pro");
     if (wantsPump) return chatPlanCatalog.find((plan) => plan.name === "Home Control");
-    if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Starter Wi-Fi");
+    if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Home Basic");
     return chatPlanCatalog.find((plan) => plan.name === "Home Control");
 }
 
@@ -6711,7 +6713,7 @@ function expertRecommendationText(plan, rawInput, count = "") {
 }
 
 function friendlyNextStepText(plan) {
-    return `Next: confirm tank count, pump location, Wi-Fi/internet coverage, city, device power and pump-panel installation details.`;
+    return `Next: confirm tank count, pump location, ESP-NOW signal path, cloud/internet needs, city, device power and pump-panel installation details.`;
 }
 
 function isChatBookingIntent(input) {
@@ -6759,7 +6761,7 @@ function getChatbotResponse(rawInput) {
         const commercialPlans = chatPlanCatalog.slice(3, 5).map(planPricingLine).join(" | ");
         const extraInfo = wantsProductInfo
             ? `\n${productInfoText()}`
-            : `\nEvery current installation uses the complete wireless setup: a tank sensor node sends level data over site Wi-Fi to the pump-side controller. No long tank-to-controller signal cable is required.`;
+            : `\nEvery current installation uses the complete wireless setup: a tank sensor node sends level data directly over ESP-NOW to the pump-side controller. Home Basic and Home Control need no external Wi-Fi router or internet.`;
         return {
             text: `Home: ${homePlans}.\nCommercial: ${commercialPlans}.\nFor your case, I suggest ${recommendedPlan.name}; it is usually the best value.${extraInfo}`,
             actions: [
@@ -6811,7 +6813,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsInstall) {
         return {
-            text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, Wi-Fi/internet coverage, power access and electrician approval for relay/contactor wiring. The tank-to-controller data link is wireless.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
+            text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, ESP-NOW signal path, power access and electrician approval for relay/contactor wiring. External Wi-Fi and internet are required only for cloud features.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
             actions: [
                 {
                     label: "Fill setup details",
