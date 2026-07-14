@@ -4,6 +4,38 @@ import json
 from flask_app import server
 
 
+def test_runtime_cache_invalidation_is_scoped_to_the_updated_device():
+    now = server.now_utc()
+    first_key = server.build_analytics_cache_key(now - timedelta(days=7), now, "swt-cache-a")
+    second_key = server.build_analytics_cache_key(now - timedelta(days=7), now, "swt-cache-b")
+    server.analytics_cache.clear()
+    server.analytics_cache[first_key] = {"created_at": 1, "payload": {"device": "a"}}
+    server.analytics_cache[second_key] = {"created_at": 1, "payload": {"device": "b"}}
+
+    server.clear_runtime_caches("swt-cache-a")
+
+    assert first_key not in server.analytics_cache
+    assert second_key in server.analytics_cache
+    server.analytics_cache.clear()
+
+
+def test_analytics_memory_cache_returns_isolated_payload_copies(monkeypatch):
+    now = server.now_utc()
+    cache_key = server.build_analytics_cache_key(now - timedelta(days=7), now, "swt-cache-copy")
+    payload = {"range": {"label": "Last 7 days"}, "levels": {"values": [50.0]}}
+    monkeypatch.setattr(server, "ANALYTICS_CACHE_TTL_SECONDS", 30.0)
+    server.analytics_cache.clear()
+
+    server.store_cached_analytics(cache_key, payload, now_ts=10.0)
+    payload["levels"]["values"][0] = 99.0
+    first_read = server.read_cached_analytics(cache_key, now_ts=11.0)
+    first_read["levels"]["values"][0] = 1.0
+    second_read = server.read_cached_analytics(cache_key, now_ts=12.0)
+
+    assert second_read["levels"]["values"] == [50.0]
+    server.analytics_cache.clear()
+
+
 def test_explicit_seven_day_payload_uses_the_selected_range_for_all_charts(monkeypatch):
     today_payload = {
         "range": {"label": "Today"},

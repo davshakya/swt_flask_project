@@ -703,6 +703,7 @@ DEFAULT_DEVICE_SOURCE_MODE = (
 MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
+analytics_cache_lock = threading.RLock()
 dashboard_snapshot_cache = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
@@ -1947,8 +1948,20 @@ def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
 
 
 def clear_runtime_caches(device_id=None):
-    analytics_cache.clear()
     normalized_device_id = normalize_device_id(device_id)
+    with analytics_cache_lock:
+        if not normalized_device_id:
+            analytics_cache.clear()
+        else:
+            matching_keys = [
+                cache_key
+                for cache_key in analytics_cache
+                if isinstance(cache_key, tuple)
+                and len(cache_key) >= 3
+                and normalize_device_id(cache_key[2]) == normalized_device_id
+            ]
+            for cache_key in matching_keys:
+                analytics_cache.pop(cache_key, None)
     if not normalized_device_id:
         dashboard_snapshot_cache.clear()
         forget_alert_touches_for_device()
@@ -7813,7 +7826,6 @@ def resolve_mobile_user():
         return None
 
     role = payload.get("role")
-    username = str(payload.get("username") or "").strip()
     device_id = normalize_device_id(payload.get("device_id"))
     token_auth_marker = str(payload.get("auth_marker") or "").strip()
     platform_session_id = str(payload.get("platform_session_id") or "").strip()
@@ -8909,21 +8921,22 @@ def read_cached_analytics(cache_key, now_ts=None):
         return None
 
     current_time = time.time() if now_ts is None else now_ts
-    expired_keys = [
-        key
-        for key, cached in analytics_cache.items()
-        if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS
-    ]
-    for key in expired_keys:
-        analytics_cache.pop(key, None)
+    with analytics_cache_lock:
+        expired_keys = [
+            key
+            for key, cached in analytics_cache.items()
+            if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS
+        ]
+        for key in expired_keys:
+            analytics_cache.pop(key, None)
 
-    cached = analytics_cache.get(cache_key)
-    if not cached:
-        return None
-    if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS:
-        analytics_cache.pop(cache_key, None)
-        return None
-    return cached.get("payload")
+        cached = analytics_cache.get(cache_key)
+        if not cached:
+            return None
+        if current_time - float(cached.get("created_at") or 0.0) >= ANALYTICS_CACHE_TTL_SECONDS:
+            analytics_cache.pop(cache_key, None)
+            return None
+        return copy_analytics_payload(cached.get("payload"))
 
 
 def analytics_last_valid_setting_key(cache_key):
@@ -9074,13 +9087,17 @@ def store_cached_analytics(cache_key, payload, now_ts=None):
         return payload
 
     current_time = time.time() if now_ts is None else now_ts
-    analytics_cache.pop(cache_key, None)
-    analytics_cache[cache_key] = {"created_at": current_time, "payload": payload}
+    with analytics_cache_lock:
+        analytics_cache.pop(cache_key, None)
+        analytics_cache[cache_key] = {
+            "created_at": current_time,
+            "payload": copy_analytics_payload(payload),
+        }
 
-    if len(analytics_cache) > ANALYTICS_CACHE_MAX_ENTRIES:
-        overflow = len(analytics_cache) - ANALYTICS_CACHE_MAX_ENTRIES
-        for key in list(analytics_cache)[:overflow]:
-            analytics_cache.pop(key, None)
+        if len(analytics_cache) > ANALYTICS_CACHE_MAX_ENTRIES:
+            overflow = len(analytics_cache) - ANALYTICS_CACHE_MAX_ENTRIES
+            for key in list(analytics_cache)[:overflow]:
+                analytics_cache.pop(key, None)
     return payload
 
 
@@ -10327,7 +10344,6 @@ def build_ops_dashboard_payload(snapshot, device_id=None, alert_limit=8, audit_l
 
 
 def build_db_summary_payload():
-    file_sizes = collect_database_file_sizes()
     active_mode = get_device_source_mode()
     mysql_config = mysql_connection_config()
     with get_db() as db:
@@ -13022,7 +13038,6 @@ def build_device_ping_result(device_id, target):
     }
     target_label = normalized_target.title()
     observed_status_label = str(status_payload.get(f"{normalized_target}_status_label") or "Unreachable").strip()
-    observed_status_tone = str(status_payload.get(f"{normalized_target}_status_tone") or "offline").strip()
     disabled = observed_status_label.lower() == "disabled"
     severity = "info"
     event_time = now_utc()

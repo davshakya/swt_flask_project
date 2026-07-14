@@ -519,6 +519,17 @@ def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days()
         assert f'id="{range_id}"' in customer_template
 
 
+def test_customer_flash_cards_keep_labels_and_values_on_one_line():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert ".customer-dashboard .card .label,.customer-dashboard .card .value" in customer_template
+    assert "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left" in customer_template
+    assert ".customer-dashboard .grid.metrics .card .value" in customer_template
+    assert "function updateChartSafely(" not in customer_template
+    assert "function currentGoodAnalyticsCharts(" not in customer_template
+    assert "function restoreAnalyticsRange(" not in customer_template
+
+
 def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
