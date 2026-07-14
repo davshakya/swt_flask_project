@@ -110,12 +110,14 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-status-row{margin-top:18px}
 .customer-dashboard .customer-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}
-.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}
+.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);align-items:stretch}
 .customer-dashboard .customer-settings-pane,.customer-dashboard .customer-guidance-panel{min-width:0;padding:22px}
-.customer-dashboard .customer-settings-pane{margin:0;border-bottom:1px solid var(--line)}
+.customer-dashboard .customer-settings-pane{margin:0;border-right:1px solid var(--line)}
 .customer-dashboard .customer-settings-heading{font-weight:800}
-.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(6,minmax(180px,1fr));gap:12px;overflow-x:auto;padding-bottom:3px}
+.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .customer-dashboard .customer-settings-grid .setting{min-width:0;min-height:128px;padding:14px}
+.customer-dashboard .customer-technical-details{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+.customer-dashboard .customer-technical-details h4{margin:0;font-size:1rem}
 .customer-dashboard .customer-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
 .customer-dashboard .customer-stat-grid .card{min-height:0}
 .customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
@@ -176,6 +178,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-pulse-grid,.customer-dashboard .grid.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard #analyticsDownloadLink{margin-left:0}
 .customer-dashboard .customer-hero-grid,.customer-dashboard .customer-section-grid,.customer-dashboard .customer-tools-grid,.customer-dashboard .customer-guidance-lists,.customer-dashboard .customer-guidance-meta{grid-template-columns:1fr}
+.customer-dashboard .customer-settings-pane{border-right:0;border-bottom:1px solid var(--line)}
 .customer-dashboard .customer-insight-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard .analytics-toolbar{align-items:stretch}.customer-dashboard .analytics-toolbar-heading{width:100%}.customer-dashboard .analytics-toolbar .filters{flex-wrap:wrap}
 }
@@ -583,7 +586,7 @@ canvas{height:260px!important}
                     <div id="customerEstimatedImpactNote" class="detail">Shown only when liters can be estimated reliably.</div>
                 </div>
             </div>
-            <details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div><div class="technical-grid"><div class="technical-item"><span>Firmware</span><strong id="customerFirmware">Not reported</strong></div><div class="technical-item"><span>Device uptime</span><strong id="customerUptime">Not reported</strong></div><div class="technical-item"><span>Wi-Fi signal</span><strong id="customerSignal">Not reported</strong></div><div class="technical-item"><span>Free memory</span><strong id="customerMemory">Not reported</strong></div></div></details>
+            <div class="customer-technical-details"><h4>Technical details</h4><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div><div class="technical-grid"><div class="technical-item"><span>Firmware</span><strong id="customerFirmware">Not reported</strong></div><div class="technical-item"><span>Device uptime</span><strong id="customerUptime">Not reported</strong></div><div class="technical-item"><span>Wi-Fi signal</span><strong id="customerSignal">Not reported</strong></div><div class="technical-item"><span>Free memory</span><strong id="customerMemory">Not reported</strong></div></div></div>
             <div class="guidance-action-row">
                 <button id="viewLeakReportButton" class="btn-outline" type="button" onclick="scrollToAnalyticsReport()">📋 View Leak Report</button>
                 <span class="muted">AI leakage actions appear only above 90% confidence; device safety alerts remain immediate.</span>

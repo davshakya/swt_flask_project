@@ -417,9 +417,11 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert 'class="customer-tools-grid"' in customer_template
     assert 'class="customer-guidance-panel"' in customer_template
     assert '.customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}' in customer_template
-    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}' in customer_template
+    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);align-items:stretch}' in customer_template
     assert 'class="settings customer-settings-grid"' in customer_template
-    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(6,minmax(180px,1fr));gap:12px;overflow-x:auto;padding-bottom:3px}' in customer_template
+    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}' in customer_template
+    assert '<details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary>' not in customer_template
+    assert '<div class="customer-technical-details"><h4>Technical details</h4>' in customer_template
     assert "function eventPresentation(event)" in customer_template
     assert 'showValues:true' in customer_template
     assert 'highlightPeak:true' in customer_template
