@@ -122,8 +122,6 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .pump-fact{padding:10px 12px;border:1px solid var(--line);border-radius:15px;background:var(--list-bg)}
 .customer-dashboard .pump-fact span,.customer-dashboard .chart-kpi span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .customer-dashboard .pump-fact strong,.customer-dashboard .chart-kpi strong{display:block;margin-top:5px;font-size:1.05rem}
-.customer-dashboard .card .label,.customer-dashboard .card .value,.customer-dashboard .card .statuscopy,.customer-dashboard .card .subvalue,.customer-dashboard .customer-pulse-card span,.customer-dashboard .customer-pulse-card strong,.customer-dashboard .customer-pulse-card p,.customer-dashboard .customer-hero-stat span,.customer-dashboard .customer-hero-stat strong,.customer-dashboard .customer-hero-stat div,.customer-dashboard .glance-item span,.customer-dashboard .glance-item strong,.customer-dashboard .glance-item .detail,.customer-dashboard .pump-fact span,.customer-dashboard .pump-fact strong,.customer-dashboard .chart-kpi span,.customer-dashboard .chart-kpi strong{display:block;max-width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
-.customer-dashboard .grid.metrics .card .value,.customer-dashboard .grid.metrics .card .statuscopy{font-size:clamp(1rem,1.65vw,1.5rem);line-height:1.2}
 .customer-dashboard .analytics-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .customer-dashboard .analytics-toolbar-heading{margin-right:auto;min-width:240px}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{flex-wrap:nowrap}
@@ -1753,6 +1751,7 @@ function query(){const p=scopedParams();if(state.customRange){p.set("start_date"
 function quickRangeQuery(days){const p=scopedParams();p.set("days",String(days));return p.toString();}
 function toChartNumberArray(values,{allowNull=false}={}){return(Array.isArray(values)?values:[]).map((value)=>{if(value===null||value===undefined||value==="")return allowNull?null:0;const numeric=Number(value);return Number.isFinite(numeric)?numeric:(allowNull?null:0);});}
 function downsampleSeries(labels,values,maxPoints=240){const safeLabels=Array.isArray(labels)?labels:[];const safeValues=Array.isArray(values)?values:[];const size=Math.min(safeLabels.length,safeValues.length);if(size<=maxPoints)return{labels:safeLabels.slice(0,size),values:safeValues.slice(0,size)};const sampledLabels=[];const sampledValues=[];const step=(size-1)/(maxPoints-1);for(let index=0;index<maxPoints;index+=1){const sourceIndex=Math.min(size-1,Math.round(index*step));sampledLabels.push(safeLabels[sourceIndex]);sampledValues.push(safeValues[sourceIndex]);}return{labels:sampledLabels,values:sampledValues};}
+function updateChartSafely(chart,key,labels,values){if(!chart)return;try{chart.data.labels=labels;chart.data.datasets[0].data=values;chart.update("none");}catch(error){console.error(`Chart update failed for ${key}`,error);banner("commandBanner","Analytics charts hit a rendering issue. The summary cards are still accurate.","warn");}}
 function getFiniteChartValues(values){return(Array.isArray(values)?values:[]).filter((value)=>value!==null&&value!==undefined&&Number.isFinite(Number(value))).map((value)=>Number(value));}
 function chartTimeMs(value){
     if(value instanceof Date)return value.getTime();
@@ -1994,6 +1993,12 @@ function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
     state.lastGoodAnalytics={key,data:chartData};
     return true;
 }
+function currentGoodAnalyticsCharts(){
+    const key=analyticsCacheKey();
+    return state.lastGoodAnalytics?.key===key&&analyticsIsStrongPayload(state.lastGoodAnalytics.data)
+        ?state.lastGoodAnalytics.data
+        :null;
+}
 function analyticsChartsPayload(data,{remember=true,key=analyticsCacheKey()}={}){
     const payload=data&&typeof data==="object"?data:{};
     const previous=state.lastGoodAnalytics?.key===key?state.lastGoodAnalytics.data:null;
@@ -2017,6 +2022,17 @@ function analyticsChartsPayload(data,{remember=true,key=analyticsCacheKey()}={})
 const ANALYTICS_CACHE_PREFIX="swtAnalyticsCache:";
 function analyticsCacheContext(){return encodeURIComponent([ANALYTICS_CACHE_SCHEMA_VERSION,VIEWER_ROLE,VIEWER_DISPLAY_NAME,SELECTED_DEVICE_ID||"customer"].join("|"));}
 function analyticsCacheKey(queryString=query()){return `${ANALYTICS_CACHE_PREFIX}${analyticsCacheContext()}:${queryString}`;}
+function loadAnalyticsRangeState(){
+    try{
+        const raw=localStorage.getItem(ANALYTICS_RANGE_STORAGE_KEY);
+        if(!raw)return null;
+        const saved=JSON.parse(raw);
+        return saved&&typeof saved==="object"?saved:null;
+    }catch(error){
+        console.log("analytics range load error",error);
+        return null;
+    }
+}
 function saveAnalyticsRangeState(){
     try{
         localStorage.setItem(ANALYTICS_RANGE_STORAGE_KEY,JSON.stringify({
@@ -2028,6 +2044,42 @@ function saveAnalyticsRangeState(){
     }catch(error){
         console.log("analytics range save error",error);
     }
+}
+function applyAnalyticsRangeState(saved){
+    const startInput=document.getElementById("startDate");
+    const endInput=document.getElementById("endDate");
+    if(!startInput||!endInput)return false;
+    const quickRange=Number(saved?.quickRange);
+    const hasCustomRange=Boolean(saved?.customRange&&saved?.startDate&&saved?.endDate);
+    if(hasCustomRange){
+        state.customRange=true;
+        state.quickRange=Number.isFinite(quickRange)&&quickRange>0?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
+        startInput.value=saved.startDate;
+        endInput.value=saved.endDate;
+        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));
+        return true;
+    }
+    state.customRange=false;
+    state.quickRange=[1,7,30].includes(quickRange)?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
+    startInput.value="";
+    endInput.value="";
+    [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===state.quickRange));
+    return true;
+}
+function restoreAnalyticsRange(){
+    const saved=loadAnalyticsRangeState();
+    const applied=applyAnalyticsRangeState(saved);
+    if(!applied){
+        const today=new Date();
+        document.getElementById("startDate").value="";
+        document.getElementById("endDate").value="";
+        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===DEFAULT_ANALYTICS_RANGE_DAYS));
+        state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS;
+        state.customRange=false;
+    }
+    updateAnalyticsDownloadLink();
+    saveAnalyticsRangeState();
+    return applied;
 }
 function loadAnalyticsCache(queryString=query()){
     try{
