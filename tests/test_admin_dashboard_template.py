@@ -410,13 +410,16 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert "function closeMotorConfirmation(confirmed)" in customer_template
     assert "executeMotorCommand(request.path,request.label)" in customer_template
     assert 'id="dashboardSettings"' in customer_template
-    assert '<details id="dashboardSettings"' in customer_template
+    assert '<details id="dashboardSettings"' not in customer_template
+    assert '<div id="dashboardSettings" class="customer-settings-pane">' in customer_template
     assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
     assert 'class="panel customer-only customer-tools-panel"' in customer_template
     assert 'class="customer-tools-grid"' in customer_template
     assert 'class="customer-guidance-panel"' in customer_template
     assert '.customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}' in customer_template
-    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}' in customer_template
+    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch}' in customer_template
+    assert 'class="settings customer-settings-grid"' in customer_template
+    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(6,minmax(180px,1fr));gap:12px;overflow-x:auto;padding-bottom:3px}' in customer_template
     assert "function eventPresentation(event)" in customer_template
     assert 'showValues:true' in customer_template
     assert 'highlightPeak:true' in customer_template
