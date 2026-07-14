@@ -117,6 +117,64 @@ def test_motor_activity_metrics_use_actual_time_gaps():
     assert metrics["duty_cycle_pct"] == 43.33
 
 
+def test_level_history_infers_only_confirmed_fill_cycles():
+    times = [
+        "2026-07-14 08:00:00",
+        "2026-07-14 08:05:00",
+        "2026-07-14 08:10:00",
+        "2026-07-14 08:15:00",
+        "2026-07-14 08:20:00",
+    ]
+    levels = [40.0, 45.0, 50.0, 50.0, 49.0]
+
+    inferred_times, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+    metrics = server.build_motor_activity_metrics(inferred_times, states)
+
+    assert states == [1, 1, 0, 0, 0]
+    assert len(runs) == 1
+    assert runs[0]["started_at"] == times[0]
+    assert runs[0]["stopped_at"] == times[2]
+    assert runs[0]["level_rise_pct"] == 10.0
+    assert metrics["runtime_seconds"] == 600
+    assert metrics["completed_runs"] == 1
+
+
+def test_level_history_rejects_symmetric_sensor_bounce_as_pump_activity():
+    times = [
+        "2026-07-14 09:00:00",
+        "2026-07-14 09:02:00",
+        "2026-07-14 09:04:00",
+        "2026-07-14 09:06:00",
+        "2026-07-14 09:08:00",
+    ]
+    levels = [40.0, 60.0, 40.0, 60.0, 40.0]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+
+    assert states == [0, 0, 0, 0, 0]
+    assert runs == []
+
+
+def test_level_usage_excludes_confirmed_fill_and_counts_new_drawdown_only():
+    times = [
+        "2026-07-14 10:00:00",
+        "2026-07-14 10:05:00",
+        "2026-07-14 10:10:00",
+        "2026-07-14 10:15:00",
+        "2026-07-14 10:20:00",
+        "2026-07-14 10:25:00",
+    ]
+    levels = [50.0, 45.0, 55.0, 60.0, 60.0, 58.0]
+    _, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+
+    usage = server.estimate_level_history_usage(times, levels, states)
+
+    assert len(runs) == 1
+    assert states == [0, 1, 1, 0, 0, 0]
+    assert usage["total_usage"] == 7.0
+    assert usage["daily_usage"] == {"2026-07-14": 7.0}
+
+
 def test_analysis_payload_hides_ai_leakage_anomaly_until_score_and_confidence_exceed_90():
     leakage = {
         "status": "possible_leak",

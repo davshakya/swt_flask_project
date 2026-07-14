@@ -137,6 +137,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .range-buttons .active{background:linear-gradient(135deg,var(--primary),var(--primary-deep));color:#fff;box-shadow:0 0 0 4px var(--button-lite-ring),0 8px 18px color-mix(in srgb,var(--primary) 24%,transparent)}
 .customer-dashboard .charts{align-items:start}
 .customer-dashboard .charts .tank-chart-panel{grid-column:1/-1}
+.customer-dashboard .charts .pump-chart-panel{grid-column:1/-1}
 .customer-dashboard .charts canvas{height:360px!important}
 .customer-dashboard .customer-section-grid{align-items:start}
 .customer-dashboard .system-health-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
@@ -414,6 +415,7 @@ canvas{height:260px!important}
                         <div class="pump-fact"><span>Last started</span><strong id="customerPumpLastStarted">Not recorded</strong></div>
                         <div class="pump-fact"><span>Last stopped</span><strong id="customerPumpLastStopped">Not recorded</strong></div>
                     </div>
+                    <div id="pumpAnalyticsSourceNote" class="subvalue">Derived from validated tank-level fill cycles; relay pulse state is ignored.</div>
                     <div id="customerSuggestedAction" class="statuscopy" style="margin-top:14px">Waiting for a recommended next action.</div>
                     <div id="customerSuggestedActionNote" class="subvalue">The dashboard will explain the safest next move here.</div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
@@ -465,7 +467,7 @@ canvas{height:260px!important}
         <div class="panel customer-group-panel">
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
-            <p id="customerUsageRange" class="muted">AI/ML analysis · Today</p>
+            <p id="customerUsageRange" class="muted">AI/ML analysis · Last 7 days</p>
             <div class="customer-stat-grid">
                 <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">Waiting for complete days</div><div class="subvalue">Estimated next complete day</div></div>
                 <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">Waiting for complete days</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
@@ -479,12 +481,12 @@ canvas{height:260px!important}
         <div class="eyebrow">Water Habits</div>
         <div class="analytics-toolbar">
             <div class="analytics-toolbar-heading">
-                <h2 id="waterHabitsTitle">{% if is_admin %}Usage trends and helpful forecasts{% else %}Today’s water activity{% endif %}</h2>
+                <h2 id="waterHabitsTitle">{% if is_admin %}Usage trends and helpful forecasts{% else %}Water activity over the selected period{% endif %}</h2>
                 <p id="rangeLabel" class="muted">Loading range...</p>
             </div>
             <div class="range-buttons">
-                <button id="range_1" class="btn-lite active" onclick="setQuickRange(1)">Today</button>
-                <button id="range_7" class="btn-lite" onclick="setQuickRange(7)">7 Days</button>
+                <button id="range_1" class="btn-lite" onclick="setQuickRange(1)">Today</button>
+                <button id="range_7" class="btn-lite active" onclick="setQuickRange(7)">7 Days</button>
                 <button id="range_30" class="btn-lite" onclick="setQuickRange(30)">30 Days</button>
             </div>
             <button class="btn-outline" type="button" onclick="document.getElementById('startDate').focus()">Custom</button>
@@ -508,10 +510,10 @@ canvas{height:260px!important}
     </section>
 
     <section class="charts" style="margin-top:16px">
-        <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Today</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><canvas id="levelChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Today</p><canvas id="dailyChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><p id="patternChartRange" class="muted">AI/ML analysis · Today</p><canvas id="patternChart"></canvas></div>
-        <div class="panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Today</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div><canvas id="motorChart"></canvas></div>
+        <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><canvas id="levelChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="dailyChart"></canvas></div>
+        <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="patternChart"></canvas></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div><canvas id="motorChart"></canvas></div>
     </section>
 
     <section class="customer-only customer-section-grid" style="margin-top:18px">
@@ -523,7 +525,7 @@ canvas{height:260px!important}
         <div class="panel customer-guidance-panel">
             <div class="eyebrow">🤖 AI Guidance</div>
             <h3>Smart Water Assistant</h3>
-            <p id="customerGuidanceRange" class="muted">AI/ML analysis · Today</p>
+            <p id="customerGuidanceRange" class="muted">AI/ML analysis · Last 7 days</p>
             <div class="customer-guidance-lists">
                 <div>
                     <span class="label">Today’s summary</span>
@@ -598,13 +600,14 @@ const CUSTOMER_CLOUD_FEED_ERROR={{ cloud_feed_error|tojson }};
 const ANALYTICS_EXPORT_PATH={{ url_for("analytics_csv_export")|tojson }};
 const ANALYTICS_RANGE_STORAGE_KEY="tankDashboardAnalyticsRange";
 const EVENT_FEED_LIMIT=5;
+const EVENT_FEED_FETCH_LIMIT=30;
 const FAST_POLL_MS=10000;
 const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";
-const DEFAULT_ANALYTICS_RANGE_DAYS=1;
+const ANALYTICS_CACHE_SCHEMA_VERSION="v6-level-fill-inference";
+const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
 const charts={};
@@ -1594,6 +1597,9 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
     const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
     setText("customerPumpRuntime",runtime);setText("customerPumpStarts",starts);setText("customerPumpDuty",duty);
+    setText("customerPumpLastStarted",pump.last_started_at?localizedTimeText(pump.last_started_at):"No confirmed cycle");
+    setText("customerPumpLastStopped",pump.last_stopped_at?localizedTimeText(pump.last_stopped_at):"No confirmed cycle");
+    setText("pumpAnalyticsSourceNote",hasPumpData?"Derived from validated tank-level fill cycles; relay pulse state is ignored.":"Waiting for enough tank-level history to validate a fill cycle.");
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
@@ -1734,7 +1740,7 @@ function beginAnalyticsRangeChange(){
 }
 function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
 function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}if(s>e){banner("commandBanner","Start date must be on or before the end date.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
-function resetFilters(){setQuickRange(DEFAULT_ANALYTICS_RANGE_DAYS);banner("commandBanner","Analytics range reset to today.","info");}
+function resetFilters(){setQuickRange(DEFAULT_ANALYTICS_RANGE_DAYS);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
 function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
 function query(){const p=scopedParams();if(state.customRange){p.set("start_date",document.getElementById("startDate").value);p.set("end_date",document.getElementById("endDate").value);}else{p.set("days",state.quickRange);}return p.toString();}
@@ -1948,7 +1954,8 @@ function drawAnalyticsCharts(data){
     const pumpMotorPayload=defaultWindows.pump_activity?.motor||data.motor||{};
     const pumpMetricsPayload=defaultWindows.pump_activity?.pump_activity||data.pump_activity||{};
     const levelSeries=downsampleSeries(levelPayload.time||[],toChartNumberArray(levelPayload.values,{allowNull:true}),180);
-    const levelEvents=(state.data.events||[]).map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
+    const chartEvents=VIEWER_ROLE==="customer"?(state.data.events||[]).filter(isCustomerWaterEvent):(state.data.events||[]);
+    const levelEvents=chartEvents.map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
     if(data.analysis?.quality?.usage_physically_plausible===false){
         drawCanvasEmpty(charts.level.canvas,"Tank Level %","Level history hidden because sensor changes failed validation.");
     }else{
@@ -2407,17 +2414,35 @@ function renderAnalytics(data){
 
 function eventPresentation(event){const text=`${event?.kind||""} ${event?.type||""} ${event?.message||""}`.toLowerCase();const pumpEvent=text.includes("pump")||text.includes("motor");if(pumpEvent&&(text.includes("start")||text.includes(" on")))return{icon:"🟢",className:"event-pump-started"};if(pumpEvent&&(text.includes("stop")||text.includes(" off")))return{icon:"🔴",className:"event-pump-stopped"};if(text.includes("leak")||text.includes("drip"))return{icon:"🟠",className:"event-leak"};if(text.includes("sync")||text.includes("cloud")||text.includes("telemetry"))return{icon:"🔵",className:"event-sync"};if(text.includes("config")||text.includes("setting")||text.includes("threshold"))return{icon:"⚙",className:"event-config"};return{icon:"🔔",className:"event-info"};}
 function isCustomerWaterEvent(event){
-    const text=`${event?.kind||""} ${event?.type||""} ${event?.message||""}`.toLowerCase();
-    const waterActivity=/pump|motor|tank|water|level|refill|overflow|leak|drip|dry.?run/.test(text);
-    const diagnostic=/config|firmware|memory|channel|slave|peer|rssi|packet|controller|reachable|wi-?fi/.test(text);
-    return waterActivity&&!diagnostic;
+    const kind=String(event?.kind||event?.type||"").trim().toLowerCase();
+    if(!kind)return false;
+    const exactKinds=new Set([
+        "pump_started","pump_stopped","pump_no_level_rise","mode_changed",
+        "tank_low","tank_low_recovered","tank_near_full","source_tank_low","source_tank_recovered",
+        "pipe_leak","slow_leak","drip","abnormal","pump_failure","dry_run",
+        "sensor_fault","sensor_recovered","wifi_issue","wifi_recovered","wifi_disconnect_frequency_high",
+    ]);
+    return exactKinds.has(kind)
+        ||/^(pipe_leak|slow_leak|drip|abnormal|pump_failure|dry_run)_cleared$/.test(kind)
+        ||/^wifi_signal_(weak|recovered|drop|improved)$/.test(kind);
+}
+function customerEventMessage(event){
+    const kind=String(event?.kind||event?.type||"").trim().toLowerCase();
+    const original=String(event?.message||"").trim();
+    const messages={
+        mode_changed:`Pump mode changed to ${event?.details?.mode||"a new setting"}.`,
+        abnormal:"Unusual water use was detected.",
+        pump_failure:"The pump reported a fault and needs attention.",
+        dry_run:"Dry-run protection stopped the pump to protect the motor.",
+        sensor_fault:"The main tank sensor needs attention.",
+        sensor_recovered:"The main tank sensor is reporting normally again.",
+        wifi_issue:"The tank device lost its network connection.",
+        wifi_recovered:"The tank device connection was restored.",
+    };
+    return messages[kind]||original||"Water-system activity recorded.";
 }
 function renderEvents(events){
     const allEvents=events||[];
-    const started=allEvents.find((event)=>eventPresentation(event).className==="event-pump-started");
-    const stopped=allEvents.find((event)=>eventPresentation(event).className==="event-pump-stopped");
-    setText("customerPumpLastStarted",started?.time?compactTimeLabel(started.time):"Not recorded");
-    setText("customerPumpLastStopped",stopped?.time?compactTimeLabel(stopped.time):"Not recorded");
     const timeline=document.getElementById("eventTimeline");if(!timeline)return;
     timeline.innerHTML="";
     const visibleEvents=VIEWER_ROLE==="customer"?allEvents.filter(isCustomerWaterEvent):allEvents;
@@ -2430,7 +2455,7 @@ function renderEvents(events){
         text.textContent=`No recent pump or water alerts were reported.${Number.isFinite(Number(syncAge))?` Device synced ${ago(Number(syncAge))}.`:" Waiting for the next device sync."}`;
         li.append(time,text);timeline.appendChild(li);return;
     }
-    recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=event.message||"--";li.append(icon,time,text);timeline.appendChild(li);});
+    recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=VIEWER_ROLE==="customer"?customerEventMessage(event):(event.message||"--");li.append(icon,time,text);timeline.appendChild(li);});
     if(state.data.analytics)window.requestAnimationFrame(()=>drawAnalyticsCharts(state.data.analytics));
 }
 
@@ -2466,9 +2491,9 @@ function closeMotorConfirmation(confirmed){
 async function executeMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will use the current sensor reading.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(capacity)){banner("commandBanner","Enter tank capacity in liters.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});let message=`Tank capacity queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.capacity_liters).toFixed(1)} L.`;if(calibrateAfter){const calibrationPayload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});message+=` Calibration queued at ${localizedTimeText(calibrationPayload.queued_at,"now")} to learn tank height.`;}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
-async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
+async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(VIEWER_ROLE==="customer"?EVENT_FEED_FETCH_LIMIT:EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
 async function refreshLive({force=false}={}){if(customerFeedBlocked()||state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{await syncLocalDashboardSnapshot({force});const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markTelemetryRefresh(snapshot,system,"Live status synced");if((changed||force)&&(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS))loadAnalytics({force:true});}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
-async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
+async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(VIEWER_ROLE==="customer"?EVENT_FEED_FETCH_LIMIT:EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
 async function loadAnalytics({force=false}={}){if(customerFeedBlocked()||(!force&&isPageHidden()))return;const requestQuery=query();if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}const controller=new AbortController();state.controllers.analytics=controller;state.analyticsRequestQuery=requestQuery;state.inFlight.analytics=true;try{const cached=loadAnalyticsCache();if(cached?.data&&state.cache.analytics!==JSON.stringify(cached.data))syncSection("analytics",cached.data,renderAnalytics);const data=await fetchJSON(`${API}/analytics?${requestQuery}`,{signal:controller.signal});if(state.controllers.analytics!==controller)return;if(data.error){banner("commandBanner",data.error,"danger");return;}const merged=analyticsChartsPayload(data);saveAnalyticsCache(merged);const changed=syncSection("analytics",merged,renderAnalytics);state.analyticsUpdatedAt=Date.now();if(changed||force)markRefreshed("Analytics refreshed");}catch(error){if(error.name==="AbortError")return;console.log("analytics error",error);setRefreshBusy("Analytics refresh delayed");banner("commandBanner","Analytics refresh failed. Adjust the range or retry.","warn");}finally{if(state.controllers.analytics===controller){state.controllers.analytics=null;state.analyticsRequestQuery="";state.inFlight.analytics=false;}}}
 async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}try{const tasks=[refreshLive({force}),refreshEvents({force})];if(force||!state.analyticsUpdatedAt)tasks.push(loadAnalytics({force}));await Promise.all(tasks);}catch(error){console.log("refresh error",error);banner("commandBanner","Dashboard refresh failed. Check the Flask server connection.","danger");}}
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}

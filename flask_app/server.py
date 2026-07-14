@@ -716,7 +716,7 @@ AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
-ANALYTICS_LAST_VALID_SCHEMA_VERSION = 2
+ANALYTICS_LAST_VALID_SCHEMA_VERSION = 3
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -8734,6 +8734,176 @@ def build_motor_activity_metrics(time_values, value_values):
     }
 
 
+def infer_pump_activity_from_level_history(time_values, level_values):
+    """Infer confirmed tank-fill cycles without using the relay pulse state.
+
+    A cycle must rise by the configured refill threshold, stay within the
+    telemetry gap and level-jump limits, and survive the next reading without
+    immediately reversing. Unconfirmed or noisy rises remain OFF rather than
+    being guessed as pump activity.
+    """
+    safe_times = list(time_values or [])
+    safe_levels = list(level_values or [])
+    size = min(len(safe_times), len(safe_levels))
+    if size <= 0:
+        return [], [], []
+
+    parsed_times = [parse_timestamp(value) for value in safe_times[:size]]
+    levels = [safe_float(value, None) if value is not None else None for value in safe_levels[:size]]
+    states = [0] * size
+    runs = []
+    gap_limit_seconds = max(60.0, ANALYTICS_MAX_GAP_MINUTES * 60.0)
+    candidate_start = None
+    candidate_base = None
+    candidate_peak = None
+    candidate_peak_index = None
+
+    def reset_candidate():
+        nonlocal candidate_start, candidate_base, candidate_peak, candidate_peak_index
+        candidate_start = None
+        candidate_base = None
+        candidate_peak = None
+        candidate_peak_index = None
+
+    def confirm_candidate(confirmation_index):
+        if candidate_start is None or candidate_peak_index is None:
+            reset_candidate()
+            return
+        rise = float(candidate_peak - candidate_base)
+        if rise < ANALYTICS_MIN_REFILL_DELTA_PCT:
+            reset_candidate()
+            return
+        confirmation_level = levels[confirmation_index] if 0 <= confirmation_index < size else None
+        # A symmetric rise-and-fall on the next reading is sensor bounce, not a
+        # confirmed refill. Allow only a small post-fill settling movement.
+        settling_tolerance = max(1.0, rise * 0.25)
+        if confirmation_level is None or candidate_peak - confirmation_level > settling_tolerance:
+            reset_candidate()
+            return
+        started_at = parsed_times[candidate_start]
+        stopped_at = parsed_times[candidate_peak_index]
+        if started_at is None or stopped_at is None or stopped_at <= started_at:
+            reset_candidate()
+            return
+        for state_index in range(candidate_start, candidate_peak_index):
+            states[state_index] = 1
+        runs.append(
+            {
+                "start_index": candidate_start,
+                "stop_index": candidate_peak_index,
+                "started_at": safe_times[candidate_start],
+                "stopped_at": safe_times[candidate_peak_index],
+                "duration_seconds": int(round((stopped_at - started_at).total_seconds())),
+                "level_rise_pct": round(rise, 2),
+            }
+        )
+        reset_candidate()
+
+    for index in range(size - 1):
+        current_time = parsed_times[index]
+        next_time = parsed_times[index + 1]
+        current_level = levels[index]
+        next_level = levels[index + 1]
+        valid_interval = (
+            current_time is not None
+            and next_time is not None
+            and current_level is not None
+            and next_level is not None
+            and 0 < (next_time - current_time).total_seconds() <= gap_limit_seconds
+            and abs(next_level - current_level) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+        )
+        if not valid_interval:
+            states[index] = None
+            reset_candidate()
+            continue
+
+        delta = next_level - current_level
+        if candidate_start is None:
+            if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+                candidate_start = index
+                candidate_base = current_level
+                candidate_peak = next_level
+                candidate_peak_index = index + 1
+            continue
+
+        if next_level > candidate_peak:
+            candidate_peak = next_level
+            candidate_peak_index = index + 1
+
+        decline_from_peak = candidate_peak - next_level
+        if delta <= 0 or decline_from_peak >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+            confirm_candidate(index + 1)
+
+    # A rise at the edge of the selected range has no confirming stop reading,
+    # so it is intentionally not reported as a completed pump cycle.
+    states[-1] = 0 if levels[-1] is not None and parsed_times[-1] is not None else None
+    return safe_times[:size], states, runs
+
+
+def estimate_level_history_usage(time_values, level_values, fill_states):
+    """Estimate drawdown only outside confirmed level-derived fill cycles."""
+    safe_times = list(time_values or [])
+    safe_levels = list(level_values or [])
+    safe_states = list(fill_states or [])
+    size = min(len(safe_times), len(safe_levels), len(safe_states))
+    daily_usage = {}
+    hourly_usage = [0.0] * 24
+    rate_segments = []
+    total_usage = 0.0
+    valid_hours = 0.0
+    valid_drop_count = 0
+    usage_floor = None
+
+    for index in range(size):
+        created_at = parse_timestamp(safe_times[index])
+        level = safe_float(safe_levels[index], None) if safe_levels[index] is not None else None
+        if created_at is None or level is None:
+            usage_floor = None
+            continue
+        date_key = created_at.date().isoformat()
+        daily_usage.setdefault(date_key, 0.0)
+        if index == 0:
+            usage_floor = level
+            continue
+        previous_at = parse_timestamp(safe_times[index - 1])
+        previous_level = safe_float(safe_levels[index - 1], None) if safe_levels[index - 1] is not None else None
+        delta_hours = (created_at - previous_at).total_seconds() / 3600.0 if previous_at else 0.0
+        valid_interval = (
+            previous_at is not None
+            and previous_level is not None
+            and 0 < delta_hours <= (ANALYTICS_MAX_GAP_MINUTES / 60.0)
+            and abs(level - previous_level) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+        )
+        if not valid_interval:
+            usage_floor = level
+            continue
+        valid_hours += delta_hours
+        interval_fill = safe_states[index - 1] == 1
+        if interval_fill:
+            usage_floor = level
+            continue
+        if usage_floor is None:
+            usage_floor = previous_level
+        usage = max(0.0, usage_floor - level)
+        if usage >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+            total_usage += usage
+            daily_usage[date_key] += usage
+            hourly_usage[created_at.hour] += usage
+            if delta_hours >= (1.0 / 60.0):
+                valid_drop_count += 1
+                rate_segments.append(usage / delta_hours)
+            usage_floor = level
+
+    return {
+        "daily_usage": daily_usage,
+        "hourly_usage": hourly_usage,
+        "total_usage": total_usage,
+        "valid_hours": valid_hours,
+        "valid_drop_count": valid_drop_count,
+        "consumption_rate_segments": rate_segments,
+    }
+
+
 def read_cached_analytics(cache_key, now_ts=None):
     if ANALYTICS_CACHE_TTL_SECONDS <= 0:
         return None
@@ -8940,7 +9110,6 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
     }
     live_snapshot_available = bool(snapshot and snapshot.get("device_id"))
     snapshot_level = round(safe_float(snapshot.get("level"), 0), 2)
-    snapshot_motor = str(snapshot.get("motor") or "OFF").strip().upper()
     snapshot_time = format_timestamp(snapshot.get("created_at")) or now_utc().strftime(TIMESTAMP_FORMAT)
     snapshot_dt = parse_timestamp(snapshot_time) or now_utc()
     baseline_time = (snapshot_dt - timedelta(minutes=10)).strftime(TIMESTAMP_FORMAT)
@@ -8948,7 +9117,8 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
     level_times = [baseline_time, snapshot_time] if live_snapshot_available else []
     level_values = [snapshot_level, snapshot_level] if live_snapshot_available else []
     motor_times = [baseline_time, snapshot_time] if live_snapshot_available else []
-    motor_values = [1 if snapshot_motor == "ON" else 0, 1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
+    motor_values = [0, 0] if live_snapshot_available else []
+    motor_cycles = 0
     daily_dates = []
     if live_snapshot_available:
         cursor_date = start_dt.date()
@@ -9003,7 +9173,12 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
         "daily": {"dates": daily_dates, "values": daily_values},
         "pattern": {"hours": list(range(24)), "values": [0] * 24},
         "levels": {"time": level_times, "values": level_values},
-        "motor": {"time": motor_times, "values": motor_values},
+        "motor": {
+            "time": motor_times,
+            "values": motor_values,
+            "source": "tank_level_history",
+            "relay_state_used": False,
+        },
         "comparison": {
             "latest_day": "--",
             "latest_day_usage": 0,
@@ -9075,6 +9250,12 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "avg_run_seconds": 0,
             "short_cycle_count": 0,
             "avg_off_seconds": 0,
+            "source": "tank_level_history",
+            "relay_state_used": False,
+            "inference_status": "insufficient_level_history",
+            "last_started_at": None,
+            "last_stopped_at": None,
+            "validated_runs": [],
         },
         "alerts": [fallback_alert]
     }
@@ -10323,8 +10504,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     consumption_rate_segments = []
     prev_created_at = None
     prev_level = None
-    prev_motor = "OFF"
-    usage_floor_level = None
     latest_row = None
 
     for row in analytics_rows:
@@ -10352,45 +10531,8 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
         drop = 0.0 if prev_level is None else level - prev_level
         implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
-        stable_consumption_window = prev_motor != "ON" and motor != "ON"
-        usage = 0.0
-        if prev_level is None or gap_break or implausible_level_jump or not stable_consumption_window:
-            usage_floor_level = level
-        else:
-            if usage_floor_level is None:
-                usage_floor_level = prev_level
-            rise_from_floor = level - usage_floor_level
-            if rise_from_floor >= ANALYTICS_MIN_REFILL_DELTA_PCT:
-                # A rising level while both samples report pump OFF is not proof of
-                # a refill. Keep the previous low-water floor so sensor bounce cannot
-                # create another full tank of apparent consumption.
-                pass
-            elif usage_floor_level - level >= ANALYTICS_MIN_USAGE_DELTA_PCT:
-                # Count only new lows inside an off-pump drawdown. Small upward
-                # sensor oscillations do not reset the floor and cannot be counted
-                # repeatedly as household consumption.
-                usage = usage_floor_level - level
-                usage_floor_level = level
-        valid_drop = usage > 0.0
-        total_usage += usage
-        if not gap_break:
-            valid_hours += delta_hours
-        if usage > 0 and delta_hours >= (1.0 / 60.0):
-            valid_drop_count += 1
-            consumption_rate_segments.append(usage / delta_hours)
-
-        date_key = created_at.date().isoformat()
-        daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
-        hourly_usage[created_at.hour] += usage
-
         level_times.append(timestamp_label)
         level_values.append(None if gap_break or implausible_level_jump else level)
-        motor_times.append(timestamp_label)
-        motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
-
-        if motor == "ON" and prev_motor != "ON":
-            motor_cycles += 1
-            refill_events += 1
         if pipe_leak == "YES":
             leak_events += 1
 
@@ -10402,7 +10544,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
         prev_created_at = created_at
         prev_level = level
-        prev_motor = motor
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -10412,6 +10553,20 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             reason="Fresh analytics needs more history; showing the last successful AI analysis if available.",
             now_ts=now_ts,
         )
+
+    motor_times, motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
+        level_times,
+        level_values,
+    )
+    level_usage = estimate_level_history_usage(level_times, level_values, motor_values)
+    daily_usage = level_usage["daily_usage"]
+    hourly_usage = level_usage["hourly_usage"]
+    total_usage = level_usage["total_usage"]
+    valid_hours = level_usage["valid_hours"]
+    valid_drop_count = level_usage["valid_drop_count"]
+    consumption_rate_segments = level_usage["consumption_rate_segments"]
+    motor_cycles = len(inferred_fill_runs)
+    refill_events = motor_cycles
 
     mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
     consumption_rate = robust_consumption_rate(
@@ -10467,6 +10622,16 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
     pump_activity_metrics = build_motor_activity_metrics(motor_times, motor_values)
+    pump_activity_metrics.update(
+        {
+            "source": "tank_level_history",
+            "relay_state_used": False,
+            "inference_status": "validated_fill_cycles" if inferred_fill_runs else "no_confirmed_fill_cycles",
+            "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
+            "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,
+            "validated_runs": inferred_fill_runs,
+        }
+    )
     analytics_quality = build_analytics_quality_payload(
         row_count=row_count,
         valid_hours=valid_hours,
@@ -10615,6 +10780,8 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "motor": {
             "time": motor_times,
             "values": [int(value) if value is not None else None for value in motor_values],
+            "source": "tank_level_history",
+            "relay_state_used": False,
         },
         "pump_activity": pump_activity_metrics,
         "comparison": {

@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v6-level-fill-inference";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -437,7 +437,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v5-reliable-drawdown";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v6-level-fill-inference";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 
@@ -479,14 +479,22 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'Need ${remaining} more complete day' in customer_template
     assert 'No recent pump or water alerts were reported.' in customer_template
     assert 'changeRaw!==null&&changeRaw!==undefined' in customer_template
+    assert 'class="panel pump-chart-panel"' in customer_template
+    assert 'const EVENT_FEED_FETCH_LIMIT=30;' in customer_template
+    assert 'function customerEventMessage(event)' in customer_template
+    assert '"pump_started","pump_stopped","pump_no_level_rise","mode_changed"' in customer_template
+    assert 'VIEWER_ROLE==="customer"?customerEventMessage(event)' in customer_template
+    assert '(state.data.events||[]).filter(isCustomerWaterEvent)' in customer_template
+    assert 'Derived from validated tank-level fill cycles; relay pulse state is ignored.' in customer_template
+    assert 'pump.last_started_at?localizedTimeText(pump.last_started_at)' in customer_template
 
 
-def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():
+def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert "const DEFAULT_ANALYTICS_RANGE_DAYS=1;" in customer_template
+    assert "const DEFAULT_ANALYTICS_RANGE_DAYS=7;" in customer_template
     assert 'quickRange:DEFAULT_ANALYTICS_RANGE_DAYS' in customer_template
-    assert 'id="range_1" class="btn-lite active"' in customer_template
+    assert 'id="range_7" class="btn-lite active"' in customer_template
     assert "function updateAnalyticsRangeContext(" in customer_template
     assert "function beginAnalyticsRangeChange()" in customer_template
     assert 'updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null})' in customer_template
