@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v7-ready-quick-ranges";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v8-threshold-runtime";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -437,7 +437,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v7-ready-quick-ranges";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v8-threshold-runtime";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 
@@ -456,9 +456,14 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="ai_tomorrow_usage"' in customer_template
     assert 'id="consumption_rate"' in customer_template
     assert 'id="customerSavingsNow"' in customer_template
+    assert 'class="customer-stat-grid customer-usage-grid"' in customer_template
+    assert '.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}' in customer_template
+    assert '.customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}' in customer_template
+    assert '.customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue' in customer_template
     assert 'id="customerPumpRuntime"' in customer_template
     assert 'id="customerPumpStarts"' in customer_template
     assert 'id="customerPumpDuty"' in customer_template
+    assert 'id="customerPumpStopThreshold"' in customer_template
     assert 'class="analytics-toolbar"' in customer_template
     assert 'class="panel tank-chart-panel"' in customer_template
     assert 'id="chartLevelHigh"' in customer_template
@@ -471,6 +476,11 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'snapshot.firmware_version||"Not reported"' in customer_template
     assert '<span>System confidence</span>' in customer_template
     assert '<span>Water remaining</span>' in customer_template
+    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 4
+    assert '.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}' in customer_template
+    assert '.customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;' in customer_template
+    assert '.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' in customer_template
+    assert '.customer-dashboard .customer-insight-card strong{align-self:end;' in customer_template
     assert 'id="headerLastSync"' in customer_template
     assert 'id="customerPumpLastStarted"' in customer_template
     assert 'id="customerPumpLastStopped"' in customer_template
@@ -487,6 +497,9 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert '(state.data.events||[]).filter(isCustomerWaterEvent)' in customer_template
     assert 'Derived from validated tank-level fill cycles; relay pulse state is ignored.' in customer_template
     assert 'pump.last_started_at?localizedTimeText(pump.last_started_at)' in customer_template
+    assert 'tank-level rise until the first observed reading' in customer_template
+    assert '.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}' in customer_template
+    assert '.customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;' in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days():

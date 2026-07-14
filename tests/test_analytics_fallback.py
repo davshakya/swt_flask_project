@@ -382,13 +382,18 @@ def test_usage_estimate_does_not_recount_off_pump_sensor_oscillation():
         server.analytics_cache.clear()
 
 
-def test_pump_activity_is_inferred_from_level_history_when_relay_stays_off():
+def test_pump_activity_is_inferred_from_level_history_when_relay_stays_off(monkeypatch):
     device_id = "swt-level-fill-inference-001"
     now = server.now_utc().replace(second=0, microsecond=0)
     start_dt = now - timedelta(hours=1)
     end_exclusive = now + timedelta(minutes=1)
     cache_key = server.build_analytics_cache_key(start_dt, end_exclusive, device_id)
     levels = [50.0, 45.0, 55.0, 60.0, 60.0, 58.0]
+    monkeypatch.setattr(
+        server,
+        "fetch_device_automation_settings",
+        lambda *_args, **_kwargs: {"auto_start_pct": 40.0, "auto_stop_pct": 60.0},
+    )
 
     server.analytics_cache.clear()
     server.clear_runtime_caches(device_id)
@@ -430,6 +435,8 @@ def test_pump_activity_is_inferred_from_level_history_when_relay_stays_off():
         assert payload["pump_activity"]["relay_state_used"] is False
         assert payload["pump_activity"]["completed_runs"] == 1
         assert payload["pump_activity"]["runtime_seconds"] == 600
+        assert payload["pump_activity"]["runtime_basis"] == "tank_level_rise_to_configured_stop_threshold"
+        assert payload["pump_activity"]["stop_threshold_pct"] == 60.0
         assert payload["pump_activity"]["last_started_at"] is not None
         assert payload["pump_activity"]["last_stopped_at"] is not None
         assert payload["insights"]["latest_day_usage"] == 7.0

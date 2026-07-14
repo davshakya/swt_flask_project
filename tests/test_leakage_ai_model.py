@@ -139,6 +139,52 @@ def test_level_history_infers_only_confirmed_fill_cycles():
     assert metrics["completed_runs"] == 1
 
 
+def test_level_history_runtime_stops_at_first_observed_threshold_reading():
+    times = [
+        "2026-07-14 08:00:00",
+        "2026-07-14 08:05:00",
+        "2026-07-14 08:10:00",
+        "2026-07-14 08:15:00",
+        "2026-07-14 08:20:00",
+        "2026-07-14 08:25:00",
+    ]
+    levels = [40.0, 60.0, 85.0, 92.0, 94.0, 94.0]
+
+    inferred_times, states, runs = server.infer_pump_activity_from_level_history(
+        times,
+        levels,
+        stop_threshold_pct=90.0,
+    )
+    metrics = server.build_motor_activity_metrics(inferred_times, states)
+
+    assert states == [1, 1, 1, 0, 0, 0]
+    assert metrics["runtime_seconds"] == 15 * 60
+    assert metrics["completed_runs"] == 1
+    assert runs[0]["started_at"] == times[0]
+    assert runs[0]["stopped_at"] == times[3]
+    assert runs[0]["stop_level_pct"] == 92.0
+    assert runs[0]["stop_threshold_pct"] == 90.0
+
+
+def test_level_history_does_not_guess_runtime_for_sub_threshold_rise():
+    times = [
+        "2026-07-14 09:00:00",
+        "2026-07-14 09:05:00",
+        "2026-07-14 09:10:00",
+        "2026-07-14 09:15:00",
+    ]
+    levels = [40.0, 50.0, 60.0, 60.0]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(
+        times,
+        levels,
+        stop_threshold_pct=90.0,
+    )
+
+    assert states == [0, 0, 0, 0]
+    assert runs == []
+
+
 def test_level_history_rejects_symmetric_sensor_bounce_as_pump_activity():
     times = [
         "2026-07-14 09:00:00",

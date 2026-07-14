@@ -111,17 +111,25 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .customer-dashboard .customer-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
 .customer-dashboard .customer-stat-grid .card{min-height:0}
+.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}
+.customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customer-dashboard .customer-usage-grid .value{margin-top:7px;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.1}
+.customer-dashboard .customer-usage-grid .subvalue{margin-top:7px;font-size:12px;line-height:1.35}
 .customer-dashboard .customer-health-card{margin-top:16px}
 .customer-dashboard .customer-guidance-lists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
 .customer-dashboard .customer-guidance-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
 .customer-dashboard .customer-guidance-meta .glance-item{min-height:0}
-.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:16px}
-.customer-dashboard .customer-insight-kpis .customer-hero-stat{padding:12px;min-width:0}
-.customer-dashboard .customer-insight-kpis .customer-hero-stat strong{font-size:1.2rem;overflow-wrap:anywhere}
-.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin-top:12px}
-.customer-dashboard .pump-fact{padding:10px 12px;border:1px solid var(--line);border-radius:15px;background:var(--list-bg)}
-.customer-dashboard .pump-fact span,.customer-dashboard .chart-kpi span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:800}
-.customer-dashboard .pump-fact strong,.customer-dashboard .chart-kpi strong{display:block;margin-top:5px;font-size:1.05rem}
+.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
+.customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:122px;padding:18px 20px;border-radius:22px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(239,248,247,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.84),0 12px 26px rgba(15,84,98,.08)}
+.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.2;letter-spacing:.13em}
+.customer-dashboard .customer-insight-card strong{align-self:end;min-width:0;margin-top:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(1.55rem,2.3vw,2rem);line-height:1.05;letter-spacing:-.035em}
+.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
+.customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:112px;padding:17px 19px;border:1px solid var(--line);border-radius:20px;background:var(--list-bg);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 24px rgba(15,84,98,.07)}
+.customer-dashboard .pump-fact span,.customer-dashboard .chart-kpi span{display:block;font-size:11px;line-height:1.2;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:800}
+.customer-dashboard .pump-fact span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customer-dashboard .pump-fact strong,.customer-dashboard .chart-kpi strong{display:block;margin-top:7px;font-size:1.05rem}
+.customer-dashboard .pump-fact strong{align-self:end;min-width:0;margin-top:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.08;letter-spacing:-.025em}
 .customer-dashboard .analytics-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
 .customer-dashboard .analytics-toolbar-heading{margin-right:auto;min-width:240px}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{flex-wrap:nowrap}
@@ -173,7 +181,9 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .hero-toolbar{grid-template-columns:1fr}
 .customer-dashboard .hero-actions{width:100%;align-items:stretch}
 .customer-dashboard .hero-actions form,.customer-dashboard .hero-actions button,.customer-dashboard .hero-actions .action-link{width:100%}
+.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:3px}
 }
+@media (max-width:520px){.customer-dashboard .customer-insight-kpis,.customer-dashboard .pump-facts{grid-template-columns:1fr}.customer-dashboard .customer-insight-card,.customer-dashboard .pump-fact{min-height:112px}}
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
@@ -392,10 +402,10 @@ canvas{height:260px!important}
                     <strong id="customerHeroInsightTitle">Waiting for the next sync</strong>
                     <p id="customerHeroInsightLead">Live tank level and usage insight will appear here as soon as fresh data arrives.</p>
                     <div class="customer-insight-kpis">
-                        <div class="customer-hero-stat"><span>System confidence</span><strong id="customerKpiAiHealth">Collecting</strong></div>
-                        <div class="customer-hero-stat"><span>Water remaining</span><strong id="customerKpiWaterTime">Collecting</strong></div>
-                        <div class="customer-hero-stat"><span>Water used</span><strong id="customerKpiUsage">Collecting</strong></div>
-                        <div class="customer-hero-stat"><span>Forecast</span><strong id="customerKpiForecast">Building baseline</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>System confidence</span><strong id="customerKpiAiHealth">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Water remaining</span><strong id="customerKpiWaterTime">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Water used</span><strong id="customerKpiUsage">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Forecast</span><strong id="customerKpiForecast">Building baseline</strong></div>
                     </div>
                 </div>
                 <div class="card customer-control-card">
@@ -412,6 +422,7 @@ canvas{height:260px!important}
                         <div class="pump-fact"><span>Runtime</span><strong id="customerPumpRuntime">Collecting</strong></div>
                         <div class="pump-fact"><span>Starts</span><strong id="customerPumpStarts">Collecting</strong></div>
                         <div class="pump-fact"><span>Duty cycle</span><strong id="customerPumpDuty">Collecting</strong></div>
+                        <div class="pump-fact"><span>Stop threshold</span><strong id="customerPumpStopThreshold">Collecting</strong></div>
                         <div class="pump-fact"><span>Last started</span><strong id="customerPumpLastStarted">Not recorded</strong></div>
                         <div class="pump-fact"><span>Last stopped</span><strong id="customerPumpLastStopped">Not recorded</strong></div>
                     </div>
@@ -468,7 +479,7 @@ canvas{height:260px!important}
             <div class="eyebrow">Usage Section</div>
             <h3>Rate, trend, and forecast</h3>
             <p id="customerUsageRange" class="muted">AI/ML analysis · Last 7 days</p>
-            <div class="customer-stat-grid">
+            <div class="customer-stat-grid customer-usage-grid">
                 <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">Waiting for complete days</div><div class="subvalue">Estimated next complete day</div></div>
                 <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">Waiting for complete days</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">Waiting for comparison</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
@@ -606,7 +617,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v7-ready-quick-ranges";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v8-threshold-runtime";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const READY_ANALYTICS_RANGE_DAYS=[1,7,30];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
@@ -1600,10 +1611,12 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const starts=hasPumpData?String(Number(pump.completed_runs||0)):"Collecting";
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
     const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
+    const stopThreshold=hasDisplayNumber(pump.stop_threshold_pct)?fmtPct(pump.stop_threshold_pct):"Collecting";
     setText("customerPumpRuntime",runtime);setText("customerPumpStarts",starts);setText("customerPumpDuty",duty);
-    setText("customerPumpLastStarted",pump.last_started_at?localizedTimeText(pump.last_started_at):"No confirmed cycle");
-    setText("customerPumpLastStopped",pump.last_stopped_at?localizedTimeText(pump.last_stopped_at):"No confirmed cycle");
-    setText("pumpAnalyticsSourceNote",hasPumpData?"Derived from validated tank-level fill cycles; relay pulse state is ignored.":"Waiting for enough tank-level history to validate a fill cycle.");
+    setText("customerPumpStopThreshold",stopThreshold);
+    setText("customerPumpLastStarted",pump.last_started_at?localizedTimeText(pump.last_started_at):"No threshold cycle");
+    setText("customerPumpLastStopped",pump.last_stopped_at?localizedTimeText(pump.last_stopped_at):"No threshold cycle");
+    setText("pumpAnalyticsSourceNote",hasPumpData?`Runtime is measured from the confirmed tank-level rise until the first observed reading at the ${stopThreshold} stop threshold; relay pulse state is ignored.`:"Waiting for enough tank-level history to validate a threshold-reaching fill cycle.");
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
