@@ -457,7 +457,7 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="consumption_rate"' in customer_template
     assert 'id="customerSavingsNow"' in customer_template
     assert 'class="customer-stat-grid customer-usage-grid"' in customer_template
-    assert '.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}' in customer_template
+    assert '.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}' in customer_template
     assert '.customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}' in customer_template
     assert '.customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue' in customer_template
     assert 'id="customerPumpRuntime"' in customer_template
@@ -474,9 +474,11 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="customerSignal"' in customer_template
     assert 'id="customerMemory"' in customer_template
     assert 'snapshot.firmware_version||"Not reported"' in customer_template
-    assert '<span>System confidence</span>' in customer_template
-    assert '<span>Water remaining</span>' in customer_template
-    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 4
+    assert '<span>Tank status</span>' in customer_template
+    assert '<span>Remaining water</span>' in customer_template
+    assert 'id="customerKpiRemainingWater"' in customer_template
+    assert 'id="customerSuggestedAction"' in customer_template
+    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 5
     assert '.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}' in customer_template
     assert '.customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;' in customer_template
     assert '.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' in customer_template
@@ -487,11 +489,12 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="chartLevelCurrent"' in customer_template
     assert 'function analyticsReadinessText(' in customer_template
     assert 'Need ${remaining} more complete day' in customer_template
-    assert 'No recent pump or water alerts were reported.' in customer_template
+    assert 'No alerts today. No customer-relevant device activity has been recorded yet.' in customer_template
     assert 'changeRaw!==null&&changeRaw!==undefined' in customer_template
     assert 'class="panel pump-chart-panel"' in customer_template
     assert 'const EVENT_FEED_FETCH_LIMIT=30;' in customer_template
     assert 'function customerEventMessage(event)' in customer_template
+    assert 'function customerDerivedTimelineEvents()' in customer_template
     assert '"pump_started","pump_stopped","pump_no_level_rise","mode_changed"' in customer_template
     assert 'VIEWER_ROLE==="customer"?customerEventMessage(event)' in customer_template
     assert '(state.data.events||[]).filter(isCustomerWaterEvent)' in customer_template
@@ -500,6 +503,9 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'tank-level rise until the first observed reading' in customer_template
     assert '.customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}' in customer_template
     assert '.customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;' in customer_template
+    assert 'const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);' in customer_template
+    assert 'id="customerMonthlyEstimate"' in customer_template
+    assert 'id="assistantTankRange"' in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days():

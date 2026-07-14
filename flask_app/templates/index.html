@@ -111,7 +111,7 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .customer-dashboard .customer-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
 .customer-dashboard .customer-stat-grid .card{min-height:0}
-.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
 .customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}
 .customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .customer-dashboard .customer-usage-grid .value{margin-top:7px;font-size:clamp(1.25rem,2vw,1.65rem);line-height:1.1}
@@ -120,10 +120,16 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .customer-guidance-lists{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
 .customer-dashboard .customer-guidance-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
 .customer-dashboard .customer-guidance-meta .glance-item{min-height:0}
+.customer-dashboard .assistant-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:14px}.customer-dashboard .assistant-metrics .glance-item{min-height:0;padding:12px}.customer-dashboard .assistant-metrics strong{font-size:1rem}
 .customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
 .customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:122px;padding:18px 20px;border-radius:22px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(239,248,247,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.84),0 12px 26px rgba(15,84,98,.08)}
 .customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.2;letter-spacing:.13em}
 .customer-dashboard .customer-insight-card strong{align-self:end;min-width:0;margin-top:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(1.55rem,2.3vw,2rem);line-height:1.05;letter-spacing:-.035em}
+.customer-dashboard .customer-insight-card:first-child{grid-column:1/-1}
+.customer-dashboard .customer-recommendation{margin-top:16px;padding:16px 18px;border-radius:20px;background:var(--info-bg);border:1px solid var(--info-line)}
+.customer-dashboard .customer-recommendation strong{display:block;margin-top:7px;font-size:1.18rem}.customer-dashboard .customer-recommendation p{margin-top:5px;line-height:1.45;color:var(--customer-text-soft)}
+.metric-help{display:inline-flex!important;align-items:center;justify-content:center;width:17px;height:17px;margin-left:5px;border-radius:50%;background:var(--button-lite-bg);color:var(--primary)!important;font-size:10px!important;line-height:1!important;letter-spacing:0!important;text-transform:none!important;cursor:help;vertical-align:middle}
+.customer-dashboard .tank-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.customer-dashboard .tank-detail-grid .mini{min-width:0;padding:11px 12px;border-radius:15px}.customer-dashboard .tank-detail-grid strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .customer-dashboard .pump-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:18px}
 .customer-dashboard .pump-fact{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:112px;padding:17px 19px;border:1px solid var(--line);border-radius:20px;background:var(--list-bg);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 24px rgba(15,84,98,.07)}
 .customer-dashboard .pump-fact span,.customer-dashboard .chart-kpi span{display:block;font-size:11px;line-height:1.2;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:800}
@@ -181,7 +187,8 @@ canvas{width:100%!important;height:300px!important}.list{list-style:none;padding
 .customer-dashboard .hero-toolbar{grid-template-columns:1fr}
 .customer-dashboard .hero-actions{width:100%;align-items:stretch}
 .customer-dashboard .hero-actions form,.customer-dashboard .hero-actions button,.customer-dashboard .hero-actions .action-link{width:100%}
-.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(3,minmax(220px,1fr));overflow-x:auto;padding-bottom:3px}
+.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(220px,1fr));overflow-x:auto;padding-bottom:3px}
+.customer-dashboard .assistant-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:520px){.customer-dashboard .customer-insight-kpis,.customer-dashboard .pump-facts{grid-template-columns:1fr}.customer-dashboard .customer-insight-card,.customer-dashboard .pump-fact{min-height:112px}}
 html{font-size:17px}
@@ -279,6 +286,12 @@ canvas{height:260px!important}
             <div class="pair">
                 <div class="mini"><span class="label">Tank Health</span><strong id="healthScore">--</strong></div>
                 <div class="mini"><span class="label">Connection</span><strong id="tankConnectionSummary">--</strong></div>
+            </div>
+            <div class="tank-detail-grid customer-only">
+                <div class="mini"><span class="label">Capacity</span><strong id="tankCapacitySummary">--</strong></div>
+                <div class="mini"><span class="label">Remaining</span><strong id="tankRemainingSummary">--</strong></div>
+                <div class="mini"><span class="label">Updated</span><strong id="tankUpdatedSummary">--</strong></div>
+                <div class="mini"><span class="label">Expected empty</span><strong id="tankExpectedEmptySummary">Collecting</strong></div>
             </div>
         </div>
         <div class="panel hero-copy">
@@ -402,11 +415,13 @@ canvas{height:260px!important}
                     <strong id="customerHeroInsightTitle">Waiting for the next sync</strong>
                     <p id="customerHeroInsightLead">Live tank level and usage insight will appear here as soon as fresh data arrives.</p>
                     <div class="customer-insight-kpis">
-                        <div class="customer-hero-stat customer-insight-card"><span>System confidence</span><strong id="customerKpiAiHealth">Collecting</strong></div>
-                        <div class="customer-hero-stat customer-insight-card"><span>Water remaining</span><strong id="customerKpiWaterTime">Collecting</strong></div>
-                        <div class="customer-hero-stat customer-insight-card"><span>Water used</span><strong id="customerKpiUsage">Collecting</strong></div>
-                        <div class="customer-hero-stat customer-insight-card"><span>Forecast</span><strong id="customerKpiForecast">Building baseline</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Tank status</span><strong id="customerKpiTankStatus">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Remaining water</span><strong id="customerKpiRemainingWater">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Estimated remaining <span class="metric-help" title="Estimated time before the tank runs empty at the validated usage rate.">i</span></span><strong id="customerKpiWaterTime">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Today’s usage</span><strong id="customerKpiUsage">Collecting</strong></div>
+                        <div class="customer-hero-stat customer-insight-card"><span>Forecast tomorrow <span class="metric-help" title="Expected water consumption during the next complete day.">i</span></span><strong id="customerKpiForecast">Building baseline</strong></div>
                     </div>
+                    <div class="customer-recommendation"><span class="label">Recommendation</span><strong id="customerSuggestedAction">Waiting for guidance</strong><p id="customerSuggestedActionNote">The safest next action will appear after fresh telemetry is validated.</p></div>
                 </div>
                 <div class="card customer-control-card">
                     <span class="label">Pump Control</span>
@@ -421,14 +436,12 @@ canvas{height:260px!important}
                     <div class="pump-facts">
                         <div class="pump-fact"><span>Runtime</span><strong id="customerPumpRuntime">Collecting</strong></div>
                         <div class="pump-fact"><span>Starts</span><strong id="customerPumpStarts">Collecting</strong></div>
-                        <div class="pump-fact"><span>Duty cycle</span><strong id="customerPumpDuty">Collecting</strong></div>
+                        <div class="pump-fact"><span>Duty cycle <span class="metric-help" title="Percentage of the selected period spent filling to the configured stop threshold.">i</span></span><strong id="customerPumpDuty">Collecting</strong></div>
                         <div class="pump-fact"><span>Stop threshold</span><strong id="customerPumpStopThreshold">Collecting</strong></div>
                         <div class="pump-fact"><span>Last started</span><strong id="customerPumpLastStarted">Not recorded</strong></div>
                         <div class="pump-fact"><span>Last stopped</span><strong id="customerPumpLastStopped">Not recorded</strong></div>
                     </div>
                     <div id="pumpAnalyticsSourceNote" class="subvalue">Derived from validated tank-level fill cycles; relay pulse state is ignored.</div>
-                    <div id="customerSuggestedAction" class="statuscopy" style="margin-top:14px">Waiting for a recommended next action.</div>
-                    <div id="customerSuggestedActionNote" class="subvalue">The dashboard will explain the safest next move here.</div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if viewer_role == "customer" and not cloud_feed_enabled %}Cloud feed is disabled for this customer account.{% elif can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
                     <div id="commandBanner" class="banner info" role="status" aria-live="polite"></div>
@@ -447,7 +460,7 @@ canvas{height:260px!important}
             <div class="card"><span class="label">⚡ Pump</span><div id="systemPumpHealth" class="statuscopy">--</div></div>
             <div class="card"><span class="label">📡 Sensors</span><div id="systemSensorHealth" class="statuscopy">--</div></div>
             <div class="card"><span class="label">☁ Cloud</span><div id="systemCloudHealth" class="statuscopy">--</div></div>
-            <div class="card"><span class="label">🤖 AI</span><div id="systemAiHealth" class="statuscopy">Monitoring</div></div>
+            <div class="card"><span class="label">🤖 AI <span class="metric-help" title="Confidence based on telemetry freshness, sensor health, and usable history.">i</span></span><div id="systemAiHealth" class="statuscopy">Monitoring</div></div>
             <div class="card customer-only"><span class="label">📶 Wi-Fi signal</span><div id="systemSignalHealth" class="statuscopy">Collecting</div></div>
             <div class="card customer-only"><span class="label">Device firmware</span><div id="systemFirmwareHealth" class="statuscopy">Not reported</div></div>
         </div>
@@ -483,6 +496,7 @@ canvas{height:260px!important}
                 <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">Waiting for complete days</div><div class="subvalue">Estimated next complete day</div></div>
                 <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">Waiting for complete days</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">Waiting for comparison</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
+                <div class="card"><span class="label">Monthly estimate</span><div id="customerMonthlyEstimate" class="value">Building baseline</div><div class="subvalue">Projected from validated average daily use.</div></div>
             </div>
         </div>
     </section>
@@ -537,9 +551,15 @@ canvas{height:260px!important}
             <div class="eyebrow">🤖 AI Guidance</div>
             <h3>Smart Water Assistant</h3>
             <p id="customerGuidanceRange" class="muted">AI/ML analysis · Last 7 days</p>
+            <div class="assistant-metrics">
+                <div class="glance-item"><span>Summary</span><strong id="assistantSystemSummary">Collecting</strong></div>
+                <div class="glance-item"><span>Tank range</span><strong id="assistantTankRange">Collecting</strong></div>
+                <div class="glance-item"><span>Pump cycles</span><strong id="assistantPumpCycles">Collecting</strong></div>
+                <div class="glance-item"><span>Average cycle</span><strong id="assistantAverageCycle">Collecting</strong></div>
+            </div>
             <div class="customer-guidance-lists">
                 <div>
-                    <span class="label">Today’s summary</span>
+                    <span class="label">Observation</span>
                     <ul id="customerWhatHappening" class="list" style="margin-top:12px"></ul>
                 </div>
                 <div>
@@ -656,17 +676,18 @@ const localeTools=window.swtLocale||{};
 const fmtPct=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)}%`;
 const fmtHours=(v)=>v===null||v===undefined||Number.isNaN(Number(v))||Number(v)<=0?"--":`${Number(v).toFixed(1)} hrs`;
 const fmtWaterRemaining=(v)=>{const hours=Number(v);if(!Number.isFinite(hours)||hours<=0)return"--";return hours>=24?`${(hours/24).toFixed(1)} days`:`${hours.toFixed(1)} hrs`;};
+const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);
 function analyticsReadinessText(analytics,requiredDays=2){const complete=Math.max(0,Number(analytics?.analysis?.quality?.complete_day_count||0));const remaining=Math.max(0,requiredDays-complete);return remaining?`Need ${remaining} more complete day${remaining===1?"":"s"}`:"Ready when telemetry validation completes";}
 const fmtUsage=(v)=>{
     const capacity=Number(state.data.snapshot?.capacity_liters??state.data.systemStatus?.capacity_liters);
     if(v===null||v===undefined||Number.isNaN(Number(v))||!Number.isFinite(capacity)||capacity<=0)return"--";
-    return`${((Number(v)*capacity)/100).toFixed(1)} L`;
+    return`${((customerMetricNumber(v)*capacity)/100).toFixed(1)} L`;
 };
 const fmtUsageLiters=(liters,percentFallback=null)=>{
-    if(liters!==null&&liters!==undefined&&!Number.isNaN(Number(liters)))return`${Number(liters).toFixed(1)} L`;
+    if(liters!==null&&liters!==undefined&&!Number.isNaN(Number(liters)))return`${customerMetricNumber(liters).toFixed(1)} L`;
     return fmtUsage(percentFallback);
 };
-const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(1)} L`;
+const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${customerMetricNumber(v).toFixed(1)} L`;
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
 const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -952,10 +973,15 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     const pumpFault=String(snapshot.pump_failure||"").toUpperCase()==="YES"||String(snapshot.dry_run||"").toUpperCase()==="YES";
     const sensorHealthy=!snapshot.sensor||String(snapshot.sensor).toUpperCase()==="OK";
     const cloudHealthy=["live","recent","online"].includes(String(telemetry).toLowerCase());
-    setText("systemPumpHealth",pumpFault?"Needs attention":"Healthy");
-    setText("systemSensorHealth",!sensorHealthy?"Needs attention":dataQualityIssue?"Data needs review":"Healthy");
+    const sourceState=buildSourceTankState(snapshot);
+    const sensorTotal=sourceState.monitoringActive?2:1;
+    const sensorOnline=(sensorHealthy?1:0)+(sourceState.monitoringActive&&sourceState.sensorHealthy?1:0);
+    const pumpCycles=Number(analytics?.pump_activity?.completed_runs);
+    const confidence=customerConfidenceScore(snapshot,system,analytics,sourceState);
+    setText("systemPumpHealth",pumpFault?"Needs attention":Number.isFinite(pumpCycles)?`${pumpCycles} cycles · Healthy`:"No faults");
+    setText("systemSensorHealth",!sensorHealthy?`${sensorOnline}/${sensorTotal} Online`:dataQualityIssue?`${sensorOnline}/${sensorTotal} Online · Review data`:`${sensorOnline}/${sensorTotal} Online`);
     setText("systemCloudHealth",cloudHealthy?"Connected":"Delayed");
-    setText("systemAiHealth",hardwareLeak||aiLeak?"Alert active":dataQualityIssue?"Limited · verify history":analytics.analysis?.quality?.status?`Monitoring · ${analytics.analysis.quality.status}`:"Monitoring");
+    setText("systemAiHealth",hardwareLeak||aiLeak?`Alert · ${confidence}% confidence`:dataQualityIssue?`${confidence}% confidence · Limited`:`${confidence}% confidence`);
     const rssi=Number(snapshot.wifi_rssi);
     const signalText=Number.isFinite(rssi)?`${rssi} dBm`:(system.signal_quality||snapshot.wifi||"Collecting");
     setText("systemSignalHealth",signalText);
@@ -1328,7 +1354,7 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
     const usageChange=Number(analytics?.comparison?.change_pct);
     const hasUsageChange=analyticsReady&&analytics?.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange);
     const leakDetected=["pipe_leak","slow_leak","drip"].some((key)=>String(snapshot?.[key]||"").toUpperCase()==="YES");
-    const cyclingHigh=Number(analytics?.insights?.motor_cycles??snapshot.motor_cycles??0)>12;
+    const cyclingHigh=(analytics?.analysis?.anomalies||[]).some((item)=>item?.kind==="short_cycling")||Number(analytics?.pump_activity?.short_cycle_count||0)>=4;
     const sensorRaw=String(snapshot.sensor||"").toUpperCase();
     const sensorAttention=!!sensorRaw&&sensorRaw!=="OK";
     const lowLevel=level<=state.preferences.lowThreshold;
@@ -1503,8 +1529,16 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerHeroInsightLead",model.insightLead);
     setText("customerHeroTankLevel",model.waterLevelText);
     setText("customerHeroTankLevelNote",model.waterLevelNote);
+    const level=Number(snapshot?.level);
+    const capacity=Number(snapshot?.capacity_liters);
+    const remaining=hasDisplayNumber(snapshot?.remaining_liters)
+        ?Math.abs(Number(snapshot.remaining_liters))
+        :(Number.isFinite(level)&&Number.isFinite(capacity)&&capacity>0?(level*capacity)/100:NaN);
+    setText("customerKpiTankStatus",model.statusTone==="bad"?"Needs attention":model.statusTone==="warn"?"Monitor":"Healthy");
+    setText("customerKpiRemainingWater",Number.isFinite(remaining)?`${remaining.toFixed(1)} L`:"Collecting");
     setText("customerKpiWaterTime",model.timeLabel==="--"?"Collecting":model.timeLabel);
-    setText("customerKpiAiHealth",model.technicalConfidenceText||`${model.confidenceScore}%`||"Collecting");
+    const remainingHours=Number(analytics?.guidance?.time_to_empty_hours??analytics?.insights?.empty_prediction);
+    setText("tankExpectedEmptySummary",Number.isFinite(remainingHours)&&remainingHours>0?localizedTimeText(new Date(Date.now()+(remainingHours*3600000)).toISOString()):"Collecting");
     setText("customerSuggestedAction",model.actionTitle);
     setText("customerSuggestedActionNote",model.actionNote);
     const reliabilityNote=analyticsReliabilityNote(analytics)||model.confidenceNote;
@@ -1526,6 +1560,7 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("healthSummary",model.healthNote);
     setText("customerSavingsNow",model.savingsNow==="--"?analyticsReadinessText(analytics,2):model.savingsNow);
     setText("customerSavingsNote",model.savingsNote);
+    setText("assistantSystemSummary",model.statusTone==="bad"?"Action required":model.statusTone==="warn"?"Monitor closely":"Operating normally");
     applyStatusTone("customerSuggestedAction",model.statusTone);
     applyStatusTone("customerGuidanceStatus",model.statusTone);
     applyStatusTone("customerRiskLevel",model.statusTone);
@@ -1548,9 +1583,9 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     const usagePlausible=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const readiness=analyticsReadinessText(analytics,2);
     const observedLiters=dailyValues.map((percent,index)=>hasDisplayNumber(dailyLiters[index])
-        ?Number(dailyLiters[index])
+        ?Math.abs(Number(dailyLiters[index]))
         :estimateUsageLiters(percent,capacity)
-    ).filter((value)=>value!==null&&Number.isFinite(value));
+    ).filter((value)=>value!==null&&Number.isFinite(value)).map(Math.abs);
     const todayRange=analyticsRangeIsToday();
     const displayedLiters=usagePlausible&&observedLiters.length
         ?todayRange
@@ -1573,7 +1608,7 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         ?Number(analyticsForecastRaw)
         :NaN;
     const deviceForecast=hasDisplayNumber(snapshot.tomorrow_prediction)?Number(snapshot.tomorrow_prediction):NaN;
-    const forecast=Number.isFinite(analyticsForecast)?analyticsForecast:(Number.isFinite(deviceForecast)?deviceForecast:null);
+    const forecast=Number.isFinite(analyticsForecast)?Math.abs(analyticsForecast):(Number.isFinite(deviceForecast)?Math.abs(deviceForecast):null);
     nodesById("ai_tomorrow_usage").forEach((node)=>{
         node.textContent=forecast!==null?`~ ${forecast.toFixed(1)} L`:readiness;
         const note=node.parentElement?.querySelector(".subvalue");
@@ -1592,8 +1627,8 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         :null;
     const deviceRate=hasDisplayNumber(snapshot.ai_usage_rate)?Number(snapshot.ai_usage_rate):NaN;
     const rate=analytics?.analysis?.quality?.usage_rate_reliable===true&&analyticsRate!==null
-        ?analyticsRate
-        :Number.isFinite(deviceRate)?deviceRate:null;
+        ?Math.abs(analyticsRate)
+        :Number.isFinite(deviceRate)?Math.abs(deviceRate):null;
     setText("consumption_rate",rate!==null?`${rate.toFixed(1)} L/hr`:readiness);
     const rateNode=document.getElementById("consumption_rate");
     const rateNote=rateNode?.parentElement?.querySelector(".subvalue");
@@ -1602,6 +1637,9 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         :rate!==null
             ?"Live device usage-rate estimate."
             :"Usage rate will appear after the device reports consumption.";
+    const averageDailyRaw=analytics?.insights?.avg_daily_usage_liters;
+    const monthlyDaily=hasDisplayNumber(averageDailyRaw)?Math.abs(Number(averageDailyRaw)):forecast;
+    setText("customerMonthlyEstimate",monthlyDaily!==null&&Number.isFinite(monthlyDaily)?`${(monthlyDaily*30).toFixed(0)} L`:readiness);
 }
 function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     if(VIEWER_ROLE!=="customer")return;
@@ -1627,6 +1665,10 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const currentLevel=Number(state.data.snapshot?.level);
     setText("chartLevelCurrent",levelValue(currentLevel));
     setText("chartFillCycles",hasPumpData?starts:"Collecting");
+    setText("assistantTankRange",levels.length?`${Math.min(...levels).toFixed(0)}%–${Math.max(...levels).toFixed(0)}%`:"Collecting");
+    setText("assistantPumpCycles",hasPumpData?`${starts} completed`:"Collecting");
+    setText("assistantAverageCycle",hasPumpData?average:"Collecting");
+    if(state.data.events)renderEvents(state.data.events);
 }
 function updateCustomerSpotlightCards({snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics}={}){
     if(VIEWER_ROLE!=="customer")return;
@@ -2237,6 +2279,14 @@ function renderTank(snapshot){
     document.getElementById("tankLevel").textContent=fmtPct(level);
     document.getElementById("tankLiters").textContent=snapshot.water_available_label||"--";
     setText("healthScore",`${snapshot.tank_health??"--"} / 100`);
+    const capacity=Number(snapshot.capacity_liters);
+    const remaining=hasDisplayNumber(snapshot.remaining_liters)
+        ?Math.abs(Number(snapshot.remaining_liters))
+        :(Number.isFinite(capacity)&&capacity>0?(level*capacity)/100:NaN);
+    setText("tankCapacitySummary",Number.isFinite(capacity)&&capacity>0?`${capacity.toFixed(0)} L`:"Not configured");
+    setText("tankRemainingSummary",Number.isFinite(remaining)?`${remaining.toFixed(1)} L`:"Collecting");
+    const syncAge=Number(snapshot.seconds_since_sync);
+    setText("tankUpdatedSummary",Number.isFinite(syncAge)?ageLabelFromMs(syncAge*1000):"Waiting");
     const sourceState=buildSourceTankState(snapshot);
     const tankStack=document.getElementById("tankStack");
     const sourceBlock=document.getElementById("sourceTankBlock");
@@ -2441,6 +2491,7 @@ function isCustomerWaterEvent(event){
         "tank_low","tank_low_recovered","tank_near_full","source_tank_low","source_tank_recovered",
         "pipe_leak","slow_leak","drip","abnormal","pump_failure","dry_run",
         "sensor_fault","sensor_recovered","wifi_issue","wifi_recovered","wifi_disconnect_frequency_high",
+        "device_config_current_status","thresholds_current_status","device_synced",
     ]);
     return exactKinds.has(kind)
         ||/^(pipe_leak|slow_leak|drip|abnormal|pump_failure|dry_run)_cleared$/.test(kind)
@@ -2458,21 +2509,37 @@ function customerEventMessage(event){
         sensor_recovered:"The main tank sensor is reporting normally again.",
         wifi_issue:"The tank device lost its network connection.",
         wifi_recovered:"The tank device connection was restored.",
+        device_config_current_status:"Device settings were synchronized.",
+        thresholds_current_status:"Pump thresholds were synchronized.",
+        device_synced:"Cloud and device status synchronized.",
     };
     return messages[kind]||original||"Water-system activity recorded.";
+}
+function customerDerivedTimelineEvents(){
+    if(VIEWER_ROLE!=="customer")return[];
+    const derived=[];
+    const runs=state.data.analytics?.pump_activity?.validated_runs||[];
+    runs.forEach((run)=>{
+        if(run?.started_at)derived.push({kind:"pump_started",severity:"success",time:run.started_at,message:"Pump fill cycle started from a validated tank-level rise."});
+        if(run?.stopped_at)derived.push({kind:"pump_stopped",severity:"info",time:run.stopped_at,message:`Pump fill cycle reached the ${Number(run.stop_threshold_pct||state.data.analytics?.pump_activity?.stop_threshold_pct||0).toFixed(0)}% stop threshold.`});
+    });
+    const syncedAt=state.data.snapshot?.last_sync_at||state.data.systemStatus?.last_sync_at;
+    if(syncedAt)derived.push({kind:"device_synced",severity:"info",time:syncedAt,message:"Cloud and device status synchronized."});
+    return derived;
 }
 function renderEvents(events){
     const allEvents=events||[];
     const timeline=document.getElementById("eventTimeline");if(!timeline)return;
     timeline.innerHTML="";
-    const visibleEvents=VIEWER_ROLE==="customer"?allEvents.filter(isCustomerWaterEvent):allEvents;
+    const candidateEvents=VIEWER_ROLE==="customer"?[...allEvents.filter(isCustomerWaterEvent),...customerDerivedTimelineEvents()]:allEvents;
+    const seen=new Set();
+    const visibleEvents=candidateEvents.filter((event)=>{const key=`${event?.kind||event?.type||""}|${event?.time||""}`;if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>(chartTimeMs(b?.time)||0)-(chartTimeMs(a?.time)||0));
     const recentEvents=visibleEvents.slice(0,EVENT_FEED_LIMIT);
     if(!recentEvents.length){
         const li=document.createElement("li");
         const time=document.createElement("time");time.textContent="All clear";
         const text=document.createElement("span");
-        const syncAge=state.data.systemStatus?.seconds_since_sync;
-        text.textContent=`No recent pump or water alerts were reported.${Number.isFinite(Number(syncAge))?` Device synced ${ago(Number(syncAge))}.`:" Waiting for the next device sync."}`;
+        text.textContent="No alerts today. No customer-relevant device activity has been recorded yet.";
         li.append(time,text);timeline.appendChild(li);return;
     }
     recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=VIEWER_ROLE==="customer"?customerEventMessage(event):(event.message||"--");li.append(icon,time,text);timeline.appendChild(li);});
