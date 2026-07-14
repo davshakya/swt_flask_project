@@ -1233,6 +1233,61 @@ color:var(--muted);
 }
 @media (max-width:720px){
 body{font-size:16px}
+}
+.decision-grid,.value-grid,.process-grid,.trust-grid,.use-case-grid,.faq-grid{display:grid;gap:14px}
+.decision-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.value-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.process-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.trust-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.use-case-grid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.faq-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.info-card,.process-card,.trust-stat,.use-case-button,.wizard-result,.problem-panel,.checklist-panel{
+padding:18px;border-radius:22px;background:var(--surface-strong);border:1px solid var(--line);box-shadow:inset 0 1px 0 rgba(255,255,255,.5)
+}
+.info-card strong,.process-card strong,.trust-stat strong{display:block;font-size:1.05rem;margin-bottom:7px}
+.info-card p,.process-card p,.trust-stat span{margin:0;color:var(--muted);line-height:1.55}
+.trust-stat{text-align:center}
+.trust-stat strong{font-size:2rem;color:var(--brand-deep)}
+.wizard-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:18px;align-items:start}
+.wizard-form{display:grid;gap:16px}
+.wizard-question{border:0;padding:0;margin:0;display:grid;gap:9px}
+.wizard-question legend{font-weight:900;margin-bottom:3px}
+.option-row,.addon-filters{display:flex;gap:8px;flex-wrap:wrap}
+.option-chip,.addon-filter,.use-case-button{
+appearance:none;border:1px solid var(--line-strong);background:var(--surface-strong);color:var(--text);font:inherit;font-weight:850;cursor:pointer;transition:.18s ease
+}
+.option-chip{position:relative;padding:10px 13px;border-radius:14px}
+.option-chip input{position:absolute;opacity:0;pointer-events:none}
+.option-chip:has(input:checked),.addon-filter.is-active,.use-case-button.is-active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-deep);box-shadow:0 8px 20px rgba(13,147,168,.12)}
+.wizard-result{background:var(--surface-dark);color:#effcff;position:sticky;top:112px}
+.wizard-result span{display:block;color:#abd2d9;font-size:.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
+.wizard-result strong{display:block;font-size:1.7rem;margin:8px 0}
+.wizard-result p{color:#d5ebee;line-height:1.6}
+.progression{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:stretch}
+.progress-step{padding:17px;border-radius:20px;background:var(--surface-strong);border:1px solid var(--line);position:relative}
+.progress-step:not(:last-child)::after{content:"\2192";position:absolute;right:-11px;top:42%;z-index:2;color:var(--brand);font-size:1.3rem;font-weight:900}
+.progress-step span{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:900}
+.progress-step strong{display:block;margin-top:7px}
+.problem-split{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.problem-panel ul,.checklist-panel ul{list-style:none;padding:0;margin:12px 0 0;display:grid;gap:9px}
+.problem-panel li,.checklist-panel li{line-height:1.45}
+.use-case-button{text-align:left;min-height:90px}
+.use-case-button span{display:block;font-size:1.5rem;margin-bottom:7px}
+.use-case-result{margin-top:14px;padding:14px 16px;border-radius:18px;background:var(--brand-soft);font-weight:850}
+.addon-filters{margin-bottom:14px}
+.addon-filter{padding:9px 12px;border-radius:999px}
+.addon-card[hidden]{display:none}
+.faq-grid details{padding:16px 18px;border-radius:19px;background:var(--surface-strong);border:1px solid var(--line)}
+.faq-grid summary{cursor:pointer;font-weight:900}
+.faq-grid p{color:var(--muted);line-height:1.6;margin:10px 0 0}
+.assurance-bar{margin-top:auto;padding-top:12px;border-top:1px solid var(--line);font-size:.75rem;font-weight:850;color:var(--muted);line-height:1.5}
+.plan-card .assurance-bar::after{content:"Free consultation \2022 Remote support \2022 Supported firmware updates";display:block;margin-top:6px;color:var(--brand-deep)}
+.plan-card.is-wizard-match{outline:3px solid var(--brand);box-shadow:0 24px 56px rgba(13,147,168,.24);transform:translateY(-3px)}
+.sticky-actions{position:fixed;z-index:20;right:18px;bottom:18px;display:flex;gap:8px;padding:8px;border-radius:18px;background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);backdrop-filter:blur(14px)}
+.sticky-actions a{min-height:42px;padding:9px 12px;border-radius:12px;font-size:.82rem}
+@media(max-width:1000px){.value-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.progression{grid-template-columns:1fr}.progress-step:not(:last-child)::after{content:"\2193";right:50%;top:auto;bottom:-14px}.wizard-layout{grid-template-columns:1fr}.wizard-result{position:static}}
+@media(max-width:680px){.decision-grid,.value-grid,.process-grid,.trust-grid,.faq-grid,.problem-split{grid-template-columns:1fr}.use-case-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.sticky-actions{left:8px;right:8px;bottom:8px;justify-content:center}.sticky-actions a{flex:1;padding:8px 5px}.page{padding-bottom:92px}}
+@media (max-width:720px){
 .page{width:min(100% - 16px,1380px)}
 .nav,.hero,.section,.footer{border-radius:24px;padding-left:20px;padding-right:20px}
 .hero h1{font-size:clamp(2.45rem,11vw,3.45rem);line-height:1}
@@ -1255,11 +1310,11 @@ body{font-size:16px}
             </div>
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
+            <a href="#find-my-plan">Find My Kit</a>
             <a href="#plans">Plans</a>
-            <a href="#modules">Modules</a>
             <a href="#comparison">Comparison</a>
-            <a href="#addons">Add-Ons</a>
-            <a href="#contact">Talk to Sales</a>
+            <a href="#installation">Installation</a>
+            <a href="#faqs">FAQs</a>
         </nav>
         <div class="nav-actions">
             <a class="ghost-link" href="{{ url_for('dashboard') }}">Homepage</a>
@@ -1269,12 +1324,12 @@ body{font-size:16px}
 
     <section class="hero surface">
         <div class="hero-copy">
-            <h1>Start simple. Add automation and AI when needed.</h1>
-            <p>Pay only for the monitoring and control you need today, then expand with pump control, cloud access, source tank monitoring, AI insights or multi-site support.</p>
-            <div class="trust-line">Home Basic and Home Control use ESP-NOW and do not require an external Wi-Fi router or internet. Cloud plans require internet access. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
+            <h1>Choose the right Smart Tank solution for your home or building.</h1>
+            <p>Start with a simple wireless setup today and add phone access, pump automation, remote monitoring or AI analytics whenever you need them.</p>
+            <div class="trust-line">Home Basic and Home Control connect directly without needing home Wi-Fi or internet. Plans with access from anywhere need an internet connection. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
                 <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
-                <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
+                <a class="button-secondary" href="#find-my-plan">Find My Kit</a>
             </div>
         </div>
 
@@ -1305,49 +1360,121 @@ body{font-size:16px}
         </aside>
     </section>
 
+    <section class="section surface" aria-labelledby="trusted-title">
+        <div class="section-head">
+            <div><div class="eyebrow">Trusted in Daily Use</div><h2 id="trusted-title">Built for homes and managed properties.</h2></div>
+            <p>Real deployment figures already published by SaleWell.</p>
+        </div>
+        <div class="trust-grid">
+            <article class="trust-stat"><strong>500+</strong><span>Households served</span></article>
+            <article class="trust-stat"><strong>150+</strong><span>Sites supported</span></article>
+            <article class="trust-stat"><strong>10,000+ KL/day</strong><span>Water monitoring capacity</span></article>
+        </div>
+    </section>
+
+    <section class="section surface" id="every-plan">
+        <div class="section-head">
+            <div><div class="eyebrow">Included From Day One</div><h2>What every base plan includes.</h2></div>
+            <p>Phone access, access from anywhere and automatic pump features vary by plan. These essentials do not.</p>
+        </div>
+        <div class="value-grid">
+            <article class="info-card"><strong>&#10003; Wireless tank hardware</strong><p>The tank sensor node and main controller are configured to work together.</p></article>
+            <article class="info-card"><strong>&#10003; No long signal cable</strong><p>The sensor node sends readings wirelessly to the controller.</p></article>
+            <article class="info-card"><strong>&#10003; Easy to upgrade later</strong><p>Add phone access, pump control, access from anywhere or more tanks later.</p></article>
+            <article class="info-card"><strong>&#10003; Setup guidance</strong><p>Plan selection, installation guidance and remote support are available.</p></article>
+            <article class="info-card"><strong>&#10003; Firmware and OTA support</strong><p>Supported firmware updates are provided when improvements are available.</p></article>
+            <article class="info-card"><strong>&#10003; Pump safety</strong><p>The controller can stop the pump safely when tank readings are unavailable.</p></article>
+            <article class="info-card"><strong>&#10003; Clear final quotation</strong><p>Equipment, installation, warranty and service terms are confirmed before purchase.</p></article>
+            <article class="info-card"><strong>&#10003; SaleWell support</strong><p>Contact the team for setup, upgrade and service help.</p></article>
+        </div>
+    </section>
+
+    <section class="section surface" id="find-my-plan">
+        <div class="section-head">
+            <div><div class="eyebrow">Find My Kit</div><h2>Answer four quick questions.</h2></div>
+            <p>We will narrow the choices and show the best starting plan. Final equipment is confirmed after the site check.</p>
+        </div>
+        <div class="wizard-layout">
+            <form class="wizard-form" id="planWizard">
+                <fieldset class="wizard-question"><legend>1. What type of property is this?</legend><div class="option-row">
+                    <label class="option-chip"><input type="radio" name="property" value="home" checked>Home / Villa</label>
+                    <label class="option-chip"><input type="radio" name="property" value="managed">Apartment / Society</label>
+                    <label class="option-chip"><input type="radio" name="property" value="commercial">Hotel / School / Factory</label>
+                </div></fieldset>
+                <fieldset class="wizard-question"><legend>2. How many tanks?</legend><div class="option-row">
+                    <label class="option-chip"><input type="radio" name="tanks" value="1" checked>One</label>
+                    <label class="option-chip"><input type="radio" name="tanks" value="2">Two</label>
+                    <label class="option-chip"><input type="radio" name="tanks" value="3">Three or more</label>
+                </div></fieldset>
+                <fieldset class="wizard-question"><legend>3. Where do you want to check the tank?</legend><div class="option-row">
+                    <label class="option-chip"><input type="radio" name="access" value="none" checked>No phone app</label>
+                    <label class="option-chip"><input type="radio" name="access" value="local">On my phone at home</label>
+                    <label class="option-chip"><input type="radio" name="access" value="remote">From anywhere</label>
+                </div></fieldset>
+                <fieldset class="wizard-question"><legend>4. What else do you need?</legend><div class="option-row">
+                    <label class="option-chip"><input type="checkbox" name="pump">Automatic pump control</label>
+                    <label class="option-chip"><input type="checkbox" name="ai">AI analytics and reports</label>
+                </div></fieldset>
+            </form>
+            <aside class="wizard-result" aria-live="polite">
+                <span>Recommended starting plan</span><strong id="wizardPlan">Home Basic</strong>
+                <p id="wizardReason">A simple one-time equipment package without an app or monthly fee.</p>
+                <p id="wizardAddons"></p>
+                <a class="button-secondary js-book-plan" id="wizardBook" href="#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book This Plan</a>
+            </aside>
+        </div>
+    </section>
+
     <section class="section surface" id="modules">
         <div class="section-head">
             <div>
-                <div class="eyebrow">Complete Wireless Hardware</div>
+                <div class="eyebrow">Complete Wireless Equipment</div>
                 <h2>One wireless setup for every building height.</h2>
             </div>
-            <p>Every current SaleWell setup uses a wireless tank node and a pump-side controller. No long sensor signal cable is needed between the tank and motor area.</p>
+            <p>Every SaleWell setup uses a wireless tank sensor node and a main controller near the pump. No long signal cable is needed between them.</p>
         </div>
+
+        <figure class="info-card" style="margin:0 0 16px">
+            <picture><source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-controls-ai-1280.webp') }} 1280w"><img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="SaleWell wireless tank sensor node, pump controller and phone dashboard" width="1536" height="1024" loading="lazy" style="width:100%;max-height:360px;object-fit:cover;border-radius:16px"></picture>
+        </figure>
 
         <div class="module-grid">
             <article class="module-card">
                 <span class="module-range">Tank side</span>
                 <strong>Wireless Tank Sensor Node</strong>
-                <p>A powered smart sensor stays close to the tank and sends live water-level readings directly to the controller over ESP-NOW.</p>
+                <p>A powered sensor node stays close to the tank and sends water-level readings directly to the main controller.</p>
                 <ul class="feature-list">
                     <li>No long sensor signal cable</li>
                     <li>Accurate local level readings</li>
                     <li>No external Wi-Fi router required</li>
                 </ul>
+                <div class="assurance-bar">Included hardware: tank sensor node &bull; Compatible with every plan</div>
             </article>
             <article class="module-card">
                 <span class="module-range">Pump side</span>
                 <strong>Wireless Pump Controller</strong>
-                <p>The main controller stays near the pump panel, receives fresh tank readings wirelessly and manages automation and alerts.</p>
+                <p>The main controller stays near the pump, receives tank readings wirelessly and manages automation and alerts.</p>
                 <ul class="feature-list">
                     <li>Automatic and remote pump control</li>
                     <li>Fail-safe motor OFF on stale data</li>
                     <li>Relay/contactor safety integration</li>
                 </ul>
+                <div class="assurance-bar">Included hardware: pump controller &bull; Pump relay control is optional on home plans</div>
             </article>
             <article class="module-card is-recommended">
                 <span class="module-range">Complete system</span>
                 <strong>Wireless Smart Tank Kit</strong>
-                <p>The tank node, pump controller and phone dashboard work together as one complete wireless monitoring and control system.</p>
+                <p>The tank sensor node, pump controller and phone dashboard work together as one complete wireless system.</p>
                 <ul class="feature-list">
                     <li>Live level, pump status and alerts</li>
                     <li>Expandable to source and extra tanks</li>
                     <li>Standard setup for homes and multi-floor sites</li>
                 </ul>
+                <div class="assurance-bar">Includes both devices &bull; App and cloud features depend on the selected plan</div>
             </article>
         </div>
 
-        <div class="install-note">The tank-to-controller data link uses ESP-NOW. Home Basic and Home Control need no external router or internet, but each device still needs suitable power, a verified ESP-NOW signal path and electrician approval for relay/contactor wiring.</div>
+        <div class="install-note">The tank sensor node connects directly to the main controller. Home Basic and Home Control need no home Wi-Fi or internet, but both devices still need suitable power, a reliable wireless connection and electrician approval for relay/contactor wiring.</div>
     </section>
 
     <section class="section surface" id="plans">
@@ -1355,7 +1482,7 @@ body{font-size:16px}
             <div>
                 <h2>Choose a base plan and expand it with add-ons.</h2>
             </div>
-            <p>Every base plan uses the complete wireless tank-to-controller architecture. Choose the software, control and support level that fits your property.</p>
+            <p>Every base plan includes a complete wireless tank setup. Choose the phone access, pump control and support that fit your property.</p>
         </div>
 
         <div class="plan-group">
@@ -1364,7 +1491,7 @@ body{font-size:16px}
                 <p>Choose how you want to use your system: hardware only, phone access at home, or full access from anywhere.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="home">
+            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Basic">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Basic</span>
@@ -1380,7 +1507,7 @@ body{font-size:16px}
                 </div>
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
-                    <li>Wireless tank sensor and main controller</li>
+                    <li>Wireless tank sensor node and main controller</li>
                     <li>Ready-to-use connection between both devices</li>
                     <li>No home Wi-Fi or internet needed</li>
                     <li>Phone app and live screen not included</li>
@@ -1392,13 +1519,14 @@ body{font-size:16px}
                     <li>Small buildings</li>
                     <li>Budget customers</li>
                 </ul>
+                <div class="assurance-bar">Hardware: tank sensor + controller &bull; App users: none &bull; Cloud: no &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book Home Basic</a>
                     <span>Upgrade to Home Control when you want to see the tank level on your phone.</span>
                 </div>
             </article>
 
-            <article class="plan-card is-featured" data-plan-segment="home">
+            <article class="plan-card is-featured" data-plan-segment="home" data-plan-name="Home Control">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Control</span>
@@ -1428,20 +1556,21 @@ body{font-size:16px}
                     <li>Villas</li>
                     <li>Customers who want local app visibility</li>
                 </ul>
+                <div class="assurance-bar">Hardware: tank sensor + controller &bull; App: local phone access &bull; Cloud: no &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book Home Control</a>
                     <span>Choose this when you only need phone access at home.</span>
                 </div>
             </article>
 
-            <article class="plan-card" data-plan-segment="home">
+            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Cloud Pro">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Cloud Pro</span>
                         <span class="plan-badge is-accent">Remote Access</span>
                     </div>
                     <h3>Check your tank from anywhere</h3>
-                    <p>Best for families, rental homes and owners who want remote access, smart insights and useful reports.</p>
+                    <p>Best for families, rental homes and owners who want remote access, AI analytics and useful reports.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;7,499</div>
@@ -1455,7 +1584,7 @@ body{font-size:16px}
                     <li>Check your tank from anywhere</li>
                     <li>Share access with family members</li>
                     <li>View past levels and usage patterns</li>
-                    <li>Smart warnings and helpful insights</li>
+                    <li>AI analytics and insights</li>
                     <li>Easy-to-read monthly water report</li>
                 </ul>
                 <div class="list-title">Best For</div>
@@ -1464,6 +1593,7 @@ body{font-size:16px}
                     <li>Rental homes</li>
                     <li>Users who want remote control</li>
                 </ul>
+                <div class="assurance-bar">Hardware: tank sensor + controller &bull; Users: family sharing &bull; Cloud: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book Home Cloud Pro</a>
                     <span>Choose this when phone control from anywhere matters.</span>
@@ -1478,7 +1608,7 @@ body{font-size:16px}
                 <p>For managed sites that need shared tank visibility, multiple users, reports, source tank logic and support handover.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="commercial">
+            <article class="plan-card" data-plan-segment="commercial" data-plan-name="RWA Standard">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">RWA Standard</span>
@@ -1495,7 +1625,7 @@ body{font-size:16px}
                 <div class="list-title">Includes</div>
                 <ul class="feature-list">
                     <li>Remote monitoring over Internet</li>
-                    <li>Wireless tank nodes and pump controller</li>
+                    <li>Wireless tank sensor nodes and pump controller</li>
                     <li>Pump control</li>
                     <li>Source tank monitoring</li>
                     <li>Overhead plus underground tank support</li>
@@ -1508,20 +1638,21 @@ body{font-size:16px}
                     <li>Small hotels</li>
                     <li>Schools and commercial buildings</li>
                 </ul>
+                <div class="assurance-bar">Equipment: wireless tank sensors + main pump unit &bull; Users: managed access &bull; Online access: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book RWA Standard</a>
                     <span>Built for shared tanks and managed properties.</span>
                 </div>
             </article>
 
-            <article class="plan-card is-featured" data-plan-segment="commercial">
+            <article class="plan-card is-featured" data-plan-segment="commercial" data-plan-name="Commercial AI Pro">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Commercial AI Pro</span>
                         <span class="plan-badge is-accent">Advanced</span>
                     </div>
                     <h3>For hotels, schools, factories and multi-tank sites</h3>
-                    <p>Best where usage reports, leak insight, source-to-destination logic and multiple tank views matter.</p>
+                    <p>Best where usage reports, leak warnings, water movement between tanks and multiple tank views matter.</p>
                 </div>
                 <div class="price-stack">
                     <div class="price-main">&#8377;12,999</div>
@@ -1545,6 +1676,7 @@ body{font-size:16px}
                     <li>Hotels</li>
                     <li>Factories and institutions</li>
                 </ul>
+                <div class="assurance-bar">Hardware: multi-tank wireless setup &bull; Users: managed access &bull; Cloud + smart reports: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book Commercial AI Pro</a>
                     <span>Recommended for multi-tank sites and reporting needs.</span>
@@ -1560,7 +1692,7 @@ body{font-size:16px}
                 <p>For dealers, plumbers, electricians and installers who need field setup support, installation material and volume pricing.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="partner">
+            <article class="plan-card" data-plan-segment="partner" data-plan-name="Dealer / Installer Kit">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Dealer / Installer Kit</span>
@@ -1590,6 +1722,7 @@ body{font-size:16px}
                     <li>Installers</li>
                     <li>Local service partners</li>
                 </ul>
+                <div class="assurance-bar">Hardware: complete demo kit &bull; Cloud: optional &bull; Training/support: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book Partner Kit</a>
                     <span>Use this to sell modular devices locally.</span>
@@ -1604,7 +1737,7 @@ body{font-size:16px}
                 <p>For builders, townships, institutions and industrial clients where device count, roles and integrations define the quote.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card is-featured" data-plan-segment="enterprise">
+            <article class="plan-card is-featured" data-plan-segment="enterprise" data-plan-name="Enterprise Modular">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Enterprise Modular</span>
@@ -1617,7 +1750,7 @@ body{font-size:16px}
                     <div class="price-main">Custom</div>
                     <div class="price-note">Usually starts from &#8377;24,999</div>
                     <div class="price-note">Monthly service by scope</div>
-                    <div class="price-note is-outcome">Quoted after site map, Wi-Fi check and device count.</div>
+                    <div class="price-note is-outcome">Quoted after the site map, connectivity needs and device count are reviewed.</div>
                 </div>
                 <div class="list-title">Can Include</div>
                 <ul class="feature-list">
@@ -1628,6 +1761,8 @@ body{font-size:16px}
                     <li>Custom reports and user roles</li>
                     <li>Dedicated rollout support</li>
                     <li>Bulk device pricing</li>
+                    <li>White-label and API options</li>
+                    <li>Dedicated support by contract</li>
                 </ul>
                 <div class="list-title">Best For</div>
                 <ul class="fit-list">
@@ -1635,6 +1770,7 @@ body{font-size:16px}
                     <li>Industrial sites</li>
                     <li>Large commercial groups</li>
                 </ul>
+                <div class="assurance-bar">Hardware, users, cloud, warranty and support are defined in the approved rollout scope.</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book Custom Call</a>
                     <span>Use this when standard packages are too small.</span>
@@ -1642,6 +1778,30 @@ body{font-size:16px}
             </article>
             </div>
         </div>
+    </section>
+
+    <section class="section surface" id="progression">
+        <div class="section-head"><div><div class="eyebrow">Upgrade When Ready</div><h2>A simple path from basics to AI analytics.</h2></div><p>You do not need to buy every feature on day one.</p></div>
+        <div class="progression">
+            <article class="progress-step"><span>Step 1</span><strong>Wireless equipment</strong><p>Start with Home Basic.</p></article>
+            <article class="progress-step"><span>Step 2</span><strong>Phone access at home</strong><p>Move to Home Control.</p></article>
+            <article class="progress-step"><span>Step 3</span><strong>Pump automation</strong><p>Add safe relay control.</p></article>
+            <article class="progress-step"><span>Step 4</span><strong>Access from anywhere</strong><p>Choose a cloud plan.</p></article>
+            <article class="progress-step"><span>Step 5</span><strong>AI analytics</strong><p>Add trends, reports and warnings.</p></article>
+        </div>
+    </section>
+
+    <section class="section surface" id="use-cases">
+        <div class="section-head"><div><div class="eyebrow">Common Use Cases</div><h2>Choose your property type.</h2></div><p>Select a property to highlight the usual starting plan.</p></div>
+        <div class="use-case-grid">
+            <button class="use-case-button" type="button" data-use-plan="Home Control"><span>&#127968;</span>Home</button>
+            <button class="use-case-button" type="button" data-use-plan="RWA Standard"><span>&#127970;</span>Apartment</button>
+            <button class="use-case-button" type="button" data-use-plan="Commercial AI Pro"><span>&#127981;</span>Factory</button>
+            <button class="use-case-button" type="button" data-use-plan="RWA Standard"><span>&#127979;</span>School</button>
+            <button class="use-case-button" type="button" data-use-plan="Commercial AI Pro"><span>&#127976;</span>Hotel</button>
+            <button class="use-case-button" type="button" data-use-plan="RWA Standard"><span>&#127969;</span>Society</button>
+        </div>
+        <div class="use-case-result" id="useCaseResult" aria-live="polite">Select a property type to see the recommended starting plan.</div>
     </section>
 
     <section class="section surface" id="comparison">
@@ -1658,7 +1818,9 @@ body{font-size:16px}
                         <th>Plan</th>
                         <th>Best For</th>
                         <th>Home Wi-Fi / Internet</th>
-                        <th>Wireless Hardware</th>
+                        <th>Included Equipment</th>
+                        <th>Phone App</th>
+                        <th>Access From Anywhere</th>
                         <th>Pump Control</th>
                         <th>AI Analytics</th>
                         <th>Source Tank</th>
@@ -1672,6 +1834,8 @@ body{font-size:16px}
                         <td><span>Home / shop</span></td>
                         <td><span class="no">Not needed</span></td>
                         <td><span class="yes">Included</span></td>
+                        <td><span class="no">&mdash;</span></td>
+                        <td><span class="no">&mdash;</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
@@ -1683,6 +1847,8 @@ body{font-size:16px}
                         <td><span>Home</span></td>
                         <td><span class="no">Not needed</span></td>
                         <td><span class="yes">Included</span></td>
+                        <td><span class="yes">&#10003;</span></td>
+                        <td><span class="no">&mdash;</span></td>
                         <td><span class="no">Add-on</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
@@ -1694,6 +1860,8 @@ body{font-size:16px}
                         <td><span>Home</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Included</span></td>
+                        <td><span class="yes">&#10003;</span></td>
+                        <td><span class="yes">&#10003;</span></td>
                         <td><span class="no">Add-on</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
@@ -1705,6 +1873,8 @@ body{font-size:16px}
                         <td><span>Apartment / RWA</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Included</span></td>
+                        <td><span class="yes">&#10003;</span></td>
+                        <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="yes">Yes</span></td>
@@ -1716,6 +1886,8 @@ body{font-size:16px}
                         <td><span>Hotel / institution</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Included</span></td>
+                        <td><span class="yes">&#10003;</span></td>
+                        <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
@@ -1727,6 +1899,8 @@ body{font-size:16px}
                         <td><span>Dealer / installer</span></td>
                         <td><span class="yes">Required</span></td>
                         <td><span class="yes">Demo kit</span></td>
+                        <td><span class="yes">Demo</span></td>
+                        <td><span class="no">Optional</span></td>
                         <td><span class="yes">Demo</span></td>
                         <td><span class="no">Optional</span></td>
                         <td><span class="no">Optional</span></td>
@@ -1741,6 +1915,8 @@ body{font-size:16px}
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
+                        <td><span class="yes">Custom</span></td>
+                        <td><span class="yes">Custom</span></td>
                         <td><strong>Custom</strong><span>Usually from &#8377;24,999</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book</a></td>
                     </tr>
@@ -1749,70 +1925,102 @@ body{font-size:16px}
         </div>
     </section>
 
+    <section class="section surface" id="benefits">
+        <div class="section-head"><div><div class="eyebrow">Why It Pays Back</div><h2>Protect water, electricity and your pump.</h2></div><p>The right setup can prevent avoidable loss and reduce the time spent checking tanks manually.</p></div>
+        <div class="problem-split">
+            <article class="problem-panel"><h3>Without SaleWell</h3><ul><li>&#10060; Overflow discovered too late</li><li>&#10060; Dry-run and motor damage risk</li><li>&#10060; Repeated rooftop checks</li><li>&#10060; Unnoticed water and electricity waste</li><li>&#10060; No clear usage history</li></ul></article>
+            <article class="problem-panel"><h3>With the right SaleWell plan</h3><ul><li>&#9989; Tank status when and where your plan allows</li><li>&#9989; Optional automatic pump protection</li><li>&#9989; Alerts and reports on supported plans</li><li>&#9989; Less overflow and unnecessary pump runtime</li><li>&#9989; Upgrade without replacing the full system</li></ul></article>
+        </div>
+        <div class="install-note">A &#8377;3,999-&#8377;12,999 setup is an investment in preventing overflow, reducing manual checks and protecting pump equipment. Actual savings depend on tank size, pump use and the selected automation features.</div>
+    </section>
+
+    <section class="section surface" id="installation">
+        <div class="section-head"><div><div class="eyebrow">Installation</div><h2>From site check to ready-to-use.</h2></div><p>Exact work and timing depend on tank access, power readiness, pump panel and the selected plan.</p></div>
+        <div class="process-grid">
+            <article class="process-card"><strong>1. Choose the kit</strong><p>Confirm tanks, pump, phone access and internet needs.</p></article>
+            <article class="process-card"><strong>2. Install the hardware</strong><p>Mount the sensor node and controller and complete approved relay/contactor wiring if selected.</p></article>
+            <article class="process-card"><strong>3. Set up access</strong><p>Test the wireless connection and set up phone access included with the plan.</p></article>
+            <article class="process-card"><strong>4. Test and hand over</strong><p>Verify readings, controls and safety behavior, then explain daily use.</p></article>
+        </div>
+        <div class="decision-grid" style="margin-top:16px">
+            <article class="checklist-panel"><h3>Installation can include</h3><ul><li>&#10003; Sensor mounting</li><li>&#10003; Controller setup</li><li>&#10003; Wireless connection testing</li><li>&#10003; App or cloud setup when included</li><li>&#10003; Relay/contactor integration when quoted</li><li>&#10003; Final testing and customer training</li></ul></article>
+            <article class="checklist-panel"><h3>Check before ordering</h3><ul><li>&#10003; Number and type of tanks</li><li>&#10003; Tank height and access</li><li>&#10003; Pump and starter-panel type</li><li>&#10003; Underground/source tank requirement</li><li>&#10003; Municipal water input requirement</li><li>&#10003; Power points and internet availability</li></ul></article>
+        </div>
+    </section>
+
     <section class="section surface" id="addons">
         <div class="section-head">
             <div>
                 <h2>Customize any plan with the add-ons you need.</h2>
             </div>
-            <p>Start with a base plan, then add local app access, pump control, more tanks, cloud services or site-specific hardware.</p>
+            <p>Start with a base plan, then add phone access, pump control, more tanks, access from anywhere or extra equipment.</p>
         </div>
 
+        <div class="addon-filters" aria-label="Filter add-ons by category">
+            <button class="addon-filter is-active" type="button" data-addon-filter="all">All</button>
+            <button class="addon-filter" type="button" data-addon-filter="monitoring">Monitoring</button>
+            <button class="addon-filter" type="button" data-addon-filter="automation">Automation</button>
+            <button class="addon-filter" type="button" data-addon-filter="cloud">Cloud &amp; AI</button>
+            <button class="addon-filter" type="button" data-addon-filter="installation">Installation</button>
+            <button class="addon-filter" type="button" data-addon-filter="accessories">Accessories</button>
+            <button class="addon-filter" type="button" data-addon-filter="support">Support &amp; Partner</button>
+        </div>
         <div class="addons-grid">
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="monitoring">
                 <strong>Local mobile app and live monitoring</strong>
                 <div class="addon-price">+ &#8377;1,000 one-time</div>
                 <span class="addon-fit">Home Basic upgrade</span>
-                <p>Add controller-hosted local app access and live tank monitoring without an external Wi-Fi router or monthly fee. This upgrades Home Basic to Home Control capability.</p>
+                <p>Add phone access and live tank monitoring at the property without home Wi-Fi or a monthly fee. This upgrades Home Basic to Home Control capability.</p>
             </article>
-            <article class="addon-card">
-                <strong>Pump relay control module</strong>
+            <article class="addon-card" data-addon-category="automation">
+                <strong>Automatic pump control</strong>
                 <div class="addon-price">+ &#8377;1,500 to &#8377;2,500</div>
                 <span class="addon-fit">All home plans</span>
                 <p>Add motor start/stop control, auto cut-off support and safer daily pump operation.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="cloud">
                 <strong>Cloud dashboard and remote access</strong>
                 <div class="addon-price">+ &#8377;99 to &#8377;299/mo</div>
                 <span class="addon-fit">Home Control and managed plans</span>
-                <p>Use mobile/web access from anywhere, cloud history, alerts and customer login. External Wi-Fi and internet are required; Home Cloud Pro already includes this service.</p>
+                <p>Check the tank from anywhere, view past readings and receive alerts. Home Wi-Fi and internet are required; Home Cloud Pro already includes this service.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="cloud">
                 <strong>AI analytics and leak insight</strong>
                 <div class="addon-price">+ &#8377;149 to &#8377;499/mo</div>
                 <span class="addon-fit">Cloud-capable plans</span>
-                <p>Add usage trends, leak warning, unusual consumption alerts and monthly water reports. Requires cloud access; included in Home Cloud Pro and Commercial AI Pro.</p>
+                <p>Add usage trends, leak warnings, unusual consumption alerts and monthly reports. Requires cloud access; included in Home Cloud Pro and Commercial AI Pro.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="monitoring">
                 <strong>Source tank monitoring</strong>
                 <div class="addon-price">+ &#8377;2,000 to &#8377;3,500</div>
                 <span class="addon-fit">Home Control and Home Cloud Pro</span>
                 <p>Add underground/source tank visibility for transfer logic, refill planning and pump lock protection.</p>
             </article>
-            <article class="addon-card">
-                <strong>Extra tank or extra sensor node</strong>
+            <article class="addon-card" data-addon-category="monitoring">
+                <strong>Extra tank or sensor node</strong>
                 <div class="addon-price">+ &#8377;2,500 to &#8377;4,500</div>
                 <span class="addon-fit">Monitoring and managed plans</span>
                 <p>Expand from one tank to overhead, underground, source, destination or multi-floor tank setups.</p>
             </article>
-            <article class="addon-card">
-                <strong>ESP-NOW range extension node</strong>
+            <article class="addon-card" data-addon-category="accessories">
+                <strong>Wireless range extension node</strong>
                 <div class="addon-price">Quote after site survey</div>
-                <span class="addon-fit">Sites with difficult signal paths</span>
-                <p>Add a powered relay node when distance, reinforced walls or building layout prevents a reliable direct sensor-to-controller link.</p>
+                <span class="addon-fit">Sites where the wireless signal is weak</span>
+                <p>Add a powered range extension node when distance, thick walls or the building layout weakens the connection between the tank sensor node and controller.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="installation">
                 <strong>Installation and site survey</strong>
                 <div class="addon-price">By city</div>
                 <span class="addon-fit">Every plan</span>
-                <p>Quoted by city, tank access, wiring/power readiness, ESP-NOW signal path, internet needs and number of devices.</p>
+                <p>Quoted by city, tank access, power readiness, wireless signal, internet needs and number of devices.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="support">
                 <strong>Custom reporting and user roles</strong>
                 <div class="addon-price">Quote-based</div>
                 <span class="addon-fit">RWA, commercial and enterprise</span>
                 <p>For RWAs and commercial users who need resident reports, admin roles, exports or custom summaries.</p>
             </article>
-            <article class="addon-card">
+            <article class="addon-card" data-addon-category="support">
                 <strong>Dealer branding and bulk kit</strong>
                 <div class="addon-price">Quote-based</div>
                 <span class="addon-fit">Dealer / Installer Kit</span>
@@ -1820,18 +2028,37 @@ body{font-size:16px}
             </article>
         </div>
 
-        <div class="install-note">External Wi-Fi is not required for Home Basic or Home Control because device communication uses ESP-NOW. Cloud, remote-access and AI services require internet connectivity. Installation can be separate or included by city.</div>
+        <div class="install-note">Home Basic and Home Control do not need home Wi-Fi or internet. Access from anywhere and smart online services require internet. Installation can be separate or included by city.</div>
+    </section>
+
+    <section class="section surface" id="faqs">
+        <div class="section-head"><div><div class="eyebrow">Questions Before You Buy</div><h2>Clear answers to common questions.</h2></div><p>Project-specific commercial terms are confirmed in writing with the final quotation.</p></div>
+        <div class="faq-grid">
+            <details><summary>Which plan is right for me?</summary><p>Use Find My Kit above. Choose Home Basic for hardware only, Home Control for local app access, and Home Cloud Pro for remote access and AI analytics.</p></details>
+            <details><summary>Can I upgrade later?</summary><p>Yes. You can add phone access, pump control, access from anywhere, source-tank monitoring or extra tank sensors later.</p></details>
+            <details><summary>Does it work without home Wi-Fi?</summary><p>Yes. Home Basic and Home Control communicate directly and do not need a home Wi-Fi router or internet. Cloud and remote-access features do require internet.</p></details>
+            <details><summary>Is installation included in the listed price?</summary><p>Installation may be separate or bundled depending on the city and site. The final quotation clearly separates equipment, installation and optional work.</p></details>
+            <details><summary>How long does installation take?</summary><p>Timing depends on tank access, power readiness, pump-panel wiring and the number of devices. The expected installation window is confirmed after the site check.</p></details>
+            <details><summary>What warranty do I receive?</summary><p>Warranty coverage varies by kit and project scope. The applicable period, covered parts and service process are stated in the final quotation before purchase.</p></details>
+            <details><summary>Is AMC available?</summary><p>Maintenance and support packages can be quoted for managed and commercial sites. Coverage and pricing depend on device count and service scope.</p></details>
+            <details><summary>Can I add more tanks later?</summary><p>Yes. Extra wireless sensor nodes and source-tank monitoring are available, subject to the site and controller capacity.</p></details>
+            <details><summary>Can apartments, schools and factories use it?</summary><p>Yes. RWA Standard, Commercial AI Pro and Enterprise Modular are intended for shared tanks, multiple users, reports and larger deployments.</p></details>
+            <details><summary>What power and sensors are required?</summary><p>The tank sensor node and controller require suitable power. Sensor selection depends on tank type, mounting position and site conditions and is confirmed during the setup review.</p></details>
+            <details><summary>What are delivery and return terms?</summary><p>Dispatch timing, delivery scope, cancellation and return terms are provided with the final quotation because custom-configured and installed equipment may have different conditions.</p></details>
+            <details><summary>When is support available?</summary><p>Contact SaleWell at support@salewell.co.in or +91-8796452878. The support window and response commitment for managed projects are defined in the selected service scope.</p></details>
+        </div>
     </section>
 
     <section class="section" id="contact">
         <div class="cta-panel">
             <div class="cta-copy">
                 <h2>Still not sure which setup fits your tank?</h2>
-                <p>Get a free 10-minute recommendation and site assessment. We will review tank count, ESP-NOW signal path, internet needs, pump logic, source tank needs and add-ons before you choose.</p>
+                <p>Get a free 10-minute recommendation and site assessment. We will review tank count, wireless signal, internet needs, pump operation, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
                     <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
-                    <a class="button-secondary" href="{{ url_for('dashboard') }}#setup-check">Check Your Tank Setup</a>
-                    <a class="ghost-link" href="mailto:support@salewell.co.in">Talk to Sales</a>
+                    <a class="button-secondary" href="#find-my-plan">Find My Kit</a>
+                    <a class="ghost-link" href="https://wa.me/918796452878">WhatsApp</a>
+                    <a class="ghost-link" href="tel:+918796452878">Call Now</a>
                 </div>
                 <div class="cta-pills">
                     <span>Homes</span>
@@ -1845,17 +2072,24 @@ body{font-size:16px}
 
             <div class="contact-card surface">
                 <strong>Need a custom quote?</strong>
-                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918796452878">+91-8796452878</a> to discuss device count, Wi-Fi readiness, source tank monitoring, installation scope and rollout planning.</p>
+                <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918796452878">+91-8796452878</a> to discuss device count, connectivity needs, source tank monitoring, installation scope and rollout planning.</p>
                 <p>Best for homes, RWAs, dealers, builders, township projects, institutions and managed properties with multiple tanks or custom dashboard requirements.</p>
             </div>
         </div>
     </section>
 
     <footer class="footer surface">
-        <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers modular Wi-Fi based water monitoring, pump control, source tank logic and AI-driven water analytics for homes, dealers and managed properties.</div>
+        <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers wireless water monitoring, optional pump control, source tank logic and smart water insights for homes and managed properties.</div>
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
     </footer>
 </div>
+
+<nav class="sticky-actions" aria-label="Quick contact actions">
+    <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Demo</a>
+    <a class="button-secondary" href="#find-my-plan">Find My Kit</a>
+    <a class="ghost-link" href="tel:+918796452878">Call</a>
+    <a class="ghost-link" href="https://wa.me/918796452878">WhatsApp</a>
+</nav>
 
 <div
     class="modal enquiry-modal"
@@ -1945,6 +2179,84 @@ const enquirySubmitButton = document.getElementById("enquirySubmitButton");
 const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
 const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
+const planWizard = document.getElementById("planWizard");
+const wizardPlan = document.getElementById("wizardPlan");
+const wizardReason = document.getElementById("wizardReason");
+const wizardAddons = document.getElementById("wizardAddons");
+const wizardBook = document.getElementById("wizardBook");
+const planCards = Array.from(document.querySelectorAll("[data-plan-name]"));
+
+function highlightPlan(planName, scrollToPlan = false) {
+    planCards.forEach((card) => card.classList.toggle("is-wizard-match", card.dataset.planName === planName));
+    const match = planCards.find((card) => card.dataset.planName === planName);
+    if (scrollToPlan && match) match.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function updatePlanWizard() {
+    if (!planWizard) return;
+    const data = new FormData(planWizard);
+    const property = data.get("property") || "home";
+    const tanks = Number(data.get("tanks") || 1);
+    const access = data.get("access") || "none";
+    const wantsPump = data.has("pump");
+    const wantsAi = data.has("ai");
+    let plan = "Home Basic";
+    let reason = "A simple one-time equipment package without an app or monthly fee.";
+    let segment = "Home / Villa";
+
+    if (property === "commercial") {
+        plan = "Commercial AI Pro";
+        reason = "Designed for hotels, schools and factories that need managed multi-tank information and reports.";
+        segment = "Commercial Site";
+    } else if (property === "managed" || tanks >= 3) {
+        plan = wantsAi ? "Commercial AI Pro" : "RWA Standard";
+        reason = wantsAi
+            ? "A managed multi-tank plan with AI analytics and advanced reports."
+            : "A practical starting plan for shared tanks, administrators and multiple users.";
+        segment = "Apartment / Hostel";
+    } else if (access === "remote" || wantsAi) {
+        plan = "Home Cloud Pro";
+        reason = "Check the tank from anywhere and receive history, reports and AI analytics.";
+    } else if (access === "local") {
+        plan = "Home Control";
+        reason = "See live tank information on your phone while you are at the property, with no monthly fee.";
+    }
+
+    const additions = [];
+    if (tanks === 2) additions.push("an extra tank sensor");
+    if (wantsPump && !["RWA Standard", "Commercial AI Pro"].includes(plan)) additions.push("the pump control add-on");
+    if (wizardPlan) wizardPlan.textContent = plan;
+    if (wizardReason) wizardReason.textContent = reason;
+    if (wizardAddons) wizardAddons.textContent = additions.length ? `Also consider ${additions.join(" and ")}.` : "No extra add-on is required for the needs selected above.";
+    if (wizardBook) {
+        wizardBook.dataset.plan = plan;
+        wizardBook.dataset.segment = segment;
+    }
+    highlightPlan(plan);
+}
+
+planWizard?.addEventListener("change", updatePlanWizard);
+updatePlanWizard();
+
+document.querySelectorAll("[data-use-plan]").forEach((button) => {
+    button.addEventListener("click", () => {
+        document.querySelectorAll("[data-use-plan]").forEach((item) => item.classList.toggle("is-active", item === button));
+        const plan = button.dataset.usePlan;
+        const result = document.getElementById("useCaseResult");
+        if (result) result.textContent = `${button.textContent.trim()} usually starts with ${plan}. Use Find My Kit for a recommendation based on tanks, app access and automation.`;
+        highlightPlan(plan, true);
+    });
+});
+
+document.querySelectorAll("[data-addon-filter]").forEach((button) => {
+    button.addEventListener("click", () => {
+        const category = button.dataset.addonFilter;
+        document.querySelectorAll("[data-addon-filter]").forEach((item) => item.classList.toggle("is-active", item === button));
+        document.querySelectorAll("[data-addon-category]").forEach((card) => {
+            card.hidden = category !== "all" && card.dataset.addonCategory !== category;
+        });
+    });
+});
 
 function setLeadValue(id, value, overwrite = false) {
     const field = document.getElementById(id);

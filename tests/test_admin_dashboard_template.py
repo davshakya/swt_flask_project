@@ -1132,19 +1132,28 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Shielded Wire or Dual Node" not in homepage
     assert "One wireless setup for every building height." in pricing
     assert "No long sensor signal cable" in pricing
-    assert "Every base plan uses the complete wireless tank-to-controller architecture." in pricing
-    assert "Wireless Hardware" in pricing
+    assert "Every base plan includes a complete wireless tank setup." in pricing
+    assert "Included Equipment" in pricing
     assert "one-time wireless hardware price" in homepage
     assert "Phone app and live screen not included" in pricing
     assert "&#8377;4,999" in pricing
     assert "Phone access at the property only. Remote access and AI are not included." in pricing
-    assert "Home Basic and Home Control use ESP-NOW" in pricing
+    assert "Home Basic and Home Control connect directly" in pricing
     assert "<th>Home Wi-Fi / Internet</th>" in pricing
-    assert "Smart warnings and helpful insights" in pricing
+    assert "AI analytics and insights" in pricing
     assert "Local mobile app and live monitoring" in pricing
     assert "+ &#8377;1,000 one-time" in pricing
-    assert "ESP-NOW range extension node" in pricing
+    assert "Wireless range extension node" in pricing
     assert pricing.count('class="addon-fit"') == 10
+    assert 'id="planWizard"' in pricing
+    assert 'id="wizardPlan"' in pricing
+    assert 'id="use-cases"' in pricing
+    assert 'id="installation"' in pricing
+    assert 'id="faqs"' in pricing
+    assert 'class="sticky-actions"' in pricing
+    assert "500+" in pricing
+    assert "10,000+ KL/day" in pricing
+    assert "Warranty coverage varies by kit and project scope." in pricing
     assert "Single Controller Kit" not in pricing
     assert "Shielded Wire or Dual Node" not in pricing
 
