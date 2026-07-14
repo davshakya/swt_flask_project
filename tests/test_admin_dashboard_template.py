@@ -452,10 +452,23 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="customerConfidenceGuidance"' not in customer_template
     assert '<span>Current state</span><strong id="motor">' in customer_template
     assert '<span>Mode</span><strong id="mode">' in customer_template
-    assert 'id="customerUsageMetricLabel"' in customer_template
+    assert 'id="customerKpiUsage"' in customer_template
     assert 'id="ai_tomorrow_usage"' in customer_template
     assert 'id="consumption_rate"' in customer_template
     assert 'id="customerSavingsNow"' in customer_template
+    assert 'id="customerPumpRuntime"' in customer_template
+    assert 'id="customerPumpStarts"' in customer_template
+    assert 'id="customerPumpDuty"' in customer_template
+    assert 'class="analytics-toolbar"' in customer_template
+    assert 'class="panel tank-chart-panel"' in customer_template
+    assert 'id="chartLevelHigh"' in customer_template
+    assert 'id="chartPumpAverage"' in customer_template
+    assert 'Building baseline' in customer_template
+    assert 'id="customerFirmware"' in customer_template
+    assert 'id="customerUptime"' in customer_template
+    assert 'id="customerSignal"' in customer_template
+    assert 'id="customerMemory"' in customer_template
+    assert 'snapshot.firmware_version||"Not reported"' in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_today():
