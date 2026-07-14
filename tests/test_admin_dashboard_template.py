@@ -412,6 +412,11 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert 'id="dashboardSettings"' in customer_template
     assert '<details id="dashboardSettings"' in customer_template
     assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
+    assert 'class="panel customer-only customer-tools-panel"' in customer_template
+    assert 'class="customer-tools-grid"' in customer_template
+    assert 'class="customer-guidance-panel"' in customer_template
+    assert '.customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}' in customer_template
+    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}' in customer_template
     assert "function eventPresentation(event)" in customer_template
     assert 'showValues:true' in customer_template
     assert 'highlightPeak:true' in customer_template
@@ -475,11 +480,13 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="customerSignal"' in customer_template
     assert 'id="customerMemory"' in customer_template
     assert 'snapshot.firmware_version||"Not reported"' in customer_template
-    assert '<span>Tank status</span>' in customer_template
+    assert '<span>Tank status</span>' not in customer_template
+    assert 'id="customerKpiTankStatus"' not in customer_template
     assert '<span>Remaining water</span>' in customer_template
     assert 'id="customerKpiRemainingWater"' in customer_template
     assert 'id="customerSuggestedAction"' in customer_template
-    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 5
+    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 4
+    assert customer_template.index('<span class="label">Pump Control</span>') < customer_template.index('id="customerSuggestedAction"')
     assert '.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}' in customer_template
     assert '.customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;' in customer_template
     assert '.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' in customer_template
