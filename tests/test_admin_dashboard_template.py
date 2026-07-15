@@ -1072,6 +1072,9 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert ".searchControls button,.searchControls a,.searchInput{min-height:38px" in admin_template
     assert ".alert-table-shell{max-height:14rem}" in admin_template
     assert ".device-table-shell{max-height:35rem}" in admin_template
+    assert ".device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}" in admin_template
+    assert ".device-horizontal-scroll{display:none}" in admin_template
+    assert ".searchControls{grid-template-columns:minmax(320px,1fr) auto auto auto" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():
