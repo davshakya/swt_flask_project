@@ -1077,6 +1077,8 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert ".searchControls{grid-template-columns:minmax(320px,1fr) auto auto auto" in admin_template
     assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left" in admin_template
     assert ".device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link" in admin_template
+    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}" in admin_template
+    assert ".device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:left;vertical-align:middle}" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():
