@@ -370,24 +370,17 @@ def test_customer_dashboard_stop_button_uses_effective_running_state():
     assert 'nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});' in update_body
 
 
-def test_customer_dashboard_motor_chart_shows_stepped_digital_state():
+def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert "function buildMotorActivitySegments" in customer_template
-    assert "function drawMotorActivityTimeline" in customer_template
-    assert "drawMotorActivityTimeline(charts.motor.canvas,\"Motor State\",motorSeriesRaw.time,motorSeriesRaw.values" in customer_template
-    assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
+    assert 'id="motorChart"' not in customer_template
+    assert '["motor","motorChart","Motor State"]' not in customer_template
+    assert 'id="chartPumpRuntime"' in customer_template
+    assert 'id="chartPumpStarts"' in customer_template
+    assert 'id="chartPumpAverage"' in customer_template
+    assert 'id="chartPumpDuty"' in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
-    assert "pumpActivity?.avg_run_seconds" in customer_template
-    assert 'xLabelMode:"datetime"' in customer_template
-    assert '--chart-motor-on:#22c55e' in customer_template
-    assert '--chart-motor-off:#94a3b8' in customer_template
-    assert 'const onColor=themeVar("--chart-motor-on")' in customer_template
-    assert 'const offColor=themeVar("--chart-motor-off")' in customer_template
-    assert 'const barColor=(state)=>state===1?onColor:offColor;' in customer_template
-    assert 'const summaryParts=["Green ON","Gray OFF"];' in customer_template
-    assert 'ctx.fillText("1 (ON)",box.left-10,highY+4);' in customer_template
-    assert 'ctx.fillText("0 (OFF)",box.left-10,lowY+4);' in customer_template
+    assert "pump.avg_run_seconds" in customer_template
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
     assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
     assert 'function isCustomerWaterEvent(event)' in customer_template
@@ -996,7 +989,7 @@ def test_android_app_update_check_compares_installed_version_code():
     assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
 
 
-def test_android_cloud_pump_activity_chart_uses_stepped_digital_state():
+def test_android_cloud_pump_activity_shows_metrics_without_charts():
     android_source = (
         PROJECT_ROOT.parent
         / "swt_android_app_project"
@@ -1009,37 +1002,26 @@ def test_android_cloud_pump_activity_chart_uses_stepped_digital_state():
         / "app"
         / "MainActivity.kt"
     ).read_text(encoding="utf-8")
-    chart_view_source = (
+    android_layout = (
         PROJECT_ROOT.parent
         / "swt_android_app_project"
         / "app"
         / "src"
         / "main"
-        / "java"
-        / "com"
-        / "smartwatertank"
-        / "app"
-        / "DashboardChartView.kt"
+        / "res"
+        / "layout"
+        / "activity_main.xml"
     ).read_text(encoding="utf-8")
 
-    assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
-    assert "R.color.cloud_chart_green" in android_source
-    assert "Green lines show ON and gray lines show OFF." in android_source
-    assert "Breaks indicate telemetry gaps." in android_source
-    assert "section.pumpActivity.startLabel" in android_source
-    assert "section.pumpActivity.endLabel" in android_source
-    assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
-    assert "private fun drawTimelineChart" in chart_view_source
-    assert "private fun drawSinglePointChart" in chart_view_source
-    assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
-    assert "val onColor = ContextCompat.getColor(context, R.color.cloud_chart_green)" in chart_view_source
-    assert "val offColor = ContextCompat.getColor(context, R.color.cloud_chart_gray)" in chart_view_source
-    assert "fun lineColor(state: Int): Int = if (state == 1) onColor else offColor" in chart_view_source
-    assert 'canvas.drawText("1 (ON)"' in chart_view_source
-    assert 'canvas.drawText("0 (OFF)"' in chart_view_source
-    assert "DashPathEffect" in chart_view_source
-    assert "if (next.state == null) return@forEach" in chart_view_source
-    assert "next.startTime == segment.endTime && next.state != segment.state" in chart_view_source
+    assert "cloudPumpActivityChart" not in android_layout
+    assert "cloudHourlyPatternChart" not in android_layout
+    assert "cloudHourlyPatternCard" not in android_layout
+    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue", "cloudPumpDutyValue"):
+        assert metric_id in android_layout
+    assert "binding.cloudPumpRuntimeValue" in android_source
+    assert "binding.cloudPumpStartsValue" in android_source
+    assert "binding.cloudPumpAverageValue" in android_source
+    assert "binding.cloudPumpDutyValue" in android_source
 
 
 def test_release_versions_use_year_train_increment_syntax():

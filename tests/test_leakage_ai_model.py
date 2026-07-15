@@ -117,6 +117,32 @@ def test_motor_activity_metrics_use_actual_time_gaps():
     assert metrics["duty_cycle_pct"] == 43.33
 
 
+def test_motor_activity_ignores_duplicate_on_off_samples():
+    times = [f"2026-06-01 10:0{minute}:00" for minute in range(6)]
+    values = [0, 0, 1, 1, 0, 0]
+
+    compact_times, compact_values = server.compact_motor_series(times, values)
+    metrics = server.build_motor_activity_metrics(times, values)
+
+    assert compact_times == [times[0], times[2], times[4]]
+    assert compact_values == [0, 1, 0]
+    assert metrics["completed_runs"] == 1
+    assert metrics["runtime_seconds"] == 2 * 60
+
+
+def test_chart_downsampling_preserves_short_minimum_and_maximum():
+    times = list(range(100))
+    values = [50.0] * 100
+    values[24] = 5.0
+    values[25] = 95.0
+
+    sampled_times, sampled_values = server.downsample_series(times, values, 12)
+
+    assert len(sampled_times) <= 12
+    assert 5.0 in sampled_values
+    assert 95.0 in sampled_values
+
+
 def test_level_history_infers_only_confirmed_fill_cycles():
     times = [
         "2026-07-14 08:00:00",

@@ -430,7 +430,7 @@ def test_pump_activity_is_inferred_from_level_history_when_relay_stays_off(monke
 
         assert payload["motor"]["source"] == "tank_level_history"
         assert payload["motor"]["relay_state_used"] is False
-        assert payload["motor"]["values"] == [0, 1, 0, 0]
+        assert payload["motor"]["values"] == [0, 1, 0]
         assert payload["pump_activity"]["source"] == "tank_level_history"
         assert payload["pump_activity"]["relay_state_used"] is False
         assert payload["pump_activity"]["completed_runs"] == 1

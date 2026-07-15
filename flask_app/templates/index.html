@@ -533,7 +533,7 @@ canvas{height:260px!important}
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><canvas id="levelChart"></canvas></div>
         <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="dailyChart"></canvas></div>
         <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="patternChart"></canvas></div>
-        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div><canvas id="motorChart"></canvas></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
     </section>
 
     <section class="panel customer-only customer-tools-panel" style="margin-top:18px">
@@ -2001,8 +2001,6 @@ function drawAnalyticsCharts(data){
     const todayAxis=analyticsRangeIsToday();
     const defaultWindows=data.default_chart_windows||{};
     const levelPayload=defaultWindows.tank_level?.levels||data.levels||{};
-    const pumpMotorPayload=defaultWindows.pump_activity?.motor||data.motor||{};
-    const pumpMetricsPayload=defaultWindows.pump_activity?.pump_activity||data.pump_activity||{};
     const levelSeries=downsampleSeries(levelPayload.time||[],toChartNumberArray(levelPayload.values,{allowNull:true}),180);
     const chartEvents=VIEWER_ROLE==="customer"?(state.data.events||[]).filter(isCustomerWaterEvent):(state.data.events||[]);
     const levelEvents=chartEvents.map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
@@ -2029,8 +2027,6 @@ function drawAnalyticsCharts(data){
     }else{
         drawCanvasEmpty(charts.pattern.canvas,"Estimated hourly use (L)",`Building the 24-hour usage pattern | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | Usage appears after measurable drawdown is confirmed`);
     }
-    const motorSeriesRaw=buildMotorBehaviorSeries({time:pumpMotorPayload.time||[],values:toChartNumberArray(pumpMotorPayload.values,{allowNull:true})});
-    drawMotorActivityTimeline(charts.motor.canvas,"Motor State",motorSeriesRaw.time,motorSeriesRaw.values,{pumpActivity:pumpMetricsPayload,xLabelMode:"datetime"});
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
     const chartData=analyticsChartsPayload(data,{remember:false,key});
@@ -2223,7 +2219,7 @@ function applyCloudFeedAvailability(){
 
 function initCharts(){
     chartsAvailable=true;
-    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"],["motor","motorChart","Motor State"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
 }
 
 function refreshChartsTheme(){

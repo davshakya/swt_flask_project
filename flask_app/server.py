@@ -8611,6 +8611,27 @@ def downsample_series(time_values, value_values, max_points, preserve_nulls=Fals
     if preserve_nulls:
         mandatory.update(index for index, value in enumerate(safe_values[:size]) if value is None)
 
+    # Preserve representative minima and maxima instead of relying only on
+    # evenly spaced points, which can hide short tank peaks and drawdowns.
+    numeric_budget = max(0, max_points - len(mandatory))
+    bucket_count = max(1, numeric_budget // 2) if numeric_budget else 0
+    if bucket_count:
+        interior_size = max(0, size - 2)
+        for bucket in range(bucket_count):
+            start = 1 + int(bucket * interior_size / bucket_count)
+            stop = 1 + int((bucket + 1) * interior_size / bucket_count)
+            candidates = [
+                index for index in range(start, max(start + 1, stop))
+                if index < size - 1 and safe_values[index] is not None
+            ]
+            if not candidates:
+                continue
+            try:
+                mandatory.add(min(candidates, key=lambda index: float(safe_values[index])))
+                mandatory.add(max(candidates, key=lambda index: float(safe_values[index])))
+            except (TypeError, ValueError):
+                pass
+
     if len(mandatory) >= max_points:
         final_indices = pick_series_indices(sorted(mandatory), max_points)
     else:
@@ -8621,6 +8642,11 @@ def downsample_series(time_values, value_values, max_points, preserve_nulls=Fals
 
 
 def compact_motor_series(time_values, value_values):
+    """Return one point per real binary-state transition.
+
+    Repeated ON or OFF samples are observation duplicates, not new pump
+    cycles. A telemetry gap is retained once and starts a new state segment.
+    """
     safe_times = list(time_values or [])
     safe_values = list(value_values or [])
     size = min(len(safe_times), len(safe_values))
@@ -8633,26 +8659,23 @@ def compact_motor_series(time_values, value_values):
     for index in range(size):
         raw_value = safe_values[index]
         if raw_value is None or raw_value == "":
-            compact_times.append(safe_times[index])
-            compact_values.append(None)
+            if not compact_values or compact_values[-1] is not None:
+                compact_times.append(safe_times[index])
+                compact_values.append(None)
             last_state = None
             continue
 
-        current_state = 1 if int(raw_value) == 1 else 0
+        try:
+            numeric_state = int(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if numeric_state not in (0, 1):
+            continue
+        current_state = numeric_state
         if last_state is None or current_state != last_state:
             compact_times.append(safe_times[index])
             compact_values.append(current_state)
             last_state = current_state
-
-    tail_value = safe_values[size - 1]
-    if tail_value is None or tail_value == "":
-        normalized_tail = None
-    else:
-        normalized_tail = 1 if int(tail_value) == 1 else 0
-
-    if compact_times[-1] != safe_times[size - 1]:
-        compact_times.append(safe_times[size - 1])
-        compact_values.append(normalized_tail)
 
     return compact_times, compact_values
 
