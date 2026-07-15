@@ -439,11 +439,13 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .device-horizontal-scroll{display:none}
 .device-table-shell{overflow-x:hidden;scrollbar-gutter:stable}
 .device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}
-.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:7px 5px;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere}
-.device-table-shell .admin-table thead th,.device-table-shell .admin-table thead .sort-button{font-size:9px;line-height:1.2;white-space:normal;justify-content:center;text-align:center}
+.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:6px 4px;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left;vertical-align:middle}
+.device-table-shell .admin-table thead th,.device-table-shell .admin-table thead .sort-button{font-size:9px;line-height:1.2;white-space:normal;justify-content:flex-start;text-align:left}
 .device-table-shell .admin-table td{font-size:10px;line-height:1.25}
 .device-table-shell .admin-table th:nth-child(1){width:14%}.device-table-shell .admin-table th:nth-child(2){width:12%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:7%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:8%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:9%}.device-table-shell .admin-table th:nth-child(10){width:6%}.device-table-shell .admin-table th:nth-child(11){width:7%}.device-table-shell .admin-table th:nth-child(12){width:8%}
-.device-table-shell .device-id-cell .device-link,.device-table-shell .device-id-cell .cell-sub,.device-table-shell .admin-table td:nth-child(2) .cell-main,.device-table-shell .admin-table td:nth-child(2) .cell-sub{max-width:100%;white-space:normal;overflow:visible;text-overflow:clip}
+.device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link,.device-table-shell .device-id-cell .device-link,.device-table-shell .device-id-cell .cell-sub,.device-table-shell .admin-table td:nth-child(2) .cell-main,.device-table-shell .admin-table td:nth-child(2) .cell-sub{display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+.device-table-shell .cell-sub{margin-top:2px}.device-table-shell .cell-sub::before{content:""}
+.device-table-shell .last-sync-cell,.device-table-shell .sync-date,.device-table-shell .sync-time{white-space:normal;overflow:visible;text-overflow:clip;text-align:left}
 .device-table-shell .pill,.device-table-shell .last-seen-indicator{max-width:100%;font-size:9px;white-space:nowrap}
 .table-toolbar{flex-wrap:nowrap}
 }
