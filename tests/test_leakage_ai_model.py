@@ -185,6 +185,53 @@ def test_level_history_does_not_guess_runtime_for_sub_threshold_rise():
     assert runs == []
 
 
+def test_level_history_stops_after_two_flat_intervals_below_upper_threshold():
+    times = [f"2026-07-14 10:{minute:02d}:00" for minute in (0, 5, 10, 15, 20)]
+    levels = [40.0, 43.0, 47.0, 47.1, 47.1]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(
+        times, levels, stop_threshold_pct=90.0
+    )
+
+    assert states == [1, 1, 0, 0, 0]
+    assert len(runs) == 1
+    assert runs[0]["duration_seconds"] == 10 * 60
+
+
+def test_level_history_uses_upper_threshold_tolerance():
+    times = [f"2026-07-14 11:{minute:02d}:00" for minute in (0, 5, 10, 15)]
+    levels = [80.0, 84.0, 88.2, 88.3]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(
+        times, levels, stop_threshold_pct=90.0
+    )
+
+    assert states == [1, 1, 0, 0]
+    assert len(runs) == 1
+    assert runs[0]["stop_level_pct"] == 88.2
+
+
+def test_level_history_merges_one_flat_interval_inside_confirmed_fill():
+    times = [f"2026-07-14 12:{minute:02d}:00" for minute in (0, 5, 10, 15, 20, 25, 30)]
+    levels = [40.0, 44.0, 48.0, 48.0, 52.0, 52.0, 52.0]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+
+    assert states == [1, 1, 1, 1, 0, 0, 0]
+    assert len(runs) == 1
+    assert runs[0]["level_rise_pct"] == 12.0
+
+
+def test_level_history_rejects_physically_implausible_jump():
+    times = [f"2026-07-14 13:{minute:02d}:00" for minute in (0, 5, 10, 15, 20)]
+    levels = [40.0, 70.0, 75.0, 75.0, 75.0]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+
+    assert states[0] is None
+    assert runs == []
+
+
 def test_level_history_rejects_symmetric_sensor_bounce_as_pump_activity():
     times = [
         "2026-07-14 09:00:00",

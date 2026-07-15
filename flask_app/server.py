@@ -709,7 +709,12 @@ SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
-ANALYTICS_MIN_REFILL_DELTA_PCT = max(0.5, env_float("ANALYTICS_MIN_REFILL_DELTA_PCT", 2.0))
+ANALYTICS_MIN_REFILL_DELTA_PCT = max(0.5, env_float("ANALYTICS_MIN_REFILL_DELTA_PCT", 3.0))
+ANALYTICS_FILL_CONFIRM_INTERVALS = max(2, env_int("ANALYTICS_FILL_CONFIRM_INTERVALS", 2))
+ANALYTICS_FILL_STOP_INTERVALS = max(2, env_int("ANALYTICS_FILL_STOP_INTERVALS", 2))
+ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT = max(
+    0.0, env_float("ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT", 2.0)
+)
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
@@ -8737,12 +8742,10 @@ def build_motor_activity_metrics(time_values, value_values):
 def infer_pump_activity_from_level_history(time_values, level_values, stop_threshold_pct=None):
     """Infer confirmed tank-fill cycles without using the relay pulse state.
 
-    A cycle must rise by the configured refill threshold, stay within the
-    telemetry gap and level-jump limits, and survive the next reading without
-    immediately reversing. When a stop threshold is supplied, runtime ends at
-    the first observed reading at or above that threshold and sub-threshold
-    rises are not reported as completed cycles. Unconfirmed or noisy rises
-    remain OFF rather than being guessed as pump activity.
+    A cycle must rise across consecutive readings by the configured refill
+    threshold and stay within the telemetry gap and level-jump limits. One
+    flat/noisy interval is bridged; a cycle stops after the configured number
+    of non-rising intervals or when it reaches the upper-threshold tolerance.
     """
     safe_times = list(time_values or [])
     safe_levels = list(level_values or [])
@@ -8760,24 +8763,35 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
     candidate_peak = None
     candidate_peak_index = None
     candidate_stop_index = None
+    consecutive_rises = 0
+    non_rising_intervals = 0
+    candidate_confirmed = False
     configured_stop_threshold = safe_float(stop_threshold_pct, None)
     if configured_stop_threshold is not None and not 0 < configured_stop_threshold <= 100:
         configured_stop_threshold = None
 
     def reset_candidate():
         nonlocal candidate_start, candidate_base, candidate_peak, candidate_peak_index, candidate_stop_index
+        nonlocal consecutive_rises, non_rising_intervals
+        nonlocal candidate_confirmed
         candidate_start = None
         candidate_base = None
         candidate_peak = None
         candidate_peak_index = None
         candidate_stop_index = None
+        consecutive_rises = 0
+        non_rising_intervals = 0
+        candidate_confirmed = False
 
     def confirm_candidate(confirmation_index):
         if candidate_start is None or candidate_peak_index is None:
             reset_candidate()
             return
-        stop_index = candidate_stop_index if configured_stop_threshold is not None else candidate_peak_index
+        stop_index = candidate_stop_index if candidate_stop_index is not None else candidate_peak_index
         if stop_index is None:
+            reset_candidate()
+            return
+        if not candidate_confirmed:
             reset_candidate()
             return
         stop_level = levels[stop_index]
@@ -8836,28 +8850,53 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
 
         delta = next_level - current_level
         if candidate_start is None:
-            below_stop_threshold = configured_stop_threshold is None or current_level < configured_stop_threshold
+            effective_stop_threshold = (
+                max(0.0, configured_stop_threshold - ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT)
+                if configured_stop_threshold is not None
+                else None
+            )
+            below_stop_threshold = effective_stop_threshold is None or current_level < effective_stop_threshold
             if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT and below_stop_threshold:
                 candidate_start = index
                 candidate_base = current_level
                 candidate_peak = next_level
                 candidate_peak_index = index + 1
-                if configured_stop_threshold is not None and next_level >= configured_stop_threshold:
+                consecutive_rises = 1
+                if effective_stop_threshold is not None and next_level >= effective_stop_threshold:
                     candidate_stop_index = index + 1
             continue
 
-        if next_level > candidate_peak:
+        if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+            consecutive_rises += 1
+            non_rising_intervals = 0
+        else:
+            consecutive_rises = 0
+            non_rising_intervals += 1
+
+        # Ignore sub-noise movements when selecting the runtime endpoint.
+        if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT and next_level > candidate_peak:
             candidate_peak = next_level
             candidate_peak_index = index + 1
+        effective_stop_threshold = (
+            max(0.0, configured_stop_threshold - ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT)
+            if configured_stop_threshold is not None
+            else None
+        )
         if (
-            configured_stop_threshold is not None
+            effective_stop_threshold is not None
             and candidate_stop_index is None
-            and next_level >= configured_stop_threshold
+            and next_level >= effective_stop_threshold
         ):
             candidate_stop_index = index + 1
 
-        decline_from_peak = candidate_peak - next_level
-        if delta <= 0 or decline_from_peak >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+        confirmed_rise = (
+            consecutive_rises >= ANALYTICS_FILL_CONFIRM_INTERVALS
+            and candidate_peak - candidate_base >= ANALYTICS_MIN_REFILL_DELTA_PCT
+        )
+        candidate_confirmed = candidate_confirmed or confirmed_rise
+        if candidate_stop_index is not None and candidate_confirmed:
+            confirm_candidate(index + 1)
+        elif non_rising_intervals >= ANALYTICS_FILL_STOP_INTERVALS:
             confirm_candidate(index + 1)
 
     # A rise at the edge of the selected range has no confirming stop reading,
