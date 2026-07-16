@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 import json
 
 from flask_app import server
@@ -177,6 +177,63 @@ def test_last_valid_analytics_survives_empty_recalculation():
     finally:
         server.delete_app_setting(setting_key)
         server.analytics_cache.clear()
+
+
+def test_dashboard_charts_use_selected_range_while_ai_values_use_fixed_seven_days(monkeypatch):
+    server.fixed_ai_dashboard_cache.clear()
+    selected_payload = {
+        "range": {"label": "Last 30 days"},
+        "levels": {"time": ["selected"], "values": [50.0]},
+        "daily": {"dates": ["selected"], "values": [10.0]},
+        "pattern": {"time": ["selected"], "values": [1.0]},
+        "motor": {"time": ["selected"], "values": [1]},
+        "pump_activity": {"runtime_seconds": 1234, "completed_runs": 4},
+        "insights": {"max_level": 99.0, "consumption_rate": 30.0, "empty_prediction": 2.0},
+        "analysis": {"quality": {"row_count": 300, "usage_rate_reliable": True}},
+    }
+    ai_payload = {
+        "range": {"label": "Last 7 days"},
+        "daily": {"dates": ["ai"], "values": [7.0]},
+        "insights": {"consumption_rate": 7.0, "empty_prediction": 9.0, "avg_daily_usage": 8.0},
+        "prediction": {"tomorrow_usage": 6.0},
+        "analysis": {"quality": {"row_count": 70, "daily_usage_reliable": True}},
+        "comparison": {"change_pct": 5.0},
+        "usage": {"reliable": True},
+        "alerts": ["seven-day alert"],
+    }
+    calls = []
+
+    def fake_build(start_dt, end_exclusive, label, device_id=None):
+        calls.append(label)
+        return selected_payload if label == "Last 30 days" else ai_payload
+
+    monkeypatch.setattr(server, "build_analytics", fake_build)
+    monkeypatch.setattr(
+        server,
+        "fixed_ai_analysis_window",
+        lambda now=None: (datetime(2026, 7, 10), datetime(2026, 7, 17), "Last 7 days"),
+    )
+
+    payload = server.build_dashboard_analytics(
+        datetime(2026, 6, 17),
+        datetime(2026, 7, 17),
+        "Last 30 days",
+        device_id="swt-ai-window-001",
+    )
+
+    assert calls == ["Last 30 days", "Last 7 days"]
+    assert payload["range"]["label"] == "Last 30 days"
+    assert payload["levels"] == selected_payload["levels"]
+    assert payload["daily"] == selected_payload["daily"]
+    assert payload["motor"] == selected_payload["motor"]
+    assert payload["pump_activity"]["runtime_seconds"] == 1234
+    assert payload["insights"]["max_level"] == 99.0
+    assert payload["insights"]["consumption_rate"] == 7.0
+    assert payload["insights"]["empty_prediction"] == 9.0
+    assert payload["prediction"]["tomorrow_usage"] == 6.0
+    assert payload["analysis_window"]["days"] == 7
+    assert payload["chart_quality"]["row_count"] == 300
+    assert payload["analysis"]["quality"]["row_count"] == 70
 
 
 def test_analytics_recovers_history_from_device_events_when_tank_rows_are_thin():

@@ -533,7 +533,7 @@ canvas{height:260px!important}
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable tank level timeline"><canvas id="levelChart"></canvas></div></div>
         <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable daily water use timeline"><canvas id="dailyChart"></canvas></div></div>
         <div class="panel"><div class="eyebrow">Water Use Timeline</div><h3>Hourly water use</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable hourly water use timeline"><canvas id="patternChart"></canvas></div></div>
-        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable pump activity timeline"><canvas id="motorChart"></canvas></div></div>
     </section>
 
     <section class="panel customer-only customer-tools-panel" style="margin-top:18px">
@@ -634,7 +634,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v13-range-hourly-continuous-level";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const READY_ANALYTICS_RANGE_DAYS=[1,7,30];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
@@ -1772,12 +1772,15 @@ function selectedAnalyticsRangeLabel(){
 }
 function updateAnalyticsRangeContext(data=null,{loading=false}={}){
     const label=data?.range?.label||selectedAnalyticsRangeLabel();
+    const aiLabel=data?.analysis_window?.label||"Last 7 days";
     setText("rangeLabel",loading?`Loading ${label.toLowerCase()}...`:label);
     if(VIEWER_ROLE==="customer"){
         setText("waterHabitsTitle",label==="Today"?"Today’s water activity":"Water activity over the selected period");
     }
-    const scope=loading?`Updating AI/ML analysis · ${label}`:`AI/ML analysis · ${label}`;
-    ["customerUsageRange","customerGuidanceRange","levelChartRange","dailyChartRange","patternChartRange","motorChartRange"].forEach((id)=>setText(id,scope));
+    const aiScope=loading?`Updating AI/ML analysis · ${aiLabel}`:`AI/ML analysis · ${aiLabel}`;
+    const chartScope=loading?`Updating telemetry · ${label}`:`Telemetry · ${label}`;
+    ["customerUsageRange","customerGuidanceRange"].forEach((id)=>setText(id,aiScope));
+    ["levelChartRange","dailyChartRange","patternChartRange","motorChartRange"].forEach((id)=>setText(id,chartScope));
 }
 function beginAnalyticsRangeChange(){
     state.data.analytics=null;
@@ -2015,12 +2018,13 @@ function drawAnalyticsCharts(data){
     if(!chartsAvailable||!data)return;
     data=analyticsChartsPayload(data);
     const todayAxis=analyticsRangeIsToday();
+    const chartQuality=data.chart_quality||data.analysis?.quality||{};
     const defaultWindows=data.default_chart_windows||{};
     const levelPayload=defaultWindows.tank_level?.levels||data.levels||{};
     const levelSeries={labels:levelPayload.time||[],values:toChartNumberArray(levelPayload.values,{allowNull:true})};
     const chartEvents=VIEWER_ROLE==="customer"?(state.data.events||[]).filter(isCustomerWaterEvent):(state.data.events||[]);
     const levelEvents=chartEvents.map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
-    if(data.analysis?.quality?.usage_physically_plausible===false){
+    if(chartQuality.usage_physically_plausible===false){
         drawCanvasEmpty(charts.level.canvas,"Tank Level %","Level history hidden because sensor changes failed validation.");
     }else{
         drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
@@ -2029,9 +2033,9 @@ function drawAnalyticsCharts(data){
     const usageLiters=(liters,percentValues)=>Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
     const dailyUsageSeries=usageLiters(data.daily?.liters,data.daily?.values);
-    const completeDays=Number(data.analysis?.quality?.complete_day_count||0);
-    const rowCount=Number(data.analysis?.quality?.row_count||0);
-    const reliableDaily=data.daily?.reliable===true&&completeDays>=2&&data.analysis?.quality?.usage_physically_plausible!==false;
+    const completeDays=Number(chartQuality.complete_day_count||0);
+    const rowCount=Number(chartQuality.row_count||0);
+    const reliableDaily=data.daily?.reliable===true&&completeDays>=2&&chartQuality.usage_physically_plausible!==false;
     if(reliableDaily&&getFiniteChartValues(dailyUsageSeries).some((value)=>value>0)){
         drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,dailyUsageSeries,{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,showValues:true});
     }else{
@@ -2039,10 +2043,17 @@ function drawAnalyticsCharts(data){
     }
     const patternSeries=usageLiters(data.pattern?.liters,data.pattern?.values);
     const patternTimeline={labels:data.pattern?.time||[],values:patternSeries};
-    if(data.analysis?.quality?.usage_physically_plausible!==false&&getFiniteChartValues(patternSeries).some((value)=>value>0)){
+    if(chartQuality.usage_physically_plausible!==false&&getFiniteChartValues(patternSeries).some((value)=>value>0)){
         drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",patternTimeline.labels,patternTimeline.values,{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,highlightPeak:true,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
     }else{
         drawCanvasEmpty(charts.pattern.canvas,"Estimated hourly use (L)",`Building hourly usage for the selected range | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | Usage appears after measurable drawdown is confirmed`);
+    }
+    const motorPayload=data.motor||{};
+    const motorTimeline={labels:motorPayload.time||[],values:toChartNumberArray(motorPayload.values,{allowNull:true})};
+    if(getFiniteChartValues(motorTimeline.values).length){
+        drawCanvasSeries(charts.motor.canvas,"Pump state",motorTimeline.labels,motorTimeline.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],tickFormatter:(value)=>value>=0.5?"ON":"OFF",xScale:"time",xLabelMode:todayAxis?"time":"auto"});
+    }else{
+        drawCanvasEmpty(charts.motor.canvas,"Pump state","No completed minimum-to-90% filling cycle in the selected range.");
     }
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
@@ -2236,7 +2247,7 @@ function applyCloudFeedAvailability(){
 
 function initCharts(){
     chartsAvailable=true;
-    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"],["motor","motorChart","Pump state"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
 }
 
 function refreshChartsTheme(){

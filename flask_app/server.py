@@ -703,6 +703,7 @@ DEFAULT_DEVICE_SOURCE_MODE = (
 MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
+fixed_ai_dashboard_cache = {}
 dashboard_snapshot_cache = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
@@ -720,9 +721,11 @@ ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT",
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
+FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
-ANALYTICS_LAST_VALID_SCHEMA_VERSION = 4
+ANALYTICS_LAST_VALID_SCHEMA_VERSION = 5
+ANALYTICS_ALGORITHM_VERSION = "minimum-to-90-range-hourly-ai7-v2"
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -9096,6 +9099,7 @@ def build_analytics_cache_key(start_dt, end_exclusive, device_id=None):
         end_exclusive.strftime(DATE_ONLY_FORMAT),
         normalized_device_id or "*",
         get_device_source_mode(),
+        ANALYTICS_ALGORITHM_VERSION,
     )
 
 
@@ -11021,6 +11025,94 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     payload["guidance"] = build_shared_guidance_payload(guidance_snapshot, payload)
 
     return store_cached_analytics(cache_key, payload, now_ts=now_ts)
+
+
+AI_INSIGHT_KEYS = {
+    "empty_prediction",
+    "consumption_rate",
+    "avg_daily_usage",
+    "avg_daily_usage_liters",
+    "peak_usage_day",
+    "peak_usage_value",
+    "peak_usage_liters",
+    "lowest_usage_day",
+    "lowest_usage_value",
+    "lowest_usage_liters",
+    "latest_day_usage",
+    "latest_day_usage_liters",
+    "previous_day_usage",
+    "previous_day_usage_liters",
+    "usage_change_pct",
+}
+
+
+def fixed_ai_analysis_window(now=None):
+    current = now_utc() if now is None else now
+    current_ist = current.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    start_ist = current_ist.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
+    start_dt = start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    return start_dt, current + timedelta(seconds=1), "Last 7 days"
+
+
+def build_cached_fixed_ai_analytics(device_id=None):
+    ai_start, ai_end, ai_label = fixed_ai_analysis_window()
+    cache_key = (
+        normalize_device_id(device_id) or "*",
+        ai_start.strftime(DATE_ONLY_FORMAT),
+        get_device_source_mode(),
+        ANALYTICS_ALGORITHM_VERSION,
+    )
+    current_time = time.time()
+    cached = fixed_ai_dashboard_cache.get(cache_key)
+    if cached and current_time - float(cached.get("created_at") or 0.0) < FIXED_AI_CACHE_TTL_SECONDS:
+        return copy_analytics_payload(cached.get("payload")), ai_start, ai_end, ai_label
+    payload = build_analytics(ai_start, ai_end, ai_label, device_id=device_id)
+    fixed_ai_dashboard_cache[cache_key] = {
+        "created_at": current_time,
+        "payload": copy_analytics_payload(payload),
+    }
+    # Retain a small per-device cache so one customer's request does not evict
+    # every other customer's seven-day analysis.
+    if len(fixed_ai_dashboard_cache) > 32:
+        oldest_key = min(
+            fixed_ai_dashboard_cache,
+            key=lambda key: float(fixed_ai_dashboard_cache[key].get("created_at") or 0.0),
+        )
+        fixed_ai_dashboard_cache.pop(oldest_key, None)
+    return payload, ai_start, ai_end, ai_label
+
+
+def build_dashboard_analytics(start_dt, end_exclusive, label, device_id=None):
+    """Build selected-range charts with a fixed seven-day AI/ML window."""
+    selected = copy_analytics_payload(build_analytics(start_dt, end_exclusive, label, device_id=device_id))
+    ai_start, ai_end, ai_label = fixed_ai_analysis_window()
+    selected_is_ai_window = (
+        start_dt.strftime(DATE_ONLY_FORMAT) == ai_start.strftime(DATE_ONLY_FORMAT)
+        and end_exclusive.strftime(DATE_ONLY_FORMAT) == ai_end.strftime(DATE_ONLY_FORMAT)
+    )
+    if selected_is_ai_window:
+        ai_payload = selected
+    else:
+        ai_payload, ai_start, ai_end, ai_label = build_cached_fixed_ai_analytics(device_id=device_id)
+    selected["analysis_window"] = {
+        "label": ai_label,
+        "start_date": ai_start.strftime(DATE_ONLY_FORMAT),
+        "end_date": (ai_end - timedelta(seconds=1)).strftime(DATE_ONLY_FORMAT),
+        "days": 7,
+        "fixed": True,
+    }
+    selected["chart_quality"] = copy_analytics_payload(((selected.get("analysis") or {}).get("quality") or {}))
+    selected_insights = selected.setdefault("insights", {})
+    ai_insights = (ai_payload or {}).get("insights") or {}
+    for key in AI_INSIGHT_KEYS:
+        if key in ai_insights:
+            selected_insights[key] = copy.deepcopy(ai_insights[key])
+    for key in ("prediction", "analysis", "alerts", "guidance", "comparison", "usage", "events_analysis"):
+        if key in (ai_payload or {}):
+            selected[key] = copy_analytics_payload(ai_payload[key])
+    selected["ai_daily"] = copy_analytics_payload((ai_payload or {}).get("daily") or {})
+    selected["analytics_version"] = analytics_payload_version(selected)
+    return selected
 
 
 def analytics_csv_filename_token(value, fallback):
@@ -15811,7 +15903,7 @@ def mobile_bootstrap():
     if include_analytics and current_customer_ai_analysis_enabled():
         try:
             start_dt, end_exclusive, label = resolve_date_window()
-            payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+            payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
         except Exception as exc:
             logger.exception("Mobile bootstrap analytics fallback used for %s: %s", scoped_device_id, exc)
             try:
@@ -15843,7 +15935,7 @@ def mobile_analytics():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     try:
-        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -19358,7 +19450,7 @@ def analytics():
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
     try:
-        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -19387,7 +19479,7 @@ def analytics_csv_export():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     csv_payload = build_analytics_csv_payload(payload, device_id=scoped_device_id)
     filename = build_analytics_csv_filename(payload, device_id=scoped_device_id)
     return Response(
