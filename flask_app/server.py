@@ -10223,6 +10223,24 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         if ai_leak_active or pipe_leak
         else []
     )
+    leakage_features = leakage_model.get("features") or {}
+    capacity_liters = safe_float(snapshot.get("capacity_liters"), TANK_CAPACITY_LITERS)
+    loss_rate_pct_per_hour = safe_float(leakage_features.get("avg_loss_rate_pct_per_hour"), 0)
+    usable_loss_hours = min(24.0, max(0.0, safe_float(leakage_features.get("usable_hours"), 0)))
+    estimated_abnormal_loss = None
+    impact_period = None
+    if (ai_leak_active or pipe_leak) and sufficient_anomaly_evidence and capacity_liters > 0 and loss_rate_pct_per_hour > 0 and usable_loss_hours > 0:
+        estimated_abnormal_loss = round(capacity_liters * (loss_rate_pct_per_hour / 100.0) * usable_loss_hours, 1)
+        impact_period = f"over {usable_loss_hours:g} observed hrs"
+    elif sufficient_anomaly_evidence and not ai_leak_active and not pipe_leak:
+        estimated_abnormal_loss = 0.0
+        impact_period = "in the validated period"
+
+    risk_reason = (
+        f"High because the tank may empty in about {effective_empty:g} hours; system health and motor safety are separate checks."
+        if risk_label == "High" and effective_empty is not None and effective_empty <= 3
+        else "Based on water availability, active alerts, forecast urgency, and recent usage—not only device health."
+    )
 
     return {
         "severity": severity,
@@ -10235,15 +10253,20 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         "confidence_percent": int(confidence),
         "reliability_label": reliability_label,
         "risk_label": risk_label,
+        "risk_reason": risk_reason,
         "motor_safety": motor_safety,
         "possible_causes": possible_causes,
         "estimated_impact": {
-            "water_loss_liters": None,
-            "period": None,
+            "water_loss_liters": estimated_abnormal_loss,
+            "period": impact_period,
             "cost_inr": None,
-            "message": "Not enough evidence to estimate water or cost loss reliably."
-            if ai_leak_active or pipe_leak
-            else "No estimated abnormal loss is available.",
+            "message": (
+                "Estimated from validated off-pump level loss."
+                if estimated_abnormal_loss is not None and estimated_abnormal_loss > 0
+                else "No abnormal water loss was detected in the validated period."
+                if estimated_abnormal_loss == 0
+                else "Not enough evidence from reliable off-pump telemetry is available to estimate abnormal loss."
+            ),
         },
         "last_checked_at": snapshot.get("last_sync_at") or snapshot.get("updated_at"),
         "confidence_basis": "direct_device_signal" if direct_hardware_signal else "telemetry_quality",

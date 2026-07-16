@@ -452,7 +452,8 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert '"Live device usage-rate estimate."' in usage_body
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
-    assert 'value:"0.0 L"' in customer_template
+    assert 'value:"0.0 L"' not in customer_template
+    assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
     assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
@@ -520,7 +521,7 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'class="pump-facts"' not in customer_template
     assert 'const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);' in customer_template
     assert 'id="customerMonthlyEstimate"' in customer_template
-    assert 'id="assistantTankRange"' in customer_template
+    assert 'id="assistantTankRange"' not in customer_template
 
 
 def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days():

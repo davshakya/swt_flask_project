@@ -138,6 +138,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-recommendation strong{display:block;margin-top:7px;font-size:1.18rem}.customer-dashboard .customer-recommendation p{margin-top:5px;line-height:1.45;color:var(--customer-text-soft)}
 .metric-help{display:inline-flex!important;align-items:center;justify-content:center;width:17px;height:17px;margin-left:5px;border-radius:50%;background:var(--button-lite-bg);color:var(--primary)!important;font-size:10px!important;line-height:1!important;letter-spacing:0!important;text-transform:none!important;cursor:help;vertical-align:middle}
 .customer-dashboard .tank-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.customer-dashboard .tank-detail-grid .mini{min-width:0;padding:11px 12px;border-radius:15px}.customer-dashboard .tank-detail-grid strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.customer-dashboard #tankExpectedEmptySummary{overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:center;font-size:clamp(.9rem,1.35vw,1.08rem);line-height:1.25}
 .customer-dashboard .chart-kpi span{display:block;font-size:11px;line-height:1.2;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);font-weight:800}
 .customer-dashboard .chart-kpi strong{display:block;margin-top:7px;font-size:1.05rem}
 .customer-dashboard .analytics-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap}
@@ -553,12 +554,6 @@ canvas{height:260px!important}
             <div class="eyebrow">🤖 AI Guidance</div>
             <h3>Smart Water Assistant</h3>
             <p id="customerGuidanceRange" class="muted">AI/ML analysis · Last 7 days</p>
-            <div class="assistant-metrics">
-                <div class="glance-item"><span>Summary</span><strong id="assistantSystemSummary">Collecting</strong></div>
-                <div class="glance-item"><span>Tank range</span><strong id="assistantTankRange">Collecting</strong></div>
-                <div class="glance-item"><span>Pump cycles</span><strong id="assistantPumpCycles">Collecting</strong></div>
-                <div class="glance-item"><span>Average cycle</span><strong id="assistantAverageCycle">Collecting</strong></div>
-            </div>
             <div class="customer-guidance-lists">
                 <div>
                     <span class="label">Observation</span>
@@ -571,9 +566,9 @@ canvas{height:260px!important}
             </div>
             <div class="customer-guidance-meta">
                 <div class="glance-item">
-                    <span>Risk level</span>
+                    <span>Water availability risk</span>
                     <strong id="customerRiskLevel">--</strong>
-                    <div class="detail">How urgently this needs attention.</div>
+                    <div id="customerRiskReason" class="detail">Based on tank level, expected-empty forecast, and active water alerts.</div>
                 </div>
                 <div class="glance-item">
                     <span>Motor safety</span>
@@ -775,6 +770,10 @@ function compactLocaleLabel(value){
 }
 function localizedTimeText(value,fallback="--"){
     return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
+}
+function compactExpectedEmptyText(value,fallback="--"){
+    const formatted=formatLocaleDateTime(value,fallback,{day:"2-digit",month:"short",year:"2-digit",hour:"numeric",minute:"2-digit"});
+    return formatted&&formatted!==fallback?`${formatted} IST`:formatted;
 }
 function localizedIstDateTime(value,fallback="--"){
     const formatted=formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
@@ -1159,10 +1158,14 @@ function customerUsageSavings(snapshot,analytics){
         value:savedLiters!==null?`~${savedLiters.toFixed(1)} L`:`${Math.abs(change).toFixed(0)}%`,
         note:savedLiters!==null?"Estimated savings versus the previous day.":"Lower than the previous day."
     };
-    return{
-        value:"0.0 L",
-        note:"No estimated savings versus the previous day."
-    };
+    if(change>0){
+        const increaseLiters=hasDisplayNumber(latestLitersRaw)&&hasDisplayNumber(previousLitersRaw)?Math.max(0,latestLiters-previousLiters):null;
+        return{
+            value:increaseLiters!==null?`+${increaseLiters.toFixed(1)} L used`:`+${change.toFixed(0)}% used`,
+            note:"Estimated increase versus the previous day; savings are reported only when usage falls."
+        };
+    }
+    return{value:"No change",note:"Estimated usage matches the previous day."};
 }
 function customerConfidenceScore(snapshot,system,analytics,sourceState){
     if(customerFeedBlocked())return 56;
@@ -1228,10 +1231,11 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
     const actionNote=guidance.action_note||"Auto protection is active and the tank trend looks manageable.";
     const reliability=guidance.reliability_label||reliabilityLabel(confidenceScore);
     const riskLevel=guidance.risk_label||(tone==="bad"?"High":tone==="warn"?"Medium":"Low");
+    const riskReason=guidance.risk_reason||"Based on water availability, active alerts, forecast urgency, and recent usage—not only device health.";
     const motorSafety=guidance.motor_safety||"No immediate motor-safety alert was detected.";
     const impact=guidance.estimated_impact||{};
     const impactLiters=Number(impact.water_loss_liters);
-    const impactText=Number.isFinite(impactLiters)&&impactLiters>0?`~${impactLiters.toFixed(0)} L${impact.period?` ${impact.period}`:""}`:"Not estimated";
+    const impactText=Number.isFinite(impactLiters)&&impactLiters>=0?`${impactLiters>0?"~":""}${impactLiters.toFixed(impactLiters>0?0:0)} L${impact.period?` ${impact.period}`:""}`:"Not estimated";
     const impactNote=impact.message||"Not enough evidence to estimate water loss reliably.";
     const possibleCauses=Array.isArray(guidance.possible_causes)?guidance.possible_causes.filter(Boolean):[];
     const genericStable="Tank level, pump state, and connection look steady right now.";
@@ -1265,6 +1269,7 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
         confidenceNote:`${reliability} reliability based on current device readings and usable history.`,
         technicalConfidenceText:`${confidenceScore}%`,
         riskLevel,
+        riskReason,
         motorSafety,
         impactText,
         impactNote,
@@ -1534,7 +1539,11 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerKpiRemainingWater",Number.isFinite(remaining)?`${remaining.toFixed(1)} L`:"Collecting");
     setText("customerKpiWaterTime",model.timeLabel==="--"?"Collecting":model.timeLabel);
     const remainingHours=Number(analytics?.guidance?.time_to_empty_hours??analytics?.insights?.empty_prediction);
-    setText("tankExpectedEmptySummary",Number.isFinite(remainingHours)&&remainingHours>0?localizedTimeText(new Date(Date.now()+(remainingHours*3600000)).toISOString()):"Collecting");
+    const expectedEmptyIso=Number.isFinite(remainingHours)&&remainingHours>0?new Date(Date.now()+(remainingHours*3600000)).toISOString():null;
+    const expectedEmptyText=expectedEmptyIso?compactExpectedEmptyText(expectedEmptyIso):"Collecting";
+    setText("tankExpectedEmptySummary",expectedEmptyText);
+    const expectedEmptyNode=document.getElementById("tankExpectedEmptySummary");
+    if(expectedEmptyNode)expectedEmptyNode.title=expectedEmptyIso?localizedIstDateTime(expectedEmptyIso,expectedEmptyText):expectedEmptyText;
     setText("customerSuggestedAction",model.actionTitle);
     setText("customerSuggestedActionNote",model.actionNote);
     const reliabilityNote=analyticsReliabilityNote(analytics)||model.confidenceNote;
@@ -1546,6 +1555,7 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("customerConfidenceGuidanceNote",reliabilityNote);
     setText("customerTechnicalConfidence",model.technicalConfidenceText||`${model.confidenceScore}%`);
     setText("customerRiskLevel",model.riskLevel||((model.statusTone==="bad")?"High":(model.statusTone==="warn")?"Medium":"Low"));
+    setText("customerRiskReason",model.riskReason||"Based on water availability, active alerts, forecast urgency, and recent usage—not only device health.");
     setText("customerMotorSafety",model.motorSafety||"No immediate motor-safety alert detected");
     setText("customerEstimatedImpact",model.impactText||"Not estimated");
     setText("customerEstimatedImpactNote",model.impactNote||"Not enough evidence to estimate water loss reliably.");
@@ -1556,7 +1566,6 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
     setText("healthSummary",model.healthNote);
     setText("customerSavingsNow",model.savingsNow==="--"?analyticsReadinessText(analytics,2):model.savingsNow);
     setText("customerSavingsNote",model.savingsNote);
-    setText("assistantSystemSummary",model.statusTone==="bad"?"Action required":model.statusTone==="warn"?"Monitor closely":"Operating normally");
     applyStatusTone("customerSuggestedAction",model.statusTone);
     applyStatusTone("customerGuidanceStatus",model.statusTone);
     applyStatusTone("customerRiskLevel",model.statusTone);
@@ -1655,9 +1664,6 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const currentLevel=Number(state.data.snapshot?.level);
     setText("chartLevelCurrent",levelValue(currentLevel));
     setText("chartFillCycles",hasPumpData?starts:"Collecting");
-    setText("assistantTankRange",levels.length?`${Math.min(...levels).toFixed(0)}%–${Math.max(...levels).toFixed(0)}%`:"Collecting");
-    setText("assistantPumpCycles",hasPumpData?`${starts} completed`:"Collecting");
-    setText("assistantAverageCycle",hasPumpData?average:"Collecting");
     if(state.data.events)renderEvents(state.data.events);
 }
 function updateCustomerSpotlightCards({snapshot=state.data.snapshot,system=state.data.systemStatus,analytics=state.data.analytics}={}){
