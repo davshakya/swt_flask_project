@@ -533,7 +533,7 @@ canvas{height:260px!important}
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><canvas id="levelChart"></canvas></div>
         <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="dailyChart"></canvas></div>
         <div class="panel"><div class="eyebrow">Household Pattern</div><h3>24-hour water pattern</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><canvas id="patternChart"></canvas></div>
-        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span id="chartPumpRuntimeLabel">Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
     </section>
 
     <section class="panel customer-only customer-tools-panel" style="margin-top:18px">
@@ -634,7 +634,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v9-estimated-runtime";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v11-level-rise-runtime";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const READY_ANALYTICS_RANGE_DAYS=[1,7,30];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
@@ -1641,16 +1641,10 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     if(VIEWER_ROLE!=="customer")return;
     const pump=analytics?.pump_activity||{};
     const hasPumpData=analytics&&Object.keys(pump).length>0;
-    const runtimeIsEstimated=hasPumpData&&pump.relay_state_used===false;
-    const rawRuntimeSeconds=Number(pump.runtime_seconds);
-    const displayRuntimeSeconds=runtimeIsEstimated&&Number.isFinite(rawRuntimeSeconds)
-        ?Math.round(rawRuntimeSeconds/60)*60
-        :rawRuntimeSeconds;
-    const runtime=hasPumpData?`${runtimeIsEstimated?"~":""}${formatDurationSeconds(displayRuntimeSeconds)}`:"Collecting";
+    const runtime=hasPumpData?formatDurationSeconds(pump.runtime_seconds):"Collecting";
     const starts=hasPumpData?String(Number(pump.completed_runs||0)):"Collecting";
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
     const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
-    setText("chartPumpRuntimeLabel",runtimeIsEstimated?"Estimated runtime":"Runtime");
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];

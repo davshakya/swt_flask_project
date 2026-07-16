@@ -192,6 +192,22 @@ def test_level_history_runtime_stops_at_first_observed_threshold_reading():
     assert runs[0]["stop_threshold_pct"] == 90.0
 
 
+def test_level_history_runtime_sums_each_separate_rising_cycle():
+    times = [
+        f"2026-07-14 08:{minute:02d}:00"
+        for minute in range(0, 55, 5)
+    ]
+    levels = [40.0, 45.0, 50.0, 50.0, 49.0, 40.0, 45.0, 50.0, 55.0, 55.0, 54.0]
+
+    inferred_times, states, runs = server.infer_pump_activity_from_level_history(times, levels)
+    metrics = server.build_motor_activity_metrics(inferred_times, states)
+
+    assert [run["duration_seconds"] for run in runs] == [10 * 60, 15 * 60]
+    assert metrics["completed_runs"] == 2
+    assert metrics["runtime_seconds"] == (10 + 15) * 60
+    assert metrics["avg_run_seconds"] == int(((10 + 15) * 60) / 2)
+
+
 def test_level_history_does_not_guess_runtime_for_sub_threshold_rise():
     times = [
         "2026-07-14 09:00:00",
