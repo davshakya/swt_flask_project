@@ -373,8 +373,8 @@ def test_customer_dashboard_stop_button_uses_effective_running_state():
 def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert 'id="motorChart"' in customer_template
-    assert '["motor","motorChart","Pump state"]' in customer_template
+    assert 'id="motorChart"' not in customer_template
+    assert '["motor","motorChart","Pump state"]' not in customer_template
     assert 'id="chartPumpRuntime"' in customer_template
     assert 'id="chartPumpStarts"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
@@ -382,11 +382,11 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert "Hourly water use" in customer_template
     assert "data.pattern?.time||[]" in customer_template
     assert 'xScale:"time"' in customer_template
-    assert customer_template.count('class="chart-scroll"') == 4
+    assert customer_template.count('class="chart-scroll"') == 3
     assert 'aria-label="Scrollable tank level timeline"' in customer_template
     assert 'aria-label="Scrollable daily water use timeline"' in customer_template
     assert 'aria-label="Scrollable hourly water use timeline"' in customer_template
-    assert 'aria-label="Scrollable pump activity timeline"' in customer_template
+    assert 'aria-label="Scrollable pump activity timeline"' not in customer_template
     assert "function prepareScrollableChart(" in customer_template
     assert 'Math.min(8000,Math.max(viewportWidth,96+(count*pointWidth)))' in customer_template
     assert 'canvas.style.setProperty("--chart-width"' in customer_template
@@ -1025,8 +1025,8 @@ def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
         / "activity_main.xml"
     ).read_text(encoding="utf-8")
 
-    assert "cloudPumpActivityChart" in android_layout
-    assert "cloudPumpActivityScroll" in android_layout
+    assert "cloudPumpActivityChart" not in android_layout
+    assert "cloudPumpActivityScroll" not in android_layout
     assert "cloudHourlyPatternChart" not in android_layout
     assert "cloudHourlyPatternCard" not in android_layout
     for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue", "cloudPumpDutyValue"):
@@ -1035,7 +1035,7 @@ def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
     assert "binding.cloudPumpStartsValue" in android_source
     assert "binding.cloudPumpAverageValue" in android_source
     assert "binding.cloudPumpDutyValue" in android_source
-    assert "binding.cloudPumpActivityChart.setChart" in android_source
+    assert "binding.cloudPumpActivityChart.setChart" not in android_source
 
 
 def test_release_versions_use_year_train_increment_syntax():

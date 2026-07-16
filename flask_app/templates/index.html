@@ -533,7 +533,7 @@ canvas{height:260px!important}
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable tank level timeline"><canvas id="levelChart"></canvas></div></div>
         <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable daily water use timeline"><canvas id="dailyChart"></canvas></div></div>
         <div class="panel"><div class="eyebrow">Water Use Timeline</div><h3>Hourly water use</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable hourly water use timeline"><canvas id="patternChart"></canvas></div></div>
-        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable pump activity timeline"><canvas id="motorChart"></canvas></div></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">Telemetry · Selected range</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
     </section>
 
     <section class="panel customer-only customer-tools-panel" style="margin-top:18px">
@@ -1824,7 +1824,7 @@ function analyticsRangeIsToday(){
     return Number(state.quickRange)===1;
 }
 function resizeCanvasChart(canvas){const rect=canvas.getBoundingClientRect();const width=Math.max(320,Math.round(rect.width||canvas.clientWidth||640));const height=Math.max(220,Math.round(rect.height||canvas.clientHeight||300));const dpr=Math.max(1,window.devicePixelRatio||1);if(canvas.width!==Math.round(width*dpr)||canvas.height!==Math.round(height*dpr)){canvas.width=Math.round(width*dpr);canvas.height=Math.round(height*dpr);}const ctx=canvas.getContext("2d");ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,width,height);return{ctx,width,height};}
-function drawCanvasChrome(ctx,width,height,title){const text=themeVar("--text");const muted=themeVar("--muted");const grid=themeVar("--chart-grid");const left=52;const right=18;const top=18;const bottom=30;const plotWidth=Math.max(10,width-left-right);const plotHeight=Math.max(10,height-top-bottom);ctx.clearRect(0,0,width,height);ctx.lineWidth=1;ctx.strokeStyle=grid;for(let step=0;step<=5;step+=1){const y=top+(plotHeight/5)*step;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+plotWidth,y);ctx.stroke();}ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+plotHeight);ctx.lineTo(left+plotWidth,top+plotHeight);ctx.stroke();ctx.fillStyle=text;ctx.font='600 12px "Trebuchet MS","Segoe UI",sans-serif';ctx.fillText(title,left,14);ctx.fillStyle=muted;return{left,right,top,bottom,plotWidth,plotHeight};}
+function drawCanvasChrome(ctx,width,height,title,axisOffset=0){const text=themeVar("--text");const muted=themeVar("--muted");const grid=themeVar("--chart-grid");const left=52;const right=18;const top=18;const bottom=30;const plotWidth=Math.max(10,width-left-right);const plotHeight=Math.max(10,height-top-bottom);ctx.clearRect(0,0,width,height);ctx.lineWidth=1;ctx.strokeStyle=grid;for(let step=0;step<=5;step+=1){const y=top+(plotHeight/5)*step;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(left+plotWidth,y);ctx.stroke();}ctx.strokeStyle=grid;ctx.beginPath();ctx.moveTo(left,top);ctx.lineTo(left,top+plotHeight);ctx.lineTo(left+plotWidth,top+plotHeight);ctx.stroke();ctx.fillStyle=text;ctx.font='600 12px "Trebuchet MS","Segoe UI",sans-serif';ctx.fillText(title,left+axisOffset,14);ctx.fillStyle=muted;return{left,right,top,bottom,plotWidth,plotHeight};}
 function drawCanvasEmpty(canvas,title,message){
     canvas.__swtChartPoints=[];
     canvas.__swtChartRender=null;
@@ -1894,7 +1894,10 @@ function prepareScrollableChart(canvas,sampleCount,kind="line"){
 function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index",xLabelMode="auto",hoverIndex=null,showValues=false,highlightPeak=false,eventMarkers=[]}={}){
     prepareScrollableChart(canvas,Array.isArray(values)?values.length:0,kind);
     const {ctx,width,height}=resizeCanvasChart(canvas);
-    const box=drawCanvasChrome(ctx,width,height,title);
+    const axisViewport=canvas.closest?.(".chart-scroll");
+    const axisOffset=Math.max(0,axisViewport?.scrollLeft||0);
+    const axisViewportWidth=Math.max(320,axisViewport?.clientWidth||width);
+    const box=drawCanvasChrome(ctx,width,height,title,axisOffset);
     const numericValues=Array.isArray(values)?values.map((value)=>value===null||value===undefined?null:Number(value)):[];
     const finiteValues=getFiniteChartValues(numericValues);
     if(!finiteValues.length){drawCanvasEmpty(canvas,title,"No data available yet. Adjust dates or wait for the next sync.");return;}
@@ -1912,7 +1915,7 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
         if(!Number.isFinite(value))continue;
         const y=box.top+((max-value)/(max-min))*box.plotHeight;
         const label=tickFormatter?tickFormatter(value):value.toFixed(1);
-        ctx.fillText(label,6,y+4);
+        ctx.fillText(label,axisOffset+6,y+4);
     }
     const safeLabels=Array.isArray(labels)?labels:[];
     const sampleCount=Math.max(1,numericValues.length);
@@ -1955,7 +1958,8 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
             :[...new Set([...Array(barLabelCount).keys()].map((step)=>Math.round((sampleCount-1)*(step/(barLabelCount-1)))))];
         labelIndexes.forEach((index)=>{
             const shortLabel=chartAxisLabel(safeLabels[index]??"",{timeOnly:useTimeLabels});
-            ctx.fillText(shortLabel,barCenterForIndex(index),Math.min(height-6,box.top+box.plotHeight+20));
+            const labelX=index===0?axisOffset+box.left:index===sampleCount-1?axisOffset+axisViewportWidth-box.right:barCenterForIndex(index);
+            ctx.fillText(shortLabel,labelX,Math.min(height-6,box.top+box.plotHeight+20));
         });
         canvas.__swtChartPoints=points.filter(Boolean);
         canvas.__swtChartRender=(nextHoverIndex=null)=>drawCanvasSeries(canvas,title,labels,values,{kind,color,fillColor,stepped,minValue,maxValue,tickFormatter,yTicks,xScale,xLabelMode,hoverIndex:nextHoverIndex,showValues,highlightPeak,eventMarkers});
@@ -2001,7 +2005,7 @@ function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8
     const axisLabelIndexes=sampleCount===1?[0]:[...new Set([...Array(axisLabelCount).keys()].map((step)=>Math.round((sampleCount-1)*(step/(axisLabelCount-1)))))];
     axisLabelIndexes.forEach((index,labelIndex)=>{
         const label=chartAxisLabel(safeLabels[index]??"",{timeOnly:useTimeLabels});
-        const x=lineXForIndex(index);
+        const x=labelIndex===0?axisOffset+box.left:labelIndex===axisLabelIndexes.length-1?axisOffset+axisViewportWidth-box.right:lineXForIndex(index);
         ctx.textAlign=labelIndex===0?"left":labelIndex===axisLabelIndexes.length-1?"right":"center";
         ctx.fillText(label,x,Math.min(height-6,box.top+box.plotHeight+20));
     });
@@ -2047,13 +2051,6 @@ function drawAnalyticsCharts(data){
         drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",patternTimeline.labels,patternTimeline.values,{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,highlightPeak:true,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
     }else{
         drawCanvasEmpty(charts.pattern.canvas,"Estimated hourly use (L)",`Building hourly usage for the selected range | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | Usage appears after measurable drawdown is confirmed`);
-    }
-    const motorPayload=data.motor||{};
-    const motorTimeline={labels:motorPayload.time||[],values:toChartNumberArray(motorPayload.values,{allowNull:true})};
-    if(getFiniteChartValues(motorTimeline.values).length){
-        drawCanvasSeries(charts.motor.canvas,"Pump state",motorTimeline.labels,motorTimeline.values,{kind:"line",color:themeVar("--chart-motor"),stepped:true,minValue:0,maxValue:1,yTicks:[1,0],tickFormatter:(value)=>value>=0.5?"ON":"OFF",xScale:"time",xLabelMode:todayAxis?"time":"auto"});
-    }else{
-        drawCanvasEmpty(charts.motor.canvas,"Pump state","No completed minimum-to-90% filling cycle in the selected range.");
     }
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
@@ -2247,7 +2244,7 @@ function applyCloudFeedAvailability(){
 
 function initCharts(){
     chartsAvailable=true;
-    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"],["motor","motorChart","Pump state"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
+    [["level","levelChart","Tank Level %"],["daily","dailyChart","Estimated daily use (L)"],["pattern","patternChart","Estimated hourly use (L)"]].forEach(([key,id,title])=>{const canvas=document.getElementById(id);if(!canvas){chartsAvailable=false;return;}charts[key]={canvas,title};attachCanvasChartHover(canvas);drawCanvasEmpty(canvas,title,"No data available yet. Wait for the next sync.");});
 }
 
 function refreshChartsTheme(){
@@ -2257,6 +2254,8 @@ function refreshChartsTheme(){
 function attachCanvasChartHover(canvas){
     if(!canvas||canvas.__swtHoverAttached)return;
     canvas.__swtHoverAttached=true;
+    const scrollViewport=canvas.closest?.(".chart-scroll");
+    scrollViewport?.addEventListener("scroll",()=>{if(typeof canvas.__swtChartRender==="function")canvas.__swtChartRender(canvas.__swtHoverIndex??null);},{passive:true});
     canvas.addEventListener("mousemove",(event)=>{
         const points=canvas.__swtChartPoints||[];
         const render=canvas.__swtChartRender;
