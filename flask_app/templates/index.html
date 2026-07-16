@@ -163,6 +163,8 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard #dashboardSettings{margin-top:0}
 .customer-dashboard .customer-timeline-panel:has(#eventTimeline:empty){min-height:0}
 .customer-dashboard .panel{padding:18px}
+.customer-dashboard{font-size:1rem;line-height:1.5}.customer-dashboard h1{font-size:clamp(2rem,4vw,3.1rem)}.customer-dashboard h2{font-size:clamp(1.45rem,2.4vw,2rem)}.customer-dashboard h3{font-size:clamp(1.2rem,1.8vw,1.5rem)}
+.customer-dashboard .system-health-grid .card:nth-child(2){background:linear-gradient(145deg,color-mix(in srgb,var(--good) 12%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(3){background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 12%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(4){background:linear-gradient(145deg,color-mix(in srgb,#7c3aed 10%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(5){background:linear-gradient(145deg,color-mix(in srgb,var(--warn) 10%,var(--card-bg)),var(--card-bg))}
 @media (prefers-color-scheme: dark){
 .customer-dashboard{--customer-surface:linear-gradient(180deg,rgba(11,29,39,.94),rgba(9,22,31,.88));--customer-surface-strong:linear-gradient(180deg,rgba(12,31,42,.98),rgba(9,24,34,.94));--customer-hero-glow:radial-gradient(circle at top right,rgba(91,210,219,.16),transparent 30%),radial-gradient(circle at 14% 16%,rgba(64,201,142,.12),transparent 28%),linear-gradient(135deg,rgba(7,19,27,.18),rgba(255,255,255,0));--customer-card-shadow:0 30px 60px rgba(0,0,0,.34);--customer-feature-shadow:0 32px 72px rgba(0,0,0,.42);--customer-highlight:rgba(255,255,255,.06);--customer-track:rgba(13,34,44,.72);--customer-text-soft:#afc8cf;--customer-accent:#71d7e6;--customer-accent-strong:#b9f7ff}
 .customer-dashboard .tank-wrap{background:linear-gradient(180deg,rgba(12,29,39,.84),rgba(6,18,26,.96))}
@@ -458,7 +460,6 @@ canvas{height:260px!important}
             <div class="card"><span class="label">☁ Cloud</span><div id="systemCloudHealth" class="statuscopy">--</div></div>
             <div class="card"><span class="label">🤖 AI <span class="metric-help" title="Confidence based on telemetry freshness, sensor health, and usable history.">i</span></span><div id="systemAiHealth" class="statuscopy">Monitoring</div></div>
             <div class="card customer-only"><span class="label">📶 Wi-Fi signal</span><div id="systemSignalHealth" class="statuscopy">Collecting</div></div>
-            <div class="card customer-only"><span class="label">Device firmware</span><div id="systemFirmwareHealth" class="statuscopy">Not reported</div></div>
         </div>
     </section>
 
@@ -508,13 +509,10 @@ canvas{height:260px!important}
             <div class="range-buttons">
                 <button id="range_1" class="btn-lite" onclick="setQuickRange(1)">Today</button>
                 <button id="range_7" class="btn-lite active" onclick="setQuickRange(7)">7 Days</button>
-                <button id="range_30" class="btn-lite" onclick="setQuickRange(30)">30 Days</button>
             </div>
-            <button class="btn-outline" type="button" onclick="document.getElementById('startDate').focus()">Custom</button>
         <div class="filters">
-            <input type="date" id="startDate">
-            <input type="date" id="endDate">
-            <button class="btn-lite" onclick="applyCustomRange()">Apply</button>
+            <input type="hidden" id="startDate">
+            <input type="hidden" id="endDate">
             <a id="analyticsDownloadLink" class="btn-outline action-link" href="{{ url_for('analytics_csv_export') }}" download>Download CSV</a>
             <button class="btn-outline" type="button" onclick="manualRefresh()">Refresh</button>
         </div>
@@ -581,7 +579,7 @@ canvas{height:260px!important}
                     <div id="customerEstimatedImpactNote" class="detail">Shown only when liters can be estimated reliably.</div>
                 </div>
             </div>
-            <div class="customer-technical-details"><h4>Technical details</h4><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div><div class="technical-grid"><div class="technical-item"><span>Firmware</span><strong id="customerFirmware">Not reported</strong></div><div class="technical-item"><span>Device uptime</span><strong id="customerUptime">Not reported</strong></div><div class="technical-item"><span>Wi-Fi signal</span><strong id="customerSignal">Not reported</strong></div><div class="technical-item"><span>Free memory</span><strong id="customerMemory">Not reported</strong></div></div></div>
+            <div class="customer-technical-details"><h4>Technical details</h4><div class="muted" style="margin-top:8px">Model confidence: <span id="customerTechnicalConfidence">--</span> · Last checked: <span id="customerAiLastChecked">--</span></div><div class="technical-grid"><div class="technical-item"><span>Device uptime</span><strong id="customerUptime">Not reported</strong></div><div class="technical-item"><span>Wi-Fi signal</span><strong id="customerSignal">Not reported</strong></div><div class="technical-item"><span>Free memory</span><strong id="customerMemory">Not reported</strong></div></div></div>
             <div class="guidance-action-row">
                 <button id="viewLeakReportButton" class="btn-outline" type="button" onclick="scrollToAnalyticsReport()">📋 View Leak Report</button>
                 <span class="muted">AI leakage actions appear only above 90% confidence; device safety alerts remain immediate.</span>
@@ -631,7 +629,7 @@ const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
 const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
-const READY_ANALYTICS_RANGE_DAYS=[1,7,30];
+const READY_ANALYTICS_RANGE_DAYS=[1,7];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
 const PUMP_START_GRACE_MS=60000;
 const SOURCE_TANK_MIN_RUN_PERCENT=20;
@@ -772,8 +770,12 @@ function localizedTimeText(value,fallback="--"){
     return formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
 }
 function compactExpectedEmptyText(value,fallback="--"){
-    const formatted=formatLocaleDateTime(value,fallback,{day:"2-digit",month:"short",year:"2-digit",hour:"numeric",minute:"2-digit"});
-    return formatted&&formatted!==fallback?`${formatted} IST`:formatted;
+    const timestamp=value instanceof Date?value:new Date(value);
+    if(Number.isNaN(timestamp.getTime()))return fallback;
+    try{
+        const formatted=new Intl.DateTimeFormat(undefined,{day:"2-digit",month:"short",year:"numeric",hour:"numeric",minute:"2-digit",timeZone:"Asia/Kolkata"}).format(timestamp);
+        return `${formatted} IST`;
+    }catch(error){return fallback;}
 }
 function localizedIstDateTime(value,fallback="--"){
     const formatted=formatLocaleDateTime(value,fallback,{dateStyle:"medium",timeStyle:"short"});
@@ -965,7 +967,7 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     const rawHealth=Number(snapshot.tank_health??analytics.health?.score);
     const health=Number.isFinite(rawHealth)&&dataQualityIssue?Math.min(rawHealth,69):rawHealth;
     setText("systemHealthScore",Number.isFinite(health)?`${Math.round(health)}%`:"--");
-    setText("systemHealthNote",dataQualityIssue?"Live controls are healthy, but usage history needs sensor/refill verification.":Number.isFinite(health)?(health>=90?"All monitored systems look healthy.":health>=70?"Some items need attention.":"Immediate review recommended."):"Waiting for verified readings.");
+    setText("systemHealthNote",dataQualityIssue?"Live controls are healthy, but usage history needs sensor/refill verification.":Number.isFinite(health)?(health>=90?"":health>=70?"Some items need attention.":"Immediate review recommended."):"Waiting for verified readings.");
     const pumpFault=String(snapshot.pump_failure||"").toUpperCase()==="YES"||String(snapshot.dry_run||"").toUpperCase()==="YES";
     const sensorHealthy=!snapshot.sensor||String(snapshot.sensor).toUpperCase()==="OK";
     const cloudHealthy=["live","recent","online"].includes(String(telemetry).toLowerCase());
@@ -974,7 +976,7 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     const sensorOnline=(sensorHealthy?1:0)+(sourceState.monitoringActive&&sourceState.sensorHealthy?1:0);
     const pumpCycles=Number(analytics?.pump_activity?.completed_runs);
     const confidence=customerConfidenceScore(snapshot,system,analytics,sourceState);
-    setText("systemPumpHealth",pumpFault?"Needs attention":Number.isFinite(pumpCycles)?`${pumpCycles} cycles · Healthy`:"No faults");
+    setText("systemPumpHealth",pumpFault?"Needs attention":Number.isFinite(pumpCycles)?`${pumpCycles} cycles`:"No faults");
     setText("systemSensorHealth",!sensorHealthy?`${sensorOnline}/${sensorTotal} Online`:dataQualityIssue?`${sensorOnline}/${sensorTotal} Online · Review data`:`${sensorOnline}/${sensorTotal} Online`);
     setText("systemCloudHealth",cloudHealthy?"Connected":"Delayed");
     setText("systemAiHealth",hardwareLeak||aiLeak?`Alert · ${confidence}% confidence`:dataQualityIssue?`${confidence}% confidence · Limited`:`${confidence}% confidence`);
@@ -1796,8 +1798,8 @@ function beginAnalyticsRangeChange(){
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null});
     renderOperationalSummary(state.data.snapshot,state.data.systemStatus,null);
 }
-function setQuickRange(days){state.quickRange=days;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===days));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
-function applyCustomRange(){const s=document.getElementById("startDate").value;const e=document.getElementById("endDate").value;if(!s||!e){banner("commandBanner","Select both start and end dates before applying a custom range.","warn");return;}if(s>e){banner("commandBanner","Start date must be on or before the end date.","warn");return;}state.customRange=true;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
+function setQuickRange(days){state.quickRange=days===1?1:7;state.customRange=false;document.getElementById("startDate").value="";document.getElementById("endDate").value="";[1,7].forEach((d)=>document.getElementById(`range_${d}`)?.classList.toggle("active",d===state.quickRange));saveAnalyticsRangeState();updateAnalyticsDownloadLink();beginAnalyticsRangeChange();loadAnalytics({force:true});}
+function applyCustomRange(){setQuickRange(7);}
 function resetFilters(){setQuickRange(DEFAULT_ANALYTICS_RANGE_DAYS);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
 function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
@@ -2122,20 +2124,20 @@ function applyAnalyticsRangeState(saved){
     const endInput=document.getElementById("endDate");
     if(!startInput||!endInput)return false;
     const quickRange=Number(saved?.quickRange);
-    const hasCustomRange=Boolean(saved?.customRange&&saved?.startDate&&saved?.endDate);
+    const hasCustomRange=false;
     if(hasCustomRange){
         state.customRange=true;
         state.quickRange=Number.isFinite(quickRange)&&quickRange>0?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
         startInput.value=saved.startDate;
         endInput.value=saved.endDate;
-        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.remove("active"));
+        [1,7].forEach((d)=>document.getElementById(`range_${d}`)?.classList.remove("active"));
         return true;
     }
     state.customRange=false;
-    state.quickRange=[1,7,30].includes(quickRange)?quickRange:DEFAULT_ANALYTICS_RANGE_DAYS;
+    state.quickRange=[1,7].includes(quickRange)?quickRange:7;
     startInput.value="";
     endInput.value="";
-    [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===state.quickRange));
+    [1,7].forEach((d)=>document.getElementById(`range_${d}`)?.classList.toggle("active",d===state.quickRange));
     return true;
 }
 function restoreAnalyticsRange(){
@@ -2145,8 +2147,8 @@ function restoreAnalyticsRange(){
         const today=new Date();
         document.getElementById("startDate").value="";
         document.getElementById("endDate").value="";
-        [1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===DEFAULT_ANALYTICS_RANGE_DAYS));
-        state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS;
+        [1,7].forEach((d)=>document.getElementById(`range_${d}`)?.classList.toggle("active",d===(DEFAULT_ANALYTICS_RANGE_DAYS===1?1:7)));
+        state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS===1?1:7;
         state.customRange=false;
     }
     updateAnalyticsDownloadLink();
@@ -2343,9 +2345,7 @@ function renderSnapshot(snapshot){
     applyStatusTone("sensor_status",sensorRaw?(sensorConnected?"ok":"bad"):"");
     setText("sensor_info",snapshot.sensor_info||"JSN-SR04T status unavailable");
     setText("wifi",`Wi-Fi ${snapshot.wifi||"--"} | RSSI ${snapshot.wifi_rssi??"--"}`);
-    setText("customerFirmware",snapshot.firmware_version||"Not reported");
     setText("headerFirmware",snapshot.firmware_version||"Not reported");
-    setText("systemFirmwareHealth",snapshot.firmware_version||"Not reported");
     setText("customerUptime",hasDisplayNumber(snapshot.uptime_s)?formatDurationSeconds(snapshot.uptime_s):"Not reported");
     setText("customerSignal",hasDisplayNumber(snapshot.wifi_rssi)?`${Number(snapshot.wifi_rssi)} dBm`:(snapshot.wifi||"Not reported"));
     setText("customerMemory",hasDisplayNumber(snapshot.free_heap)?`${(Number(snapshot.free_heap)/1024).toFixed(1)} KB free`:"Not reported");
@@ -2400,8 +2400,8 @@ function renderSnapshot(snapshot){
             :"Manual Stop is active. The system will return to Auto when the low-level start point is reached.");
     }else{
         setText("controlSummary",motorState==="ON"
-            ?"Auto protection is active. The pump is running now, and the tank thresholds are still safely in control."
-            :"Auto protection is active. Use Start Pump or Stop Pump for a supervised action without leaving auto control.");
+            ?"The pump is running now, and the configured tank thresholds remain active."
+            :"");
     }
     const warnings=[];
     if(Number(snapshot.level||0)<=state.preferences.lowThreshold)warnings.push(`Tank level is below ${state.preferences.lowThreshold}%.`);
@@ -2629,7 +2629,7 @@ async function refreshAll(force=false){if(customerFeedBlocked()){applyCloudFeedA
 async function manualRefresh(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}setRefreshButtonDisabled(true);setRefreshBusy("Refreshing dashboard");try{await refreshAll(true);banner("commandBanner","Dashboard refreshed.","info");}finally{setRefreshButtonDisabled(false);}}
 function startPolling(){if(customerFeedBlocked())return;pageTimers.push(setInterval(()=>refreshLive(),FAST_POLL_MS),setInterval(()=>refreshEvents(),ACTIVITY_POLL_MS),setInterval(updateRefreshClock,15000));}
 
-function initDates(){document.getElementById("startDate").value="";document.getElementById("endDate").value="";state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS;state.customRange=false;[1,7,30].forEach((d)=>document.getElementById(`range_${d}`).classList.toggle("active",d===DEFAULT_ANALYTICS_RANGE_DAYS));updateAnalyticsRangeContext();updateAnalyticsDownloadLink();saveAnalyticsRangeState();}
+function initDates(){document.getElementById("startDate").value="";document.getElementById("endDate").value="";state.quickRange=DEFAULT_ANALYTICS_RANGE_DAYS===1?1:7;state.customRange=false;[1,7].forEach((d)=>document.getElementById(`range_${d}`)?.classList.toggle("active",d===state.quickRange));updateAnalyticsRangeContext();updateAnalyticsDownloadLink();saveAnalyticsRangeState();}
 
 document.addEventListener("visibilitychange",()=>{if(!document.hidden){refreshLive({force:true});refreshEvents({force:true});scheduleReadyAnalyticsPrefetch();if(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_STALE_MS)loadAnalytics({force:true});}});
 if(window.matchMedia){const themeMedia=window.matchMedia("(prefers-color-scheme: dark)");const handleThemeChange=()=>refreshChartsTheme();if(typeof themeMedia.addEventListener==="function")themeMedia.addEventListener("change",handleThemeChange);else if(typeof themeMedia.addListener==="function")themeMedia.addListener(handleThemeChange);}

@@ -486,7 +486,7 @@ def test_customer_dashboard_avoids_duplicate_summary_cards():
     assert 'id="chartLevelHigh"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
     assert 'Building baseline' in customer_template
-    assert 'id="customerFirmware"' in customer_template
+    assert 'id="customerFirmware"' not in customer_template
     assert 'id="customerUptime"' in customer_template
     assert 'id="customerSignal"' in customer_template
     assert 'id="customerMemory"' in customer_template
@@ -535,7 +535,8 @@ def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days()
     assert 'updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null})' in customer_template
     assert 'const requestQuery=query();' in customer_template
     assert 'if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}' in customer_template
-    assert 'const READY_ANALYTICS_RANGE_DAYS=[1,7,30];' in customer_template
+    assert 'const READY_ANALYTICS_RANGE_DAYS=[1,7];' in customer_template
+    assert 'id="range_30"' not in customer_template
     assert 'function quickRangeQuery(days)' in customer_template
     assert 'async function prefetchReadyAnalyticsRanges()' in customer_template
     assert 'function scheduleReadyAnalyticsPrefetch()' in customer_template
