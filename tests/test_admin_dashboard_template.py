@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v8-threshold-runtime";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v9-estimated-runtime";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -376,11 +376,15 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'id="motorChart"' not in customer_template
     assert '["motor","motorChart","Motor State"]' not in customer_template
     assert 'id="chartPumpRuntime"' in customer_template
+    assert 'id="chartPumpRuntimeLabel"' in customer_template
     assert 'id="chartPumpStarts"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
     assert 'id="chartPumpDuty"' in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
     assert "pump.avg_run_seconds" in customer_template
+    assert 'runtimeIsEstimated=hasPumpData&&pump.relay_state_used===false' in customer_template
+    assert 'runtimeIsEstimated?"Estimated runtime":"Runtime"' in customer_template
+    assert 'Math.round(rawRuntimeSeconds/60)*60' in customer_template
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
     assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
     assert 'function isCustomerWaterEvent(event)' in customer_template
@@ -441,7 +445,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v8-threshold-runtime";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v9-estimated-runtime";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 
