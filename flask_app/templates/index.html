@@ -82,6 +82,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard #actionHint,.customer-dashboard #controlSummary{padding:14px 16px;border-radius:18px;background:rgba(248,252,251,.76);border:1px solid rgba(15,84,98,.08)}
 .customer-dashboard #actionHint{margin-top:14px}
 .customer-dashboard #controlSummary{margin-top:12px}
+.customer-dashboard #actionHint:empty,.customer-dashboard #controlSummary:empty{display:none}
 .customer-dashboard .glance-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .customer-dashboard .glance-item{background:rgba(245,251,250,.9);border-radius:20px;min-height:122px}
 .customer-dashboard section.panel + section.panel,.customer-dashboard .charts,.customer-dashboard .split.customer-only{margin-top:18px}
@@ -343,12 +344,11 @@ canvas{height:260px!important}
                             <h1>Dashboard</h1>
                             {% if not is_admin %}<h2 class="sr-only">{{ "Home Water" }} Dashboard</h2>{% endif %}
                         </div>
-                        <div id="logoStatus" class="brand-status">Pump Status <strong>idle</strong></div>
                     {% if selected_device_id %}
                         <div class="sub" style="margin-top:10px">Viewing device <strong>{{ selected_device_id }}</strong></div>
                     {% endif %}
                     {% if not is_admin %}
-                        <div class="sub" style="margin-top:10px">Signed in as <strong>{{ viewer_display_name or "Tank Owner" }}</strong>.</div>
+                        <div class="sub" style="margin-top:10px">Hello <strong>{{ viewer_display_name or "Tank Owner" }}</strong></div>
                     {% endif %}
                     </div>
                 </div>
@@ -1012,7 +1012,7 @@ function pumpDisplayState(motorState,levelIncreasing=false){
     if(levelIncreasing&&!isPumpRunning(motor))return"START";
     return motor||"--";
 }
-function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");const status=document.getElementById("logoStatus");if(!logo||!status)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const startInferred=levelIncreasing&&!running;const spinning=running||pendingActive||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pendingActive||startInferred)&&!running);status.innerHTML=spinning?(startInferred?"Pump Status <strong>start</strong>":(pendingActive&&!running?"Pump Status <strong>arming</strong>":"Pump Status <strong>spinning</strong>")):"Pump Status <strong>idle</strong>";}
+function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");if(!logo)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const startInferred=levelIncreasing&&!running;const spinning=running||pendingActive||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pendingActive||startInferred)&&!running);}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;
@@ -2042,12 +2042,12 @@ function drawAnalyticsCharts(data){
         drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
     }
     const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
-    const usageLiters=(liters,percentValues)=>Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);
+    const usageLiters=(liters,percentValues)=>{const literSeries=Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):[];if(getFiniteChartValues(literSeries).length)return literSeries;return toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);};
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
     const dailyUsageSeries=usageLiters(data.daily?.liters,data.daily?.values);
     const completeDays=Number(chartQuality.complete_day_count||0);
     const rowCount=Number(chartQuality.row_count||0);
-    const reliableDaily=data.daily?.reliable===true&&completeDays>=2&&chartQuality.usage_physically_plausible!==false;
+    const reliableDaily=chartQuality.usage_physically_plausible!==false&&((data.daily?.reliable===true&&completeDays>=2)||(todayAxis&&chartQuality.usage_rate_reliable===true));
     if(reliableDaily&&getFiniteChartValues(dailyUsageSeries).some((value)=>value>0)){
         drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,dailyUsageSeries,{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,showValues:true});
     }else{
