@@ -131,7 +131,10 @@ def test_last_valid_analytics_survives_empty_recalculation():
             "usage_change_pct": -81.9,
         },
         "daily": {"dates": ["2026-07-03", "2026-07-04"], "values": [1731.85, 313.71]},
-        "pattern": {"hours": list(range(24)), "values": [0.0] * 24},
+        "pattern": {
+            "time": ["2026-07-03 00:00:00", "2026-07-03 01:00:00"],
+            "values": [0.0, 0.0],
+        },
         "levels": {
             "time": ["2026-07-04 11:10:00", "2026-07-04 11:13:00", "2026-07-04 11:14:00"],
             "values": [83.5, 87.0, 86.8],

@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v12-minimum-to-90-runtime";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v13-range-hourly-continuous-level";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -379,6 +379,17 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'id="chartPumpStarts"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
     assert 'id="chartPumpDuty"' in customer_template
+    assert "Hourly water use" in customer_template
+    assert "data.pattern?.time||[]" in customer_template
+    assert 'xScale:"time"' in customer_template
+    assert customer_template.count('class="chart-scroll"') == 3
+    assert 'aria-label="Scrollable tank level timeline"' in customer_template
+    assert 'aria-label="Scrollable daily water use timeline"' in customer_template
+    assert 'aria-label="Scrollable hourly water use timeline"' in customer_template
+    assert "function prepareScrollableChart(" in customer_template
+    assert 'Math.min(8000,Math.max(viewportWidth,96+(count*pointWidth)))' in customer_template
+    assert 'canvas.style.setProperty("--chart-width"' in customer_template
+    assert ".chart-scroll{width:100%;overflow-x:auto" in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
     assert "pump.avg_run_seconds" in customer_template
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
@@ -441,7 +452,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v12-minimum-to-90-runtime";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v13-range-hourly-continuous-level";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 

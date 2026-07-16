@@ -8996,6 +8996,7 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
     size = min(len(safe_times), len(safe_levels), len(safe_states))
     daily_usage = {}
     hourly_usage = [0.0] * 24
+    hourly_timeline = {}
     rate_segments = []
     total_usage = 0.0
     valid_hours = 0.0
@@ -9037,6 +9038,8 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
             total_usage += usage
             daily_usage[date_key] += usage
             hourly_usage[created_at.hour] += usage
+            hour_key = created_at.replace(minute=0, second=0, microsecond=0).strftime(TIMESTAMP_FORMAT)
+            hourly_timeline[hour_key] = hourly_timeline.get(hour_key, 0.0) + usage
             if delta_hours >= (1.0 / 60.0):
                 valid_drop_count += 1
                 rate_segments.append(usage / delta_hours)
@@ -9045,6 +9048,7 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
     return {
         "daily_usage": daily_usage,
         "hourly_usage": hourly_usage,
+        "hourly_timeline": hourly_timeline,
         "total_usage": total_usage,
         "valid_hours": valid_hours,
         "valid_drop_count": valid_drop_count,
@@ -9319,7 +9323,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "reasons": snapshot.get("tank_health_reasons", ["No data has been received yet."])
         },
         "daily": {"dates": daily_dates, "values": daily_values},
-        "pattern": {"hours": list(range(24)), "values": [0] * 24},
+        "pattern": {"time": [], "values": [], "aggregation": "hourly_selected_range"},
         "levels": {"time": level_times, "values": level_values},
         "motor": {
             "time": motor_times,
@@ -10635,7 +10639,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     analytics_rows = merge_analytics_source_rows(tank_rows, event_rows)
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
     daily_usage = {}
-    hourly_usage = [0.0] * 24
     level_times = []
     level_values = []
     fill_level_values = []
@@ -10655,6 +10658,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     consumption_rate_segments = []
     prev_created_at = None
     prev_level = None
+    last_display_level = None
     latest_row = None
 
     for row in analytics_rows:
@@ -10683,7 +10687,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         drop = 0.0 if prev_level is None else level - prev_level
         implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         level_times.append(timestamp_label)
-        level_values.append(None if gap_break or implausible_level_jump else level)
+        if gap_break or implausible_level_jump:
+            level_values.append(last_display_level if last_display_level is not None else level)
+        else:
+            level_values.append(level)
+            last_display_level = level
         fill_level_values.append(level)
         if pipe_leak == "YES":
             leak_events += 1
@@ -10721,7 +10729,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     )
     level_usage = estimate_level_history_usage(level_times, level_values, motor_values)
     daily_usage = level_usage["daily_usage"]
-    hourly_usage = level_usage["hourly_usage"]
+    hourly_timeline = level_usage["hourly_timeline"]
     total_usage = level_usage["total_usage"]
     valid_hours = level_usage["valid_hours"]
     valid_drop_count = level_usage["valid_drop_count"]
@@ -10750,10 +10758,17 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             return None
         return round((float(value) * tank_capacity_liters) / 100.0, 1)
     daily_liters = [percent_to_liters(value) for value in daily_values]
-    hourly_liters = [percent_to_liters(value) for value in hourly_usage]
-
     daily_complete = []
     completed_through = min(end_exclusive, now_utc())
+    pattern_times = []
+    pattern_values = []
+    pattern_cursor = start_dt.replace(minute=0, second=0, microsecond=0)
+    while pattern_cursor < completed_through and len(pattern_times) < 24 * 62:
+        pattern_key = pattern_cursor.strftime(TIMESTAMP_FORMAT)
+        pattern_times.append(pattern_key)
+        pattern_values.append(float(hourly_timeline.get(pattern_key, 0.0)))
+        pattern_cursor += timedelta(hours=1)
+    pattern_liters = [percent_to_liters(value) for value in pattern_values]
     for date_text in daily_dates:
         day_start = datetime.strptime(date_text, DATE_ONLY_FORMAT)
         daily_complete.append(start_dt <= day_start and completed_through >= day_start + timedelta(days=1))
@@ -10930,11 +10945,12 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "reliable": daily_usage_reliable,
         },
         "pattern": {
-            "hours": list(range(24)),
-            "values": [round(float(value), 2) for value in hourly_usage],
-            "liters": hourly_liters if usage_rate_reliable else [None for _ in hourly_liters],
+            "time": pattern_times,
+            "values": [round(float(value), 2) for value in pattern_values],
+            "liters": pattern_liters if usage_rate_reliable else [None for _ in pattern_liters],
             "unit": "L",
             "measurement": "estimated_from_level_change",
+            "aggregation": "hourly_selected_range",
         },
         "levels": {
             "time": level_times,
@@ -11235,11 +11251,8 @@ def build_analytics_csv_rows(payload, device_id=None):
     )
     append_series(
         "hourly_water_pattern",
-        "Estimated 24-Hour Water Pattern",
-        [
-            f"{int(hour):02d}:00" if str(hour).strip() not in {"", "None"} else ""
-            for hour in ((payload.get("pattern") or {}).get("hours") or [])
-        ],
+        "Estimated Hourly Water Use",
+        (payload.get("pattern") or {}).get("time") or [],
         (payload.get("pattern") or {}).get("liters") or [],
         "L",
         label_builder=lambda _x, y: format_analytics_csv_value(y),

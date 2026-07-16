@@ -336,6 +336,7 @@ def test_level_usage_excludes_confirmed_fill_and_counts_new_drawdown_only():
     assert states == [0, 1, 1, 0, 0, 0]
     assert usage["total_usage"] == 7.0
     assert usage["daily_usage"] == {"2026-07-14": 7.0}
+    assert usage["hourly_timeline"] == {"2026-07-14 10:00:00": 7.0}
 
 
 def test_analysis_payload_hides_ai_leakage_anomaly_until_score_and_confidence_exceed_90():
