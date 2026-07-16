@@ -388,12 +388,12 @@ def test_pump_runtime_uses_level_rise_when_recorded_relay_state_disagrees(monkey
     start_dt = now - timedelta(hours=1)
     end_exclusive = now + timedelta(minutes=1)
     cache_key = server.build_analytics_cache_key(start_dt, end_exclusive, device_id)
-    levels = [50.0, 45.0, 55.0, 60.0, 60.0, 58.0]
+    levels = [50.0, 20.0, 55.0, 92.0, 92.0, 88.0]
     motors = ["OFF", "OFF", "ON", "OFF", "OFF", "OFF"]
     monkeypatch.setattr(
         server,
         "fetch_device_automation_settings",
-        lambda *_args, **_kwargs: {"auto_start_pct": 40.0, "auto_stop_pct": 60.0},
+        lambda *_args, **_kwargs: {"auto_start_pct": 40.0, "auto_stop_pct": 90.0},
     )
 
     server.analytics_cache.clear()
@@ -436,11 +436,11 @@ def test_pump_runtime_uses_level_rise_when_recorded_relay_state_disagrees(monkey
         assert payload["pump_activity"]["relay_state_used"] is False
         assert payload["pump_activity"]["completed_runs"] == 1
         assert payload["pump_activity"]["runtime_seconds"] == 10 * 60
-        assert payload["pump_activity"]["runtime_basis"] == "tank_level_rise_to_configured_stop_threshold"
-        assert payload["pump_activity"]["stop_threshold_pct"] == 60.0
+        assert payload["pump_activity"]["runtime_basis"] == "local_minimum_to_90_pct_threshold"
+        assert payload["pump_activity"]["stop_threshold_pct"] == 90.0
         assert payload["pump_activity"]["last_started_at"] is not None
         assert payload["pump_activity"]["last_stopped_at"] is not None
-        assert payload["insights"]["latest_day_usage"] == 7.0
+        assert payload["insights"]["latest_day_usage"] == 4.0
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))

@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v11-level-rise-runtime";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v12-minimum-to-90-runtime";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -441,7 +441,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
     assert 'value:"0.0 L"' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v11-level-rise-runtime";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v12-minimum-to-90-runtime";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 

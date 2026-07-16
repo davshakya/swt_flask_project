@@ -710,6 +710,7 @@ ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
 ANALYTICS_MIN_REFILL_DELTA_PCT = max(0.5, env_float("ANALYTICS_MIN_REFILL_DELTA_PCT", 3.0))
+ANALYTICS_MIN_FULL_FILL_DELTA_PCT = max(10.0, env_float("ANALYTICS_MIN_FULL_FILL_DELTA_PCT", 69.0))
 ANALYTICS_FILL_CONFIRM_INTERVALS = max(2, env_int("ANALYTICS_FILL_CONFIRM_INTERVALS", 2))
 ANALYTICS_FILL_STOP_INTERVALS = max(2, env_int("ANALYTICS_FILL_STOP_INTERVALS", 2))
 ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT = max(
@@ -8745,6 +8746,16 @@ def build_motor_activity_metrics(time_values, value_values):
             run_active = False
             current_run_seconds = 0.0
 
+    # The final sample is an endpoint rather than an interval. It still closes
+    # a run whose last ON interval ends at that sample.
+    if run_active and current_run_seconds > 0:
+        try:
+            final_state = int(safe_values[-1])
+        except (TypeError, ValueError):
+            final_state = None
+        if final_state == 0:
+            run_durations.append(current_run_seconds)
+
     completed_runs = len(run_durations)
     avg_run_seconds = sum(run_durations) / completed_runs if completed_runs else 0.0
     avg_off_seconds = sum(off_durations) / len(off_durations) if off_durations else 0.0
@@ -8763,12 +8774,12 @@ def build_motor_activity_metrics(time_values, value_values):
 
 
 def infer_pump_activity_from_level_history(time_values, level_values, stop_threshold_pct=None):
-    """Infer confirmed tank-fill cycles without using the relay pulse state.
+    """Infer tank-fill cycles without using the relay pulse state.
 
-    A cycle must rise across consecutive readings by the configured refill
-    threshold and stay within the telemetry gap and level-jump limits. One
-    flat/noisy interval is bridged; a cycle stops after the configured number
-    of non-rising intervals or when it reaches the upper-threshold tolerance.
+    With a configured stop threshold, a complete cycle runs from the clear
+    local minimum through the first observed reading at or above 90%. The
+    legacy consecutive-rise detector remains available when no threshold is
+    supplied.
     """
     safe_times = list(time_values or [])
     safe_levels = list(level_values or [])
@@ -8792,6 +8803,55 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
     configured_stop_threshold = safe_float(stop_threshold_pct, None)
     if configured_stop_threshold is not None and not 0 < configured_stop_threshold <= 100:
         configured_stop_threshold = None
+
+    # When an upper stop threshold is configured, a completed filling cycle is
+    # the lowest reading after the previous fill through the first reading at
+    # or above 90%. Intermediate dips, zero readings, sparse telemetry, and
+    # sensor fluctuations do not split that minimum-to-maximum cycle.
+    if configured_stop_threshold is not None:
+        target_level = 90.0
+        minimum_index = None
+        minimum_level = None
+        for index in range(size):
+            level = levels[index]
+            timestamp = parsed_times[index]
+            if level is None or timestamp is None or not 0 <= level <= 100:
+                continue
+            if level < target_level:
+                if minimum_level is None or level < minimum_level:
+                    minimum_index = index
+                    minimum_level = level
+                continue
+            if minimum_index is None or minimum_level is None:
+                continue
+
+            started_at = parsed_times[minimum_index]
+            rise = float(level - minimum_level)
+            if (
+                started_at is not None
+                and timestamp > started_at
+                and rise >= ANALYTICS_MIN_FULL_FILL_DELTA_PCT
+            ):
+                for state_index in range(minimum_index, index):
+                    states[state_index] = 1
+                runs.append(
+                    {
+                        "start_index": minimum_index,
+                        "stop_index": index,
+                        "started_at": safe_times[minimum_index],
+                        "stopped_at": safe_times[index],
+                        "duration_seconds": int(round((timestamp - started_at).total_seconds())),
+                        "level_rise_pct": round(rise, 2),
+                        "start_level_pct": round(float(minimum_level), 2),
+                        "stop_level_pct": round(float(level), 2),
+                        "stop_threshold_pct": round(target_level, 2),
+                    }
+                )
+            minimum_index = None
+            minimum_level = None
+
+        states[-1] = 0 if levels[-1] is not None and parsed_times[-1] is not None else None
+        return safe_times[:size], states, runs
 
     def reset_candidate():
         nonlocal candidate_start, candidate_base, candidate_peak, candidate_peak_index, candidate_stop_index
@@ -10578,6 +10638,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     hourly_usage = [0.0] * 24
     level_times = []
     level_values = []
+    fill_level_values = []
     motor_times = []
     motor_values = []
     row_count = 0
@@ -10623,6 +10684,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         level_times.append(timestamp_label)
         level_values.append(None if gap_break or implausible_level_jump else level)
+        fill_level_values.append(level)
         if pipe_leak == "YES":
             leak_events += 1
 
@@ -10654,7 +10716,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     )
     motor_times, motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
         level_times,
-        level_values,
+        fill_level_values,
         stop_threshold_pct=stop_threshold_pct,
     )
     level_usage = estimate_level_history_usage(level_times, level_values, motor_values)
@@ -10726,7 +10788,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "source": "tank_level_history",
             "relay_state_used": False,
             "inference_status": "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles",
-            "runtime_basis": "tank_level_rise_to_configured_stop_threshold",
+            "runtime_basis": "local_minimum_to_90_pct_threshold",
             "stop_threshold_pct": round(stop_threshold_pct, 1),
             "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
             "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,

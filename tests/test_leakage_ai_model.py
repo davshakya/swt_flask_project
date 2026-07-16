@@ -174,7 +174,7 @@ def test_level_history_runtime_stops_at_first_observed_threshold_reading():
         "2026-07-14 08:20:00",
         "2026-07-14 08:25:00",
     ]
-    levels = [40.0, 60.0, 85.0, 92.0, 94.0, 94.0]
+    levels = [20.0, 60.0, 85.0, 92.0, 94.0, 94.0]
 
     inferred_times, states, runs = server.infer_pump_activity_from_level_history(
         times,
@@ -208,6 +208,36 @@ def test_level_history_runtime_sums_each_separate_rising_cycle():
     assert metrics["avg_run_seconds"] == int(((10 + 15) * 60) / 2)
 
 
+def test_threshold_runtime_uses_local_minimum_to_90_and_keeps_fluctuations_in_cycle():
+    times = [
+        "2026-07-11 00:31:46",
+        "2026-07-11 00:38:28",
+        "2026-07-11 01:22:15",
+        "2026-07-11 01:27:43",
+        "2026-07-11 01:29:04",
+        "2026-07-11 01:32:34",
+        "2026-07-11 02:00:19",
+        "2026-07-11 04:41:41",
+        "2026-07-11 04:48:00",
+        "2026-07-11 04:53:14",
+    ]
+    levels = [6.79, 42.47, 35.75, 70.74, 58.27, 92.20, 80.0, 0.0, 50.0, 91.97]
+
+    inferred_times, states, runs = server.infer_pump_activity_from_level_history(
+        times, levels, stop_threshold_pct=90.0
+    )
+    metrics = server.build_motor_activity_metrics(inferred_times, states)
+
+    expected_durations = [
+        int((server.parse_timestamp(times[5]) - server.parse_timestamp(times[0])).total_seconds()),
+        int((server.parse_timestamp(times[9]) - server.parse_timestamp(times[7])).total_seconds()),
+    ]
+    assert [run["duration_seconds"] for run in runs] == expected_durations
+    assert [run["start_level_pct"] for run in runs] == [6.79, 0.0]
+    assert metrics["completed_runs"] == 2
+    assert metrics["runtime_seconds"] == sum(expected_durations)
+
+
 def test_level_history_does_not_guess_runtime_for_sub_threshold_rise():
     times = [
         "2026-07-14 09:00:00",
@@ -227,7 +257,7 @@ def test_level_history_does_not_guess_runtime_for_sub_threshold_rise():
     assert runs == []
 
 
-def test_level_history_stops_after_two_flat_intervals_below_upper_threshold():
+def test_level_history_does_not_count_incomplete_fill_below_90_percent():
     times = [f"2026-07-14 10:{minute:02d}:00" for minute in (0, 5, 10, 15, 20)]
     levels = [40.0, 43.0, 47.0, 47.1, 47.1]
 
@@ -235,12 +265,11 @@ def test_level_history_stops_after_two_flat_intervals_below_upper_threshold():
         times, levels, stop_threshold_pct=90.0
     )
 
-    assert states == [1, 1, 0, 0, 0]
-    assert len(runs) == 1
-    assert runs[0]["duration_seconds"] == 10 * 60
+    assert states == [0, 0, 0, 0, 0]
+    assert runs == []
 
 
-def test_level_history_uses_upper_threshold_tolerance():
+def test_level_history_requires_observed_90_percent_reading():
     times = [f"2026-07-14 11:{minute:02d}:00" for minute in (0, 5, 10, 15)]
     levels = [80.0, 84.0, 88.2, 88.3]
 
@@ -248,9 +277,8 @@ def test_level_history_uses_upper_threshold_tolerance():
         times, levels, stop_threshold_pct=90.0
     )
 
-    assert states == [1, 1, 0, 0]
-    assert len(runs) == 1
-    assert runs[0]["stop_level_pct"] == 88.2
+    assert states == [0, 0, 0, 0]
+    assert runs == []
 
 
 def test_level_history_merges_one_flat_interval_inside_confirmed_fill():
