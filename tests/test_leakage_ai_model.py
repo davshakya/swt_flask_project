@@ -85,6 +85,27 @@ def test_daily_usage_plausibility_rejects_more_water_than_observed_refills_suppl
     assert limit == 480.0
 
 
+def test_daily_usage_plausibility_rejects_excessive_tank_turnovers():
+    plausible, limit, peak = server.daily_usage_matches_tank_turnover_limit(
+        {"2026-07-17": 240.0, "2026-07-18": 850.0},
+        max_turnovers=8,
+    )
+
+    assert plausible is False
+    assert limit == 800.0
+    assert peak == 850.0
+
+
+def test_daily_usage_plausibility_accepts_normal_refill_demand():
+    plausible, limit, peak = server.daily_usage_matches_tank_turnover_limit(
+        {"2026-07-17": 240.0, "2026-07-18": 315.0},
+        max_turnovers=8,
+    )
+
+    assert plausible is True
+    assert limit == 800.0
+    assert peak == 315.0
+
 def test_daily_forecast_requires_complete_history_and_reports_interval():
     insufficient = server.build_daily_usage_forecast([12.0], {"score": 90, "sufficient_for_forecast": True})
     assert insufficient["status"] == "insufficient_data"

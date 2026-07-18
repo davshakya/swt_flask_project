@@ -718,6 +718,9 @@ ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT = max(
     0.0, env_float("ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT", 2.0)
 )
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
+ANALYTICS_MAX_DAILY_TANK_TURNOVERS = max(
+    1.0, env_float("ANALYTICS_MAX_DAILY_TANK_TURNOVERS", 8.0)
+)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
@@ -9555,6 +9558,25 @@ def level_usage_matches_observed_refills(total_usage_pct, motor_cycles, allowanc
     return total <= limit, round(limit, 1)
 
 
+def daily_usage_matches_tank_turnover_limit(daily_usage, max_turnovers=None):
+    """Reject daily drawdown totals that imply an unreasonable number of tankfuls.
+
+    Refill inference can otherwise make sensor oscillation look physically possible:
+    every false rise adds another refill and therefore another usage allowance.
+    """
+    turnover_limit = max(
+        1.0,
+        safe_float(max_turnovers, ANALYTICS_MAX_DAILY_TANK_TURNOVERS),
+    )
+    limit_pct = turnover_limit * 100.0
+    values = [
+        max(0.0, safe_float(value, 0.0))
+        for value in (daily_usage or {}).values()
+    ]
+    peak_usage_pct = max(values, default=0.0)
+    return peak_usage_pct <= limit_pct, round(limit_pct, 1), round(peak_usage_pct, 1)
+
+
 def build_analytics_quality_payload(
     row_count,
     valid_hours,
@@ -10851,6 +10873,10 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     usage_physically_plausible, plausible_usage_limit_pct = level_usage_matches_observed_refills(
         total_usage, motor_cycles
     )
+    daily_turnover_plausible, daily_turnover_limit_pct, peak_daily_usage_pct = (
+        daily_usage_matches_tank_turnover_limit(daily_usage)
+    )
+    usage_physically_plausible = bool(usage_physically_plausible and daily_turnover_plausible)
     complete_day_count = len(complete_usage)
     usage_rate_reliable = bool(
         usage_physically_plausible and analytics_quality.get("sufficient_for_anomaly")
@@ -10862,6 +10888,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     )
     analytics_quality["usage_physically_plausible"] = usage_physically_plausible
     analytics_quality["usage_plausibility_limit_pct"] = round(plausible_usage_limit_pct, 1)
+    analytics_quality["daily_turnover_plausible"] = daily_turnover_plausible
+    analytics_quality["daily_turnover_limit_pct"] = daily_turnover_limit_pct
+    analytics_quality["peak_daily_usage_pct"] = peak_daily_usage_pct
     analytics_quality["complete_day_count"] = complete_day_count
     analytics_quality["usage_rate_reliable"] = usage_rate_reliable
     analytics_quality["daily_usage_reliable"] = daily_usage_reliable
@@ -10872,6 +10901,10 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         analytics_quality.setdefault("limitations", []).append(
             "Level changes exceed the volume supported by observed refill cycles; daily usage is hidden as unreliable."
         )
+        if not daily_turnover_plausible:
+            analytics_quality.setdefault("limitations", []).append(
+                "Daily level changes exceed the configured tank-turnover safety limit."
+            )
     if complete_day_count < 2:
         analytics_quality.setdefault("limitations", []).append(
             "At least two complete days are required for average daily usage."
@@ -10991,13 +11024,13 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         },
         "pump_activity": pump_activity_metrics,
         "comparison": {
-            "latest_day": latest_day,
-            "latest_day_usage": round(latest_day_usage, 2),
-            "latest_day_usage_liters": percent_to_liters(latest_day_usage),
-            "previous_day": previous_day,
-            "previous_day_usage": round(previous_day_usage, 2),
-            "previous_day_usage_liters": percent_to_liters(previous_day_usage),
-            "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
+            "latest_day": latest_day if daily_usage_reliable else "--",
+            "latest_day_usage": round(latest_day_usage, 2) if daily_usage_reliable else None,
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage) if daily_usage_reliable else None,
+            "previous_day": previous_day if daily_usage_reliable else "--",
+            "previous_day_usage": round(previous_day_usage, 2) if daily_usage_reliable else None,
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage) if daily_usage_reliable else None,
+            "change_pct": round(float(usage_change_pct), 2) if daily_usage_reliable and usage_change_pct is not None else None,
         },
         "prediction": {
             "tomorrow_usage": usage_forecast["value"],

@@ -329,7 +329,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -452,9 +452,11 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert '"Live device usage-rate estimate."' in usage_body
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
+    assert 'analytics?.daily?.reliable!==true' in customer_template
+    assert 'Savings insight appears after two complete days of reliable usage history.' in customer_template
     assert 'value:"0.0 L"' not in customer_template
     assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 

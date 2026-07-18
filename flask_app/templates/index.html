@@ -627,7 +627,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v15-fixed-seven-day-ai";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const READY_ANALYTICS_RANGE_DAYS=[1,7];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
@@ -1140,6 +1140,10 @@ function estimateUsageLiters(percentValue,capacityLiters){
     return(Number(percentValue)*Number(capacityLiters))/100;
 }
 function customerUsageSavings(snapshot,analytics){
+    if(analytics?.daily?.reliable!==true||Number(analytics?.analysis?.quality?.complete_day_count||0)<2)return{
+        value:"--",
+        note:"Savings insight appears after two complete days of reliable usage history."
+    };
     const changeRaw=analytics?.comparison?.change_pct;
     const change=Number(changeRaw);
     if(!hasDisplayNumber(changeRaw)||!Number.isFinite(change))return{
@@ -2036,11 +2040,7 @@ function drawAnalyticsCharts(data){
     const levelSeries={labels:levelPayload.time||[],values:toChartNumberArray(levelPayload.values,{allowNull:true})};
     const chartEvents=VIEWER_ROLE==="customer"?(state.data.events||[]).filter(isCustomerWaterEvent):(state.data.events||[]);
     const levelEvents=chartEvents.map((event)=>{const presentation=eventPresentation(event);return{time:event.time,tone:presentation.className==="event-leak"||presentation.className==="event-pump-stopped"?"warn":presentation.className==="event-pump-started"?"ok":"info"};});
-    if(chartQuality.usage_physically_plausible===false){
-        drawCanvasEmpty(charts.level.canvas,"Tank Level %","Level history hidden because sensor changes failed validation.");
-    }else{
-        drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
-    }
+    drawCanvasSeries(charts.level.canvas,"Tank Level %",levelSeries.labels,levelSeries.values,{kind:"line",color:themeVar("--chart-level"),fillColor:themeVar("--chart-level-fill"),minValue:0,maxValue:100,tickFormatter:(value)=>`${Math.round(value)}%`,xScale:"time",xLabelMode:todayAxis?"time":"auto",eventMarkers:levelEvents});
     const capacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const usageLiters=(liters,percentValues)=>{const literSeries=Array.isArray(liters)?toChartNumberArray(liters,{allowNull:true}):[];if(getFiniteChartValues(literSeries).length)return literSeries;return toChartNumberArray(percentValues,{allowNull:true}).map((value)=>value===null||!Number.isFinite(capacity)||capacity<=0?null:(value*capacity)/100);};
     const dailyLabels=(data.daily?.dates||[]).map((date,index)=>data.daily?.complete?.[index]===false?`${date} (partial)`:date);
