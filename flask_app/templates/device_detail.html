@@ -82,6 +82,10 @@ body{font-size:16px}
 <body>
     {% set live_snapshot = snapshot or {} %}
     {% set source_monitoring_active = live_snapshot.get("lower_tank_level") is not none or live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") or service_config.get("source_tank_monitoring_enabled") %}
+    {% set lower_turbidity_enabled = service_config.get("master_turbidity_enabled", False) %}
+    {% set upper_turbidity_enabled = service_config.get("slave_turbidity_enabled", False) %}
+    {% set lower_turbidity_status = (live_snapshot.get("lower_turbidity_sensor") or ("WAITING" if lower_turbidity_enabled else "DISABLED"))|upper %}
+    {% set upper_turbidity_status = (live_snapshot.get("upper_turbidity_sensor") or ("WAITING" if upper_turbidity_enabled else "DISABLED"))|upper %}
 <div class="shell">
     <div class="panel">
         <div class="eyebrow">Device Detail</div>
@@ -203,6 +207,16 @@ body{font-size:16px}
                 <div class="info-label">Source Tank</div>
                 <span id="sourceLevel" class="info-value">{% if live_snapshot.get("lower_tank_level") is not none %}{{ live_snapshot.get("lower_tank_level") }}%{% else %}--{% endif %}</span>
                 <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
+            </div>
+            <div id="lowerTurbidityCard" class="info-item">
+                <div class="info-label">Lower Tank Turbidity (Master)</div>
+                <span id="lowerTurbidityStatus" class="info-value">{{ lower_turbidity_status|title }}</span>
+                <div id="lowerTurbidityReading" class="detail-note">{% if lower_turbidity_status == "OK" and live_snapshot.get("lower_turbidity_estimated_ntu") is not none and live_snapshot.get("lower_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("lower_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("lower_turbidity_raw_adc", "--") }}{% elif lower_turbidity_status == "DISABLED" %}Enable Master Turbidity in runtime configuration.{% elif lower_turbidity_status == "ERROR" %}Sensor signal unavailable or outside its valid ADC range.{% else %}Waiting for device telemetry.{% endif %}</div>
+            </div>
+            <div id="upperTurbidityCard" class="info-item">
+                <div class="info-label">Upper Tank Turbidity (Slave)</div>
+                <span id="upperTurbidityStatus" class="info-value">{{ upper_turbidity_status|title }}</span>
+                <div id="upperTurbidityReading" class="detail-note">{% if upper_turbidity_status == "OK" and live_snapshot.get("upper_turbidity_estimated_ntu") is not none and live_snapshot.get("upper_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("upper_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("upper_turbidity_raw_adc", "--") }}{% elif upper_turbidity_status == "DISABLED" %}Enable Slave Turbidity in runtime configuration.{% elif upper_turbidity_status == "ERROR" %}Sensor or slave telemetry is unavailable.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
         </div>
         <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
@@ -1363,6 +1377,22 @@ function updateSimulatorControls(snapshot,serviceConfig){
       : `Simulator is inactive. Enable queues one unified simulator command for ${mode}.`;
   }
 }
+function turbidityStatus(snapshot,serviceConfig,role){
+  const enabledKey=role==="lower"?"master_turbidity_enabled":"slave_turbidity_enabled";
+  if(!Boolean(serviceConfig?.[enabledKey]))return"DISABLED";
+  const status=String(snapshot?.[`${role}_turbidity_sensor`]||"").trim().toUpperCase();
+  return ["OK","ERROR","DISABLED"].includes(status)?status:"WAITING";
+}
+function turbidityReading(snapshot,serviceConfig,role){
+  const status=turbidityStatus(snapshot,serviceConfig,role);
+  if(status==="DISABLED")return `Enable ${role==="lower"?"Master":"Slave"} Turbidity in runtime configuration.`;
+  if(status==="WAITING")return"Waiting for device telemetry.";
+  if(status==="ERROR")return role==="lower"?"Sensor signal unavailable or outside its valid ADC range.":"Sensor or slave telemetry is unavailable.";
+  const ntu=Number(snapshot?.[`${role}_turbidity_estimated_ntu`]);
+  const adc=Number(snapshot?.[`${role}_turbidity_raw_adc`]);
+  if(!Number.isFinite(ntu)||ntu<0)return"Waiting for a valid sensor reading.";
+  return `${ntu.toFixed(1)} NTU | ADC ${Number.isFinite(adc)?Math.round(adc):"--"}`;
+}
 function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig){
   const root=document.getElementById("deviceInfoGrid");
   if(!root)return;
@@ -1709,6 +1739,12 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
+  const lowerTurbidityState=turbidityStatus(snapshot,serviceConfig,"lower");
+  const upperTurbidityState=turbidityStatus(snapshot,serviceConfig,"upper");
+  setText("lowerTurbidityStatus",titleCase(lowerTurbidityState));
+  setText("lowerTurbidityReading",turbidityReading(snapshot,serviceConfig,"lower"));
+  setText("upperTurbidityStatus",titleCase(upperTurbidityState));
+  setText("upperTurbidityReading",turbidityReading(snapshot,serviceConfig,"upper"));
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;

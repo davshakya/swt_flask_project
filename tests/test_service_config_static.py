@@ -49,3 +49,14 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block
     assert "master_turbidity=1 if master_turbidity_enabled else 0" in build_block
     assert "slave_turbidity=1 if slave_turbidity_enabled else 0" in build_block
+
+
+def test_device_detail_shows_live_master_and_slave_turbidity_status():
+    assert 'id="lowerTurbidityStatus"' in DEVICE_TEMPLATE_SOURCE
+    assert 'id="upperTurbidityStatus"' in DEVICE_TEMPLATE_SOURCE
+    assert 'id="lowerTurbidityReading"' in DEVICE_TEMPLATE_SOURCE
+    assert 'id="upperTurbidityReading"' in DEVICE_TEMPLATE_SOURCE
+    assert "lower_turbidity_estimated_ntu" in DEVICE_TEMPLATE_SOURCE
+    assert "upper_turbidity_estimated_ntu" in DEVICE_TEMPLATE_SOURCE
+    assert 'turbidityStatus(snapshot,serviceConfig,"lower")' in DEVICE_TEMPLATE_SOURCE
+    assert 'turbidityStatus(snapshot,serviceConfig,"upper")' in DEVICE_TEMPLATE_SOURCE
