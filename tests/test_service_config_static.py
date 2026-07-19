@@ -19,7 +19,7 @@ def test_fetch_device_service_config_selects_optional_water_features():
         "def fetch_device_service_config(device_id, account=None, snapshot=None):",
         "def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):",
     )
-    assert "source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled, relay_enabled, ai_analysis_enabled" in block
+    assert "master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled" in block
 
 
 def test_list_device_service_configs_selects_optional_water_features():
@@ -28,14 +28,16 @@ def test_list_device_service_configs_selects_optional_water_features():
         "def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):",
         "def upsert_device_service_config(",
     )
-    assert "source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled, relay_enabled, ai_analysis_enabled" in block
+    assert "master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled" in block
 
 
 def test_existing_municipal_option_is_the_optional_feature_master_switch():
     assert 'name="municipal_sensor_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert "Municipal Water Feature" in DEVICE_TEMPLATE_SOURCE
-    assert 'name="turbidity_monitoring_enabled"' in DEVICE_TEMPLATE_SOURCE
-    assert "Upper &amp; Lower Tank Turbidity" in DEVICE_TEMPLATE_SOURCE
+    assert 'name="master_turbidity_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert 'name="slave_turbidity_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert "Master Turbidity (Lower Tank)" in DEVICE_TEMPLATE_SOURCE
+    assert "Slave Turbidity (Upper Tank)" in DEVICE_TEMPLATE_SOURCE
 
     build_block = _function_block(
         SERVER_SOURCE,
@@ -43,6 +45,7 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
         "def device_automation_settings_key(device_id):",
     )
     assert 'municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))' in build_block
-    assert "SERVICECFG7:" in build_block
+    assert "SERVICECFG8:" in build_block
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block
-    assert "turbidity=1 if turbidity_monitoring_enabled else 0" in build_block
+    assert "master_turbidity=1 if master_turbidity_enabled else 0" in build_block
+    assert "slave_turbidity=1 if slave_turbidity_enabled else 0" in build_block

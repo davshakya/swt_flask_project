@@ -264,7 +264,7 @@ body{font-size:16px}
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %}> Municipal Water Feature</label>
-                        <label class="service-option"><input id="turbidityMonitoringOption" type="checkbox" name="turbidity_monitoring_enabled" value="1" {% if service_config.get("turbidity_monitoring_enabled", False) %}checked{% endif %}> Upper &amp; Lower Tank Turbidity</label>
+                        <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Master Turbidity (Lower Tank)</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
@@ -273,6 +273,7 @@ body{font-size:16px}
                         <h4>Slave Configuration</h4>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
                         <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
+                        <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Slave Turbidity (Upper Tank)</label>
                         <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
