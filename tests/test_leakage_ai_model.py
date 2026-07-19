@@ -133,6 +133,7 @@ def test_motor_activity_metrics_use_actual_time_gaps():
     )
 
     assert metrics["runtime_seconds"] == 13 * 60
+    assert metrics["started_runs"] == 2
     assert metrics["completed_runs"] == 2
     assert metrics["short_cycle_count"] == 1
     assert metrics["duty_cycle_pct"] == 43.33
@@ -162,6 +163,24 @@ def test_chart_downsampling_preserves_short_minimum_and_maximum():
     assert len(sampled_times) <= 12
     assert 5.0 in sampled_values
     assert 95.0 in sampled_values
+
+
+def test_observed_motor_series_counts_relay_cycles_even_when_sensor_level_is_invalid():
+    rows = [
+        {"created_at": "2026-07-19 08:00:00", "motor": "OFF", "level": -1},
+        {"created_at": "2026-07-19 08:00:05", "motor": "ON", "level": -1},
+        {"created_at": "2026-07-19 08:00:10", "motor": "OFF", "level": 31},
+        {"created_at": "2026-07-19 08:00:15", "motor": "ON", "level": 32},
+        {"created_at": "2026-07-19 08:00:20", "motor": "OFF", "level": 33},
+    ]
+
+    times, values = server.build_observed_motor_activity_series(rows)
+    metrics = server.build_motor_activity_metrics(times, values)
+
+    assert values == [0, 1, 0, 1, 0]
+    assert metrics["completed_runs"] == 2
+    assert metrics["runtime_seconds"] == 10
+    assert metrics["short_cycle_count"] == 2
 
 
 def test_level_history_infers_only_confirmed_fill_cycles():

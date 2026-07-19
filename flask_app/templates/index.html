@@ -894,7 +894,7 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     });
 
     const summaryParts=["Green ON","Gray OFF"];
-    const completedRuns=Number(pumpActivity?.completed_runs);
+    const completedRuns=Number(pumpActivity?.started_runs??pumpActivity?.completed_runs);
     const avgRunSeconds=Number(pumpActivity?.avg_run_seconds);
     const dutyCycle=Number(pumpActivity?.duty_cycle_pct);
     if(Number.isFinite(completedRuns)&&completedRuns>0)summaryParts.push(`${Math.round(completedRuns)} runs`);
@@ -974,7 +974,7 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
     const sourceState=buildSourceTankState(snapshot);
     const sensorTotal=sourceState.monitoringActive?2:1;
     const sensorOnline=(sensorHealthy?1:0)+(sourceState.monitoringActive&&sourceState.sensorHealthy?1:0);
-    const pumpCycles=Number(analytics?.pump_activity?.completed_runs);
+    const pumpCycles=Number(analytics?.pump_activity?.started_runs??analytics?.pump_activity?.completed_runs);
     const confidence=customerConfidenceScore(snapshot,system,analytics,sourceState);
     setText("systemPumpHealth",pumpFault?"Needs attention":Number.isFinite(pumpCycles)?`${pumpCycles} cycles`:"No faults");
     setText("systemSensorHealth",!sensorHealthy?`${sensorOnline}/${sensorTotal} Online`:dataQualityIssue?`${sensorOnline}/${sensorTotal} Online · Review data`:`${sensorOnline}/${sensorTotal} Online`);
@@ -1248,7 +1248,7 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
     const friendlyObservations=observations.filter((item)=>item!==genericStable);
     if(!friendlyObservations.length&&tone!=="warn"&&tone!=="bad"){
         friendlyObservations.push(`The tank is ${fmtPct(snapshot.level)} full. The pump is currently ${String(snapshot.motor||"off").toLowerCase()}.`);
-        const runs=Number(analytics?.pump_activity?.completed_runs);
+        const runs=Number(analytics?.pump_activity?.started_runs??analytics?.pump_activity?.completed_runs);
         const runtime=Number(analytics?.pump_activity?.runtime_seconds);
         if(Number.isFinite(runs)&&Number.isFinite(runtime))friendlyObservations.push(runs===0?"No pump run was recorded during this period.":`The pump ran ${runs} time${runs===1?"":"s"} for a total of ${formatDurationSeconds(runtime)}.`);
         const changeRaw=analytics?.comparison?.change_pct;
@@ -1657,7 +1657,7 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const pump=analytics?.pump_activity||{};
     const hasPumpData=analytics&&Object.keys(pump).length>0;
     const runtime=hasPumpData?formatDurationSeconds(pump.runtime_seconds):"Collecting";
-    const starts=hasPumpData?String(Number(pump.completed_runs||0)):"Collecting";
+    const starts=hasPumpData?String(Number(pump.started_runs??pump.completed_runs??0)):"Collecting";
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
     const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);

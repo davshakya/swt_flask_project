@@ -728,7 +728,7 @@ FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 3
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
 ANALYTICS_LAST_VALID_SCHEMA_VERSION = 5
-ANALYTICS_ALGORITHM_VERSION = "minimum-to-90-range-hourly-ai7-v3"
+ANALYTICS_ALGORITHM_VERSION = "relay-observed-minimum-to-90-ai7-v4"
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -8697,6 +8697,7 @@ def build_motor_activity_metrics(time_values, value_values):
             "runtime_hours": 0,
             "observed_hours": 0,
             "duty_cycle_pct": 0,
+            "started_runs": 0,
             "completed_runs": 0,
             "avg_run_seconds": 0,
             "short_cycle_count": 0,
@@ -8711,6 +8712,24 @@ def build_motor_activity_metrics(time_values, value_values):
     current_off_seconds = 0.0
     run_active = False
     off_active = False
+
+    # Count every observed OFF/unknown-to-ON relay transition. This is kept
+    # separate from completed_runs because a telemetry gap can prevent safely
+    # timing a run without erasing the fact that the pump started.
+    started_runs = 0
+    previous_state = None
+    for raw_value in safe_values[:size]:
+        if raw_value is None or raw_value == "":
+            previous_state = None
+            continue
+        try:
+            state = 1 if int(raw_value) == 1 else 0
+        except (TypeError, ValueError):
+            previous_state = None
+            continue
+        if state == 1 and previous_state != 1:
+            started_runs += 1
+        previous_state = state
 
     for index in range(size - 1):
         start_time = parse_timestamp(safe_times[index])
@@ -8772,11 +8791,40 @@ def build_motor_activity_metrics(time_values, value_values):
         "runtime_hours": round(runtime_seconds / 3600.0, 3),
         "observed_hours": round(observed_seconds / 3600.0, 3),
         "duty_cycle_pct": round(duty_cycle_pct, 2),
+        "started_runs": started_runs,
         "completed_runs": completed_runs,
         "avg_run_seconds": int(round(avg_run_seconds)),
         "short_cycle_count": short_cycle_count,
         "avg_off_seconds": int(round(avg_off_seconds)),
     }
+
+
+def build_observed_motor_activity_series(rows):
+    """Build a gap-safe relay series from raw telemetry, including sensor-error rows."""
+    times = []
+    values = []
+    parsed_times = []
+    for row in rows or []:
+        created_at = parse_timestamp((row or {}).get("created_at"))
+        if created_at is None:
+            continue
+        motor = str((row or {}).get("motor") or "").strip().upper()
+        if motor in {"ON", "RUNNING", "RUN", "1", "TRUE"}:
+            value = 1
+        elif motor in {"OFF", "STOPPED", "STOP", "0", "FALSE"}:
+            value = 0
+        else:
+            value = None
+        times.append(created_at.strftime(TIMESTAMP_FORMAT))
+        values.append(value)
+        parsed_times.append(created_at)
+
+    gap_limit_seconds = max(60.0, ANALYTICS_MAX_GAP_MINUTES * 60.0)
+    for index in range(len(parsed_times) - 1):
+        gap_seconds = (parsed_times[index + 1] - parsed_times[index]).total_seconds()
+        if gap_seconds <= 0 or gap_seconds > gap_limit_seconds:
+            values[index] = None
+    return times, values
 
 
 def infer_pump_activity_from_level_history(
@@ -9434,6 +9482,7 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "runtime_hours": 0,
             "observed_hours": 0,
             "duty_cycle_pct": 0,
+            "started_runs": 0,
             "completed_runs": 0,
             "avg_run_seconds": 0,
             "short_cycle_count": 0,
@@ -10689,6 +10738,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
     with get_db() as db:
         raw_tank_rows = [dict(row) for row in db.execute(query, params)]
+    observed_motor_times, observed_motor_values = build_observed_motor_activity_series(raw_tank_rows)
     tank_rows = filter_valid_analytics_rows(raw_tank_rows)
     history_source = "tank_data"
     if len(tank_rows) < 2 and normalized_device_id:
@@ -10699,9 +10749,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             include_all_sources=True,
         )
         with get_db() as db:
-            all_source_rows = filter_valid_analytics_rows([dict(row) for row in db.execute(all_source_query, all_source_params)])
+            raw_all_source_rows = [dict(row) for row in db.execute(all_source_query, all_source_params)]
+            all_source_rows = filter_valid_analytics_rows(raw_all_source_rows)
         if len(all_source_rows) > len(tank_rows):
             tank_rows = all_source_rows
+            observed_motor_times, observed_motor_values = build_observed_motor_activity_series(raw_all_source_rows)
             history_source = "tank_data_all_sources"
     existing_source_row_ids = {str(row.get("id")) for row in tank_rows if row.get("id") not in (None, "")}
     event_rows = []
@@ -10808,20 +10860,30 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         automation_settings.get("auto_start_pct"),
         DEFAULT_DEVICE_AUTO_START_PCT,
     )
-    motor_times, motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
+    inferred_motor_times, inferred_motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
         level_times,
         fill_level_values,
         stop_threshold_pct=stop_threshold_pct,
         start_threshold_pct=start_threshold_pct,
     )
-    level_usage = estimate_level_history_usage(level_times, level_values, motor_values)
+    level_usage = estimate_level_history_usage(level_times, level_values, inferred_motor_values)
     daily_usage = level_usage["daily_usage"]
     hourly_timeline = level_usage["hourly_timeline"]
     total_usage = level_usage["total_usage"]
     valid_hours = level_usage["valid_hours"]
     valid_drop_count = level_usage["valid_drop_count"]
     consumption_rate_segments = level_usage["consumption_rate_segments"]
-    motor_cycles = len(inferred_fill_runs)
+    observed_motor_metrics = build_motor_activity_metrics(observed_motor_times, observed_motor_values)
+    observed_motor_has_on_state = any(value == 1 for value in observed_motor_values)
+    inferred_motor_metrics = build_motor_activity_metrics(inferred_motor_times, inferred_motor_values)
+    if observed_motor_has_on_state:
+        motor_times = observed_motor_times
+        motor_values = observed_motor_values
+        motor_cycles = observed_motor_metrics["started_runs"]
+    else:
+        motor_times = inferred_motor_times
+        motor_values = inferred_motor_values
+        motor_cycles = inferred_motor_metrics["completed_runs"]
     refill_events = motor_cycles
 
     mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
@@ -10884,13 +10946,17 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
-    pump_activity_metrics = build_motor_activity_metrics(motor_times, motor_values)
+    pump_activity_metrics = observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics
     pump_activity_metrics.update(
         {
-            "source": "tank_level_history",
-            "relay_state_used": False,
-            "inference_status": "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles",
-            "runtime_basis": "local_minimum_to_90_pct_threshold",
+            "source": "telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history",
+            "relay_state_used": observed_motor_has_on_state,
+            "inference_status": (
+                "observed_relay_transitions"
+                if observed_motor_has_on_state
+                else "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles"
+            ),
+            "runtime_basis": "reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold",
             "stop_threshold_pct": round(stop_threshold_pct, 1),
             "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
             "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,
