@@ -94,6 +94,14 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
     assert '("slave_device_service", "slave_device_service_state")' in function_source
     assert "snapshot_device_auto_mode_enabled(snapshot)" in function_source
     assert 'base_payload["auto_mode_enabled"] = live_auto_mode_enabled' in function_source
+    assert '("master_turbidity_enabled", "master_turbidity_enabled")' not in function_source
+    assert '("slave_turbidity_enabled", "slave_turbidity_enabled")' not in function_source
+
+    runtime_sync_start = source.index("def build_runtime_sync_command(device_id, snapshot=None, account=None):")
+    runtime_sync_source = source[runtime_sync_start : source.index("\n\ndef runtime_sync_command_allowed", runtime_sync_start)]
+    assert 'runtime_sync_service_enabled(live_snapshot, "master_turbidity_enabled")' in runtime_sync_source
+    assert 'runtime_sync_service_enabled(live_snapshot, "slave_turbidity_enabled")' in runtime_sync_source
+    assert 'runtime_sync_service_enabled(live_snapshot, "municipal_feature_enabled")' in runtime_sync_source
 
     services_route_start = source.index('@app.route("/api/mobile/device/services", methods=["GET", "POST"])')
     services_route_source = source[services_route_start : source.index('\n\n@app.route("/api/mobile/device/thresholds", methods=["GET", "POST"])', services_route_start)]

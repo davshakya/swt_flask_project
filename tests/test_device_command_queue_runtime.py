@@ -1,6 +1,54 @@
 from flask_app import server
 
 
+def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg8(monkeypatch):
+    device_id = "swt-999-999-999-994"
+    desired = server.default_device_service_config(device_id)
+    desired.update(
+        {
+            "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
+            "master_upper_sensor_enabled": False,
+            "source_tank_monitoring_enabled": True,
+            "relay_enabled": True,
+            "buzzer_enabled": True,
+            "led_display_enabled": True,
+            "local_firmware_upload_enabled": True,
+            "municipal_sensor_enabled": True,
+            "master_turbidity_enabled": True,
+            "slave_turbidity_enabled": True,
+        }
+    )
+    old_snapshot = {
+        "device_id": device_id,
+        "telemetry_status": "live",
+        "seconds_since_sync": 0,
+        "upper_sensor_source": "slave",
+        "lower_tank_service": "ON",
+        "relay_service": "ON",
+        "buzzer_service": "ON",
+        "led_display_service": "ON",
+        "local_firmware_upload_service": "ON",
+        "municipal_feature_enabled": True,
+        "master_turbidity_enabled": False,
+        "slave_turbidity_enabled": False,
+    }
+
+    rendered = server.snapshot_device_service_config(old_snapshot, device_id=device_id, existing=desired)
+    assert rendered["master_turbidity_enabled"] is True
+    assert rendered["slave_turbidity_enabled"] is True
+
+    monkeypatch.setattr(
+        server,
+        "build_current_saved_config",
+        lambda *_args, **_kwargs: {"service_config": desired, "automation_settings": {}},
+    )
+    sync = server.build_runtime_sync_command(device_id, snapshot=old_snapshot)
+    assert sync == {"command": server.build_device_service_command(desired), "reason": "service_config"}
+    assert sync["command"].startswith("SERVICECFG8:")
+    assert sync["command"].endswith(":1:1:1")
+
+
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():
     device_id = "swt-999-999-999-996"
 

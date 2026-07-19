@@ -6840,8 +6840,6 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         ("led_display_service", "led_display_enabled"),
         ("ota_service", "ota_enabled"),
         ("local_firmware_upload_service", "local_firmware_upload_enabled"),
-        ("master_turbidity_enabled", "master_turbidity_enabled"),
-        ("slave_turbidity_enabled", "slave_turbidity_enabled"),
     ):
         live_flag = snapshot_device_service_flag(snapshot, snapshot_key)
         if live_flag is not None:
@@ -7640,7 +7638,7 @@ def runtime_sync_float_matches(live_value, saved_value, tolerance=0.11):
 
 
 def runtime_sync_service_enabled(snapshot, key):
-    return str((snapshot or {}).get(key) or "").strip().upper() == "ON"
+    return snapshot_device_service_flag(snapshot, key) is True
 
 
 def build_runtime_sync_command(device_id, snapshot=None, account=None):
@@ -7678,6 +7676,12 @@ def build_runtime_sync_command(device_id, snapshot=None, account=None):
             != bool(service_config.get("led_display_enabled", True)),
             runtime_sync_service_enabled(live_snapshot, "local_firmware_upload_service")
             != bool(service_config.get("local_firmware_upload_enabled", True)),
+            runtime_sync_service_enabled(live_snapshot, "municipal_feature_enabled")
+            != bool(service_config.get("municipal_sensor_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "master_turbidity_enabled")
+            != bool(service_config.get("master_turbidity_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "slave_turbidity_enabled")
+            != bool(service_config.get("slave_turbidity_enabled", False)),
         )
     )
     if desired_master_upper_enabled and live_upper_source != "master" and not desired_slave_enabled:
