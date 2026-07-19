@@ -27,7 +27,7 @@ Within the wider workspace:
 - Pricing/comparison page for Home Basic, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
 - Sales/demo enquiry form with backup logging, support email, customer confirmation email, and optional WhatsApp webhook delivery
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
-- Admin service controls for source tank monitoring, municipal sensor enablement, buzzer, LED, cloud-feed mode, and customer AI access
+- Admin service controls for source tank monitoring, optional municipal automation, optional upper/lower turbidity monitoring, buzzer, LED, cloud-feed mode, and customer AI access
 - Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates

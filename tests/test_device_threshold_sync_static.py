@@ -155,8 +155,9 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG6:" in build_source
+    assert "SERVICECFG7:" in build_source
     assert "municipal_sensor_enabled" in build_source
+    assert "turbidity_monitoring_enabled" in build_source
     assert "auto_mode_enabled" in build_source
 
 

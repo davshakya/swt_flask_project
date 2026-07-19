@@ -5,7 +5,7 @@
     telemetry: "Telemetry is the latest operating data received from the device, including sensor, tank and pump readings.",
     rssi: "RSSI measures Wi-Fi signal strength in dBm. Values closer to 0 are stronger; below -70 dBm may be unreliable.",
     signal: "Signal shows Wi-Fi strength. A stronger connection improves telemetry and command reliability.",
-    "municipal sensor": "Municipal Sensor detects availability from the incoming municipal or source-water supply when configured.",
+    "municipal sensor": "Municipal Water Feature enables municipal supply sensing and automatic inlet-valve control when supported by the device.",
     health: "Health summarizes device connectivity, telemetry freshness, sensors and active alerts. It is not a physical water-quality score.",
   };
 

@@ -5499,6 +5499,7 @@ def ensure_device_service_configs_table(cursor):
             slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
             municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            turbidity_monitoring_enabled INTEGER NOT NULL DEFAULT 0,
             relay_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
@@ -5543,6 +5544,7 @@ def ensure_device_service_configs_columns(cursor):
         "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
         "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "turbidity_monitoring_enabled": "INTEGER NOT NULL DEFAULT 0",
         "relay_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
@@ -6604,6 +6606,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
+    turbidity_monitoring_enabled = boolish_enabled(payload.get("turbidity_monitoring_enabled"), default=False)
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -6666,6 +6669,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
         "municipal_sensor_enabled": municipal_sensor_enabled,
+        "turbidity_monitoring_enabled": turbidity_monitoring_enabled,
         "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
@@ -6705,6 +6709,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
             f" | Municipal {'On' if municipal_sensor_enabled else 'Off'}"
+            f" | Turbidity {'On' if turbidity_monitoring_enabled else 'Off'}"
             f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
             f" | Relay {'On' if relay_enabled else 'Off'}"
             f" | AI {ai_label}"
@@ -6727,6 +6732,7 @@ def default_device_service_config(device_id=None, account=None):
             "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
             "municipal_sensor_enabled": False,
+            "turbidity_monitoring_enabled": False,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "auto_mode_enabled": False,
@@ -6823,6 +6829,7 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         ("led_display_service", "led_display_enabled"),
         ("ota_service", "ota_enabled"),
         ("local_firmware_upload_service", "local_firmware_upload_enabled"),
+        ("turbidity_monitoring_enabled", "turbidity_monitoring_enabled"),
     ):
         live_flag = snapshot_device_service_flag(snapshot, snapshot_key)
         if live_flag is not None:
@@ -6889,7 +6896,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, municipal_sensor_enabled, relay_enabled, ai_analysis_enabled,
+                   source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
@@ -6930,7 +6937,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, municipal_sensor_enabled, relay_enabled, ai_analysis_enabled,
+               source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
@@ -7006,6 +7013,7 @@ def upsert_device_service_config(
     slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
     municipal_sensor_enabled=None,
+    turbidity_monitoring_enabled=None,
     relay_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
@@ -7074,6 +7082,10 @@ def upsert_device_service_config(
     resolved_municipal_sensor_enabled = boolish_enabled(
         municipal_sensor_enabled,
         default=existing.get("municipal_sensor_enabled", False),
+    )
+    resolved_turbidity_monitoring_enabled = boolish_enabled(
+        turbidity_monitoring_enabled,
+        default=existing.get("turbidity_monitoring_enabled", False),
     )
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,
@@ -7185,7 +7197,7 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, municipal_sensor_enabled, relay_enabled, ai_analysis_enabled,
+                source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
@@ -7198,7 +7210,7 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -7206,6 +7218,7 @@ def upsert_device_service_config(
                 slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
                 municipal_sensor_enabled=excluded.municipal_sensor_enabled,
+                turbidity_monitoring_enabled=excluded.turbidity_monitoring_enabled,
                 relay_enabled=excluded.relay_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
@@ -7243,6 +7256,7 @@ def upsert_device_service_config(
                 1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
                 1 if resolved_municipal_sensor_enabled else 0,
+                1 if resolved_turbidity_monitoring_enabled else 0,
                 1 if resolved_relay_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
@@ -7299,9 +7313,10 @@ def build_device_service_command(service_config):
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
     municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))
+    turbidity_monitoring_enabled = bool(config.get("turbidity_monitoring_enabled", False))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG6:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}".format(
+    return "SERVICECFG7:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{turbidity}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -7312,6 +7327,7 @@ def build_device_service_command(service_config):
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
         auto_mode=1 if auto_mode_enabled else 0,
         municipal=1 if municipal_sensor_enabled else 0,
+        turbidity=1 if turbidity_monitoring_enabled else 0,
     )
 
 
@@ -11339,6 +11355,13 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "municipal_sensor_simulated",
     "municipal_sensor_reachable",
     "municipal_sensor_last_updated",
+    "turbidity_monitoring_enabled",
+    "upper_turbidity_sensor",
+    "lower_turbidity_sensor",
+    "upper_turbidity_raw_adc",
+    "lower_turbidity_raw_adc",
+    "upper_turbidity_estimated_ntu",
+    "lower_turbidity_estimated_ntu",
     "firmware_version",
     "slave_firmware_version",
     "reset_reason",
@@ -13722,7 +13745,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = [
             "master upper",
@@ -13735,8 +13758,10 @@ def describe_command_activity(command):
             "local upload",
             "auto mode",
         ]
-        if normalized.startswith("SERVICECFG6:"):
+        if normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
+        if normalized.startswith("SERVICECFG7:"):
+            labels.append("turbidity monitoring")
 
         def service_state_label(value):
             return "ON" if str(value or "").strip().upper() in {"1", "ON", "TRUE", "ENABLED"} else "OFF"
@@ -17809,6 +17834,7 @@ def admin_customer_services(device_id):
             slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
+            turbidity_monitoring_enabled=("turbidity_monitoring_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
             ota_enabled=False,
@@ -18569,6 +18595,7 @@ def admin_device_detail_configuration(device_id):
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
+            turbidity_monitoring_enabled=("turbidity_monitoring_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
