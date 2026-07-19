@@ -36,8 +36,8 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
     assert "Municipal Water Feature" in DEVICE_TEMPLATE_SOURCE
     assert 'name="master_turbidity_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert 'name="slave_turbidity_enabled"' in DEVICE_TEMPLATE_SOURCE
-    assert "Master Turbidity (Lower Tank)" in DEVICE_TEMPLATE_SOURCE
-    assert "Slave Turbidity (Upper Tank)" in DEVICE_TEMPLATE_SOURCE
+    assert "Lower Turbidity" in DEVICE_TEMPLATE_SOURCE
+    assert "Upper Turbidity" in DEVICE_TEMPLATE_SOURCE
 
     build_block = _function_block(
         SERVER_SOURCE,
@@ -60,3 +60,6 @@ def test_device_detail_shows_live_master_and_slave_turbidity_status():
     assert "upper_turbidity_estimated_ntu" in DEVICE_TEMPLATE_SOURCE
     assert 'turbidityStatus(snapshot,serviceConfig,"lower")' in DEVICE_TEMPLATE_SOURCE
     assert 'turbidityStatus(snapshot,serviceConfig,"upper")' in DEVICE_TEMPLATE_SOURCE
+    assert 'id="municipalSensorStatus"' in DEVICE_TEMPLATE_SOURCE
+    assert 'id="municipalSensorReading"' in DEVICE_TEMPLATE_SOURCE
+    assert "municipalSensorStatus(snapshot,serviceConfig)" in DEVICE_TEMPLATE_SOURCE

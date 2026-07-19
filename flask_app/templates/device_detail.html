@@ -86,6 +86,8 @@ body{font-size:16px}
     {% set upper_turbidity_enabled = service_config.get("slave_turbidity_enabled", False) %}
     {% set lower_turbidity_status = (live_snapshot.get("lower_turbidity_sensor") or ("WAITING" if lower_turbidity_enabled else "DISABLED"))|upper %}
     {% set upper_turbidity_status = (live_snapshot.get("upper_turbidity_sensor") or ("WAITING" if upper_turbidity_enabled else "DISABLED"))|upper %}
+    {% set municipal_enabled = service_config.get("municipal_sensor_enabled", False) %}
+    {% set municipal_status = (live_snapshot.get("municipal_sensor_state") or ("WAITING" if municipal_enabled else "DISABLED"))|upper %}
 <div class="shell">
     <div class="panel">
         <div class="eyebrow">Device Detail</div>
@@ -218,6 +220,11 @@ body{font-size:16px}
                 <span id="upperTurbidityStatus" class="info-value">{{ upper_turbidity_status|title }}</span>
                 <div id="upperTurbidityReading" class="detail-note">{% if upper_turbidity_status == "OK" and live_snapshot.get("upper_turbidity_estimated_ntu") is not none and live_snapshot.get("upper_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("upper_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("upper_turbidity_raw_adc", "--") }}{% elif upper_turbidity_status == "DISABLED" %}Enable Slave Turbidity in runtime configuration.{% elif upper_turbidity_status == "ERROR" %}Sensor or slave telemetry is unavailable.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
+            <div id="municipalSensorCard" class="info-item">
+                <div class="info-label">Municipal Water Sensor</div>
+                <span id="municipalSensorStatus" class="info-value">{{ municipal_status|replace("_", " ")|title }}</span>
+                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "UNAVAILABLE" %}No municipal water is currently detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}Waiting for valid municipal sensor telemetry.{% endif %}</div>
+            </div>
         </div>
         <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
         <div id="deviceInfoGrid" class="info-grid">
@@ -278,7 +285,7 @@ body{font-size:16px}
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %}> Municipal Water Feature</label>
-                        <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Master Turbidity (Lower Tank)</label>
+                        <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Upper Turbidity</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
@@ -287,7 +294,7 @@ body{font-size:16px}
                         <h4>Slave Configuration</h4>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
                         <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
-                        <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Slave Turbidity (Upper Tank)</label>
+                        <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Upper Turbidity</label>
                         <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
@@ -1393,6 +1400,18 @@ function turbidityReading(snapshot,serviceConfig,role){
   if(!Number.isFinite(ntu)||ntu<0)return"Waiting for a valid sensor reading.";
   return `${ntu.toFixed(1)} NTU | ADC ${Number.isFinite(adc)?Math.round(adc):"--"}`;
 }
+function municipalSensorStatus(snapshot,serviceConfig){
+  if(!Boolean(serviceConfig?.municipal_sensor_enabled))return"DISABLED";
+  const status=String(snapshot?.municipal_sensor_state||"").trim().toUpperCase();
+  return ["AVAILABLE","UNAVAILABLE"].includes(status)?status:"WAITING";
+}
+function municipalSensorReading(snapshot,serviceConfig){
+  const status=municipalSensorStatus(snapshot,serviceConfig);
+  if(status==="DISABLED")return"Enable Municipal Water Feature in runtime configuration.";
+  if(status==="AVAILABLE")return"Municipal water is detected.";
+  if(status==="UNAVAILABLE")return"No municipal water is currently detected.";
+  return"Waiting for valid municipal sensor telemetry.";
+}
 function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig){
   const root=document.getElementById("deviceInfoGrid");
   if(!root)return;
@@ -1745,6 +1764,9 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   setText("lowerTurbidityReading",turbidityReading(snapshot,serviceConfig,"lower"));
   setText("upperTurbidityStatus",titleCase(upperTurbidityState));
   setText("upperTurbidityReading",turbidityReading(snapshot,serviceConfig,"upper"));
+  const municipalState=municipalSensorStatus(snapshot,serviceConfig);
+  setText("municipalSensorStatus",titleCase(municipalState));
+  setText("municipalSensorReading",municipalSensorReading(snapshot,serviceConfig));
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
