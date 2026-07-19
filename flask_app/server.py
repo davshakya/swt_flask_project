@@ -728,7 +728,7 @@ FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 3
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
 ANALYTICS_LAST_VALID_SCHEMA_VERSION = 5
-ANALYTICS_ALGORITHM_VERSION = "minimum-to-90-range-hourly-ai7-v2"
+ANALYTICS_ALGORITHM_VERSION = "minimum-to-90-range-hourly-ai7-v3"
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -8779,7 +8779,12 @@ def build_motor_activity_metrics(time_values, value_values):
     }
 
 
-def infer_pump_activity_from_level_history(time_values, level_values, stop_threshold_pct=None):
+def infer_pump_activity_from_level_history(
+    time_values,
+    level_values,
+    stop_threshold_pct=None,
+    start_threshold_pct=None,
+):
     """Infer tank-fill cycles without using the relay pulse state.
 
     With a configured stop threshold, a complete cycle runs from the clear
@@ -8809,6 +8814,15 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
     configured_stop_threshold = safe_float(stop_threshold_pct, None)
     if configured_stop_threshold is not None and not 0 < configured_stop_threshold <= 100:
         configured_stop_threshold = None
+    configured_start_threshold = safe_float(start_threshold_pct, None)
+    if (
+        configured_start_threshold is not None
+        and (
+            configured_stop_threshold is None
+            or not 0 <= configured_start_threshold < configured_stop_threshold
+        )
+    ):
+        configured_start_threshold = None
 
     # When an upper stop threshold is configured, a completed filling cycle is
     # the lowest reading after the previous fill through the first reading at
@@ -8816,6 +8830,21 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
     # sensor fluctuations do not split that minimum-to-maximum cycle.
     if configured_stop_threshold is not None:
         target_level = 90.0
+        # A fixed 69-point rise cannot occur for common 30% start / 90% stop
+        # configurations. When the start threshold is known, accept a complete
+        # threshold-spanning refill while retaining the stricter legacy rule for
+        # callers that do not have trustworthy configuration data.
+        configured_fill_range = (
+            target_level - configured_start_threshold
+            if configured_start_threshold is not None
+            else None
+        )
+        required_fill_delta = ANALYTICS_MIN_FULL_FILL_DELTA_PCT
+        if configured_fill_range is not None and configured_fill_range > 0:
+            required_fill_delta = min(
+                required_fill_delta,
+                max(ANALYTICS_MIN_REFILL_DELTA_PCT, configured_fill_range),
+            )
         minimum_index = None
         minimum_level = None
         for index in range(size):
@@ -8836,7 +8865,7 @@ def infer_pump_activity_from_level_history(time_values, level_values, stop_thres
             if (
                 started_at is not None
                 and timestamp > started_at
-                and rise >= ANALYTICS_MIN_FULL_FILL_DELTA_PCT
+                and rise >= required_fill_delta
             ):
                 for state_index in range(minimum_index, index):
                     states[state_index] = 1
@@ -10706,6 +10735,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     refill_events = 0
     consumption_rate_segments = []
     prev_created_at = None
+    first_created_at = None
     prev_level = None
     last_display_level = None
     latest_row = None
@@ -10714,6 +10744,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         created_at = parse_timestamp(row["created_at"])
         if created_at is None:
             continue
+
+        if first_created_at is None:
+            first_created_at = created_at
 
         row_count += 1
         timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
@@ -10771,10 +10804,15 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         automation_settings.get("auto_stop_pct"),
         DEFAULT_DEVICE_AUTO_STOP_PCT,
     )
+    start_threshold_pct = safe_float(
+        automation_settings.get("auto_start_pct"),
+        DEFAULT_DEVICE_AUTO_START_PCT,
+    )
     motor_times, motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
         level_times,
         fill_level_values,
         stop_threshold_pct=stop_threshold_pct,
+        start_threshold_pct=start_threshold_pct,
     )
     level_usage = estimate_level_history_usage(level_times, level_values, motor_values)
     daily_usage = level_usage["daily_usage"]
@@ -10859,13 +10897,17 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "validated_runs": inferred_fill_runs,
         }
     )
+    quality_window_end = min(end_exclusive, now_utc())
+    quality_window_start = max(start_dt, first_created_at or start_dt)
     analytics_quality = build_analytics_quality_payload(
         row_count=row_count,
         valid_hours=valid_hours,
         gap_count=gap_count,
         valid_drop_count=valid_drop_count,
         latest_seconds_since_sync=latest_row["seconds_since_sync"],
-        window_hours=max(0.0, (end_exclusive - start_dt).total_seconds() / 3600.0),
+        # Do not count days before a newly installed device's first telemetry as
+        # missing coverage. Gaps after the first reading remain fully penalized.
+        window_hours=max(0.0, (quality_window_end - quality_window_start).total_seconds() / 3600.0),
     )
     # A level-derived usage total cannot reliably exceed the water made available by
     # the opening tank plus observed refill cycles. Large excesses usually indicate

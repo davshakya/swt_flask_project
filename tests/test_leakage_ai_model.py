@@ -213,6 +213,28 @@ def test_level_history_runtime_stops_at_first_observed_threshold_reading():
     assert runs[0]["stop_threshold_pct"] == 90.0
 
 
+def test_threshold_runtime_accepts_configured_30_to_90_fill_range():
+    times = [
+        "2026-07-17 04:13:01",
+        "2026-07-17 04:14:00",
+        "2026-07-17 04:15:00",
+        "2026-07-17 04:16:24",
+    ]
+    levels = [30.0, 55.0, 78.0, 90.5]
+
+    _, states, runs = server.infer_pump_activity_from_level_history(
+        times,
+        levels,
+        stop_threshold_pct=90.0,
+        start_threshold_pct=30.0,
+    )
+
+    assert states == [1, 1, 1, 0]
+    assert len(runs) == 1
+    assert runs[0]["start_level_pct"] == 30.0
+    assert runs[0]["stop_level_pct"] == 90.5
+
+
 def test_level_history_runtime_sums_each_separate_rising_cycle():
     times = [
         f"2026-07-14 08:{minute:02d}:00"
