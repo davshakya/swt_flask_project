@@ -263,8 +263,15 @@ def test_all_device_simulators_use_admin_ajax_routes_with_confirmation():
     assert simulator_section.count("<form ") == 5
     assert simulator_section.count("data-ajax-form") == 5
     assert simulator_section.count("data-confirm-title=") == 5
-    assert "/admin/customers/{{ device_id }}/turbidity-simulator/lower" in simulator_section
-    assert "/admin/customers/{{ device_id }}/turbidity-simulator/upper" in simulator_section
+    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 5
+    assert 'name="simulator_target" value="lower_turbidity"' in simulator_section
+    assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
+    assert 'name="simulator_target" value="municipal"' in simulator_section
+    assert 'name="simulator_target" value="valve"' in simulator_section
+    assert 'name="simulator_target" value="tank"' in simulator_section
+    assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
+    assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
+    assert 'command = f"{command_prefix}_{\'OFF\' if simulator_enabled else \'ON\'}"' in source
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():

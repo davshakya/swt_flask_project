@@ -19214,12 +19214,28 @@ def admin_device_detail_sensor_configure(device_id):
 @csrf_protect
 def admin_device_detail_simulator(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    snapshot = fetch_device_snapshot(scoped_device_id)
-    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
+    target_config = {
+        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level"),
+        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal sensor"),
+        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Motorized valve"),
+        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity"),
+        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity"),
+    }
+    if simulator_target not in target_config:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Unknown simulator target.",
+            )
+        )
+    simulator_enabled, command_prefix, target_label = target_config[simulator_target]
+    command = f"{command_prefix}_{'OFF' if simulator_enabled else 'ON'}"
     logger.info(
-        "Device simulator request received: device=%s current=%s command=%s ajax=%s",
-        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        "Simulator request received: device=%s target=%s current=%s command=%s ajax=%s",
+        scoped_device_id, simulator_target, "ON" if simulator_enabled else "OFF", command,
         request.headers.get("X-Requested-With") == "XMLHttpRequest",
     )
     result = queue_command(command, target_device=scoped_device_id)
@@ -19230,28 +19246,25 @@ def admin_device_detail_simulator(device_id):
 
     log_audit_event(
         actor=current_actor_username(),
-        action="queue_device_simulator_toggle",
+        action="queue_device_simulator_toggle" if simulator_target == "tank" else "queue_targeted_simulator_toggle",
         target_type="device",
         target_id=scoped_device_id,
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
             "previous_simulator_enabled": simulator_enabled,
+            "simulator_target": simulator_target,
             "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
     )
-    message = (
-        "Simulator disable command queued."
-        if simulator_enabled
-        else "Simulator enable command queued. The device will apply it using the current service configuration."
-    )
+    message = f"{target_label} simulator {'disable' if simulator_enabled else 'enable'} command queued."
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
             config_message=message,
-            simulator_state="off" if simulator_enabled else "on",
+            simulator_state=("off" if simulator_enabled else "on") if simulator_target == "tank" else "",
         )
     )
 
