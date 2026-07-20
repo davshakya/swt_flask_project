@@ -252,6 +252,21 @@ def test_device_detail_has_motorized_valve_simulator():
     assert 'id="municipalValveSimulatorToggleButton"' in template
 
 
+def test_all_device_simulators_use_admin_ajax_routes_with_confirmation():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    simulator_section = template[
+        template.index('id="deviceSimulatorsSection"') : template.index('id="simulatorHelperText"')
+    ]
+
+    assert '@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>"' in source
+    assert simulator_section.count("<form ") == 5
+    assert simulator_section.count("data-ajax-form") == 5
+    assert simulator_section.count("data-confirm-title=") == 5
+    assert "/admin/customers/{{ device_id }}/turbidity-simulator/lower" in simulator_section
+    assert "/admin/customers/{{ device_id }}/turbidity-simulator/upper" in simulator_section
+
+
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     mobile_route_start = source.index('def mobile_sensor_configure():')

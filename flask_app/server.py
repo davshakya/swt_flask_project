@@ -19217,6 +19217,11 @@ def admin_device_detail_simulator(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id)
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
+    logger.info(
+        "Device simulator request received: device=%s current=%s command=%s ajax=%s",
+        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -19260,6 +19265,11 @@ def admin_device_detail_municipal_simulator(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id) or {}
     simulator_enabled = boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False)
     command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"
+    logger.info(
+        "Municipal sensor simulator request received: device=%s current=%s command=%s ajax=%s",
+        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -19309,6 +19319,11 @@ def admin_device_detail_municipal_valve_simulator(device_id):
     simulator_enabled = boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False)
     enabled = not simulator_enabled
     command = f"MUNICIPAL_VALVE_SIMULATOR_{'ON' if enabled else 'OFF'}"
+    logger.info(
+        "Municipal valve simulator request received: device=%s current=%s command=%s ajax=%s",
+        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -19337,6 +19352,7 @@ def admin_device_detail_municipal_valve_simulator(device_id):
     )
 
 
+@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>", methods=["POST"])
 @app.route("/devices/<device_id>/turbidity-simulator/<role>", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -19351,6 +19367,11 @@ def admin_device_detail_turbidity_simulator(device_id, role):
         snapshot.get(f"{normalized_role}_turbidity_simulated"), default=False
     )
     command = f"{normalized_role.upper()}_TURBIDITY_SIMULATOR_{'OFF' if simulator_enabled else 'ON'}"
+    logger.info(
+        "Turbidity simulator request received: device=%s role=%s current=%s command=%s ajax=%s",
+        scoped_device_id, normalized_role, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result

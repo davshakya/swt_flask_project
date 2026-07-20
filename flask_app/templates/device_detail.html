@@ -450,11 +450,11 @@ body{font-size:16px}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button id="municipalValveSimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Motorized Valve Simulator: {{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}</span></button>
                 </form>
-                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/lower" data-ajax-form>
+                <form method="post" action="/admin/customers/{{ device_id }}/turbidity-simulator/lower" data-ajax-form data-confirm-title="{{ 'Turn off lower turbidity simulator?' if lower_turbidity_simulator_enabled|default(false) else 'Turn on lower turbidity simulator?' }}" data-confirm-message="{{ 'Stop simulated lower-tank turbidity for device ' ~ device_id ~ '?' if lower_turbidity_simulator_enabled|default(false) else 'Simulate the lower-tank turbidity sensor for device ' ~ device_id ~ '? Lower Turbidity must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if lower_turbidity_simulator_enabled|default(false) else 'Turn On' }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button id="lowerTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Lower Turbidity Simulator: {{ "ON" if lower_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
                 </form>
-                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/upper" data-ajax-form>
+                <form method="post" action="/admin/customers/{{ device_id }}/turbidity-simulator/upper" data-ajax-form data-confirm-title="{{ 'Turn off upper turbidity simulator?' if upper_turbidity_simulator_enabled|default(false) else 'Turn on upper turbidity simulator?' }}" data-confirm-message="{{ 'Stop simulated upper-tank turbidity for device ' ~ device_id ~ '?' if upper_turbidity_simulator_enabled|default(false) else 'Simulate the upper-tank turbidity sensor for device ' ~ device_id ~ '? Upper Turbidity must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if upper_turbidity_simulator_enabled|default(false) else 'Turn On' }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button id="upperTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Upper Turbidity Simulator: {{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
                 </form>
