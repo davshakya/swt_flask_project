@@ -18597,11 +18597,7 @@ def device_simulator_enabled(device_id, snapshot=None):
     live_status = simulator_payload_status(snapshot)
     if live_status is not None and str((snapshot or {}).get("telemetry_status") or "").strip().lower() != "no-data":
         return live_status
-
-    state = load_device_simulator_state(device_id)
-    if state:
-        return bool(state.get("enabled"))
-    return bool(live_status)
+    return False
 
 
 def device_detail_ajax_request():
@@ -19218,7 +19214,7 @@ def admin_device_detail_simulator(device_id):
     simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
     target_config = {
         "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level"),
-        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal sensor"),
+        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water"),
         "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Motorized valve"),
         "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity"),
         "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity"),

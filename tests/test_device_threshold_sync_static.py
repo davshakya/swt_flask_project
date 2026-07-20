@@ -202,7 +202,7 @@ def test_device_detail_has_independent_municipal_simulator_toggle():
     assert 'command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"' in source
     assert 'action="queue_municipal_sensor_simulator_toggle"' in source
     assert 'id="municipalSimulatorToggleButton"' in template
-    assert "Municipal Sensor Simulator" in template
+    assert "Municipal Water Simulator" in template
 
 
 def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
@@ -252,7 +252,7 @@ def test_device_detail_has_motorized_valve_simulator():
     assert 'id="municipalValveSimulatorToggleButton"' in template
 
 
-def test_all_device_simulators_use_admin_ajax_routes_with_confirmation():
+def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
     simulator_section = template[
@@ -262,7 +262,7 @@ def test_all_device_simulators_use_admin_ajax_routes_with_confirmation():
     assert '@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>"' in source
     assert simulator_section.count("<form ") == 5
     assert simulator_section.count("data-ajax-form") == 5
-    assert simulator_section.count("data-confirm-title=") == 5
+    assert simulator_section.count("data-confirm-title=") == 0
     assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 5
     assert 'name="simulator_target" value="lower_turbidity"' in simulator_section
     assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
@@ -272,6 +272,13 @@ def test_all_device_simulators_use_admin_ajax_routes_with_confirmation():
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
     assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
     assert 'command = f"{command_prefix}_{\'OFF\' if simulator_enabled else \'ON\'}"' in source
+    simulator_state_start = source.index("def device_simulator_enabled(device_id, snapshot=None):")
+    simulator_state_body = source[simulator_state_start : source.index("\n\ndef device_detail_ajax_request", simulator_state_start)]
+    assert "return False" in simulator_state_body
+    assert "load_device_simulator_state" not in simulator_state_body
+    assert 'document.querySelectorAll(".simulator-switch")' in template
+    assert '!event.target.closest(".simulator-switch-track")' in template
+    assert "event.stopImmediatePropagation();" in template
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():
