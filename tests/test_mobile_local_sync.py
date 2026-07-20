@@ -104,6 +104,37 @@ def test_android_local_sync_duplicate_payload_is_deduplicated():
     assert int(row["count"]) == 1
 
 
+def test_simulator_flags_survive_telemetry_snapshot_refresh():
+    device_id = "swt-simulator-state-001"
+    payload = {
+        "device_id": device_id,
+        "device_source": server.DEVICE_SOURCE_REAL,
+        "level": 50.0,
+        "motor": "OFF",
+        "mode": "AUTO",
+        "sensor": "OK",
+        "municipal_valve_simulated": True,
+        "lower_turbidity_simulated": True,
+        "upper_turbidity_simulated": True,
+    }
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    try:
+        server.process_telemetry_payload(payload, source_ip="test", transport="http")
+        snapshot = server.fetch_device_snapshot(device_id)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    assert snapshot is not None
+    assert bool(snapshot["municipal_valve_simulated"])
+    assert bool(snapshot["lower_turbidity_simulated"])
+    assert bool(snapshot["upper_turbidity_simulated"])
+
+
 def test_mobile_simulator_route_queues_firmware_simulator_commands():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 

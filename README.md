@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-07-12`
+Last refreshed: `2026-07-20`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. The devices still keep their local control loops on the ESP8266 when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
@@ -37,6 +37,9 @@ Within the wider workspace:
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
 - Home automation dashboard and local/cloud proxy at `/home-automation`; the switch-board keeps its wired control behavior even if Wi-Fi is unavailable
 - MySQL/MariaDB schema initialization for local and hosted deployment
+- Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
+
+Simulator prerequisites, workflows, transitions, and troubleshooting are in [`../docs/SIMULATOR_GUIDE.md`](../docs/SIMULATOR_GUIDE.md).
 
 ## Customer and Sales Features
 
