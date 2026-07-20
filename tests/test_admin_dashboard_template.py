@@ -390,6 +390,9 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert "function prepareScrollableChart(" in customer_template
     assert 'Math.min(8000,Math.max(viewportWidth,96+(count*pointWidth)))' in customer_template
     assert 'canvas.style.setProperty("--chart-width"' in customer_template
+    assert "function scrollChartToLatest(canvas)" in customer_template
+    assert "viewport.scrollWidth-viewport.clientWidth" in customer_template
+    assert "[charts.level.canvas,charts.daily.canvas,charts.pattern.canvas].forEach(scrollChartToLatest);" in customer_template
     assert ".chart-scroll{width:100%;overflow-x:auto" in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
     assert "pump.avg_run_seconds" in customer_template

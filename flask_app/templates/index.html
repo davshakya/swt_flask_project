@@ -1903,6 +1903,16 @@ function prepareScrollableChart(canvas,sampleCount,kind="line"){
     const desiredWidth=count>0?Math.min(8000,Math.max(viewportWidth,96+(count*pointWidth))):viewportWidth;
     canvas.style.setProperty("--chart-width",`${Math.round(desiredWidth)}px`);
 }
+function scrollChartToLatest(canvas){
+    const viewport=canvas?.closest?.(".chart-scroll");
+    if(!viewport)return;
+    const applyLatestPosition=()=>{
+        const latestPosition=Math.max(0,viewport.scrollWidth-viewport.clientWidth);
+        if(Math.abs(viewport.scrollLeft-latestPosition)>1)viewport.scrollLeft=latestPosition;
+    };
+    if(typeof window.requestAnimationFrame==="function")window.requestAnimationFrame(applyLatestPosition);
+    else window.setTimeout(applyLatestPosition,0);
+}
 function drawCanvasSeries(canvas,title,labels,values,{kind="line",color="#38bdf8",fillColor="",stepped=false,minValue=null,maxValue=null,tickFormatter=null,yTicks=null,xScale="index",xLabelMode="auto",hoverIndex=null,showValues=false,highlightPeak=false,eventMarkers=[]}={}){
     prepareScrollableChart(canvas,Array.isArray(values)?values.length:0,kind);
     const {ctx,width,height}=resizeCanvasChart(canvas);
@@ -2060,6 +2070,7 @@ function drawAnalyticsCharts(data){
     }else{
         drawCanvasEmpty(charts.pattern.canvas,"Estimated hourly use (L)",`Building hourly usage for the selected range | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | Usage appears after measurable drawdown is confirmed`);
     }
+    [charts.level.canvas,charts.daily.canvas,charts.pattern.canvas].forEach(scrollChartToLatest);
 }
 function rememberGoodAnalyticsCharts(data,key=analyticsCacheKey()){
     const chartData=analyticsChartsPayload(data,{remember:false,key});

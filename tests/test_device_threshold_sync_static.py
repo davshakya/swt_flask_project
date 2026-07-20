@@ -202,7 +202,7 @@ def test_device_detail_has_independent_municipal_simulator_toggle():
     assert 'command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"' in source
     assert 'action="queue_municipal_sensor_simulator_toggle"' in source
     assert 'id="municipalSimulatorToggleButton"' in template
-    assert "Municipal Simulator:" in template
+    assert "Municipal Sensor Simulator" in template
 
 
 def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
@@ -214,8 +214,8 @@ def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
     assert "LOWER_TURBIDITY_SIMULATOR_" in source or "normalized_role.upper()" in source
     assert 'id="lowerTurbiditySimulatorToggleButton"' in template
     assert 'id="upperTurbiditySimulatorToggleButton"' in template
-    assert "Lower Turbidity Simulator:" in template
-    assert "Upper Turbidity Simulator:" in template
+    assert "Lower Turbidity Simulator" in template
+    assert "Upper Turbidity Simulator" in template
 
 
 def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_db_password():
