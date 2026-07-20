@@ -38,6 +38,8 @@ Within the wider workspace:
 - Home automation dashboard and local/cloud proxy at `/home-automation`; the switch-board keeps its wired control behavior even if Wi-Fi is unavailable
 - MySQL/MariaDB schema initialization for local and hosted deployment
 - Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
+- The Motorized Valve Simulator switch also reports the live virtual position (`CLOSED`, `OPENING`, `OPEN`, `CLOSING`, or `FAULT`) while firmware exercises its real interlock, travel-time, hysteresis, and fail-closed logic without driving valve GPIO.
+- Master Configuration includes an independent **Motorized Valve** checkbox. It defaults OFF, persists in `device_service_configs`, and is delivered to firmware through `SERVICECFG9`; Municipal Water must also be enabled before the valve can operate.
 
 Simulator prerequisites, workflows, transitions, and troubleshooting are in [`../docs/SIMULATOR_GUIDE.md`](../docs/SIMULATOR_GUIDE.md).
 

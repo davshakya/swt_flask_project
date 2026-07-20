@@ -18,6 +18,7 @@ import re
 import secrets
 import smtplib
 import subprocess
+import sys
 import time
 import threading
 import math
@@ -231,6 +232,20 @@ def resolve_test_repo_root():
 
 
 TEST_REPO_ROOT = resolve_test_repo_root()
+PYTEST_RUN_LOCK = threading.Lock()
+
+
+def resolve_pytest_runner_root():
+    configured = str(os.environ.get("SWT_TEST_CASES_REPO") or "").strip()
+    candidates = [
+        Path(configured).expanduser() if configured else None,
+        PROJECT_ROOT.parent / "swt_test_cases_project",
+        TEST_REPO_ROOT,
+    ]
+    for candidate in candidates:
+        if candidate and (candidate / "tests" / "test_live_water_feature_simulators.py").is_file():
+            return candidate.resolve()
+    return None
 
 
 def normalize_db_path(raw_path):
@@ -4602,6 +4617,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         1 if cleaned.get("municipal_sensor_reachable") else 0,
         cleaned.get("municipal_sensor_last_updated"),
         1 if boolish_enabled(cleaned.get("municipal_valve_simulated"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("municipal_valve_feature_enabled"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("lower_turbidity_simulated"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("upper_turbidity_simulated"), default=False) else 0,
         cleaned.get("device_id"),
@@ -4667,7 +4683,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
                 municipal_sensor_reachable, municipal_sensor_last_updated,
-                municipal_valve_simulated, lower_turbidity_simulated, upper_turbidity_simulated,
+                municipal_valve_simulated, municipal_valve_feature_enabled, lower_turbidity_simulated, upper_turbidity_simulated,
                 device_id, firmware_version, slave_firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
@@ -5086,6 +5102,7 @@ def ensure_tank_data_columns(cursor):
         "municipal_sensor_reachable": "INTEGER NOT NULL DEFAULT 0",
         "municipal_sensor_last_updated": "TEXT",
         "municipal_valve_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_valve_feature_enabled": "INTEGER NOT NULL DEFAULT 0",
         "lower_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
         "upper_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
         "device_id": "TEXT",
@@ -5212,6 +5229,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
             municipal_sensor_last_updated TEXT,
             municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
+            municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
             lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
             upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
             device_id TEXT,
@@ -5509,6 +5527,7 @@ def ensure_device_service_configs_table(cursor):
             slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
             municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            municipal_valve_enabled INTEGER NOT NULL DEFAULT 0,
             turbidity_monitoring_enabled INTEGER NOT NULL DEFAULT 0,
             master_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
             slave_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
@@ -5556,6 +5575,7 @@ def ensure_device_service_configs_columns(cursor):
         "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
         "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_valve_enabled": "INTEGER NOT NULL DEFAULT 0",
         "turbidity_monitoring_enabled": "INTEGER NOT NULL DEFAULT 0",
         "master_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
         "slave_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -5848,6 +5868,7 @@ def init_db():
                 municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
                 municipal_sensor_last_updated TEXT,
                 municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
+                municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
                 lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
                 upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
                 device_id TEXT,
@@ -6623,6 +6644,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
     municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
+    municipal_valve_enabled = boolish_enabled(payload.get("municipal_valve_enabled"), default=False)
     turbidity_monitoring_enabled = boolish_enabled(payload.get("turbidity_monitoring_enabled"), default=False)
     master_turbidity_enabled = boolish_enabled(payload.get("master_turbidity_enabled"), default=turbidity_monitoring_enabled)
     slave_turbidity_enabled = boolish_enabled(payload.get("slave_turbidity_enabled"), default=turbidity_monitoring_enabled)
@@ -6689,6 +6711,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
         "municipal_sensor_enabled": municipal_sensor_enabled,
+        "municipal_valve_enabled": municipal_valve_enabled,
         "turbidity_monitoring_enabled": turbidity_monitoring_enabled,
         "master_turbidity_enabled": master_turbidity_enabled,
         "slave_turbidity_enabled": slave_turbidity_enabled,
@@ -6731,6 +6754,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
             f" | Municipal {'On' if municipal_sensor_enabled else 'Off'}"
+            f" | Valve {'On' if municipal_valve_enabled else 'Off'}"
             f" | Turbidity {'On' if turbidity_monitoring_enabled else 'Off'}"
             f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
             f" | Relay {'On' if relay_enabled else 'Off'}"
@@ -6754,6 +6778,7 @@ def default_device_service_config(device_id=None, account=None):
             "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
             "municipal_sensor_enabled": False,
+            "municipal_valve_enabled": False,
             "turbidity_monitoring_enabled": False,
             "master_turbidity_enabled": False,
             "slave_turbidity_enabled": False,
@@ -6919,7 +6944,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled,
+                   source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, turbidity_monitoring_enabled,
                    master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -6961,7 +6986,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled,
+               source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, turbidity_monitoring_enabled,
                master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -7038,6 +7063,7 @@ def upsert_device_service_config(
     slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
     municipal_sensor_enabled=None,
+    municipal_valve_enabled=None,
     turbidity_monitoring_enabled=None,
     master_turbidity_enabled=None,
     slave_turbidity_enabled=None,
@@ -7109,6 +7135,10 @@ def upsert_device_service_config(
     resolved_municipal_sensor_enabled = boolish_enabled(
         municipal_sensor_enabled,
         default=existing.get("municipal_sensor_enabled", False),
+    )
+    resolved_municipal_valve_enabled = boolish_enabled(
+        municipal_valve_enabled,
+        default=existing.get("municipal_valve_enabled", False),
     )
     resolved_turbidity_monitoring_enabled = boolish_enabled(
         turbidity_monitoring_enabled,
@@ -7231,7 +7261,7 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, municipal_sensor_enabled, turbidity_monitoring_enabled,
+                source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, turbidity_monitoring_enabled,
                 master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -7245,7 +7275,7 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
@@ -7253,6 +7283,7 @@ def upsert_device_service_config(
                 slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
                 municipal_sensor_enabled=excluded.municipal_sensor_enabled,
+                municipal_valve_enabled=excluded.municipal_valve_enabled,
                 turbidity_monitoring_enabled=excluded.turbidity_monitoring_enabled,
                 master_turbidity_enabled=excluded.master_turbidity_enabled,
                 slave_turbidity_enabled=excluded.slave_turbidity_enabled,
@@ -7293,6 +7324,7 @@ def upsert_device_service_config(
                 1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
                 1 if resolved_municipal_sensor_enabled else 0,
+                1 if resolved_municipal_valve_enabled else 0,
                 1 if resolved_turbidity_monitoring_enabled else 0,
                 1 if resolved_master_turbidity_enabled else 0,
                 1 if resolved_slave_turbidity_enabled else 0,
@@ -7352,12 +7384,13 @@ def build_device_service_command(service_config):
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
     municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))
+    municipal_valve_enabled = bool(config.get("municipal_valve_enabled", False))
     turbidity_monitoring_enabled = bool(config.get("turbidity_monitoring_enabled", False))
     master_turbidity_enabled = bool(config.get("master_turbidity_enabled", turbidity_monitoring_enabled))
     slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG8:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}".format(
+    return "SERVICECFG9:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -7370,6 +7403,7 @@ def build_device_service_command(service_config):
         municipal=1 if municipal_sensor_enabled else 0,
         master_turbidity=1 if master_turbidity_enabled else 0,
         slave_turbidity=1 if slave_turbidity_enabled else 0,
+        municipal_valve=1 if municipal_valve_enabled else 0,
     )
 
 
@@ -7691,6 +7725,8 @@ def build_runtime_sync_command(device_id, snapshot=None, account=None):
             != bool(service_config.get("local_firmware_upload_enabled", True)),
             runtime_sync_service_enabled(live_snapshot, "municipal_feature_enabled")
             != bool(service_config.get("municipal_sensor_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "municipal_valve_feature_enabled")
+            != bool(service_config.get("municipal_valve_enabled", False)),
             runtime_sync_service_enabled(live_snapshot, "master_turbidity_enabled")
             != bool(service_config.get("master_turbidity_enabled", False)),
             runtime_sync_service_enabled(live_snapshot, "slave_turbidity_enabled")
@@ -11404,6 +11440,7 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "municipal_sensor_reachable",
     "municipal_sensor_last_updated",
     "municipal_valve_enabled",
+    "municipal_valve_feature_enabled",
     "municipal_valve_hardware_ready",
     "municipal_valve_simulated",
     "municipal_valve_state",
@@ -13799,7 +13836,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = [
             "master upper",
@@ -13812,9 +13849,9 @@ def describe_command_activity(command):
             "local upload",
             "auto mode",
         ]
-        if normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
+        if normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
-        if normalized.startswith("SERVICECFG8:"):
+        if normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
             labels.extend(("lower turbidity", "upper turbidity"))
         elif normalized.startswith("SERVICECFG7:"):
             labels.append("turbidity monitoring")
@@ -17890,6 +17927,7 @@ def admin_customer_services(device_id):
             slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
+            municipal_valve_enabled=("municipal_valve_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
@@ -18686,6 +18724,7 @@ def admin_device_detail_configuration(device_id):
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
             municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
+            municipal_valve_enabled=("municipal_valve_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
@@ -19276,6 +19315,83 @@ def admin_device_detail_simulator(device_id):
             simulator_state=("off" if simulator_enabled else "on") if simulator_target == "tank" else "",
         )
     )
+
+
+@app.route("/admin/customers/<device_id>/pytest", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_pytest(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    runner_root = resolve_pytest_runner_root()
+    if runner_root is None:
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Test repository is not installed on this Flask host.",
+            title="Pytest unavailable",
+            status_code=503,
+        )
+    if not PYTEST_RUN_LOCK.acquire(blocking=False):
+        return device_detail_action_response(
+            scoped_device_id,
+            error="Another pytest run is already active. Wait for it to finish.",
+            title="Pytest already running",
+            status_code=409,
+        )
+    try:
+        environment = os.environ.copy()
+        environment["SWT_RUN_LIVE_SIMULATOR_TESTS"] = "1"
+        environment["SWT_TEST_CONFIG"] = str(runner_root / "config.yml")
+        snapshot = fetch_device_snapshot(scoped_device_id) or {}
+        local_url = str(snapshot.get("device_local_url") or snapshot.get("local_url") or "").strip()
+        if local_url:
+            environment["SWT_DEVICE_URL"] = local_url
+        command = [
+            sys.executable,
+            "-m",
+            "pytest",
+            "tests/test_live_water_feature_simulators.py",
+            "-q",
+            "-s",
+        ]
+        logger.info("Admin pytest started: device=%s root=%s", scoped_device_id, runner_root)
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=runner_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            output = "\n".join(part for part in ((exc.stdout or ""), (exc.stderr or "")) if part)
+            return device_detail_action_response(
+                scoped_device_id,
+                error="Pytest exceeded the 180-second limit.",
+                title="Pytest timed out",
+                status_code=504,
+                detail_lines=output.splitlines()[-30:],
+            )
+        output = "\n".join(part for part in (completed.stdout, completed.stderr) if part).strip()
+        detail_lines = output.splitlines()[-30:]
+        logger.info("Admin pytest finished: device=%s exit_code=%d", scoped_device_id, completed.returncode)
+        if completed.returncode != 0:
+            return device_detail_action_response(
+                scoped_device_id,
+                error=f"Pytest failed with exit code {completed.returncode}.",
+                title="Sensor tests failed",
+                status_code=422,
+                detail_lines=detail_lines,
+            )
+        return device_detail_action_response(
+            scoped_device_id,
+            "Water-feature simulator tests completed successfully.",
+            title="Sensor tests passed",
+            detail_lines=detail_lines,
+        )
+    finally:
+        PYTEST_RUN_LOCK.release()
 
 
 @app.route("/admin/customers/<device_id>/municipal-simulator", methods=["POST"])

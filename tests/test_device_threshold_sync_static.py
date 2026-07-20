@@ -163,7 +163,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG8:" in build_source
+    assert "SERVICECFG9:" in build_source
     assert "municipal_sensor_enabled" in build_source
     assert "turbidity_monitoring_enabled" in build_source
     assert "master_turbidity_enabled" in build_source
@@ -268,6 +268,9 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
     assert 'name="simulator_target" value="municipal"' in simulator_section
     assert 'name="simulator_target" value="valve"' in simulator_section
+    assert "function setValveSimulatorSwitchState(snapshot)" in template
+    assert 'snapshot?.municipal_valve_state||"closed"' in template
+    assert '`ON · ${' in template
     assert 'name="simulator_target" value="tank"' in simulator_section
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
     assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
@@ -279,6 +282,19 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert 'document.querySelectorAll(".simulator-switch")' in template
     assert '!event.target.closest(".simulator-switch-track")' in template
     assert "event.stopImmediatePropagation();" in template
+
+
+def test_device_detail_has_admin_ajax_pytest_runner():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    assert '@app.route("/admin/customers/<device_id>/pytest", methods=["POST"])' in source
+    assert "def admin_device_detail_pytest(device_id):" in source
+    assert "PYTEST_RUN_LOCK.acquire(blocking=False)" in source
+    assert '"tests/test_live_water_feature_simulators.py"' in source
+    assert "timeout=180" in source
+    assert 'id="runPytestButton"' in template
+    assert 'id="pytestSimulatorForm"' in template
+    assert "data-ajax-form" in template
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():

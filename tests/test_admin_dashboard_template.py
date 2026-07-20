@@ -1137,6 +1137,11 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'class="mobile-contact-bar"' in template
     assert "&#128222; Call" in template
     assert "&#128172; WhatsApp" in template
+    assert 'id="mobileChatbotButton"' in template
+    assert 'mobileChatbotButton.addEventListener("click", () => setChatbotOpen(true))' in template
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
+    assert ".enquiry-modal{z-index:120}" in template
+    assert ".enquiry-modal .form-actions{" in template
     assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
     assert "&#10004; Yes" in template
     assert "&#10006; No" in template

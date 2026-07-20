@@ -45,7 +45,9 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
         "def device_automation_settings_key(device_id):",
     )
     assert 'municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))' in build_block
-    assert "SERVICECFG8:" in build_block
+    assert "SERVICECFG9:" in build_block
+    assert 'name="municipal_valve_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert "municipal_valve=1 if municipal_valve_enabled else 0" in build_block
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block
     assert "master_turbidity=1 if master_turbidity_enabled else 0" in build_block
     assert "slave_turbidity=1 if slave_turbidity_enabled else 0" in build_block
