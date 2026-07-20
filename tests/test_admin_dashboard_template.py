@@ -5,6 +5,16 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_turbidity_simulator_routes_are_registered_for_both_url_shapes():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    rules = {rule.rule for rule in server.app.url_map.iter_rules()}
+    assert "/devices/<device_id>/turbidity-simulator/<role>" in rules
+    assert "/admin/customers/<device_id>/turbidity-simulator/<role>" in rules
+
+
 def test_admin_customer_page_renders_one_popup_status_message_slot():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 

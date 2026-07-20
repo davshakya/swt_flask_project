@@ -616,7 +616,7 @@ def build_swt_version():
 SWT_VERSION = build_swt_version()
 API_VERSION = SWT_VERSION
 OTA_CONTRACT_VERSION = 2
-DEPLOY_MARKER = "delete-fix-2026-07-12-v4"
+DEPLOY_MARKER = "simulator-routes-2026-07-20-v1"
 DEVICE = os.environ.get("DEVICE_URL", "").strip()
 DEFAULT_CUSTOMER_PASSWORD = os.environ.get("DEFAULT_CUSTOMER_PASSWORD", "").strip()
 SEED_DEFAULT_CUSTOMERS = os.environ.get("SEED_DEFAULT_CUSTOMERS", "false").lower() in {"1", "true", "yes"}
