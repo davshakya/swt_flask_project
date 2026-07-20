@@ -11397,6 +11397,8 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "lower_turbidity_raw_adc",
     "upper_turbidity_estimated_ntu",
     "lower_turbidity_estimated_ntu",
+    "upper_turbidity_simulated",
+    "lower_turbidity_simulated",
     "firmware_version",
     "slave_firmware_version",
     "reset_reason",
@@ -13795,7 +13797,9 @@ def describe_command_activity(command):
         ]
         if normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
-        if normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:"):
+        if normalized.startswith("SERVICECFG8:"):
+            labels.extend(("lower turbidity", "upper turbidity"))
+        elif normalized.startswith("SERVICECFG7:"):
             labels.append("turbidity monitoring")
 
         def service_state_label(value):
@@ -18427,6 +18431,32 @@ def device_detail_page(device_id):
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    municipal_simulator_state = str(
+        request.args.get("municipal_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    municipal_simulator_enabled = boolish_enabled(
+        (snapshot or {}).get("municipal_sensor_simulated"),
+        default=False,
+    )
+    if municipal_simulator_state in {"on", "off"}:
+        municipal_simulator_enabled = municipal_simulator_state == "on"
+    lower_turbidity_simulator_enabled = boolish_enabled(
+        (snapshot or {}).get("lower_turbidity_simulated"), default=False
+    )
+    upper_turbidity_simulator_enabled = boolish_enabled(
+        (snapshot or {}).get("upper_turbidity_simulated"), default=False
+    )
+    turbidity_simulator_role = str(
+        request.args.get("turbidity_simulator_role", "", type=str) or ""
+    ).strip().lower()
+    turbidity_simulator_state = str(
+        request.args.get("turbidity_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    if turbidity_simulator_role in {"lower", "upper"} and turbidity_simulator_state in {"on", "off"}:
+        if turbidity_simulator_role == "lower":
+            lower_turbidity_simulator_enabled = turbidity_simulator_state == "on"
+        else:
+            upper_turbidity_simulator_enabled = turbidity_simulator_state == "on"
     live_simulator_status = simulator_payload_status(snapshot)
     if (
         simulator_state in {"on", "off"}
@@ -18467,6 +18497,9 @@ def device_detail_page(device_id):
         firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
+        municipal_simulator_enabled=municipal_simulator_enabled,
+        lower_turbidity_simulator_enabled=lower_turbidity_simulator_enabled,
+        upper_turbidity_simulator_enabled=upper_turbidity_simulator_enabled,
         initial_events=initial_events,
         initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
@@ -18662,10 +18695,27 @@ def admin_device_detail_configuration(device_id):
         )
 
     queued_command = build_device_service_command(updated_config)
+    logger.info(
+        "Admin water features saved: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s command=%s",
+        scoped_device_id,
+        "ON" if updated_config.get("municipal_sensor_enabled") else "OFF",
+        "ON" if updated_config.get("master_turbidity_enabled") else "OFF",
+        "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
+        queued_command,
+    )
     queue_result, queue_error = safe_queue_device_detail_command(
         queued_command,
         scoped_device_id,
         "Unable to queue runtime configuration update",
+    )
+    logger.info(
+        "Admin water feature command queue result: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s queued=%s error=%s",
+        scoped_device_id,
+        "ON" if updated_config.get("municipal_sensor_enabled") else "OFF",
+        "ON" if updated_config.get("master_turbidity_enabled") else "OFF",
+        "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
+        bool(queue_result),
+        queue_error or "none",
     )
     try:
         log_audit_event(
@@ -19184,6 +19234,98 @@ def admin_device_detail_simulator(device_id):
             device_id=scoped_device_id,
             config_message=message,
             simulator_state="off" if simulator_enabled else "on",
+        )
+    )
+
+
+@app.route("/admin/customers/<device_id>/municipal-simulator", methods=["POST"])
+@app.route("/devices/<device_id>/municipal-simulator", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_municipal_simulator(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False)
+    command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue municipal simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_municipal_sensor_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "command": result.get("command"),
+            "previous_municipal_simulator_enabled": simulator_enabled,
+            "queued_at": result.get("queued_at"),
+        },
+    )
+    enabled = not simulator_enabled
+    logger.info(
+        "Municipal sensor simulator command queued: device=%s requested=%s command=%s",
+        scoped_device_id,
+        "ON" if enabled else "OFF",
+        command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=(
+                "Municipal sensor simulator enable command queued."
+                if enabled
+                else "Municipal sensor simulator disable command queued."
+            ),
+            municipal_simulator_state="on" if enabled else "off",
+        )
+    )
+
+
+@app.route("/devices/<device_id>/turbidity-simulator/<role>", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_turbidity_simulator(device_id, role):
+    scoped_device_id = current_scope_device_id(device_id)
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in {"lower", "upper"}:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Unknown turbidity simulator role."))
+
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(
+        snapshot.get(f"{normalized_role}_turbidity_simulated"), default=False
+    )
+    command = f"{normalized_role.upper()}_TURBIDITY_SIMULATOR_{'OFF' if simulator_enabled else 'ON'}"
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue {normalized_role} turbidity simulator command."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    enabled = not simulator_enabled
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_turbidity_sensor_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={"role": normalized_role, "command": command, "enabled": enabled},
+    )
+    logger.info(
+        "Turbidity simulator command queued: device=%s role=%s requested=%s command=%s",
+        scoped_device_id, normalized_role, "ON" if enabled else "OFF", command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"{normalized_role.title()} turbidity simulator {'enable' if enabled else 'disable'} command queued.",
+            turbidity_simulator_role=normalized_role,
+            turbidity_simulator_state="on" if enabled else "off",
         )
     )
 

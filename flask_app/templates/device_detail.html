@@ -367,6 +367,19 @@ body{font-size:16px}
                     <input type="hidden" name="return_to" value="device_detail">
                     <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
                 </form>
+                <form method="post" action="/admin/customers/{{ device_id }}/municipal-simulator" data-ajax-form data-confirm-title="{{ 'Turn off municipal simulator?' if municipal_simulator_enabled|default(false) else 'Turn on municipal simulator?' }}" data-confirm-message="{{ 'Stop simulated municipal-water detection for device ' ~ device_id ~ '?' if municipal_simulator_enabled|default(false) else 'Simulate municipal water availability for device ' ~ device_id ~ '? The Municipal Water Feature must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if municipal_simulator_enabled|default(false) else 'Turn On' }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <button id="municipalSimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Municipal Simulator: {{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/lower" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button id="lowerTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Lower Turbidity Simulator: {{ "ON" if lower_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/upper" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button id="upperTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Upper Turbidity Simulator: {{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">

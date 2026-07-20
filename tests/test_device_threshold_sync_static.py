@@ -186,9 +186,36 @@ def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
 
     assert "safe_queue_device_detail_command(" in route_source
     assert '"Unable to queue runtime configuration update"' in route_source
+    assert "Admin water features saved:" in route_source
+    assert "Admin water feature command queue result:" in route_source
     assert "Configuration saved in Flask" in route_source
     assert "device_detail_action_response(" in route_source
     assert "Auto Start/Stop is {auto_mode_label}" in route_source
+
+
+def test_device_detail_has_independent_municipal_simulator_toggle():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '@app.route("/devices/<device_id>/municipal-simulator", methods=["POST"])' in source
+    assert "def admin_device_detail_municipal_simulator(device_id):" in source
+    assert 'command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"' in source
+    assert 'action="queue_municipal_sensor_simulator_toggle"' in source
+    assert 'id="municipalSimulatorToggleButton"' in template
+    assert "Municipal Simulator:" in template
+
+
+def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '@app.route("/devices/<device_id>/turbidity-simulator/<role>", methods=["POST"])' in source
+    assert "def admin_device_detail_turbidity_simulator(device_id, role):" in source
+    assert "LOWER_TURBIDITY_SIMULATOR_" in source or "normalized_role.upper()" in source
+    assert 'id="lowerTurbiditySimulatorToggleButton"' in template
+    assert 'id="upperTurbiditySimulatorToggleButton"' in template
+    assert "Lower Turbidity Simulator:" in template
+    assert "Upper Turbidity Simulator:" in template
 
 
 def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_db_password():
