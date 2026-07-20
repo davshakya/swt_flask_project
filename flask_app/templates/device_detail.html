@@ -361,25 +361,7 @@ body{font-size:16px}
 
             <div class="admin-form command-group maintenance">
                 <h3>Device Commands</h3>
-                <div class="summary-label">Simulation, diagnostics, and maintenance</div>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="{{ 'Disable simulator?' if simulator_enabled|default(false) else 'Enable simulator?' }}" data-confirm-message="{{ 'Queue a simulator disable command for device ' ~ device_id ~ '?' if simulator_enabled|default(false) else 'Queue a simulator enable command for device ' ~ device_id ~ '? The device will apply it using the current service configuration.' }}" data-confirm-button="{{ 'Disable Simulator' if simulator_enabled|default(false) else 'Enable Simulator' }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
-                </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/municipal-simulator" data-ajax-form data-confirm-title="{{ 'Turn off municipal simulator?' if municipal_simulator_enabled|default(false) else 'Turn on municipal simulator?' }}" data-confirm-message="{{ 'Stop simulated municipal-water detection for device ' ~ device_id ~ '?' if municipal_simulator_enabled|default(false) else 'Simulate municipal water availability for device ' ~ device_id ~ '? The Municipal Water Feature must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if municipal_simulator_enabled|default(false) else 'Turn On' }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <button id="municipalSimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Municipal Simulator: {{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span></button>
-                </form>
-                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/lower" data-ajax-form>
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button id="lowerTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Lower Turbidity Simulator: {{ "ON" if lower_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
-                </form>
-                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/upper" data-ajax-form>
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button id="upperTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Upper Turbidity Simulator: {{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
-                </form>
+                <div class="summary-label">Diagnostics and maintenance</div>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
@@ -403,7 +385,6 @@ body{font-size:16px}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-danger btn-full" type="submit">Delete Device</button>
                 </form>
-                <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>
                 <div class="helper-text">Ping checks use the latest cloud telemetry and direct peer packet age; no local LAN access is required.</div>
                 <div class="helper-text">Delete removes the stored device data and returns to the admin fleet table.</div>
             </div>
@@ -450,6 +431,34 @@ body{font-size:16px}
                     </div>
                 </form>
                 <div class="helper-text">Use the lower/source tank's measured sensor-to-empty-tank height and capacity.</div>
+            </div>
+
+            <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
+                <h3>Device Simulators</h3>
+                <div class="summary-label">Sensor and valve simulation</div>
+                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="{{ 'Disable simulator?' if simulator_enabled|default(false) else 'Enable simulator?' }}" data-confirm-message="{{ 'Queue a simulator disable command for device ' ~ device_id ~ '?' if simulator_enabled|default(false) else 'Queue a simulator enable command for device ' ~ device_id ~ '? The device will apply it using the current service configuration.' }}" data-confirm-button="{{ 'Disable Simulator' if simulator_enabled|default(false) else 'Enable Simulator' }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
+                </form>
+                <form method="post" action="/admin/customers/{{ device_id }}/municipal-simulator" data-ajax-form data-confirm-title="{{ 'Turn off municipal simulator?' if municipal_simulator_enabled|default(false) else 'Turn on municipal simulator?' }}" data-confirm-message="{{ 'Stop simulated municipal-water detection for device ' ~ device_id ~ '?' if municipal_simulator_enabled|default(false) else 'Simulate municipal water availability for device ' ~ device_id ~ '? The Municipal Water Feature must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if municipal_simulator_enabled|default(false) else 'Turn On' }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <button id="municipalSimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Municipal Simulator: {{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <form method="post" action="/admin/customers/{{ device_id }}/municipal-valve-simulator" data-ajax-form data-confirm-title="{{ 'Turn off valve simulator?' if valve_simulator_enabled|default(false) else 'Turn on valve simulator?' }}" data-confirm-message="{{ 'Stop virtual motorized-valve operation for device ' ~ device_id ~ '?' if valve_simulator_enabled|default(false) else 'Simulate the motorized valve without GPIO or relays? The Municipal Water Feature must be enabled.' }}" data-confirm-button="{{ 'Turn Off' if valve_simulator_enabled|default(false) else 'Turn On' }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button id="municipalValveSimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Motorized Valve Simulator: {{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/lower" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button id="lowerTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Lower Turbidity Simulator: {{ "ON" if lower_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <form method="post" action="/devices/{{ device_id }}/turbidity-simulator/upper" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button id="upperTurbiditySimulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>Upper Turbidity Simulator: {{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span></button>
+                </form>
+                <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>
             </div>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}" data-ajax-form>

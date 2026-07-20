@@ -11390,6 +11390,10 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "municipal_sensor_simulated",
     "municipal_sensor_reachable",
     "municipal_sensor_last_updated",
+    "municipal_valve_enabled",
+    "municipal_valve_hardware_ready",
+    "municipal_valve_simulated",
+    "municipal_valve_state",
     "turbidity_monitoring_enabled",
     "upper_turbidity_sensor",
     "lower_turbidity_sensor",
@@ -18440,6 +18444,14 @@ def device_detail_page(device_id):
     )
     if municipal_simulator_state in {"on", "off"}:
         municipal_simulator_enabled = municipal_simulator_state == "on"
+    valve_simulator_state = str(
+        request.args.get("valve_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    valve_simulator_enabled = boolish_enabled(
+        (snapshot or {}).get("municipal_valve_simulated"), default=False
+    )
+    if valve_simulator_state in {"on", "off"}:
+        valve_simulator_enabled = valve_simulator_state == "on"
     lower_turbidity_simulator_enabled = boolish_enabled(
         (snapshot or {}).get("lower_turbidity_simulated"), default=False
     )
@@ -18498,6 +18510,7 @@ def device_detail_page(device_id):
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
         municipal_simulator_enabled=municipal_simulator_enabled,
+        valve_simulator_enabled=valve_simulator_enabled,
         lower_turbidity_simulator_enabled=lower_turbidity_simulator_enabled,
         upper_turbidity_simulator_enabled=upper_turbidity_simulator_enabled,
         initial_events=initial_events,
@@ -19282,6 +19295,44 @@ def admin_device_detail_municipal_simulator(device_id):
                 else "Municipal sensor simulator disable command queued."
             ),
             municipal_simulator_state="on" if enabled else "off",
+        )
+    )
+
+
+@app.route("/admin/customers/<device_id>/municipal-valve-simulator", methods=["POST"])
+@app.route("/devices/<device_id>/municipal-valve-simulator", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_municipal_valve_simulator(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False)
+    enabled = not simulator_enabled
+    command = f"MUNICIPAL_VALVE_SIMULATOR_{'ON' if enabled else 'OFF'}"
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue motorized valve simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_municipal_valve_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={"command": command, "enabled": enabled, "queued_at": result.get("queued_at")},
+    )
+    logger.info(
+        "Municipal valve simulator command queued: device=%s requested=%s command=%s",
+        scoped_device_id, "ON" if enabled else "OFF", command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"Motorized valve simulator {'enable' if enabled else 'disable'} command queued.",
+            valve_simulator_state="on" if enabled else "off",
         )
     )
 

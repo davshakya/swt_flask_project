@@ -242,6 +242,16 @@ def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_d
     assert '"automation_settings": saved_automation_settings' in saved_config_source
 
 
+def test_device_detail_has_motorized_valve_simulator():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '"municipal_valve_simulated"' in source
+    assert "def admin_device_detail_municipal_valve_simulator(device_id):" in source
+    assert "MUNICIPAL_VALVE_SIMULATOR_" in source
+    assert 'id="municipalValveSimulatorToggleButton"' in template
+
+
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     mobile_route_start = source.index('def mobile_sensor_configure():')
