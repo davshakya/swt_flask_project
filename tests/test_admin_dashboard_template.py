@@ -1135,11 +1135,13 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'class="faq-list"' in template
     assert "Does it work without Wi-Fi?" in template
     assert 'class="mobile-contact-bar"' in template
-    assert "&#128222; Call" in template
-    assert "&#128172; WhatsApp" in template
+    assert '<span>Call</span>' in template
+    assert '<span>WhatsApp</span>' in template
     assert 'id="mobileChatbotButton"' in template
     assert 'mobileChatbotButton.addEventListener("click", () => setChatbotOpen(true))' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
+    assert "height:34px;min-width:0;min-height:34px;max-height:34px" in template
+    assert 'window.matchMedia?.("(min-width: 761px) and (pointer: fine)")?.matches' in template
     assert ".enquiry-modal{z-index:120}" in template
     assert ".enquiry-modal .form-actions{" in template
     assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
