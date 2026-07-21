@@ -5641,7 +5641,6 @@ min-width:0;
         <button class="modal-close" type="button" aria-label="Close login" data-close-modal>&times;</button>
 
         <div class="modal-header">
-            <div class="eyebrow">Sign In</div>
             <h2 id="loginModalTitle">{{ login_title }}</h2>
             <p id="loginModalDescription">{{ login_description }}</p>
         </div>
@@ -5693,8 +5692,6 @@ min-width:0;
         </section>
 
         <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">
-            <h3>Admin Login</h3>
-            <p>For installer and service access.</p>
             <div class="login-help">Use your admin username and password.</div>
             <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
                 <input type="hidden" name="next" value="{{ next_url }}">
@@ -5737,17 +5734,6 @@ const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(fals
 const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
 const shouldAutoOpenEnquiry = {{ "true" if sales_success or sales_error else "false" }};
 const publicSalesEnquiryPath = "{{ url_for('sales_enquiry') }}";
-const roleContent = {
-    customer: {
-        title: "Customer Login",
-        description: "Sign in with your tank device ID and password.",
-    },
-    admin: {
-        title: "Admin Login",
-        description: "Sign in with your admin username and password.",
-    },
-};
-
 if (window.location.pathname.replace(/\/+$/, "") === publicSalesEnquiryPath.replace(/\/+$/, "")) {
     if (window.swtNavigate) {
         window.swtNavigate("{{ url_for('pricing_page') }}", { replace: true });
