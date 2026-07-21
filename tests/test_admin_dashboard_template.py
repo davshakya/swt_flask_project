@@ -1145,6 +1145,11 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert "body.chatbot-open .mobile-contact-bar{display:none}" in template
     assert 'document.body.classList.toggle("chatbot-open", isOpen)' in template
     assert 'document.documentElement.style.setProperty("--chatbot-mobile-height"' in template
+    assert 'data-password-toggle="customer_password"' in template
+    assert 'data-password-toggle="admin_password"' in template
+    assert 'input.type = showPassword ? "text" : "password"' in template
+    assert "#loginModal .modal-panel{" in template
+    assert "color-scheme:light" in template
     assert ".enquiry-modal{z-index:120}" in template
     assert ".enquiry-modal .form-actions{" in template
     assert ".comparison-table th:last-child,.comparison-table td:last-child" in template

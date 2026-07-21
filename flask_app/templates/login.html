@@ -3714,6 +3714,76 @@ min-height:40px;
 padding:10px 14px;
 border-radius:12px;
 }
+#loginModal .modal-panel{
+background:linear-gradient(180deg,#ffffff,#f2fafa);
+border-color:#c7dde1;
+box-shadow:0 32px 80px rgba(9,47,58,.22);
+color:#15343c;
+color-scheme:light;
+}
+#loginModal .modal-backdrop{
+background:rgba(17,43,50,.4);
+}
+#loginModal .modal-close{
+background:#f2f8f9;
+border-color:#c7dde1;
+color:#15343c;
+}
+#loginModal .modal-header p,
+#loginModal .login-pane p{
+color:#58727a;
+}
+#loginModal .toggle-button{
+background:#f3f8f9;
+border-color:#c7dde1;
+color:#24434b;
+}
+#loginModal .toggle-button.is-active{
+background:#dff5f7;
+border-color:#55b9c8;
+box-shadow:0 0 0 3px rgba(60,208,230,.14);
+}
+#loginModal .login-help{
+background:#f4f9fa;
+border-color:#d4e5e8;
+color:#385860;
+}
+#loginModal .portal-form input{
+background:#fff;
+border-color:#bcd4d9;
+color:#15343c;
+}
+.password-field{
+position:relative;
+}
+.password-field input{
+width:100%;
+padding-right:72px!important;
+}
+.password-toggle{
+position:absolute;
+right:6px;
+top:50%;
+transform:translateY(-50%);
+min-width:56px;
+min-height:30px;
+padding:5px 8px;
+border:1px solid #bcd4d9;
+border-radius:9px;
+background:#eaf5f7;
+color:#176c7c;
+font:inherit;
+font-size:11px;
+font-weight:900;
+cursor:pointer;
+}
+.password-toggle:hover{
+background:#d9eff2;
+}
+.password-toggle:focus-visible{
+outline:3px solid rgba(13,147,168,.25);
+outline-offset:1px;
+}
 .enquiry-layout > .promo-card{
 grid-column:1 / -1;
 }
@@ -5612,7 +5682,10 @@ min-width:0;
                 </div>
                 <div class="group">
                     <label for="customer_password">Password</label>
-                    <input id="customer_password" name="password" type="password" autocomplete="current-password" required>
+                    <div class="password-field">
+                        <input id="customer_password" name="password" type="password" autocomplete="current-password" required>
+                        <button class="password-toggle" type="button" data-password-toggle="customer_password" aria-label="Show customer password" aria-pressed="false">Show</button>
+                    </div>
                 </div>
                 <button class="button" type="submit">Open Customer Dashboard</button>
             </form>
@@ -5631,7 +5704,10 @@ min-width:0;
                 </div>
                 <div class="group">
                     <label for="admin_password">Password</label>
-                    <input id="admin_password" name="password" type="password" autocomplete="current-password" required>
+                    <div class="password-field">
+                        <input id="admin_password" name="password" type="password" autocomplete="current-password" required>
+                        <button class="password-toggle" type="button" data-password-toggle="admin_password" aria-label="Show admin password" aria-pressed="false">Show</button>
+                    </div>
                 </div>
                 <button class="button" type="submit">Open Admin Dashboard</button>
             </form>
@@ -5652,6 +5728,7 @@ const toggleButtons = document.querySelectorAll("[data-login-role]");
 const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
 const userLoginMenus = document.querySelectorAll(".user-login-menu");
+const passwordToggleButtons = document.querySelectorAll("[data-password-toggle]");
 const landingModeInput = document.getElementById("landingModeInput");
 const enquiryForm = document.getElementById("enquiryForm");
 const enquirySubmitButton = document.getElementById("enquirySubmitButton");
@@ -5888,6 +5965,19 @@ function closeEnquiryModal() {
 
 toggleButtons.forEach((button) => {
     button.addEventListener("click", () => setLoginRole(button.dataset.loginRole));
+});
+
+passwordToggleButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+        const input = document.getElementById(button.dataset.passwordToggle);
+        if (!input) return;
+        const showPassword = input.type === "password";
+        input.type = showPassword ? "text" : "password";
+        button.textContent = showPassword ? "Hide" : "Show";
+        button.setAttribute("aria-pressed", showPassword ? "true" : "false");
+        const accountType = input.id.startsWith("admin_") ? "admin" : "customer";
+        button.setAttribute("aria-label", `${showPassword ? "Hide" : "Show"} ${accountType} password`);
+    });
 });
 
 openLoginButtons.forEach((button) => {
