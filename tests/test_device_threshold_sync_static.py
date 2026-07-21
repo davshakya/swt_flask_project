@@ -291,9 +291,12 @@ def test_device_detail_has_admin_ajax_pytest_runner():
     assert "def admin_device_detail_pytest(device_id):" in source
     assert "PYTEST_RUN_LOCK.acquire(blocking=False)" in source
     assert '"tests/test_live_water_feature_simulators.py"' in source
+    assert '"tests/test_municipal_turbidity_automation.py"' in source
     assert "timeout=180" in source
     assert 'id="runPytestButton"' in template
     assert 'id="pytestSimulatorForm"' in template
+    assert 'id="pytestEnvironment" name="test_env"' in template
+    assert 'f"--test-env={selected_test_env}"' in source
     assert "data-ajax-form" in template
 
 

@@ -468,9 +468,16 @@ body{font-size:16px}
                 <div id="simulatorHelperText" class="helper-text">Each switch independently simulates its named sensor or valve.</div>
                 <form id="pytestSimulatorForm" method="post" action="/admin/customers/{{ device_id }}/pytest" data-ajax-form data-loading-text="Running Pytest...">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="pytestEnvironment">Pytest Environment</label>
+                        <select id="pytestEnvironment" name="test_env">
+                            <option value="test" selected>Test - Isolated Local</option>
+                            <option value="prod">Prod - Configured Device Only</option>
+                        </select>
+                    </div>
                     <button id="runPytestButton" class="btn btn-admin btn-full" type="submit"><span>Run Sensor Pytest</span></button>
                 </form>
-                <div class="helper-text">Runs the allowlisted municipal, upper/lower turbidity, and safely enabled valve simulator checks using test config.yml.</div>
+                <div class="helper-text">Test uses the isolated local profile. Prod is restricted to the single device configured in config.yml.</div>
             </div>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}" data-ajax-form>

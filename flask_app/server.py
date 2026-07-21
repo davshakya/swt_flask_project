@@ -19338,22 +19338,37 @@ def admin_device_detail_pytest(device_id):
             status_code=409,
         )
     try:
+        selected_test_env = str(request.form.get("test_env") or "test").strip().lower()
+        if selected_test_env not in {"test", "prod"}:
+            return device_detail_action_response(
+                scoped_device_id,
+                error="Unknown pytest environment. Select test or prod.",
+                title="Pytest configuration error",
+                status_code=400,
+            )
         environment = os.environ.copy()
-        environment["SWT_RUN_LIVE_SIMULATOR_TESTS"] = "1"
+        environment["SWT_RUN_LIVE_SIMULATOR_TESTS"] = "1" if selected_test_env == "prod" else "0"
+        environment["SWT_TEST_ENV"] = selected_test_env
         environment["SWT_TEST_CONFIG"] = str(runner_root / "config.yml")
         snapshot = fetch_device_snapshot(scoped_device_id) or {}
         local_url = str(snapshot.get("device_local_url") or snapshot.get("local_url") or "").strip()
         if local_url:
             environment["SWT_DEVICE_URL"] = local_url
+        selected_test_files = (
+            ["tests/test_live_water_feature_simulators.py"]
+            if selected_test_env == "prod"
+            else ["tests/test_municipal_turbidity_automation.py", "tests/test_test_config.py", "tests/test_production_device_safety.py"]
+        )
         command = [
             sys.executable,
             "-m",
             "pytest",
-            "tests/test_live_water_feature_simulators.py",
+            *selected_test_files,
             "-q",
             "-s",
+            f"--test-env={selected_test_env}",
         ]
-        logger.info("Admin pytest started: device=%s root=%s", scoped_device_id, runner_root)
+        logger.info("Admin pytest started: device=%s environment=%s root=%s", scoped_device_id, selected_test_env, runner_root)
         try:
             completed = subprocess.run(
                 command,
