@@ -1142,6 +1142,9 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
     assert "height:34px;min-width:0;min-height:34px;max-height:34px" in template
     assert 'window.matchMedia?.("(min-width: 761px) and (pointer: fine)")?.matches' in template
+    assert "body.chatbot-open .mobile-contact-bar{display:none}" in template
+    assert 'document.body.classList.toggle("chatbot-open", isOpen)' in template
+    assert 'document.documentElement.style.setProperty("--chatbot-mobile-height"' in template
     assert ".enquiry-modal{z-index:120}" in template
     assert ".enquiry-modal .form-actions{" in template
     assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
