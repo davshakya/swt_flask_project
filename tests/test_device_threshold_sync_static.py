@@ -270,7 +270,8 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert 'name="simulator_target" value="valve"' in simulator_section
     assert "function setValveSimulatorSwitchState(snapshot)" in template
     assert 'snapshot?.municipal_valve_state||"closed"' in template
-    assert '`ON · ${' in template
+    assert '`ON · ROUTE ${' in template
+    assert "snapshot?.municipal_valve_route" in template
     assert 'name="simulator_target" value="tank"' in simulator_section
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
     assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
@@ -284,20 +285,14 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert "event.stopImmediatePropagation();" in template
 
 
-def test_device_detail_has_admin_ajax_pytest_runner():
+def test_device_detail_does_not_expose_admin_pytest_runner():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
-    assert '@app.route("/admin/customers/<device_id>/pytest", methods=["POST"])' in source
-    assert "def admin_device_detail_pytest(device_id):" in source
-    assert "PYTEST_RUN_LOCK.acquire(blocking=False)" in source
-    assert '"tests/test_live_water_feature_simulators.py"' in source
-    assert '"tests/test_municipal_turbidity_automation.py"' in source
-    assert "timeout=180" in source
-    assert 'id="runPytestButton"' in template
-    assert 'id="pytestSimulatorForm"' in template
-    assert 'id="pytestEnvironment" name="test_env"' in template
-    assert 'f"--test-env={selected_test_env}"' in source
-    assert "data-ajax-form" in template
+    assert '@app.route("/admin/customers/<device_id>/pytest"' not in source
+    assert "def admin_device_detail_pytest(" not in source
+    assert 'id="runPytestButton"' not in template
+    assert 'id="pytestSimulatorForm"' not in template
+    assert 'id="pytestEnvironment"' not in template
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():

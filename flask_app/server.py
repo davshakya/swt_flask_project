@@ -18,7 +18,6 @@ import re
 import secrets
 import smtplib
 import subprocess
-import sys
 import time
 import threading
 import math
@@ -232,22 +231,6 @@ def resolve_test_repo_root():
 
 
 TEST_REPO_ROOT = resolve_test_repo_root()
-PYTEST_RUN_LOCK = threading.Lock()
-
-
-def resolve_pytest_runner_root():
-    configured = str(os.environ.get("SWT_TEST_CASES_REPO") or "").strip()
-    candidates = [
-        Path(configured).expanduser() if configured else None,
-        PROJECT_ROOT.parent / "swt_test_cases_project",
-        TEST_REPO_ROOT,
-    ]
-    for candidate in candidates:
-        if candidate and (candidate / "tests" / "test_live_water_feature_simulators.py").is_file():
-            return candidate.resolve()
-    return None
-
-
 def normalize_db_path(raw_path):
     return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
 
@@ -11444,6 +11427,8 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "municipal_valve_hardware_ready",
     "municipal_valve_simulated",
     "municipal_valve_state",
+    "municipal_valve_route",
+    "water_supply_plan",
     "turbidity_monitoring_enabled",
     "upper_turbidity_sensor",
     "lower_turbidity_sensor",
@@ -19315,98 +19300,6 @@ def admin_device_detail_simulator(device_id):
             simulator_state=("off" if simulator_enabled else "on") if simulator_target == "tank" else "",
         )
     )
-
-
-@app.route("/admin/customers/<device_id>/pytest", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_device_detail_pytest(device_id):
-    scoped_device_id = current_scope_device_id(device_id)
-    runner_root = resolve_pytest_runner_root()
-    if runner_root is None:
-        return device_detail_action_response(
-            scoped_device_id,
-            error="Test repository is not installed on this Flask host.",
-            title="Pytest unavailable",
-            status_code=503,
-        )
-    if not PYTEST_RUN_LOCK.acquire(blocking=False):
-        return device_detail_action_response(
-            scoped_device_id,
-            error="Another pytest run is already active. Wait for it to finish.",
-            title="Pytest already running",
-            status_code=409,
-        )
-    try:
-        selected_test_env = str(request.form.get("test_env") or "test").strip().lower()
-        if selected_test_env not in {"test", "prod"}:
-            return device_detail_action_response(
-                scoped_device_id,
-                error="Unknown pytest environment. Select test or prod.",
-                title="Pytest configuration error",
-                status_code=400,
-            )
-        environment = os.environ.copy()
-        environment["SWT_RUN_LIVE_SIMULATOR_TESTS"] = "1" if selected_test_env == "prod" else "0"
-        environment["SWT_TEST_ENV"] = selected_test_env
-        environment["SWT_TEST_CONFIG"] = str(runner_root / "config.yml")
-        snapshot = fetch_device_snapshot(scoped_device_id) or {}
-        local_url = str(snapshot.get("device_local_url") or snapshot.get("local_url") or "").strip()
-        if local_url:
-            environment["SWT_DEVICE_URL"] = local_url
-        selected_test_files = (
-            ["tests/test_live_water_feature_simulators.py"]
-            if selected_test_env == "prod"
-            else ["tests/test_municipal_turbidity_automation.py", "tests/test_test_config.py", "tests/test_production_device_safety.py"]
-        )
-        command = [
-            sys.executable,
-            "-m",
-            "pytest",
-            *selected_test_files,
-            "-q",
-            "-s",
-            f"--test-env={selected_test_env}",
-        ]
-        logger.info("Admin pytest started: device=%s environment=%s root=%s", scoped_device_id, selected_test_env, runner_root)
-        try:
-            completed = subprocess.run(
-                command,
-                cwd=runner_root,
-                env=environment,
-                capture_output=True,
-                text=True,
-                timeout=180,
-                check=False,
-            )
-        except subprocess.TimeoutExpired as exc:
-            output = "\n".join(part for part in ((exc.stdout or ""), (exc.stderr or "")) if part)
-            return device_detail_action_response(
-                scoped_device_id,
-                error="Pytest exceeded the 180-second limit.",
-                title="Pytest timed out",
-                status_code=504,
-                detail_lines=output.splitlines()[-30:],
-            )
-        output = "\n".join(part for part in (completed.stdout, completed.stderr) if part).strip()
-        detail_lines = output.splitlines()[-30:]
-        logger.info("Admin pytest finished: device=%s exit_code=%d", scoped_device_id, completed.returncode)
-        if completed.returncode != 0:
-            return device_detail_action_response(
-                scoped_device_id,
-                error=f"Pytest failed with exit code {completed.returncode}.",
-                title="Sensor tests failed",
-                status_code=422,
-                detail_lines=detail_lines,
-            )
-        return device_detail_action_response(
-            scoped_device_id,
-            "Water-feature simulator tests completed successfully.",
-            title="Sensor tests passed",
-            detail_lines=detail_lines,
-        )
-    finally:
-        PYTEST_RUN_LOCK.release()
 
 
 @app.route("/admin/customers/<device_id>/municipal-simulator", methods=["POST"])

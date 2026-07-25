@@ -453,7 +453,7 @@ body{font-size:16px}
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="simulator_target" value="valve">
-                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Motorized Valve Simulator</span><span class="simulator-switch-state">{{ ("ON · " ~ (live_snapshot.get("municipal_valve_state") or "closed")|upper) if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Motorized Valve Simulator</span><span class="simulator-switch-state">{{ ("ON · ROUTE " ~ (live_snapshot.get("municipal_valve_route") or "source")|upper) if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -466,18 +466,6 @@ body{font-size:16px}
                     <button id="upperTurbiditySimulatorToggleButton" class="simulator-switch{% if upper_turbidity_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="upper" type="submit" role="switch" aria-checked="{{ 'true' if upper_turbidity_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Upper Turbidity Simulator</span><span class="simulator-switch-state">{{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
                 <div id="simulatorHelperText" class="helper-text">Each switch independently simulates its named sensor or valve.</div>
-                <form id="pytestSimulatorForm" method="post" action="/admin/customers/{{ device_id }}/pytest" data-ajax-form data-loading-text="Running Pytest...">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <div class="form-group">
-                        <label for="pytestEnvironment">Pytest Environment</label>
-                        <select id="pytestEnvironment" name="test_env">
-                            <option value="test" selected>Test - Isolated Local</option>
-                            <option value="prod">Prod - Configured Device Only</option>
-                        </select>
-                    </div>
-                    <button id="runPytestButton" class="btn btn-admin btn-full" type="submit"><span>Run Sensor Pytest</span></button>
-                </form>
-                <div class="helper-text">Test uses the isolated local profile. Prod is restricted to the single device configured in config.yml.</div>
             </div>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}" data-ajax-form>
@@ -1430,8 +1418,9 @@ function setValveSimulatorSwitchState(snapshot){
   setSimulatorSwitchState(button,active);
   if(!button||!active)return;
   const valveState=String(snapshot?.municipal_valve_state||"closed").trim().toUpperCase();
+  const route=String(snapshot?.municipal_valve_route||(valveState==="OPEN"||valveState==="OPENING"?"upper":"source")).trim().toUpperCase();
   const state=button.querySelector(".simulator-switch-state");
-  if(state)state.textContent=`ON · ${["CLOSED","OPENING","OPEN","CLOSING","FAULT"].includes(valveState)?valveState:"UNKNOWN"}`;
+  if(state)state.textContent=`ON · ROUTE ${route==="UPPER"?"UPPER":"SOURCE"}${valveState==="OPENING"||valveState==="CLOSING"?" (MOVING)":""}`;
 }
 function updateSimulatorControls(snapshot,serviceConfig){
   const button=document.getElementById("simulatorToggleButton");
