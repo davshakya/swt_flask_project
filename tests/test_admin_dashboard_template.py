@@ -1140,6 +1140,8 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'class="contact-icon whatsapp-icon"' in template
     assert 'aria-label="Book a free demo"' in template
     assert 'aria-label="Open chat"' in template
+    assert 'body.chatbot-open .mobile-contact-bar{display:none}' in template
+    assert 'document.body.classList.toggle("chatbot-open", isOpen);' in template
     assert 'id="mobileChatbotButton"' in template
     assert 'mobileChatbotButton.addEventListener("click", () => setChatbotOpen(true))' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template

@@ -15977,6 +15977,33 @@ def motor_off():
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
+def normalized_manual_water_path(raw_path):
+    path = str(raw_path or "").strip().lower().replace("-", "_")
+    if path not in {"source", "municipal"}:
+        raise ValueError("path must be source or municipal")
+    return path
+
+
+@app.route("/valve/path/<path>", methods=["POST"])
+@login_required
+@csrf_protect
+def valve_manual_path(path):
+    response = customer_cloud_feed_block_response()
+    if response:
+        return response
+    try:
+        selected_path = normalized_manual_water_path(path)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    payload = queue_command(
+        f"VALVE_ROUTE_{selected_path.upper()}",
+        target_device=current_scope_device_id(request.args.get("device_id", type=str)),
+    )
+    payload["selected_path"] = selected_path
+    payload["message"] = f"{selected_path.title()} water path request queued."
+    return payload
+
+
 @app.route("/sensor/calibrate", methods=["POST"])
 @login_required
 @csrf_protect
@@ -16371,6 +16398,23 @@ def mobile_motor_off():
     if response:
         return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
+
+
+@app.route("/api/mobile/valve/path/<path>", methods=["POST"])
+@mobile_auth_required
+def mobile_valve_manual_path(path):
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    try:
+        selected_path = normalized_manual_water_path(path)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return mobile_queue_command_response(
+        f"VALVE_ROUTE_{selected_path.upper()}",
+        target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
+        message=f"{selected_path.title()} water path request queued.",
+    )
 
 
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])

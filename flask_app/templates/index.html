@@ -439,6 +439,14 @@ canvas{height:260px!important}
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
                     </div>
+                    <div id="waterPathControl" class="customer-recommendation" hidden>
+                        <span class="label">Manual water path</span>
+                        <div class="controls" style="margin-top:8px">
+                            <button id="btn_path_source" class="btn-lite" type="button" onclick="sendWaterPathCommand('source')" {% if not can_control %}disabled{% endif %}>Source Tank</button>
+                            <button id="btn_path_municipal" class="btn-lite" type="button" onclick="sendWaterPathCommand('municipal')" {% if not can_control %}disabled{% endif %}>Municipal Water</button>
+                        </div>
+                        <p id="waterPathNote">Select the inlet used by the motorized valve.</p>
+                    </div>
                     <div class="customer-recommendation"><span class="label">Recommendation</span><strong id="customerSuggestedAction">Waiting for guidance</strong><p id="customerSuggestedActionNote">The safest next action will appear after fresh telemetry is validated.</p></div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if viewer_role == "customer" and not cloud_feed_enabled %}Cloud feed is disabled for this customer account.{% elif can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
@@ -1066,6 +1074,23 @@ function updateCommandAvailability(snapshot=state.data.snapshot){
     nodesById("btn_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
     nodesById("btn_config").forEach((button)=>{button.disabled=!baseEnabled;});
     nodesById("btn_config_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
+    ["btn_path_source","btn_path_municipal"].forEach((id)=>nodesById(id).forEach((button)=>{button.disabled=!baseEnabled;}));
+}
+
+async function sendWaterPathCommand(path){
+    if(!["source","municipal"].includes(path))return;
+    state.commandBusy=true;
+    updateCommandAvailability();
+    try{
+        const payload=await fetchJSON(scopedUrl(`/valve/path/${path}`),{method:"POST"});
+        banner("commandBanner",payload.message||`${path==="source"?"Source Tank":"Municipal Water"} path request queued.`,"info");
+        await refreshAll(true);
+    }catch(error){
+        banner("commandBanner",error.message||"Unable to change the water path. Please retry.","danger");
+    }finally{
+        state.commandBusy=false;
+        updateCommandAvailability();
+    }
 }
 function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.systemStatus){
     if(!snapshot){
@@ -2340,6 +2365,12 @@ function renderSnapshot(snapshot){
     setText("motor",pumpDisplayState(snapshot.motor,upperTankIncreasing));
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
     const sourceState=buildSourceTankState(snapshot);
+    const valveFeatureEnabled=Boolean(snapshot.municipal_valve_feature_enabled||snapshot.municipal_valve_enabled);
+    const waterPathControl=document.getElementById("waterPathControl");
+    if(waterPathControl)waterPathControl.hidden=!valveFeatureEnabled;
+    const activeWaterPath=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").toLowerCase();
+    ["source","municipal"].forEach((path)=>document.getElementById(`btn_path_${path}`)?.classList.toggle("active",activeWaterPath===path));
+    setText("waterPathNote",`${activeWaterPath==="municipal"?"Municipal Water":"Source Tank"} is selected${snapshot.municipal_valve_manual?" manually":""}.`);
     const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
     setElementVisibility("lowerTankCard",true);
     setText("mode",currentMode==="MANUAL"?"Manual mode":"Auto mode");
