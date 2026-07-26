@@ -205,7 +205,7 @@ DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
 DEVICE_LOCAL_WEB_PASSWORD_PREFIX = "device_local_web_password:"
-DEFAULT_DEVICE_AUTO_START_PCT = 25.0
+DEFAULT_DEVICE_AUTO_START_PCT = 30.0
 DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
@@ -8334,12 +8334,28 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         data["lower_water_depth_label"] = "--"
     lower_capacity_liters = safe_float(
         data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters"),
-        capacity_liters,
+        2000.0,
     )
     if lower_capacity_liters <= 0:
         lower_capacity_liters = capacity_liters
     data["source_tank_capacity_liters"] = round(lower_capacity_liters, 1)
     data["lower_tank_capacity_liters"] = round(lower_capacity_liters, 1)
+    data["upper_tank_count"] = max(1, int(safe_float(data.get("upper_tank_count"), 1)))
+    data["source_tank_count"] = max(1, int(safe_float(data.get("source_tank_count"), 1)))
+    data["inlet_valve_route"] = str(
+        data.get("inlet_valve_route") or data.get("municipal_valve_route") or "source"
+    ).strip().lower()
+    data["municipal_valve_route"] = data["inlet_valve_route"]
+    data["inlet_valve_state"] = str(
+        data.get("inlet_valve_state") or data.get("municipal_valve_state") or "unknown"
+    ).strip().lower()
+    data["municipal_detection_mode"] = str(
+        data.get("municipal_detection_mode") or
+        ("sensor" if data.get("municipal_sensor_enabled") else "upper_level_rise")
+    ).strip().lower()
+    data["source_gravity_fill_active"] = boolish_enabled(
+        data.get("source_gravity_fill_active"), default=False
+    )
     if data["lower_tank_level"] is not None:
         lower_liters = round((data["lower_tank_level"] / 100) * lower_capacity_liters, 1)
         data["lower_water_available_label"] = f"{lower_liters:.1f} L / {lower_capacity_liters:.1f} L"
@@ -11428,6 +11444,13 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "municipal_valve_simulated",
     "municipal_valve_state",
     "municipal_valve_route",
+    "inlet_valve_route",
+    "inlet_valve_state",
+    "municipal_detection_mode",
+    "municipal_trial_locked_to_source",
+    "source_gravity_fill_active",
+    "upper_tank_count",
+    "source_tank_count",
     "water_supply_plan",
     "turbidity_monitoring_enabled",
     "upper_turbidity_sensor",
