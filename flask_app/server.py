@@ -18415,6 +18415,21 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         or saved_service_config.get("lower_tank_height_cm")
         or snapshot.get("lower_tank_height_cm")
     )
+    motorized_valve_enabled = boolish_enabled(
+        snapshot.get("municipal_valve_enabled"),
+        default=boolish_enabled(saved_service_config.get("municipal_valve_enabled"), default=False),
+    )
+    motorized_valve_route = str(
+        snapshot.get("inlet_valve_route") or snapshot.get("municipal_valve_route") or ""
+    ).strip().lower()
+    motorized_valve_path = {
+        "municipal": "Municipal Water",
+        "source": "Source Tank",
+    }.get(motorized_valve_route, "Not reported")
+    motorized_valve_state = device_detail_card_title(
+        snapshot.get("inlet_valve_state") or snapshot.get("municipal_valve_state"),
+        "Not reported",
+    )
     card_values = [
         ("Firmware", device_detail_card_display(snapshot.get("firmware_version"))),
         ("Configuration", "Master + Slave" if uses_slave else "Master Only"),
@@ -18426,6 +18441,9 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
         ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
         ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
+        ("Motorized Valve Status", "ON" if motorized_valve_enabled else "OFF"),
+        ("Selected Water Path", motorized_valve_path if motorized_valve_enabled else "Disabled"),
+        ("Motorized Valve Feedback", motorized_valve_state if motorized_valve_enabled else "Disabled"),
         ("Tank Capacity", device_detail_card_liters(tank_capacity)),
         ("Tank Height", device_detail_card_cm(tank_height)),
         ("Auto Start Threshold", device_detail_card_percent(auto_start)),

@@ -1511,6 +1511,10 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const autoStop=savedConfig.auto_stop_pct??savedAutomationSettings?.auto_stop_pct??savedServiceConfig?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
   const autoStartStableMs=Number(snapshot?.auto_start_stable_ms);
   const autoLevelAverageSamples=Number(snapshot?.auto_level_average_samples);
+  const motorizedValveEnabled=clientTruthy(snapshot?.municipal_valve_enabled,clientTruthy(savedServiceConfig?.municipal_valve_enabled,false));
+  const motorizedValveRoute=String(snapshot?.inlet_valve_route||snapshot?.municipal_valve_route||"").trim().toLowerCase();
+  const motorizedValvePath=motorizedValveRoute==="municipal"?"Municipal Water":motorizedValveRoute==="source"?"Source Tank":"Not reported";
+  const motorizedValveState=infoValue(titleCase(snapshot?.inlet_valve_state||snapshot?.municipal_valve_state||""),"Not reported");
   const sourceSensorLocationRaw=String(snapshot?.source_sensor_location??snapshot?.lower_sensor_location??"").trim();
   const sourceSensorLocation=sourceMonitoringEnabled
     ? infoValue(titleCase(sourceSensorLocationRaw),"Source Tank")
@@ -1532,6 +1536,9 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Upper Sensor Source",value:upperSource},
     {label:"Source Tank Sensor",value:sourceSensorLocation},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
+    {label:"Motorized Valve Status",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
+    {label:"Selected Water Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
+    {label:"Motorized Valve Feedback",value:motorizedValveEnabled?motorizedValveState:"Disabled",category:"sensors"},
     {label:"Tank Capacity",value:formatLiters(capacity),show:showAllDetails||isReportedInfoValue(capacity)},
     {label:"Tank Height",value:tankHeight,show:showAllDetails||isReportedInfoValue(tankHeight)},
     {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&(showAllDetails||isReportedInfoValue(sourceCapacity))},
@@ -1575,7 +1582,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
   ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
   const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
-  setStableHtml(root,items.map(({label,value})=>`<div class="info-item" data-info-category="${categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  setStableHtml(root,items.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
   applyInfoTab();
 }
 function applyInfoTab(){document.querySelectorAll("#deviceInfoGrid [data-info-category]").forEach((item)=>item.classList.toggle("is-tab-hidden",item.dataset.infoCategory!==activeInfoTab));document.querySelectorAll("[data-info-tab]").forEach((button)=>button.classList.toggle("is-active",button.dataset.infoTab===activeInfoTab));}

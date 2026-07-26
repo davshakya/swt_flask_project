@@ -295,6 +295,20 @@ def test_device_detail_does_not_expose_admin_pytest_runner():
     assert 'id="pytestEnvironment"' not in template
 
 
+def test_device_runtime_information_displays_motorized_valve_status_and_path():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '{label:"Motorized Valve Status"' in template
+    assert '{label:"Selected Water Path"' in template
+    assert '{label:"Motorized Valve Feedback"' in template
+    assert 'category:"configuration"' in template
+    assert 'category:"sensors"' in template
+    assert 'motorizedValveRoute==="municipal"?"Municipal Water"' in template
+    assert '("Motorized Valve Status", "ON" if motorized_valve_enabled else "OFF")' in source
+    assert '("Selected Water Path", motorized_valve_path if motorized_valve_enabled else "Disabled")' in source
+
+
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     mobile_route_start = source.index('def mobile_sensor_configure():')
