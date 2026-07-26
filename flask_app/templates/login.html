@@ -4490,10 +4490,10 @@ min-width:0;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual">
-                <iframe class="preview-flow-frame" src="{{ url_for('water_flow_animation_page') }}" title="Interactive SaleWell smart water tank flow dashboard" loading="eager"></iframe>
+                <iframe class="preview-flow-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" title="Interactive SaleWell smart water tank flow dashboard" loading="eager"></iframe>
             </div>
             <div class="preview-body">
-            <a class="eyebrow" href="{{ url_for('water_flow_animation_page') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
+            <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
             <h2>What you see after installation.</h2>
             <p>Live tank level, sensor health, pump state and alerts in one simple screen.</p>
 

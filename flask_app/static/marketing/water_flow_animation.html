@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>SaleWell Smart Tank — Water Flow</title>
+  <style>
+    :root{color-scheme:dark;--navy:#081a3b;--panel:#102954;--line:#42638f;--water:#1bc8f3;--green:#20d19a;--amber:#ffb84d;--red:#ff6174;--muted:#9fb5d5;--text:#f5f9ff}
+    *{box-sizing:border-box} body{margin:0;min-height:100vh;font:15px/1.45 Inter,ui-sans-serif,system-ui,sans-serif;background:radial-gradient(circle at 20% 0,#173d78 0,transparent 33%),#06132d;color:var(--text)}
+    main{width:min(1400px,96vw);margin:16px auto}.heading{display:flex;justify-content:space-between;gap:18px;align-items:center}.heading h1{margin:0;font-size:clamp(26px,4vw,42px)}.heading p{margin:3px 0 0;color:var(--muted)}.diagram-header{width:100%;padding:4px 8px 10px;border-bottom:1px solid #294a7b;margin-bottom:8px}.diagram-header h1{font-size:clamp(24px,3vw,34px)}
+    .live{padding:7px 12px;border-radius:99px;background:#153f55;color:#69f0bd;font-weight:800;white-space:nowrap}.layout{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:16px;align-items:stretch}.sidebar{display:grid;grid-template-rows:auto auto 1fr;gap:10px;min-width:0;align-content:stretch}.card{background:linear-gradient(145deg,rgba(16,41,84,.97),rgba(8,27,61,.97));border:1px solid #294a7b;border-radius:22px;box-shadow:0 18px 55px #0008}
+    .diagram{padding:12px;overflow:hidden;min-height:100%;display:flex;flex-direction:column;align-items:center}.diagram svg{display:block;width:100%;height:auto;flex:1;min-height:0}.controls{padding:18px}.controls h2{margin:0 0 12px;font-size:18px}.mode{width:100%;margin:5px 0;padding:10px 12px;border:1px solid #476a9c;border-radius:11px;background:#142f5c;color:var(--text);text-align:left;font-weight:750;cursor:pointer}.mode:hover,.mode.active{border-color:var(--water);background:#164467}.mode.active::after{content:'  ●';color:var(--green)}
+    .switches{border-top:1px solid #31517d;margin-top:14px;padding-top:12px}.switches label{display:flex;justify-content:space-between;margin:9px 0;color:#d9e7fa}.switches input{accent-color:var(--green)}.switches select{max-width:72px;background:#0b2854;color:#f5f8ff;border:1px solid #4270a7;border-radius:6px}.legend{font-size:12px;color:var(--muted);margin-top:14px}.key{display:inline-block;width:22px;border-top:4px solid var(--water);margin-right:6px;vertical-align:middle}.key.off{border-color:#566b89}.status{margin-top:16px;padding:16px 18px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.metric{background:#0a2148;border:1px solid #2d507d;border-radius:14px;padding:11px;min-width:0}.metric span{display:block;color:var(--muted);font-size:12px}.metric strong{display:block;font-size:16px;overflow-wrap:anywhere;line-height:1.3}.good{color:#5fe3ad}.warn{color:var(--amber)}
+    .pipe{fill:none;stroke:#425c7f;stroke-width:16;stroke-linecap:round;stroke-linejoin:round}.flow{fill:none;stroke:var(--water);stroke-width:8;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 12;opacity:0;marker-end:url(#flowArrow)}.flow.on{opacity:1;animation:moveDots .55s linear infinite;filter:none}.flow.reverse{animation-direction:reverse}.connection{fill:none;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.municipal-wire{stroke:#73a8ff}.ultrasonic-wire{stroke:#37dfa9}.turbidity-wire{stroke:#ffd166}.control-wire{fill:none;stroke:#ff8a4c;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.field-power-wire{fill:none;stroke:#ff6174;stroke-width:5;stroke-linecap:round;stroke-linejoin:round}.control-wire.energized,.field-power-wire.energized{filter:drop-shadow(0 0 5px currentColor)}.wifi-wire{fill:none;stroke:#9b7bff;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:12 7}.app-wifi-wire{fill:none;stroke:#ee6cff;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:4 7}.network-tag{font-size:11px;font-weight:850;fill:#e8e1ff;paint-order:stroke;stroke:#0a2148;stroke-width:5px;stroke-linejoin:round}.wire-tag,.interface-tag{font-size:12px;font-weight:850;fill:#f4f8ff;paint-order:stroke;stroke:#0a2148;stroke-width:5px;stroke-linejoin:round}@keyframes moveDots{to{stroke-dashoffset:-13}}
+    .tank{fill:#0a1d40;stroke:#6984aa;stroke-width:3}.water{fill:url(#waterGradient);transition:y .8s,height .8s}.wave{fill:none;stroke:#83eaff;stroke-width:2;opacity:.7}.device{fill:#183766;stroke:#597cae;stroke-width:2}.device-on{stroke:var(--green)}.valve{fill:#142b53;stroke:#ffcf73;stroke-width:3}.valve-selector{transform-origin:350px 205px;transition:transform .75s cubic-bezier(.4,0,.2,1)}.valve-selector.source-route{transform:rotate(180deg)}.pump-spin{transform-origin:460px 205px;animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.hidden{display:none}.sim{fill:#8f5dff}.label{fill:#f5f9ff;font-weight:750}.label,.route{paint-order:stroke;stroke:#0a2148;stroke-width:4px;stroke-linejoin:round}.small{fill:#a9bdd9;font-size:13px}.small.compact{font-size:11px}.route{fill:#72e7ff;font-weight:800}.danger{fill:#ff7d8d}.droplet{fill:#8ceaff;opacity:0}.droplet.on{animation:drop 1.1s linear infinite}@keyframes drop{0%{opacity:0;transform:translateY(-5px)}20%{opacity:1}100%{opacity:0;transform:translateY(28px)}}
+    .sensor-panel{margin-top:14px;padding:16px 18px}.sensor-panel h2{margin:0 0 12px}.sensor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.sensor-item{background:#091f43;border:1px solid #315580;border-radius:13px;padding:11px;min-width:0}.sensor-item span{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}.sensor-item strong{display:block;margin-top:3px;color:#5fe3ad;overflow-wrap:anywhere;line-height:1.3}.sensor-item strong.bad{color:#ff7d8d}.sensor-item strong.optional{color:#ffcf73}.sidebar .controls{padding:13px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .controls>h2,.sidebar .switches,.sidebar .legend{grid-column:1/-1}.sidebar .controls>h2{margin:0 0 4px}.sidebar .mode{margin:0;padding:8px;font-size:12px;white-space:normal;overflow-wrap:anywhere;line-height:1.2}.sidebar .switches{margin-top:7px;padding-top:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 12px}.sidebar .switches h2{margin:2px 0;font-size:15px;grid-column:1/-1}.sidebar .switches label{margin:2px 0;font-size:12px;min-width:0}.sidebar .switches label:first-of-type{grid-column:1/-1}.sidebar .legend{margin:4px 0 0;font-size:11px}.sidebar .status{margin:0;padding:9px;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .metric{padding:7px}.sidebar .metric strong{font-size:12px}.sidebar .sensor-panel{margin:0;padding:10px}.sidebar .sensor-panel h2{font-size:16px;margin-bottom:7px}.sidebar .sensor-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .sensor-item{padding:7px}.sidebar .sensor-item span,.sidebar .sensor-item strong{font-size:11px}
+    @media(min-width:851px){main{margin:10px auto}.diagram svg{height:min(62vh,640px);width:100%}.status{margin-top:10px;padding:12px 16px}}
+    @media(min-width:1181px){body{height:100vh;overflow:hidden}main{height:calc(100vh - 12px);margin:6px auto}.layout{height:100%;gap:10px}.diagram{height:100%;padding:9px}.diagram-header{padding-bottom:6px;margin-bottom:4px}.diagram svg{height:calc(100vh - 88px);max-height:none}.sidebar{height:100%;gap:7px;align-content:start}.sidebar .controls{padding:10px;gap:4px}.sidebar .mode{padding:6px 8px}.sidebar .switches{margin-top:4px;padding-top:5px;gap:2px 10px}.sidebar .switches h2{font-size:14px;margin:1px 0}.sidebar .switches label{font-size:11px;margin:1px 0}.sidebar .legend{font-size:10px;margin-top:2px}.sidebar .status{padding:7px;gap:5px}.sidebar .metric{padding:6px}.sidebar .sensor-panel{padding:8px}.sidebar .sensor-grid{gap:5px}.sidebar .sensor-item{padding:6px}}
+    @media(min-width:1181px) and (max-height:820px){.sidebar{gap:5px}.sidebar .controls{padding:8px}.sidebar .controls>h2{font-size:16px}.sidebar .mode{padding:4px 7px;font-size:10px}.sidebar .switches{padding-top:3px;gap:1px 8px}.sidebar .switches h2{font-size:12px}.sidebar .switches label{font-size:10px;line-height:1.15}.sidebar .legend{font-size:9px;line-height:1.15}.sidebar .status{padding:5px}.sidebar .metric{padding:5px}.sidebar .metric span,.sidebar .metric strong{font-size:10px}.sidebar .sensor-panel{padding:6px}.sidebar .sensor-panel h2{font-size:14px;margin-bottom:4px}.sidebar .sensor-item{padding:5px}.sidebar .sensor-item span,.sidebar .sensor-item strong{font-size:10px}}
+    @media(max-width:1180px){.layout{grid-template-columns:1fr}.diagram{min-height:0}.sidebar{grid-template-columns:1fr;grid-template-rows:auto}.sidebar .status,.sidebar .sensor-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:850px){.status{grid-template-columns:repeat(2,1fr)}.sensor-grid{grid-template-columns:repeat(2,1fr)}.heading{align-items:start;flex-direction:column}}
+    @media(max-width:520px){.sensor-grid,.status{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<main>
+  <div class="layout">
+    <section class="card diagram" aria-label="Animated water flow diagram">
+      <div class="heading diagram-header"><div><h1>Smart Water Tank Flow</h1><p>Interactive view of the firmware water-supply plan</p></div><div class="live" id="livePill">● AUTO DEMO</div></div>
+      <svg viewBox="0 0 1050 790" role="img" aria-labelledby="svgTitle svgDesc">
+        <title id="svgTitle">SaleWell Smart Tank water routing animation</title><desc id="svgDesc">A three-way inlet valve selects municipal water or the source tank for the pump, which fills the upper tank. A separate gravity line can fill the source tank.</desc>
+        <defs><linearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#28d7e9"/><stop offset="1" stop-color="#087ee8"/></linearGradient><clipPath id="upperClip"><rect x="780" y="55" width="220" height="220" rx="22"/></clipPath><clipPath id="sourceClip"><rect x="55" y="365" width="235" height="205" rx="22"/></clipPath><marker id="flowArrow" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" orient="auto"><path d="M0 0l10 5-10 5z" fill="#75eaff"/></marker></defs>
+
+        <!-- Water plumbing: draw first so every component remains readable above it. -->
+        <path class="pipe" d="M80 105H650V315H120V365"/><path id="municipalToSource" class="flow" d="M80 105H650V315H120V365"/>
+        <path class="pipe" d="M350 105V177M378 205H414"/><path id="municipalToPump" class="flow" d="M80 105H350V177"/>
+        <path class="pipe" d="M290 540H350V233M378 205H414"/><path id="sourceToPump" class="flow" d="M290 540H350V233"/>
+        <path class="pipe" d="M506 205H530V145H750V35H890V55"/><path id="pumpToUpper" class="flow" d="M506 205H530V145H750V35H890V55"/>
+        <path class="pipe" d="M780 245H735V275H690"/><path id="houseOutlet" class="flow" d="M780 245H735V275H690"/>
+        <text x="390" y="94" class="route">MUNICIPAL SUPPLY</text><text x="480" y="330" class="route">GRAVITY FILL → SOURCE</text><text x="590" y="135" class="route">PUMP → UPPER</text>
+
+        <!-- Municipal inlet and presence sensor. -->
+        <g><circle cx="55" cy="105" r="23" fill="#116c9c" stroke="#70dbff" stroke-width="3"/><path d="M44 105h22m-11-11v22" stroke="#dff9ff" stroke-width="4"/><text x="24" y="65" class="label">MUNICIPAL</text><text x="31" y="82" class="small">water inlet</text></g>
+        <g id="municipalSensor"><rect id="municipalSensorBox" x="145" y="62" width="155" height="70" rx="13" class="device device-on"/><circle id="municipalSensorDot" cx="165" cy="87" r="8" fill="#20d19a"/><text x="182" y="91" class="label" font-size="14">WATER SENSOR</text><text id="municipalSensorDetail" x="176" y="116" class="small">optional · water available</text></g>
+
+        <!-- Check valve sits to the right of the municipal water input, before the pump-selection branch. -->
+        <g id="checkValve"><path d="M480 92l20 13-20 13z" fill="#ffd166"/><line x1="502" y1="90" x2="502" y2="120" stroke="#ffd166" stroke-width="4"/><text x="430" y="68" class="label">ONE-WAY CHECK VALVE</text></g>
+        <!-- The three-way valve selects only the pump inlet: municipal or source. -->
+        <g id="threeWayValve"><circle cx="350" cy="205" r="28" class="valve"/><path d="M350 205H370" fill="none" stroke="#ffcf73" stroke-width="6" stroke-linecap="round"/><g id="valveSelector" class="valve-selector"><path d="M350 205V184" fill="none" stroke="#ffcf73" stroke-width="7" stroke-linecap="round"/><path d="M342 190L350 181L358 190" fill="none" stroke="#fff1b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></g><circle cx="350" cy="205" r="5" fill="#fff1b5"/><text x="190" y="244" class="label" font-size="14">3-WAY MOTORIZED VALVE</text><text id="valveRoute" x="230" y="279" class="route">MUNICIPAL → PUMP</text></g>
+        <g><circle cx="460" cy="205" r="46" class="device" id="pumpBody"/><g id="pumpRotor" aria-label="Spinning SWT logo"><circle cx="460" cy="205" r="34" fill="#123cc7" stroke="#8befff" stroke-width="3"/><rect x="452" y="173" width="16" height="22" rx="5" fill="#36a9f4" stroke="#c9fbff" stroke-width="1.5"/><rect x="452" y="215" width="16" height="22" rx="5" fill="#2878ed" stroke="#c9fbff" stroke-width="1.5"/><rect x="428" y="197" width="22" height="16" rx="5" fill="#2878ed" stroke="#c9fbff" stroke-width="1.5"/><rect x="470" y="197" width="22" height="16" rx="5" fill="#36a9f4" stroke="#c9fbff" stroke-width="1.5"/><circle cx="460" cy="205" r="15" fill="#1033a8" stroke="#a7f7ff" stroke-width="3"/><path d="M460 196l8 5v9l-8 5-8-5v-9z" fill="#8befff" stroke="#e7feff" stroke-width="1.5"/></g><text x="415" y="274" class="label">WATER PUMP</text><text id="pumpState" x="445" y="294" class="small">OFF</text></g>
+        <!-- Dedicated foreground segment keeps moving dots visible between the inlet valve and pump. -->
+        <path id="valveToPump" class="flow" d="M378 205H414"/>
+
+        <!-- Upper tank and its local sensing node. -->
+        <g><rect x="780" y="55" width="220" height="220" rx="22" class="tank"/><rect id="upperWater" x="780" y="110" width="220" height="165" class="water" clip-path="url(#upperClip)"/><path d="M780 112q28-8 55 0t55 0t55 0t55 0" class="wave"/><text x="838" y="84" class="label">UPPER TANK</text><text id="upperCapacity" x="851" y="102" class="small compact">CAPACITY 1000 L</text><text id="upperLevel" x="858" y="180" class="label" font-size="30">70%</text><text id="upperVolume" x="851" y="204" class="small">700 L</text><text id="upperLimits" x="796" y="252" class="small compact">MIN 30%=300 L · MAX 95%=950 L</text><text x="850" y="48" class="route">FILL INLET</text><text x="675" y="300" class="route">HOUSE OUTLET</text><text id="upperSim" class="hidden"></text></g>
+        <path class="connection ultrasonic-wire" d="M890 275V300"/><g><rect x="790" y="300" width="200" height="58" rx="12" class="device device-on"/><text x="812" y="324" class="label">UPPER LEVEL SENSOR</text><text x="807" y="345" class="small">ultrasonic · JSN-SR04T</text></g>
+        <path class="connection turbidity-wire" d="M1000 235H1035V395H990"/><g><rect x="790" y="370" width="200" height="50" rx="12" class="device"/><text x="807" y="392" class="label">UPPER WATER QUALITY</text><text x="829" y="411" class="small">turbidity sensor</text></g>
+
+        <!-- Source tank and local master-side sensors. -->
+        <g><rect x="55" y="365" width="235" height="205" rx="22" class="tank"/><rect id="sourceWater" x="55" y="415" width="235" height="155" class="water" clip-path="url(#sourceClip)"/><path d="M55 417q30-8 59 0t59 0t59 0t58 0" class="wave"/><text x="112" y="395" class="label">SOURCE TANK</text><text id="sourceCapacity" x="121" y="413" class="small compact">CAPACITY 2000 L</text><text id="sourceLevel" x="137" y="482" class="label" font-size="30">30%</text><text id="sourceVolume" x="137" y="507" class="small">600 L</text><text id="sourceLimits" x="69" y="558" class="small compact">MIN 30%=600 L · MAX 95%=1,900 L</text><text x="76" y="355" class="route">FILL INLET</text><text x="194" y="532" class="small">PUMP OUTLET</text><text id="sourceSim" class="hidden"></text></g>
+        <path class="connection ultrasonic-wire" d="M290 394H340"/><g><rect x="340" y="365" width="190" height="58" rx="11" class="device device-on"/><text x="355" y="389" class="label">SOURCE LEVEL SENSOR</text><text x="353" y="411" class="small">ultrasonic · JSN-SR04T</text></g>
+        <path class="connection turbidity-wire" d="M170 570V600"/><g><rect x="55" y="600" width="190" height="50" rx="12" class="device"/><text x="69" y="622" class="label">LOWER WATER QUALITY</text><text x="84" y="641" class="small">turbidity sensor</text></g>
+
+        <!-- One simplified cable per ultrasonic sensor; conductor details are intentionally omitted. -->
+        <path class="connection ultrasonic-wire" d="M990 329H1020V621H1000"/>
+        <path class="connection ultrasonic-wire" d="M530 394H550V590"/>
+
+        <!-- One simplified cable per turbidity sensor. -->
+        <path class="connection turbidity-wire" d="M245 625H365"/>
+        <path class="connection turbidity-wire" d="M990 395H1008V635H1000"/>
+
+        <!-- Network and control wiring. -->
+        <path class="wifi-wire" d="M900 662V700H500V662"/><text x="660" y="694" class="network-tag">WI-FI · UDP 4210</text>
+        <path class="connection municipal-wire" d="M212 132V340H520V570H455V590"/>
+        <g><rect x="365" y="590" width="185" height="72" rx="14" class="device" id="masterBox"/><text x="396" y="618" class="label">ESP32 MASTER</text><text x="388" y="642" class="small">safety · sensors · control</text></g>
+        <path class="control-wire" d="M550 626H580"/><path class="control-wire" d="M630 590C560 430 450 310 350 233"/>
+        <!-- Relay dry contact operates the starter coil; the starter contactor and overload feed the pump motor. -->
+        <path id="relayToStarter" class="control-wire" d="M700 590V430H665V415"/>
+        <path id="starterToPump" class="field-power-wire" d="M565 380H540V255H490"/>
+        <g><rect id="starterBox" x="565" y="345" width="200" height="70" rx="13" class="device"/><text x="587" y="373" class="label">PUMP STARTER PANEL</text><text x="592" y="397" class="small">contactor · overload</text></g>
+        <g><rect x="580" y="590" width="205" height="72" rx="14" class="device device-on"/><text x="605" y="618" class="label">4-CHANNEL RELAY</text><text x="603" y="643" class="small">PUMP · 3-WAY OPEN · CLOSE</text></g>
+        <g><rect x="820" y="590" width="180" height="72" rx="13" class="device"/><text x="842" y="618" class="label">ESP8266 SLAVE</text><text x="858" y="642" class="small">upper sensor node</text></g>
+
+        <!-- Mobile app: local Wi-Fi HTTP first, with HTTPS cloud fallback. -->
+        <path class="app-wifi-wire" d="M365 648H315V722H265"/><text x="270" y="714" class="network-tag">WI-FI · HTTP / HTTPS</text>
+        <g><rect x="55" y="692" width="210" height="60" rx="14" class="device device-on"/><rect x="72" y="703" width="24" height="38" rx="5" fill="none" stroke="#72e7ff" stroke-width="2"/><circle cx="84" cy="735" r="2" fill="#72e7ff"/><text x="108" y="717" class="label">MOBILE APP</text><text x="108" y="739" class="small">Local Wi-Fi or Cloud</text></g>
+
+        <g transform="translate(155 770)"><line x1="0" x2="28" class="connection ultrasonic-wire"/><text x="36" y="5" class="small">water-level sensor</text><line x1="190" x2="218" class="connection turbidity-wire"/><text x="226" y="5" class="small">water-quality sensor</text><line x1="400" x2="428" class="control-wire"/><text x="436" y="5" class="small">relay control</text><line x1="545" x2="573" class="field-power-wire"/><text x="581" y="5" class="small">starter power to pump</text><line x1="770" x2="798" class="wifi-wire"/><text x="806" y="5" class="small">controller Wi-Fi</text></g>
+      </svg>
+    </section>
+    <div class="sidebar">
+    <aside class="card controls">
+      <h2>Water-supply plan</h2>
+      <button class="mode active" data-mode="auto">Automatic demonstration</button>
+      <button class="mode" data-mode="municipal-source">Municipal → Source · Gravity</button>
+      <button class="mode" data-mode="municipal-upper">Municipal → Pump → Upper</button>
+      <button class="mode" data-mode="source-upper">Source → Pump → Upper</button>
+      <button class="mode" data-mode="idle">Idle / tanks satisfied</button>
+      <button class="mode" data-mode="failsafe">Sensor fault / fail-safe</button>
+      <div class="switches"><h2>Municipal-water detection</h2><label>Optional water sensor installed <input id="municipalSensorInstalled" type="checkbox" checked></label><label><span id="municipalDetectedLabel">Water detected</span><input id="municipalDetected" type="checkbox" checked></label><label>Gravity supply to source <input id="gravityAvailable" type="checkbox" checked></label><label>Test timeout <select id="flowTimeout"><option value="60">60 s</option><option value="120" selected>120 s</option><option value="180">180 s</option></select></label><label>Minimum rise <select id="minimumRise"><option value="1">1%</option><option value="2" selected>2%</option></select></label><h2>Tank-bank setup</h2><label>Source tanks <select id="sourceTankCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label><label>Upper tanks <select id="upperTankCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label><h2>Display options</h2><label>Tank simulator <input id="tankSim" type="checkbox" checked></label><label>Municipal simulator <input id="municipalSim" type="checkbox" checked></label><label>Valve simulator <input id="valveSim" type="checkbox" checked></label></div>
+      <p class="legend"><span class="key"></span>Moving cyan dots and arrows show water flow across the complete route.<br><br><span class="key off"></span>Grey pipes are inactive.</p>
+    </aside>
+  <section class="card status">
+    <div class="metric"><span>Current plan</span><strong id="planText">Municipal → Pump → Source</strong></div>
+    <div class="metric"><span>3-way valve position</span><strong id="valveText" class="good">Source → Pump · standby</strong></div>
+    <div class="metric"><span>Source pump</span><strong id="pumpText">ON</strong></div>
+    <div class="metric"><span>System reason</span><strong id="reasonText">Source below 95%</strong></div>
+  </section>
+  <section class="card sensor-panel" aria-labelledby="sensorStatusTitle">
+    <h2 id="sensorStatusTitle">Live sensor status</h2>
+    <div class="sensor-grid">
+      <div class="sensor-item"><span>Municipal water sensor</span><strong id="municipalSensorStatus">Available</strong></div>
+      <div class="sensor-item"><span>Source-tank water level</span><strong id="sourceSensorStatus">Healthy · 30%</strong></div>
+      <div class="sensor-item"><span>Upper-tank water level</span><strong id="upperSensorStatus">Healthy · 70%</strong></div>
+      <div class="sensor-item"><span>3-way valve feedback</span><strong id="valveSensorStatus">Source → Pump · standby</strong></div>
+      <div class="sensor-item"><span>Source-tank water quality</span><strong id="lowerTurbidityStatus" class="optional">Optional · not configured</strong></div>
+      <div class="sensor-item"><span>Upper-tank water quality</span><strong id="upperTurbidityStatus" class="optional">Optional · not configured</strong></div>
+    </div>
+  </section>
+    </div>
+  </div>
+  <section class="card wiring" aria-labelledby="wiringTitle" hidden>
+    <div class="wiring-head"><div><h2 id="wiringTitle">Sensor and power wiring</h2><p>Current ESP32 master + ESP8266 slave architecture</p></div><div class="live">LOW VOLTAGE / ISOLATED CONTROL</div></div>
+    <div class="wiring-grid">
+      <article class="wire-card"><h3>Master power distribution</h3><div class="chain"><div class="node power">Certified external 12 V DC adapter</div><div class="arrow">↓ fused low-voltage feed</div><div class="node power">LM2596 buck converter · adjusted to 5 V</div><div class="arrow">↓ 5 V + common GND</div><div class="node">ESP32 VIN/5V · relay input side · JSN-SR04T</div></div><ul class="wire-list"><li>Load-test the 5 V rail before connecting the ESP32.</li><li>Relay, sensors, and ESP32 low-voltage interfaces share common GND.</li><li>Do not place a bare 230 V AC/DC converter inside the controller enclosure.</li></ul></article>
+      <article class="wire-card"><h3>ESP32 master sensors</h3><div class="chain"><div class="node sensor">Source JSN-SR04T</div><div class="node sensor">Municipal dry-contact sensor</div><div class="node sensor">Lower turbidity · conditioned ADC</div></div><ul class="wire-list"><li>JSN: `VCC → 5 V`, `GND → GND`, `TRIG → configured output`.</li><li>JSN `ECHO → 5-to-3.3 V divider/level shifter → configured input`.</li><li>Municipal isolated contact connects configured GPIO to GND using configured pull-up/polarity.</li><li>Turbidity output must stay within the ESP32 ADC range and use the reviewed ADC1 pin.</li></ul></article>
+      <article class="wire-card"><h3>ESP8266 upper-tank node</h3><div class="chain"><div class="node power">Separate stable 5 V adapter</div><div class="arrow">↓ 5 V + GND</div><div class="node sensor">ESP8266 NodeMCU + upper JSN-SR04T</div><div class="node sensor">Optional upper turbidity → A0</div></div><ul class="wire-list"><li>Upper JSN: `TRIG → D1`; `ECHO → divider/level shifter → D2`.</li><li>Confirm the exact NodeMCU board's A0 input range before connecting turbidity output.</li><li>Slave sends sensor data to the ESP32 master over UDP `4210`.</li></ul></article>
+      <article class="wire-card"><h3>Four-channel isolated relay</h3><div class="chain"><div class="node">ESP32 configured control outputs</div><div class="arrow">↓ low-voltage relay inputs</div><div class="node relay">IN1 START · IN2 STOP · IN3 VALVE OPEN · IN4 VALVE CLOSE</div></div><ul class="wire-list"><li>START uses an isolated NO contact in parallel with the green Start button.</li><li>STOP uses the approved isolated contact arrangement in the starter safety circuit.</li><li>OPEN and CLOSE must be electrically and logically interlocked.</li></ul></article>
+      <article class="wire-card"><h3>Field-side power</h3><div class="chain"><div class="node relay">Relay dry contacts</div><div class="arrow">↓ isolated field circuit</div><div class="node power">Starter/contactor + motorized valve supply</div></div><ul class="wire-list"><li>The PCB relay controls the starter/contactor circuit, not the pump motor directly.</li><li>A 220 V valve needs rated contacts, fuse/protection, earthing, and segregated field wiring.</li><li>Keep the physical Stop button and overload chain operational.</li></ul></article>
+      <article class="wire-card"><h3>Build-time pin source</h3><div class="chain"><div class="node">device.env.esp32_master</div><div class="node">device.env.slave</div><div class="node sensor">Configured GPIO must match installed wiring</div></div><ul class="wire-list"><li>Never choose a GPIO from this illustration alone.</li><li>A configured pin of `-1` means optional hardware is unavailable.</li><li>Ship real devices with every simulator state OFF.</li></ul></article>
+    </div>
+    <p class="safety-note">Electrical safety: 230 V starter, contactor, valve, breaker, overload, and earthing work must be completed by a qualified electrician. Keep all mains/field wiring physically separated from ESP32, ESP8266, USB, sensor, and ADC wiring.</p>
+  </section>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const tanks = {
+    source:{unitCapacity:2000,minPercent:30,maxPercent:95},
+    upper:{unitCapacity:1000,minPercent:30,maxPercent:95}
+  };
+  const flowIds = ['municipalToSource','municipalToPump','sourceToPump','valveToPump','pumpToUpper','houseOutlet'];
+  const modes = {
+    'municipal-source': {flows:['municipalToSource','houseOutlet'],upper:70,source:30,route:'SOURCE → PUMP',valve:'Source → Pump · standby',pump:false,plan:'Municipal → Source · Gravity',reason:'Municipal water detected; gravity-fill source from 600 L minimum toward 1,900 L maximum',municipal:true},
+    'municipal-upper': {flows:['municipalToPump','pumpToUpper','houseOutlet'],upper:30,source:95,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump',pump:true,plan:'Municipal → Pump → Upper',reason:'Upper tank reached 30% (300 L); pumping municipal water toward 95% (950 L)',municipal:true},
+    'source-upper': {flows:['sourceToPump','pumpToUpper','houseOutlet'],upper:30,source:70,route:'SOURCE → PUMP',valve:'Source → Pump',pump:true,plan:'Source → Pump → Upper',reason:'Upper tank reached 30% (300 L); pumping from the 2,000 L source tank',municipal:false},
+    'municipal-blocked': {flows:['houseOutlet'],upper:70,source:30,route:'SOURCE → PUMP',valve:'Source → Pump · standby',pump:false,plan:'Source fill blocked',reason:'No municipal water detected; gravity fill is unavailable',municipal:false,blocked:true},
+    'gravity-unverified': {flows:['houseOutlet'],upper:70,source:30,route:'SOURCE → PUMP',valve:'Source → Pump · standby',pump:false,plan:'Gravity fill not verified',reason:'Optional municipal sensor is not installed; automatic gravity filling is not authorized',municipal:false,blocked:true,inferred:true},
+    'no-sensor-trial-flow': {flows:['municipalToPump','pumpToUpper','houseOutlet'],upper:30,source:70,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump · testing',pump:true,plan:'Municipal flow test',reason:'Sensor not installed; checking upper-tank level rise after the configured timeout',municipal:true,inferred:true},
+    'no-sensor-trial-dry': {flows:['houseOutlet'],upper:30,source:70,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump · testing',pump:true,plan:'Municipal flow test',reason:'Sensor not installed; pump is running but no upper-tank level rise is detected',municipal:false,inferred:true},
+    'no-sensor-confirmed': {flows:['municipalToPump','pumpToUpper','houseOutlet'],upper:32,source:70,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump · confirmed',pump:true,plan:'Municipal → Pump → Upper',reason:'Upper-tank level increased by the configured threshold; continue with municipal water',municipal:true,inferred:true},
+    'no-sensor-source-lock': {flows:['sourceToPump','pumpToUpper','houseOutlet'],upper:32,source:70,route:'SOURCE → PUMP',valve:'Source → Pump · cycle locked',pump:true,plan:'Source → Pump → Upper',reason:'No level rise before timeout; source selected for the rest of this filling cycle',municipal:false,inferred:true,locked:true},
+    idle: {flows:['houseOutlet'],upper:95,source:95,route:'SOURCE → PUMP',valve:'Source → Pump · standby',pump:false,plan:'Idle',reason:'Upper tank reached 950 L maximum; source tank maximum is 1,900 L',municipal:true},
+    failsafe: {flows:[],upper:30,source:30,route:'SOURCE → PUMP',valve:'Source → Pump · fail-safe',pump:false,plan:'Fail-safe idle',reason:'Required tank-level sensor is stale or invalid',municipal:false,fault:true}
+  };
+  let autoTimer, fallbackTimer, levelTimer, autoIndex=0, activeMode='auto', currentScenario='municipal-source', currentMode, levelsInitialized=false;
+  let activeFlowSet=new Set(), tankCounts={source:1,upper:1}, tankVolumes={source:600,upper:700};
+  const autoSequence=['municipal-source','municipal-upper','source-upper'];
+  const fallbackSequence=()=>['no-sensor-trial',$('municipalDetected').checked?'no-sensor-confirmed':'no-sensor-source-lock','idle'];
+  function capacity(type){return tanks[type].unitCapacity*tankCounts[type]}
+  function boundedLevel(type,level){const config=tanks[type];return Math.max(config.minPercent,Math.min(config.maxPercent,level))}
+  function litres(type,level){return Math.round(capacity(type)*boundedLevel(type,level)/100)}
+  function litreText(type,level){return litres(type,level).toLocaleString('en-IN')+' L'}
+  function volumeText(value){return Math.round(value).toLocaleString('en-IN')+' L'}
+  function percent(type){return tankVolumes[type]/capacity(type)*100}
+  function percentText(value){const rounded=Math.round(value*10)/10;return (Number.isInteger(rounded)?rounded.toFixed(0):rounded.toFixed(1))+'%'}
+  function tank(id,type,level,top,height){const bounded=boundedLevel(type,level);$(id).setAttribute('y',top+height*(1-bounded/100));$(id).setAttribute('height',height*bounded/100)}
+  function setSensor(id,text,tone='good'){const el=$(id);el.textContent=text;el.className=tone==='bad'?'bad':tone==='optional'?'optional':''}
+  function setPumpVisual(on){$('pumpState').textContent=on?'ON':'OFF';$('pumpText').textContent=on?'ON':'OFF';$('pumpRotor').classList.toggle('pump-spin',on);$('pumpBody').classList.toggle('device-on',on);$('starterBox').classList.toggle('device-on',on);$('relayToStarter').classList.toggle('energized',on);$('starterToPump').classList.toggle('energized',on)}
+  function updateCapacityLabels(){
+    ['source','upper'].forEach(type=>{const config=tanks[type],total=capacity(type),prefix=type==='source'?'source':'upper';$(prefix+'Capacity').textContent=tankCounts[type]+' × '+config.unitCapacity.toLocaleString('en-IN')+' L = '+total.toLocaleString('en-IN')+' L';$(prefix+'Limits').textContent=`MIN 30%=${Math.round(total*.30).toLocaleString('en-IN')} L · MAX 95%=${Math.round(total*.95).toLocaleString('en-IN')} L`})
+  }
+  function updateTankReadouts(){
+    if(!currentMode)return;
+    const sourcePct=percent('source'),upperPct=percent('upper'),fault=currentMode.fault;
+    tank('upperWater','upper',upperPct,55,220);tank('sourceWater','source',sourcePct,365,205);
+    $('upperLevel').textContent=fault?'--':percentText(upperPct);$('sourceLevel').textContent=fault?'--':percentText(sourcePct);
+    $('upperVolume').textContent=fault?'--':volumeText(tankVolumes.upper);$('sourceVolume').textContent=fault?'--':volumeText(tankVolumes.source);
+    setSensor('sourceSensorStatus',fault?'Stale / invalid':currentMode.blocked?`Healthy · ${percentText(sourcePct)} · ${volumeText(tankVolumes.source)} · FILL BLOCKED`:`Healthy · ${percentText(sourcePct)} · ${volumeText(tankVolumes.source)}`,fault||currentMode.blocked?'bad':'good');
+    setSensor('upperSensorStatus',fault?'Stale / invalid':`Healthy · ${percentText(upperPct)} · ${volumeText(tankVolumes.upper)}`,fault?'bad':'good');
+  }
+  function setScenarioVolumes(m){tankVolumes.source=litres('source',m.source);tankVolumes.upper=litres('upper',m.upper);levelsInitialized=true}
+  function stopFlow(ids,reason){ids.forEach(id=>{activeFlowSet.delete(id);$(id).classList.remove('on')});setPumpVisual(false);$('reasonText').textContent=reason;$('reasonText').className='warn'}
+  function advanceLevels(){
+    if(!currentMode||currentMode.fault)return;
+    const dt=.25,gravityRate=24,pumpRate=36,houseRate=2;
+    if(activeFlowSet.has('municipalToSource'))tankVolumes.source+=gravityRate*dt;
+    if(activeFlowSet.has('sourceToPump'))tankVolumes.source-=pumpRate*dt;
+    if(activeFlowSet.has('pumpToUpper'))tankVolumes.upper+=pumpRate*dt;
+    if(activeFlowSet.has('houseOutlet'))tankVolumes.upper-=houseRate*dt;
+    const sourceMin=capacity('source')*.30,sourceMax=capacity('source')*.95,upperMin=capacity('upper')*.30,upperMax=capacity('upper')*.95;
+    tankVolumes.source=Math.max(sourceMin,Math.min(sourceMax,tankVolumes.source));tankVolumes.upper=Math.max(upperMin,Math.min(upperMax,tankVolumes.upper));
+    if(tankVolumes.source>=sourceMax&&activeFlowSet.has('municipalToSource')){activeFlowSet.delete('municipalToSource');$('municipalToSource').classList.remove('on')}
+    if(tankVolumes.source<=sourceMin&&activeFlowSet.has('sourceToPump'))stopFlow(['sourceToPump','valveToPump','pumpToUpper'],'Source bank reached minimum 30%; pump stopped to protect the source supply');
+    if(tankVolumes.upper>=upperMax&&activeFlowSet.has('pumpToUpper'))stopFlow(['municipalToPump','sourceToPump','valveToPump','pumpToUpper'],'Upper bank reached maximum 95%; pump stopped');
+    updateTankReadouts();
+  }
+  function render(name){
+    const sensorInstalled=$('municipalSensorInstalled').checked;
+    if(name==='no-sensor-trial') name=$('municipalDetected').checked?'no-sensor-trial-flow':'no-sensor-trial-dry';
+    if(name==='municipal-upper'&&!sensorInstalled) name=$('municipalDetected').checked?'no-sensor-trial-flow':'no-sensor-trial-dry';
+    if(name==='municipal-source'&&!sensorInstalled&&!$('gravityAvailable').checked) name='gravity-unverified';
+    if((name==='municipal-source'||name==='municipal-upper')&&sensorInstalled&&!$('municipalDetected').checked) name='municipal-blocked';
+    const scenarioChanged=currentScenario!==name||!levelsInitialized;currentScenario=name;const m=modes[name];currentMode=m;if(scenarioChanged)setScenarioVolumes(m);
+    const municipalAvailable=$('municipalDetected').checked;
+    const activeFlows=[...m.flows];
+    const gravityAvailable=$('gravityAvailable').checked&&(!sensorInstalled||municipalAvailable);
+    const simultaneousGravity=(name==='source-upper'||name==='no-sensor-source-lock')&&gravityAvailable;
+    if(name==='municipal-source'&&!gravityAvailable){activeFlows.splice(activeFlows.indexOf('municipalToSource'),1)}
+    if(simultaneousGravity&&!activeFlows.includes('municipalToSource')) activeFlows.push('municipalToSource');
+    if((activeFlows.includes('municipalToPump')||activeFlows.includes('sourceToPump'))&&!activeFlows.includes('valveToPump'))activeFlows.push('valveToPump');
+    activeFlowSet=new Set(activeFlows);
+    flowIds.forEach(id=>$(id).classList.toggle('on',activeFlows.includes(id)));
+    let reason=m.reason, plan=m.plan;
+    if(name==='municipal-source')reason=`Gravity-fill source bank from ${volumeText(capacity('source')*.30)} minimum toward ${volumeText(capacity('source')*.95)} maximum`;
+    if(name==='municipal-upper')reason=`Upper bank reached ${volumeText(capacity('upper')*.30)}; pump toward ${volumeText(capacity('upper')*.95)} maximum`;
+    if(name==='source-upper')reason=`Upper bank reached ${volumeText(capacity('upper')*.30)}; pumping from the ${volumeText(capacity('source'))} source bank`;
+    if(name==='idle')reason=`Upper maximum ${volumeText(capacity('upper')*.95)}; source maximum ${volumeText(capacity('source')*.95)}`;
+    if(simultaneousGravity){plan='Municipal → Source + Source → Pump → Upper';reason=name==='no-sensor-source-lock'?'Municipal pump test failed; source route stays locked while the separate gravity line refills the source tank':'Source supplies the pump while available municipal water gravity-fills the source tank'}
+    if(name==='no-sensor-trial-flow'||name==='no-sensor-trial-dry') reason=`Sensor not installed; test municipal water for ${$('flowTimeout').value} s and require at least ${$('minimumRise').value}% level rise`;
+    if(name==='no-sensor-source-lock') reason=`Less than ${$('minimumRise').value}% rise after ${$('flowTimeout').value} s; use source for this entire cycle—do not retry municipal`;
+    $('valveRoute').textContent=m.route;$('valveSelector').classList.toggle('source-route',m.route.startsWith('SOURCE'));$('valveText').textContent=m.valve;$('planText').textContent=plan;$('reasonText').textContent=reason;
+    setPumpVisual(m.pump);
+    $('masterBox').classList.toggle('device-on',!m.fault); $('reasonText').className=m.fault?'danger':m.blocked?'warn':'good';
+    $('municipalSensorDot').setAttribute('fill',sensorInstalled?(municipalAvailable?'#20d19a':'#ff6174'):'#ffcf73');
+    $('municipalSensorBox').classList.toggle('device-on',sensorInstalled);
+    $('municipalSensorDetail').textContent=sensorInstalled?'optional · '+(municipalAvailable?'available':'no water'):'optional · not installed';
+    const tankSuffix=''; const municipalSuffix=''; const valveSuffix='';
+    setSensor('municipalSensorStatus',sensorInstalled?(m.fault?'Stale / unavailable':(municipalAvailable?'Available':'Unavailable')+municipalSuffix):'Optional · not installed; using level-rise test',sensorInstalled?(m.fault?'bad':municipalAvailable?'good':'optional'):'optional');
+    setSensor('valveSensorStatus',m.valve+valveSuffix,m.fault?'bad':'good');
+    setSensor('lowerTurbidityStatus','Optional · not configured','optional'); setSensor('upperTurbidityStatus','Optional · not configured','optional');
+    updateCapacityLabels();updateTankReadouts();
+    if(activeMode==='auto') $('livePill').textContent=simultaneousGravity?'● AUTO · SOURCE→UPPER + GRAVITY REFILL':'● AUTO · '+plan.toUpperCase();
+  }
+  function select(mode){
+    clearInterval(autoTimer); clearTimeout(fallbackTimer); activeMode=mode; document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
+    $('livePill').textContent=mode==='auto'?'● AUTO DEMO':'● MANUAL VIEW';
+    if(mode==='auto'){
+      const sequence=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence(); autoIndex=0; render(sequence[autoIndex]);
+      autoTimer=setInterval(()=>{const next=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence();autoIndex=(autoIndex+1)%next.length;render(next[autoIndex])},5000);
+    }else{
+      render(mode);
+      if(mode==='municipal-upper'&&!$('municipalSensorInstalled').checked){fallbackTimer=setTimeout(()=>render($('municipalDetected').checked?'no-sensor-confirmed':'no-sensor-source-lock'),3500)}
+    }
+  }
+  document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>select(b.dataset.mode)));
+  function restartForDetectionChange(){select(activeMode)}
+  $('municipalSensorInstalled').addEventListener('change',()=>{$('municipalDetectedLabel').textContent=$('municipalSensorInstalled').checked?'Water detected':'Simulated municipal flow';restartForDetectionChange()});
+  $('municipalDetected').addEventListener('change',restartForDetectionChange);
+  $('gravityAvailable').addEventListener('change',restartForDetectionChange);
+  $('flowTimeout').addEventListener('change',()=>render(currentScenario));
+  $('minimumRise').addEventListener('change',()=>render(currentScenario));
+  function changeTankCount(type,value){const existingPercent=percent(type);tankCounts[type]=Number(value);tankVolumes[type]=capacity(type)*existingPercent/100;updateCapacityLabels();render(currentScenario)}
+  $('sourceTankCount').addEventListener('change',e=>changeTankCount('source',e.target.value));
+  $('upperTankCount').addEventListener('change',e=>changeTankCount('upper',e.target.value));
+  $('tankSim').addEventListener('change',e=>{$('upperSim').classList.toggle('hidden',!e.target.checked);$('sourceSim').classList.toggle('hidden',!e.target.checked);render(currentScenario)});
+  $('municipalSim').addEventListener('change',e=>{const effect=e.target.checked?'drop-shadow(0 0 5px #8f5dff)':'';$('municipalToSource').style.filter=effect;$('municipalToPump').style.filter=effect;render(currentScenario)});
+  $('valveSim').addEventListener('change',e=>{$('threeWayValve').style.filter=e.target.checked?'drop-shadow(0 0 7px #8f5dff)':'';render(currentScenario)});
+  $('upperSim').classList.remove('hidden'); $('sourceSim').classList.remove('hidden'); $('municipalSim').dispatchEvent(new Event('change')); $('valveSim').dispatchEvent(new Event('change')); select('auto'); levelTimer=setInterval(advanceLevels,250);
+})();
+</script>
+</body>
+</html>
