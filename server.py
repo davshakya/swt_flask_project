@@ -4,7 +4,7 @@ from functools import wraps
 
 from flask_app import server as flask_server
 
-HOTFIX_DEPLOY_MARKER = "root-simulator-routes-2026-07-20-v1"
+HOTFIX_DEPLOY_MARKER = "root-device-detail-recovery-2026-07-26-v2"
 
 
 def _database_is_locked_error(exc):
