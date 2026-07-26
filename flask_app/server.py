@@ -18501,17 +18501,6 @@ def device_detail_page(device_id):
         (snapshot or {}).get("municipal_sensor_simulated"),
         default=False,
     )
-
-
-@app.route("/water-flow-animation")
-def water_flow_animation_page():
-    """Public interactive product preview used by the SaleWell homepage."""
-    animation_path = PROJECT_ROOT.parent / "docs" / "water_flow_animation.html"
-    if not animation_path.is_file():
-        abort(404)
-    response = send_file(animation_path, mimetype="text/html")
-    response.headers["Cache-Control"] = "public, max-age=300"
-    return response
     if municipal_simulator_state in {"on", "off"}:
         municipal_simulator_enabled = municipal_simulator_state == "on"
     valve_simulator_state = str(
