@@ -18479,6 +18479,8 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
 @app.route("/devices/<device_id>")
 @admin_required
 def device_detail_page(device_id):
+    # Release guard: keep public/static marketing routes outside this handler.
+    # Ending this function early makes Flask return a 500 for every device page.
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
