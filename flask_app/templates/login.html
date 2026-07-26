@@ -3551,6 +3551,15 @@ overflow-y:auto;
 overscroll-behavior:contain;
 padding:12px;
 }
+.preview-flow-frame{
+width:240%;
+height:240%;
+border:0;
+display:block;
+transform:scale(.4166667);
+transform-origin:top left;
+background:#06132d;
+}
 .enquiry-modal .enquiry-form{
 margin-top:10px;
 padding:14px 16px;
@@ -4481,25 +4490,10 @@ min-width:0;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual">
-                <a class="preview-visual-link" href="#demo" aria-label="Open the dashboard walkthrough">
-                <picture>
-                    <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated rooftop smart water tank with sensor hardware and mobile dashboard preview." width="1536" height="1024" loading="eager" decoding="async" fetchpriority="high">
-                </picture>
-                <div class="preview-overlay preview-overlay--top">
-                    <span>Live tank status</span>
-                    <strong>72% full</strong>
-                    <p>See the tank level, alert state and pump status before problems become complaints.</p>
-                </div>
-                <div class="preview-overlay preview-overlay--bottom">
-                    <span>Pump protection</span>
-                    <strong>Auto protected</strong>
-                    <p>Use one clean view for level, pump and overflow decisions.</p>
-                </div>
-                </a>
+                <iframe class="preview-flow-frame" src="{{ url_for('water_flow_animation_page') }}" title="Interactive SaleWell smart water tank flow dashboard" loading="eager"></iframe>
             </div>
             <div class="preview-body">
-            <div class="eyebrow">Dashboard Preview</div>
+            <a class="eyebrow" href="{{ url_for('water_flow_animation_page') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
             <h2>What you see after installation.</h2>
             <p>Live tank level, sensor health, pump state and alerts in one simple screen.</p>
 
