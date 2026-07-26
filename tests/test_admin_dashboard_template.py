@@ -1144,6 +1144,8 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'document.body.classList.toggle("chatbot-open", isOpen);' in template
     assert '.mobile-contact-bar a span,.mobile-contact-bar button span' in template
     assert 'height:38px;min-height:38px;max-height:38px' in template
+    assert 'class="contact-tab" href="#enquiry"' in template
+    assert 'class="button is-primary-cta" href="#enquiry" aria-label="Book a free demo"' not in template
     assert 'id="mobileChatbotButton"' in template
     assert 'mobileChatbotButton.addEventListener("click", () => setChatbotOpen(true))' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
