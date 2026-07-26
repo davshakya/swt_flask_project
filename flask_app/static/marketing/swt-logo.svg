@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="logoOuterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b7eff"/>
+      <stop offset="100%" stop-color="#171ea5"/>
+    </linearGradient>
+    <linearGradient id="logoBladeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7be1ff"/>
+      <stop offset="100%" stop-color="#1b45e2"/>
+    </linearGradient>
+  </defs>
+  <circle cx="48" cy="48" r="46" fill="#8befff"/>
+  <circle cx="48" cy="48" r="42" fill="url(#logoOuterGradient)" stroke="#cffbff" stroke-width="1.5"/>
+  <g>
+    <rect x="38" y="7" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"/>
+    <rect x="38" y="61" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"/>
+    <rect x="7" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"/>
+    <rect x="61" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"/>
+    <rect x="41" y="24" width="14" height="6" rx="3" fill="#8eebff"/>
+    <rect x="41" y="66" width="14" height="6" rx="3" fill="#8eebff"/>
+    <rect x="24" y="41" width="6" height="14" rx="3" fill="#8eebff"/>
+    <rect x="66" y="41" width="6" height="14" rx="3" fill="#8eebff"/>
+    <circle cx="48" cy="48" r="21" fill="none" stroke="#a7f7ff" stroke-width="4"/>
+    <circle cx="48" cy="48" r="11" fill="#2e6ef3"/>
+    <polygon points="48,39 55,43 55,53 48,57 41,53 41,43" fill="#aef7ff" stroke="#d8fdff" stroke-width="1.2"/>
+  </g>
+</svg>
