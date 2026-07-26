@@ -252,7 +252,7 @@ canvas{height:260px!important}
 .priority-metrics{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.priority-card{border-left:4px solid var(--primary)}.priority-card.ok{border-left-color:var(--good)}.priority-card.warn{border-left-color:var(--warn)}.priority-card.bad{border-left-color:var(--danger)}
 .system-health-grid{display:grid;grid-template-columns:minmax(180px,.7fr) repeat(4,minmax(130px,1fr));gap:10px;margin-top:14px}.health-score-card{background:linear-gradient(135deg,color-mix(in srgb,var(--good) 14%,var(--card-bg)),var(--card-bg))}.health-score-card .value{font-size:34px}
 .info-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.info-group{padding:16px;border-radius:22px;background:var(--card-bg);border:1px solid var(--line)}.info-group h3{display:flex;gap:8px;align-items:center;margin-bottom:14px}.info-row{padding:10px 0;border-top:1px solid var(--line)}.info-row:first-of-type{border-top:0}.info-row .value{font-size:22px;font-weight:800}.info-row .subvalue{color:var(--muted);font-size:13px;margin-top:4px}
-.timeline li{display:grid;grid-template-columns:auto 1fr;column-gap:10px}.timeline li time{grid-column:2}.event-icon{grid-row:1 / span 2}.timeline .event-pump-started{border-left-color:var(--good)}.timeline .event-pump-stopped{border-left-color:var(--danger)}.timeline .event-leak{border-left-color:var(--warn)}.timeline .event-sync{border-left-color:var(--primary)}
+.timeline li{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px}.timeline li time,.timeline .event-message,.timeline .event-status{grid-column:2}.event-icon{grid-row:1 / span 3}.timeline .event-message{font-weight:750}.timeline .event-status{display:grid;gap:4px;margin-top:9px;padding-top:9px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.4}.timeline .event-status span{display:block}.timeline .event-pump-started{border-left-color:var(--good)}.timeline .event-pump-stopped{border-left-color:var(--danger)}.timeline .event-leak{border-left-color:var(--warn)}.timeline .event-sync{border-left-color:var(--primary)}
 .settings-disclosure{margin-top:18px}.settings-disclosure summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;font-weight:800}.settings-disclosure summary::-webkit-details-marker{display:none}.settings-disclosure summary::after{content:"Open";font-size:12px;color:var(--primary)}.settings-disclosure[open] summary::after{content:"Close"}
 .confirm-dialog{max-width:440px;border:1px solid var(--line);border-radius:24px;background:var(--panel-strong);color:var(--text);padding:0;box-shadow:var(--shadow)}.confirm-dialog::backdrop{background:rgba(3,18,26,.62);backdrop-filter:blur(4px)}.confirm-dialog-body{padding:24px}.confirm-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
 .guidance-action-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
@@ -438,14 +438,6 @@ canvas{height:260px!important}
                     <div class="controls">
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
-                    </div>
-                    <div id="waterPathControl" class="customer-recommendation" hidden>
-                        <span class="label">Manual water path</span>
-                        <div class="controls" style="margin-top:8px">
-                            <button id="btn_path_source" class="btn-lite" type="button" onclick="sendWaterPathCommand('source')" {% if not can_control %}disabled{% endif %}>Source Tank</button>
-                            <button id="btn_path_municipal" class="btn-lite" type="button" onclick="sendWaterPathCommand('municipal')" {% if not can_control %}disabled{% endif %}>Municipal Water</button>
-                        </div>
-                        <p id="waterPathNote">Select the inlet used by the motorized valve.</p>
                     </div>
                     <div class="customer-recommendation"><span class="label">Recommendation</span><strong id="customerSuggestedAction">Waiting for guidance</strong><p id="customerSuggestedActionNote">The safest next action will appear after fresh telemetry is validated.</p></div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
@@ -1074,23 +1066,6 @@ function updateCommandAvailability(snapshot=state.data.snapshot){
     nodesById("btn_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
     nodesById("btn_config").forEach((button)=>{button.disabled=!baseEnabled;});
     nodesById("btn_config_calibrate").forEach((button)=>{button.disabled=!baseEnabled;});
-    ["btn_path_source","btn_path_municipal"].forEach((id)=>nodesById(id).forEach((button)=>{button.disabled=!baseEnabled;}));
-}
-
-async function sendWaterPathCommand(path){
-    if(!["source","municipal"].includes(path))return;
-    state.commandBusy=true;
-    updateCommandAvailability();
-    try{
-        const payload=await fetchJSON(scopedUrl(`/valve/path/${path}`),{method:"POST"});
-        banner("commandBanner",payload.message||`${path==="source"?"Source Tank":"Municipal Water"} path request queued.`,"info");
-        await refreshAll(true);
-    }catch(error){
-        banner("commandBanner",error.message||"Unable to change the water path. Please retry.","danger");
-    }finally{
-        state.commandBusy=false;
-        updateCommandAvailability();
-    }
 }
 function renderCustomerOverview(snapshot=state.data.snapshot,system=state.data.systemStatus){
     if(!snapshot){
@@ -2365,12 +2340,6 @@ function renderSnapshot(snapshot){
     setText("motor",pumpDisplayState(snapshot.motor,upperTankIncreasing));
     const currentMode=(snapshot.mode||"AUTO").toUpperCase();
     const sourceState=buildSourceTankState(snapshot);
-    const valveFeatureEnabled=Boolean(snapshot.municipal_valve_feature_enabled||snapshot.municipal_valve_enabled);
-    const waterPathControl=document.getElementById("waterPathControl");
-    if(waterPathControl)waterPathControl.hidden=!valveFeatureEnabled;
-    const activeWaterPath=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").toLowerCase();
-    ["source","municipal"].forEach((path)=>document.getElementById(`btn_path_${path}`)?.classList.toggle("active",activeWaterPath===path));
-    setText("waterPathNote",`${activeWaterPath==="municipal"?"Municipal Water":"Source Tank"} is selected${snapshot.municipal_valve_manual?" manually":""}.`);
     const localizedLastSync=localizedTimeText(snapshot.last_sync_at);
     setElementVisibility("lowerTankCard",true);
     setText("mode",currentMode==="MANUAL"?"Manual mode":"Auto mode");
@@ -2576,6 +2545,39 @@ function customerEventMessage(event){
     };
     return messages[kind]||original||"Water-system activity recorded.";
 }
+function eventStatusLines(event){
+    const details=event?.details&&typeof event.details==="object"?event.details:null;
+    const captured=Boolean(details&&["motor_state","main_tank_level","source_tank_level","main_sensor_state","source_sensor_state"].some((key)=>details[key]!==undefined&&details[key]!==null));
+    const source=captured?details:(state.data.snapshot||{});
+    const text=(...keys)=>{for(const key of keys){const value=source?.[key];if(value!==undefined&&value!==null&&String(value).trim()&&String(value).toLowerCase()!=="null")return String(value).trim();}return"";};
+    const percent=(...keys)=>{for(const key of keys){const value=Number(source?.[key]);if(Number.isFinite(value)&&value>=0)return`${value.toFixed(1)}%`;}return"--";};
+    const lines=[];
+    const pump=text("motor_state","motor").toUpperCase()||"--";
+    const mode=text("mode").toUpperCase()||"--";
+    lines.push(`${captured?"At event":"Current snapshot"} · Pump: ${pump} · Mode: ${mode}`);
+    lines.push(`Tank levels · Main: ${percent("main_tank_level","level")} · Source: ${percent("source_tank_level","lower_tank_level","source_level")}`);
+    const sensors=[];
+    const mainSensor=text("main_sensor_state","sensor").toUpperCase();
+    const sourceSensor=text("source_sensor_state","lower_sensor").toUpperCase();
+    const municipalSensor=text("municipal_sensor_state");
+    const lowerTurbidity=text("lower_turbidity_state","lower_turbidity_status");
+    const upperTurbidity=text("upper_turbidity_state","upper_turbidity_status");
+    if(mainSensor)sensors.push(`Main ${mainSensor}`);
+    if(sourceSensor)sensors.push(`Source ${sourceSensor}`);
+    if(municipalSensor)sensors.push(`Municipal ${municipalSensor}${source?.municipal_sensor_simulated?" (SIM)":""}`);
+    if(lowerTurbidity)sensors.push(`Lower turbidity ${lowerTurbidity}`);
+    if(upperTurbidity)sensors.push(`Upper turbidity ${upperTurbidity}`);
+    if(sensors.length)lines.push(`Sensors · ${sensors.join(" · ")}`);
+    const snapshot=state.data.snapshot||{};
+    const valveSource=(details&&(details.inlet_valve_route||details.municipal_valve_route||details.inlet_valve_state||details.municipal_valve_state))?details:snapshot;
+    const valveState=String(valveSource.inlet_valve_state||valveSource.municipal_valve_state||"").toUpperCase();
+    const valveRoute=String(valveSource.inlet_valve_route||valveSource.municipal_valve_route||"").replace(/_/g," ");
+    if(valveState||valveRoute)lines.push(`Motorized valve${captured&&valveSource===snapshot?" (current)":""} · ${valveState||"--"} · Path: ${valveRoute||"--"}`);
+    const wifi=text("wifi_state","wifi").toUpperCase()||"--";
+    const rssi=Number(source?.wifi_rssi);
+    lines.push(`Connectivity · Wi-Fi: ${wifi}${Number.isFinite(rssi)?` · ${Math.round(rssi)} dBm`:""}`);
+    return lines;
+}
 function customerDerivedTimelineEvents(){
     if(VIEWER_ROLE!=="customer")return[];
     const derived=[];
@@ -2603,7 +2605,7 @@ function renderEvents(events){
         text.textContent="No alerts today. No customer-relevant device activity has been recorded yet.";
         li.append(time,text);timeline.appendChild(li);return;
     }
-    recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.textContent=VIEWER_ROLE==="customer"?customerEventMessage(event):(event.message||"--");li.append(icon,time,text);timeline.appendChild(li);});
+    recentEvents.forEach((event)=>{const presentation=eventPresentation(event);const li=document.createElement("li");li.classList.add(event.severity||"info",presentation.className);const icon=document.createElement("span");icon.className="event-icon";icon.textContent=presentation.icon;const time=document.createElement("time");time.textContent=localizedTimeText(event.time);const text=document.createElement("span");text.className="event-message";text.textContent=VIEWER_ROLE==="customer"?customerEventMessage(event):(event.message||"--");li.append(icon,time,text);if(VIEWER_ROLE==="customer"){const status=document.createElement("div");status.className="event-status";eventStatusLines(event).forEach((line)=>{const row=document.createElement("span");row.textContent=line;status.appendChild(row);});li.appendChild(status);}timeline.appendChild(li);});
     if(state.data.analytics)window.requestAnimationFrame(()=>drawAnalyticsCharts(state.data.analytics));
 }
 

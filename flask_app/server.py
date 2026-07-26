@@ -11718,6 +11718,9 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         SELECT id, device_id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, sensor, wifi, wifi_rssi, firmware_version, slave_firmware_version,
                reset_reason, free_heap, uptime_s, lower_tank_level, lower_sensor,
+               municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
+               municipal_sensor_reachable, municipal_valve_simulated, municipal_valve_feature_enabled,
+               lower_turbidity_simulated, upper_turbidity_simulated,
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
                local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
@@ -11792,6 +11795,24 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
     event_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
 
     def add_event(current, severity, message, kind, details=None, event_time=None):
+        telemetry_details = {
+            "main_tank_level": current.get("level"),
+            "source_tank_level": current.get("lower_tank_level"),
+            "motor_state": current.get("motor"),
+            "mode": current.get("mode"),
+            "main_sensor_state": current.get("sensor"),
+            "source_sensor_state": current.get("lower_sensor"),
+            "wifi_state": current.get("wifi"),
+            "wifi_rssi": current.get("wifi_rssi"),
+            "municipal_sensor_enabled": bool_flag(current.get("municipal_sensor_enabled")),
+            "municipal_sensor_state": current.get("municipal_sensor_state"),
+            "municipal_sensor_reachable": bool_flag(current.get("municipal_sensor_reachable")),
+            "municipal_sensor_simulated": bool_flag(current.get("municipal_sensor_simulated")),
+            "motorized_valve_enabled": bool_flag(current.get("municipal_valve_feature_enabled")),
+            "motorized_valve_simulated": bool_flag(current.get("municipal_valve_simulated")),
+            "lower_turbidity_simulated": bool_flag(current.get("lower_turbidity_simulated")),
+            "upper_turbidity_simulated": bool_flag(current.get("upper_turbidity_simulated")),
+        }
         timeline.append(
             {
                 "time": format_timestamp(event_time or current.get("created_at")),
@@ -11804,6 +11825,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                     "device_id": normalize_device_id(current.get("device_id")),
                     "node_role": current.get("node_role"),
                     "device_type": current.get("device_type"),
+                    **telemetry_details,
                     **(details or {}),
                 },
             }
@@ -15977,33 +15999,6 @@ def motor_off():
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
-def normalized_manual_water_path(raw_path):
-    path = str(raw_path or "").strip().lower().replace("-", "_")
-    if path not in {"source", "municipal"}:
-        raise ValueError("path must be source or municipal")
-    return path
-
-
-@app.route("/valve/path/<path>", methods=["POST"])
-@login_required
-@csrf_protect
-def valve_manual_path(path):
-    response = customer_cloud_feed_block_response()
-    if response:
-        return response
-    try:
-        selected_path = normalized_manual_water_path(path)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    payload = queue_command(
-        f"VALVE_ROUTE_{selected_path.upper()}",
-        target_device=current_scope_device_id(request.args.get("device_id", type=str)),
-    )
-    payload["selected_path"] = selected_path
-    payload["message"] = f"{selected_path.title()} water path request queued."
-    return payload
-
-
 @app.route("/sensor/calibrate", methods=["POST"])
 @login_required
 @csrf_protect
@@ -16398,23 +16393,6 @@ def mobile_motor_off():
     if response:
         return response
     return mobile_queue_command_response("OFF", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
-
-
-@app.route("/api/mobile/valve/path/<path>", methods=["POST"])
-@mobile_auth_required
-def mobile_valve_manual_path(path):
-    response = mobile_customer_cloud_feed_block_response()
-    if response:
-        return response
-    try:
-        selected_path = normalized_manual_water_path(path)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    return mobile_queue_command_response(
-        f"VALVE_ROUTE_{selected_path.upper()}",
-        target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)),
-        message=f"{selected_path.title()} water path request queued.",
-    )
 
 
 @app.route("/api/mobile/sensor/calibrate", methods=["POST"])
