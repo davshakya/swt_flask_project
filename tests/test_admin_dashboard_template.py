@@ -1135,8 +1135,11 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'class="faq-list"' in template
     assert "Does it work without Wi-Fi?" in template
     assert 'class="mobile-contact-bar"' in template
-    assert "&#128222; Call" in template
-    assert "&#128172; WhatsApp" in template
+    assert 'aria-label="Call SaleWell"' in template
+    assert 'aria-label="Contact SaleWell on WhatsApp"' in template
+    assert 'class="contact-icon whatsapp-icon"' in template
+    assert 'aria-label="Book a free demo"' in template
+    assert 'aria-label="Open chat"' in template
     assert 'id="mobileChatbotButton"' in template
     assert 'mobileChatbotButton.addEventListener("click", () => setChatbotOpen(true))' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
