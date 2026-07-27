@@ -643,6 +643,9 @@ def test_dashboard_titles_are_simple_and_icon_precedes_title():
     assert "Admin Dashboard</h1>" not in admin_template
     assert "Home Water Dashboard" not in customer_template
     assert "Home Water Dashboard" in login_template
+    assert 'data-demo-title="Dashboard Without Municipal Feature"' in login_template
+    assert "No municipal sensor or motorized valve required." in login_template
+    assert 'data-total-ms="33000"' in login_template
 
 
 def test_device_detail_dashboard_button_returns_to_admin_dashboard():

@@ -4715,7 +4715,7 @@ min-width:0;
         </div>                                                  
 
         <div class="demo-layout">
-            <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="30000" aria-label="Animated product walkthrough">
+            <div class="demo-storyboard" id="demoStoryboard" data-step-ms="3000" data-total-ms="33000" aria-label="Animated product walkthrough">
                 <div class="demo-progress-track" aria-hidden="true">
                     <div class="demo-progress-bar" id="demoProgressBar"></div>
                 </div>
@@ -4827,6 +4827,84 @@ min-width:0;
                                 <span>Main + source tank view</span>
                                 <span>Live sync cards</span>
                                 <span>Desktop dashboard access</span>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="demo-scene has-ui" data-demo-scene data-demo-title="Dashboard Without Municipal Feature" aria-hidden="true">
+                        <div class="demo-scene-visual">
+                            <div class="demo-dashboard-shell">
+                                <div class="demo-surface-card demo-tank-panel">
+                                    <span class="demo-panel-eyebrow">Source-only Tank View</span>
+                                    <div class="demo-mini-tank">
+                                        <span class="demo-mini-tank-label">Main Tank</span>
+                                        <div class="demo-mini-tank-shell">
+                                            <div class="demo-mini-tank-inner">
+                                                <div class="demo-mini-tank-water is-mid"></div>
+                                            </div>
+                                        </div>
+                                        <div class="demo-mini-tank-value">48.0%</div>
+                                        <div class="demo-mini-tank-note">480.0 L / 1000.0 L</div>
+                                    </div>
+                                    <div class="demo-mini-tank">
+                                        <span class="demo-mini-tank-label">Source Tank</span>
+                                        <div class="demo-mini-tank-shell">
+                                            <div class="demo-mini-tank-inner">
+                                                <div class="demo-mini-tank-water is-full"></div>
+                                            </div>
+                                        </div>
+                                        <div class="demo-mini-tank-value">82.0%</div>
+                                        <div class="demo-mini-tank-note">820.0 L / 1000.0 L</div>
+                                    </div>
+                                </div>
+                                <div class="demo-dashboard-main">
+                                    <div class="demo-surface-card demo-dashboard-head">
+                                        <div class="demo-dashboard-title">
+                                            <div class="demo-brand-coin"><img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt=""></div>
+                                            <div>
+                                                <h3>Source-Tank Automation</h3>
+                                                <p>A complete dashboard for installations without municipal-water hardware.</p>
+                                            </div>
+                                            <div class="demo-sync-card">
+                                                <strong>Live</strong>
+                                                <span>2/2 tank sensors OK</span>
+                                            </div>
+                                        </div>
+                                        <p class="demo-dashboard-narrative">The main tank is 48.0% full. The source tank is healthy at 82.0%, so automatic pump protection is ready for the next fill cycle.</p>
+                                    </div>
+                                    <div class="demo-kpi-row">
+                                        <div class="demo-kpi is-featured">
+                                            <span>Pump Status</span>
+                                            <strong>OFF · Auto</strong>
+                                            <p>Starts at the configured low threshold.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Source Safety</span>
+                                            <strong>Ready</strong>
+                                            <p>Source level is above the safe run limit.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Municipal Feature</span>
+                                            <strong>Not installed</strong>
+                                            <p>No municipal sensor or motorized valve required.</p>
+                                        </div>
+                                        <div class="demo-kpi">
+                                            <span>Connection</span>
+                                            <strong>Excellent</strong>
+                                            <p>Local Wi-Fi and cloud sync are healthy.</p>
+                                        </div>
+                                    </div>
+                                    <div class="demo-dashboard-banner">Source Tank → Pump → Main Tank · Automatic threshold protection active.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="demo-scene-copy">
+                            <strong>Works Without Municipal-Water Hardware</strong>
+                            <p>The dashboard automatically adapts to a source-tank-only installation. It monitors both tanks, starts and stops the pump by level thresholds, and blocks pumping when the source tank is unsafe.</p>
+                            <div class="demo-feature-list" aria-label="Source-only system highlights">
+                                <span>No municipal sensor</span>
+                                <span>No motorized valve</span>
+                                <span>Automatic source-tank protection</span>
                             </div>
                         </div>
                     </article>
