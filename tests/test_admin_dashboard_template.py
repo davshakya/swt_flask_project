@@ -51,9 +51,13 @@ def test_booking_form_requires_typed_client_side_validation():
 def test_flask_static_assets_have_cache_and_compression_support():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     service_worker = (PROJECT_ROOT / "flask_app" / "static" / "service-worker.js").read_text(encoding="utf-8")
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)' in server_source
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
+    assert 'response.mimetype == "text/html"' in server_source
+    assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
+    assert "water_flow_animation.html', v='20260727-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker

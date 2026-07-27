@@ -401,7 +401,14 @@ def apply_security_headers(response):
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     if request.method == "GET" and request.path.startswith("/static/"):
-        response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
+        # Standalone HTML pages must be revalidated. Caching them as immutable can
+        # reopen an obsolete dashboard after navigation until the user refreshes.
+        if response.mimetype == "text/html":
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        else:
+            response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
     elif request.method == "GET":
         apply_dynamic_cache_headers(response)
     if should_gzip_response(response):
