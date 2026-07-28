@@ -3269,7 +3269,17 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
         upper_enabled = False
     if slave_upper_enabled:
         upper_enabled = True
-        upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid
+        # A fresh slave packet only proves that the slave node is reachable. It
+        # does not prove that its upper-tank sensor is producing valid data.
+        # Require the sensor health reported by firmware as well, otherwise a
+        # cached level can incorrectly keep the dashboard badge online after
+        # both the physical sensor and simulator become unavailable.
+        upper_reachable = (
+            online
+            and peer_packet_fresh is True
+            and tank_level_is_valid
+            and admin_sensor_reachable(upper_sensor)
+        )
     else:
         upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
     upper_label, upper_tone = admin_reachable_status_fields(

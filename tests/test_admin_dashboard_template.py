@@ -189,10 +189,33 @@ def test_admin_slave_status_uses_direct_peer_packet_freshness():
     assert "def direct_peer_packet_is_fresh" in server_source
     assert "peer_packet_fresh = direct_peer_packet_is_fresh(entry)" in server_source
     assert "slave_upper_enabled = bool(service_config.get(\"slave_upper_sensor_enabled\"))" in server_source
-    assert "upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid" in server_source
+    assert "and admin_sensor_reachable(upper_sensor)" in server_source
     assert '"direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s")' in server_source
     assert 'cleaned.get("direct_peer_last_packet_age_s")' in server_source
     assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source
+
+
+def test_admin_upper_sensor_requires_sensor_health_even_when_slave_packet_is_fresh():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    fields = server.admin_relay_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "direct_peer_last_packet_age_s": 1,
+            "level": 42.0,
+            "upper_sensor": "ERROR",
+        },
+        {
+            "main_sensor_enabled": True,
+            "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
+        },
+    )
+
+    assert fields["upper_sensor_status_label"] == "Unreachable"
+    assert fields["upper_sensor_status_tone"] == "offline"
 
 
 def test_admin_dashboard_maps_municipal_sensor_snapshot_fields():
