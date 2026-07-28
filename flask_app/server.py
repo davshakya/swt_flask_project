@@ -3262,7 +3262,11 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
 
     slave_upper_enabled = bool(service_config.get("slave_upper_sensor_enabled")) and bool(service_config.get("slave_device_enabled", True))
     peer_packet_fresh = direct_peer_packet_is_fresh(entry)
-    tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
+    tank_level_is_valid = (
+        boolish_enabled(entry.get("level_valid"), default=False)
+        if entry.get("level_valid") is not None
+        else safe_float(entry.get("level"), -1) >= 0
+    )
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
     upper_data_fresh = entry.get("upper_data_fresh")
     upper_simulated = boolish_enabled(entry.get("upper_tank_simulator"), default=False)
@@ -3401,6 +3405,7 @@ def build_admin_device_entry(device_id, snapshot=None):
     return {
         "device_id": normalized_device_id,
         "level": payload.get("level"),
+        "level_valid": payload.get("level_valid"),
         "firmware_version": payload.get("firmware_version"),
         "reset_reason": payload.get("reset_reason"),
         "device_local_url": device_local_url,
@@ -8307,13 +8312,16 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     if created_at:
         seconds_since_sync = int((now_utc() - created_at).total_seconds())
 
-    level = max(0.0, min(100.0, safe_float(data.get("level"), 0)))
+    raw_level = safe_float(data.get("level"), None)
+    level_valid = raw_level is not None and 0.0 <= raw_level <= 100.0
+    level = raw_level if level_valid else 0.0
     capacity_liters = safe_float(data.get("tank_capacity_liters"), TANK_CAPACITY_LITERS)
     if capacity_liters <= 0:
         capacity_liters = TANK_CAPACITY_LITERS
     liters = round((level / 100) * capacity_liters, 1)
 
-    data["level"] = round(level, 2)
+    data["level_valid"] = level_valid
+    data["level"] = round(level, 2) if level_valid else None
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
     stored_simulator_state = load_device_simulator_state(data.get("device_id"))

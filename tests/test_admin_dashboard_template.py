@@ -245,6 +245,24 @@ def test_admin_upper_sensor_rejects_cached_simulator_level_after_simulator_is_of
     assert fields["upper_sensor_status_tone"] == "offline"
 
 
+def test_invalid_firmware_level_remains_unavailable_in_enriched_snapshot():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    snapshot = server.enrich_snapshot(
+        {
+            "level": -1.0,
+            "sensor": "ERROR",
+            "created_at": server.now_utc().strftime(server.TIMESTAMP_FORMAT),
+            "device_id": "swt-test-invalid-upper",
+        }
+    )
+
+    assert snapshot["level"] is None
+    assert snapshot["level_valid"] is False
+
+
 def test_admin_dashboard_maps_municipal_sensor_snapshot_fields():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
