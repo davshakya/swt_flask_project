@@ -479,3 +479,26 @@ For rollout and support work, see:
 - Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
 - Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)
 - Test harness: [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md)
+
+## Complete Local Test Environment (WSL)
+
+The recommended isolated backend setup uses the test harness script:
+
+```bash
+cd ~/workspace/all_swt_project/swt_test_cases_project
+chmod +x ./scripts/setup_test_env.sh
+./scripts/setup_test_env.sh
+```
+
+It creates `.venv`, installs requirements, starts MySQL on host port `3307` and Flask on `http://127.0.0.1:8000`, waits for `/health`, and runs the focused virtual-device tests with the required `SWT_TEST_MYSQL_*` variables. Start the interactive device separately:
+
+```bash
+source .venv/bin/activate
+python ./scripts/run_virtual_devices.py \
+  --base-url=http://127.0.0.1:8000 \
+  --device-id=swt-test-001 \
+  --device-key='DockerDeviceKey2026!' \
+  --dashboard-port=8765
+```
+
+Open `http://127.0.0.1:8765`, `/health`, and `/admin/customers`; then validate normal operation, sensor faults, dry-run, pump failure, device/slave offline, municipal state, telemetry freshness, events/alerts, and command acknowledgements. Use `./scripts/setup_test_env.sh --skip-tests` for startup only or `--reset-database` when test data may be deleted. Full manual pytest commands and troubleshooting are in the [test harness README](../swt_test_cases_project/README.md) and [Word guide](../swt_test_cases_project/docs/SaleWell_Virtual_Device_Test_Setup_WSL.docx).

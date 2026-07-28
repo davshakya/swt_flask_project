@@ -205,6 +205,23 @@ def test_device_detail_has_independent_municipal_simulator_toggle():
     assert "Municipal Water Simulator" in template
 
 
+def test_disabled_features_force_simulators_off_and_queue_device_cleanup():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    configuration_start = source.index("def admin_device_detail_configuration(device_id):")
+    configuration_source = source[
+        configuration_start : source.index('\n\n@app.route("/devices/<device_id>/thresholds", methods=["POST"])', configuration_start)
+    ]
+
+    assert "SIMULATOR_FEATURE_DEPENDENCIES" in source
+    assert '"municipal_sensor_enabled", "municipal_sensor_simulated", "MUNICIPAL_SIMULATOR_OFF"' in source
+    assert "disable_orphaned_device_simulators(" in configuration_source
+    assert '"simulator_off_commands": simulator_off_commands' in configuration_source
+    assert "const blocked=!Boolean(featureEnabled);" in template
+    assert "if(blocked)setSimulatorSwitchState(button,false);" in template
+    assert "Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false)" in template
+
+
 def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")

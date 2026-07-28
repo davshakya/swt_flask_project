@@ -1434,7 +1434,8 @@ function setSimulatorSwitchState(button,active){
 }
 function setSimulatorFeatureAvailability(button,featureEnabled,simulatorActive,featureLabel){
   if(!button)return;
-  const blocked=!Boolean(featureEnabled)&&!Boolean(simulatorActive);
+  const blocked=!Boolean(featureEnabled);
+  if(blocked)setSimulatorSwitchState(button,false);
   button.disabled=blocked;
   button.setAttribute("aria-disabled",blocked?"true":"false");
   button.title=blocked?`Enable the ${featureLabel} feature first`:"";
@@ -1460,11 +1461,11 @@ function updateSimulatorControls(snapshot,serviceConfig){
   if(button){
     setSimulatorSwitchState(button,active);
   }
-  setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),clientTruthy(snapshot?.municipal_sensor_simulated,false));
-  setValveSimulatorSwitchState(snapshot);
-  setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),clientTruthy(snapshot?.source_outlet_valve_simulated,false));
-  setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),clientTruthy(snapshot?.lower_turbidity_simulated,false));
-  setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),clientTruthy(snapshot?.upper_turbidity_simulated,false));
+  setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
+  if(Boolean(serviceConfig?.municipal_valve_enabled))setValveSimulatorSwitchState(snapshot);else setSimulatorSwitchState(document.getElementById("municipalValveSimulatorToggleButton"),false);
+  setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),Boolean(serviceConfig?.source_outlet_valve_enabled)&&clientTruthy(snapshot?.source_outlet_valve_simulated,false));
+  setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.master_turbidity_enabled)&&clientTruthy(snapshot?.lower_turbidity_simulated,false));
+  setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.slave_turbidity_enabled)&&clientTruthy(snapshot?.upper_turbidity_simulated,false));
   setSimulatorFeatureAvailability(button,serviceConfig?.main_sensor_enabled,active,"upper tank sensor");
   setSimulatorFeatureAvailability(document.getElementById("municipalSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),"municipal water");
   setSimulatorFeatureAvailability(document.getElementById("municipalValveSimulatorToggleButton"),serviceConfig?.municipal_valve_enabled,clientTruthy(snapshot?.municipal_valve_simulated,false),"inlet motorized valve");

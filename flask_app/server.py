@@ -284,14 +284,21 @@ def resolve_device_key_registry():
         registry_items.append(f"{shared_device_id}:{shared_device_key}")
         registry_sources.append("SWT_DEVICE_ID/SWT_DEVICE_API_KEY")
 
-    home_device_id = os.environ.get("HA_DEVICE_ID", "").strip()
-    home_device_key = (
-        os.environ.get("HA_DEVICE_API_KEY", "").strip()
-        or os.environ.get("HA_DEVICE_KEY", "").strip()
-    )
-    if home_device_id and home_device_key:
-        registry_items.append(f"{home_device_id}:{home_device_key}")
-        registry_sources.append("HA_DEVICE_ID/HA_DEVICE_API_KEY")
+    home_device_enabled = os.environ.get("HA_DEVICE_ENABLED", "true").strip().lower() not in {
+        "0",
+        "false",
+        "no",
+        "off",
+    }
+    if home_device_enabled:
+        home_device_id = os.environ.get("HA_DEVICE_ID", "").strip()
+        home_device_key = (
+            os.environ.get("HA_DEVICE_API_KEY", "").strip()
+            or os.environ.get("HA_DEVICE_KEY", "").strip()
+        )
+        if home_device_id and home_device_key:
+            registry_items.append(f"{home_device_id}:{home_device_key}")
+            registry_sources.append("HA_DEVICE_ID/HA_DEVICE_API_KEY")
 
     if registry_items:
         return ",".join(registry_items), ",".join(registry_sources)
@@ -15478,6 +15485,8 @@ def home_automation_device_label(device_id, account=None):
 
 
 def configured_home_automation_device_id():
+    if not env_flag("HA_DEVICE_ENABLED", default=True):
+        return ""
     return normalize_device_id(os.getenv("HA_DEVICE_ID") or "sha_000-000-000-001")
 
 
@@ -18620,33 +18629,47 @@ def device_detail_page(device_id):
     municipal_simulator_state = str(
         request.args.get("municipal_simulator_state", "", type=str) or ""
     ).strip().lower()
-    municipal_simulator_enabled = boolish_enabled(
-        (snapshot or {}).get("municipal_sensor_simulated"),
-        default=False,
+    municipal_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "municipal_sensor_simulated",
+        "municipal_sensor_enabled",
     )
-    if municipal_simulator_state in {"on", "off"}:
+    if service_config.get("municipal_sensor_enabled") and municipal_simulator_state in {"on", "off"}:
         municipal_simulator_enabled = municipal_simulator_state == "on"
     valve_simulator_state = str(
         request.args.get("valve_simulator_state", "", type=str) or ""
     ).strip().lower()
-    valve_simulator_enabled = boolish_enabled(
-        (snapshot or {}).get("municipal_valve_simulated"), default=False
+    valve_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "municipal_valve_simulated",
+        "municipal_valve_enabled",
     )
-    if valve_simulator_state in {"on", "off"}:
+    if service_config.get("municipal_valve_enabled") and valve_simulator_state in {"on", "off"}:
         valve_simulator_enabled = valve_simulator_state == "on"
     outlet_valve_simulator_state = str(
         request.args.get("outlet_valve_simulator_state", "", type=str) or ""
     ).strip().lower()
-    outlet_valve_simulator_enabled = boolish_enabled(
-        (snapshot or {}).get("source_outlet_valve_simulated"), default=False
+    outlet_valve_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "source_outlet_valve_simulated",
+        "source_outlet_valve_enabled",
     )
-    if outlet_valve_simulator_state in {"on", "off"}:
+    if service_config.get("source_outlet_valve_enabled") and outlet_valve_simulator_state in {"on", "off"}:
         outlet_valve_simulator_enabled = outlet_valve_simulator_state == "on"
-    lower_turbidity_simulator_enabled = boolish_enabled(
-        (snapshot or {}).get("lower_turbidity_simulated"), default=False
+    lower_turbidity_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "lower_turbidity_simulated",
+        "master_turbidity_enabled",
     )
-    upper_turbidity_simulator_enabled = boolish_enabled(
-        (snapshot or {}).get("upper_turbidity_simulated"), default=False
+    upper_turbidity_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "upper_turbidity_simulated",
+        "slave_turbidity_enabled",
     )
     turbidity_simulator_role = str(
         request.args.get("turbidity_simulator_role", "", type=str) or ""
@@ -18656,8 +18679,9 @@ def device_detail_page(device_id):
     ).strip().lower()
     if turbidity_simulator_role in {"lower", "upper"} and turbidity_simulator_state in {"on", "off"}:
         if turbidity_simulator_role == "lower":
-            lower_turbidity_simulator_enabled = turbidity_simulator_state == "on"
-        else:
+            if service_config.get("master_turbidity_enabled"):
+                lower_turbidity_simulator_enabled = turbidity_simulator_state == "on"
+        elif service_config.get("slave_turbidity_enabled"):
             upper_turbidity_simulator_enabled = turbidity_simulator_state == "on"
     live_simulator_status = simulator_payload_status(snapshot)
     if (
@@ -18837,11 +18861,53 @@ def safe_queue_device_detail_command(command, device_id, failure_message):
     return queue_result, ""
 
 
+SIMULATOR_FEATURE_DEPENDENCIES = (
+    ("main_sensor_enabled", "simulator", "SIMULATOR_OFF", "Tank level"),
+    ("municipal_sensor_enabled", "municipal_sensor_simulated", "MUNICIPAL_SIMULATOR_OFF", "Municipal water"),
+    ("municipal_valve_enabled", "municipal_valve_simulated", "MUNICIPAL_VALVE_SIMULATOR_OFF", "Inlet motorized valve"),
+    ("source_outlet_valve_enabled", "source_outlet_valve_simulated", "SOURCE_OUTLET_VALVE_SIMULATOR_OFF", "Outlet motorized valve"),
+    ("master_turbidity_enabled", "lower_turbidity_simulated", "LOWER_TURBIDITY_SIMULATOR_OFF", "Lower turbidity"),
+    ("slave_turbidity_enabled", "upper_turbidity_simulated", "UPPER_TURBIDITY_SIMULATOR_OFF", "Upper turbidity"),
+)
+
+
+def simulator_enabled_for_feature(snapshot, service_config, simulator_key, feature_key):
+    if not bool((service_config or {}).get(feature_key)):
+        return False
+    if simulator_key == "simulator":
+        return device_simulator_enabled((snapshot or {}).get("device_id"), snapshot=snapshot)
+    return boolish_enabled((snapshot or {}).get(simulator_key), default=False)
+
+
+def disable_orphaned_device_simulators(device_id, snapshot, service_config):
+    queued_commands = []
+    queue_errors = []
+    for feature_key, simulator_key, command, label in SIMULATOR_FEATURE_DEPENDENCIES:
+        feature_enabled = bool((service_config or {}).get(feature_key))
+        if simulator_key == "simulator":
+            simulator_active = device_simulator_enabled(device_id, snapshot=snapshot)
+        else:
+            simulator_active = boolish_enabled((snapshot or {}).get(simulator_key), default=False)
+        if feature_enabled or not simulator_active:
+            continue
+        result, error = safe_queue_device_detail_command(
+            command,
+            device_id,
+            f"Unable to disable the {label} simulator",
+        )
+        if error:
+            queue_errors.append(error)
+        elif result:
+            queued_commands.append(command)
+    return queued_commands, queue_errors
+
+
 @app.route("/devices/<device_id>/configuration", methods=["POST"])
 @admin_required
 @csrf_protect
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
     slave_device_enabled = "slave_device_enabled" in request.form
     upper_sensor_source = request.form.get("upper_sensor_source")
     if upper_sensor_source in {"master", "slave"}:
@@ -18910,6 +18976,13 @@ def admin_device_detail_configuration(device_id):
         scoped_device_id,
         "Unable to queue runtime configuration update",
     )
+    simulator_off_commands, simulator_off_errors = disable_orphaned_device_simulators(
+        scoped_device_id,
+        snapshot,
+        updated_config,
+    )
+    if simulator_off_errors:
+        queue_error = "; ".join([error for error in [queue_error, *simulator_off_errors] if error])
     logger.info(
         "Admin water feature command queue result: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s queued=%s error=%s",
         scoped_device_id,
@@ -18930,6 +19003,7 @@ def admin_device_detail_configuration(device_id):
                 "service_config": updated_config,
                 "queued_command": queued_command,
                 "queue_error": queue_error,
+                "simulator_off_commands": simulator_off_commands,
                 "android_sessions_preserved": True,
             },
         )
@@ -18948,9 +19022,14 @@ def admin_device_detail_configuration(device_id):
             service_config=updated_config,
             queued_command=queued_command,
         )
+    simulator_message = (
+        f" Disabled simulator commands queued: {', '.join(simulator_off_commands)}."
+        if simulator_off_commands
+        else ""
+    )
     message = (
         f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
-        "Device changes apply on the next command poll."
+        f"Device changes apply on the next command poll.{simulator_message}"
     )
     return device_detail_action_response(
         scoped_device_id,
