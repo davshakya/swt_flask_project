@@ -8,15 +8,18 @@ def test_motorized_valve_feature_defaults_off_and_persists_independently():
     try:
         default_config = server.default_device_service_config(device_id)
         assert default_config["municipal_valve_enabled"] is False
+        assert default_config["source_outlet_valve_enabled"] is False
 
         saved = server.upsert_device_service_config(
             device_id,
             municipal_sensor_enabled=True,
             municipal_valve_enabled=True,
+            source_outlet_valve_enabled=True,
         )
         assert saved["municipal_sensor_enabled"] is True
         assert saved["municipal_valve_enabled"] is True
-        assert server.build_device_service_command(saved).startswith("SERVICECFG9:")
+        assert saved["source_outlet_valve_enabled"] is True
+        assert server.build_device_service_command(saved).startswith("SERVICECFG10:")
         assert server.build_device_service_command(saved).endswith(":1")
     finally:
         with server.get_db() as db:
@@ -67,8 +70,8 @@ def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg9(mon
     )
     sync = server.build_runtime_sync_command(device_id, snapshot=old_snapshot)
     assert sync == {"command": server.build_device_service_command(desired), "reason": "service_config"}
-    assert sync["command"].startswith("SERVICECFG9:")
-    assert sync["command"].endswith(":1:1:0")
+    assert sync["command"].startswith("SERVICECFG10:")
+    assert sync["command"].endswith(":1:1:0:0")
 
 
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():

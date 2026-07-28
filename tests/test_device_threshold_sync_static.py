@@ -163,7 +163,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG9:" in build_source
+    assert "SERVICECFG10:" in build_source
     assert "municipal_sensor_enabled" in build_source
     assert "turbidity_monitoring_enabled" in build_source
     assert "master_turbidity_enabled" in build_source
@@ -260,10 +260,12 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     ]
 
     assert '@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>"' in source
-    assert simulator_section.count("<form ") == 5
-    assert simulator_section.count("data-ajax-form") == 5
+    assert simulator_section.count("<form ") == 6
+    assert 'name="simulator_target" value="outlet_valve"' in simulator_section
+    assert "Outlet Motorized Valve Simulator" in simulator_section
+    assert simulator_section.count("data-ajax-form") == 6
     assert simulator_section.count("data-confirm-title=") == 0
-    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 5
+    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 6
     assert 'name="simulator_target" value="lower_turbidity"' in simulator_section
     assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
     assert 'name="simulator_target" value="municipal"' in simulator_section
@@ -299,14 +301,16 @@ def test_device_runtime_information_displays_motorized_valve_status_and_path():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
 
-    assert '{label:"Motorized Valve Status"' in template
-    assert '{label:"Selected Water Path"' in template
-    assert '{label:"Motorized Valve Feedback"' in template
+    assert '{label:"Inlet Motorized Valve"' in template
+    assert '{label:"Inlet Selected Path"' in template
+    assert '{label:"Inlet Valve Feedback"' in template
+    assert '{label:"Outlet Motorized Valve"' in template
     assert 'category:"configuration"' in template
     assert 'category:"sensors"' in template
     assert 'motorizedValveRoute==="municipal"?"Municipal Water"' in template
-    assert '("Motorized Valve Status", "ON" if motorized_valve_enabled else "OFF")' in source
-    assert '("Selected Water Path", motorized_valve_path if motorized_valve_enabled else "Disabled")' in source
+    assert '("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF")' in source
+    assert '("Outlet Motorized Valve", "ON" if outlet_valve_enabled else "OFF")' in source
+    assert '("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled")' in source
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():

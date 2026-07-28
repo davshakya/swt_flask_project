@@ -64,6 +64,19 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
+def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'data-mode="source-pump-fill"' in animation
+    assert 'id="pumpToSource"' in animation
+    assert 'id="outletValve"' in animation
+    assert 'id="outletValveSelector"' in animation
+    assert "outlet-valve-selector source-route" not in animation
+    assert "$('outletValveSelector').classList.toggle('source-route'" in animation
+    assert "Municipal → Pump → Source" in animation
+    assert "Source bank reached maximum 95%" in animation
+
+
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 

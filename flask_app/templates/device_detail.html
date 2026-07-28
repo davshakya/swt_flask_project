@@ -286,7 +286,8 @@ body{font-size:16px}
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %}> Municipal Water Feature</label>
-                        <label class="service-option"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_valve_enabled", False) %}checked{% endif %}> Motorized Valve</label>
+                        <label class="service-option"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_valve_enabled", False) %}checked{% endif %}> Inlet Motorized Valve</label>
+                        <label class="service-option"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %}> Outlet Motorized Valve</label>
                         <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Lower Turbidity</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
@@ -437,9 +438,15 @@ body{font-size:16px}
             {% set valve_enabled = live_snapshot.get("municipal_valve_enabled") or service_config.get("municipal_valve_enabled") %}
             {% set valve_route = (live_snapshot.get("inlet_valve_route") or live_snapshot.get("municipal_valve_route") or "source")|lower %}
             <div id="motorizedValveCard" class="info-item">
-                <div class="info-label">Motorized Valve</div>
+                <div class="info-label">Inlet Motorized Valve</div>
                 <span id="motorizedValveStatus" class="info-value">{{ "ON" if valve_enabled else "OFF" }}</span>
                 <div id="motorizedValvePath" class="detail-note">Selected path: {{ "Municipal Water" if valve_route == "municipal" else "Source Tank" }}</div>
+            </div>
+            {% set outlet_valve_enabled = live_snapshot.get("source_pump_fill_feature_enabled") or service_config.get("source_outlet_valve_enabled") %}
+            <div id="sourceOutletValveCard" class="info-item">
+                <div class="info-label">Outlet Motorized Valve</div>
+                <span id="sourceOutletValveStatus" class="info-value">{{ "ON" if outlet_valve_enabled else "OFF" }}</span>
+                <div id="sourceOutletValvePath" class="detail-note">Selected path: {{ (live_snapshot.get("source_outlet_route") or "upper")|title }}</div>
             </div>
 
             <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
@@ -460,7 +467,12 @@ body{font-size:16px}
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="simulator_target" value="valve">
-                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Motorized Valve Simulator</span><span class="simulator-switch-state">{{ ("ON · " ~ ("Municipal Water" if valve_route == "municipal" else "Source Tank")) if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Inlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ ("ON · " ~ ("Municipal Water" if valve_route == "municipal" else "Source Tank")) if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="simulator_target" value="outlet_valve">
+                    <button id="sourceOutletValveSimulatorToggleButton" class="simulator-switch{% if outlet_valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if outlet_valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Outlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ "ON" if outlet_valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
                 <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -1515,6 +1527,9 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const motorizedValveRoute=String(snapshot?.inlet_valve_route||snapshot?.municipal_valve_route||"").trim().toLowerCase();
   const motorizedValvePath=motorizedValveRoute==="municipal"?"Municipal Water":motorizedValveRoute==="source"?"Source Tank":"Not reported";
   const motorizedValveState=infoValue(titleCase(snapshot?.inlet_valve_state||snapshot?.municipal_valve_state||""),"Not reported");
+  const outletValveEnabled=clientTruthy(snapshot?.source_pump_fill_feature_enabled,clientTruthy(savedServiceConfig?.source_outlet_valve_enabled,false));
+  const outletValvePath=infoValue(titleCase(snapshot?.source_outlet_route||""),"Not reported");
+  const outletValveState=infoValue(titleCase(snapshot?.source_outlet_valve_state||""),"Not reported");
   const sourceSensorLocationRaw=String(snapshot?.source_sensor_location??snapshot?.lower_sensor_location??"").trim();
   const sourceSensorLocation=sourceMonitoringEnabled
     ? infoValue(titleCase(sourceSensorLocationRaw),"Source Tank")
@@ -1536,9 +1551,12 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Upper Sensor Source",value:upperSource},
     {label:"Source Tank Sensor",value:sourceSensorLocation},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
-    {label:"Motorized Valve Status",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
-    {label:"Selected Water Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
-    {label:"Motorized Valve Feedback",value:motorizedValveEnabled?motorizedValveState:"Disabled",category:"sensors"},
+    {label:"Inlet Motorized Valve",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
+    {label:"Inlet Selected Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
+    {label:"Inlet Valve Feedback",value:motorizedValveEnabled?motorizedValveState:"Disabled",category:"sensors"},
+    {label:"Outlet Motorized Valve",value:outletValveEnabled?"ON":"OFF",category:"configuration"},
+    {label:"Outlet Selected Path",value:outletValveEnabled?outletValvePath:"Disabled",category:"configuration"},
+    {label:"Outlet Valve Feedback",value:outletValveEnabled?outletValveState:"Disabled",category:"sensors"},
     {label:"Tank Capacity",value:formatLiters(capacity),show:showAllDetails||isReportedInfoValue(capacity)},
     {label:"Tank Height",value:tankHeight,show:showAllDetails||isReportedInfoValue(tankHeight)},
     {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&(showAllDetails||isReportedInfoValue(sourceCapacity))},
@@ -1844,6 +1862,10 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   const valveRoute=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").trim().toLowerCase();
   setText("motorizedValveStatus",valveEnabled?"ON":"OFF");
   setText("motorizedValvePath",`Selected path: ${valveRoute==="municipal"?"Municipal Water":"Source Tank"}`);
+  const outletValveEnabled=clientTruthy(snapshot.source_pump_fill_feature_enabled,clientTruthy(serviceConfig.source_outlet_valve_enabled,false));
+  const outletValveRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
+  setText("sourceOutletValveStatus",outletValveEnabled?"ON":"OFF");
+  setText("sourceOutletValvePath",`Selected path: ${outletValveRoute==="source"?"Source Tank":"Upper Tank"}`);
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
