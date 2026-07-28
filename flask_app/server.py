@@ -3264,6 +3264,17 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
     peer_packet_fresh = direct_peer_packet_is_fresh(entry)
     tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
+    upper_data_fresh = entry.get("upper_data_fresh")
+    upper_simulated = boolish_enabled(entry.get("upper_tank_simulator"), default=False)
+    upper_pulse_us = safe_float(entry.get("upper_sensor_pulse_us"), None)
+    upper_has_live_input = admin_sensor_reachable(upper_sensor)
+    if upper_data_fresh is not None:
+        upper_has_live_input = upper_has_live_input and boolish_enabled(upper_data_fresh, default=False)
+    # Simulator readings intentionally have a zero echo pulse. Once simulation
+    # is OFF, a zero pulse is cached simulator data rather than physical sensor
+    # evidence, so it must not keep the sensor online until the cache expires.
+    if upper_pulse_us is not None and upper_pulse_us <= 0 and not upper_simulated:
+        upper_has_live_input = False
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
     if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         upper_enabled = False
@@ -3278,10 +3289,10 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
             online
             and peer_packet_fresh is True
             and tank_level_is_valid
-            and admin_sensor_reachable(upper_sensor)
+            and upper_has_live_input
         )
     else:
-        upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
+        upper_reachable = online and upper_enabled and upper_has_live_input
     upper_label, upper_tone = admin_reachable_status_fields(
         upper_enabled,
         upper_reachable,
@@ -3433,6 +3444,13 @@ def build_admin_device_entry(device_id, snapshot=None):
         "water_depth_cm": payload.get("water_depth_cm"),
         "water_depth_label": payload.get("water_depth_label"),
         "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),
+        "upper_data_fresh": payload.get("upper_data_fresh"),
+        "upper_tank_simulator": payload.get("upper_tank_simulator"),
+        "upper_sensor_pulse_us": (
+            payload.get("upper_sensor_pulse_us")
+            if payload.get("upper_sensor_pulse_us") is not None
+            else payload.get("sensor_pulse_us")
+        ),
         "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
         "municipal_sensor_enabled": payload.get("municipal_sensor_enabled"),
         "municipal_sensor_state": payload.get("municipal_sensor_state"),
