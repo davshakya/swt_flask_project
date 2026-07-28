@@ -78,6 +78,7 @@ body{font-size:16px}
 .threshold-visual{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--good),var(--warn),var(--danger));position:relative}.threshold-visual::after{content:"";position:absolute;left:var(--threshold);top:-4px;width:4px;height:18px;border-radius:4px;background:var(--text)}
 .log-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.log-tools input,.log-tools select{min-height:38px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text)}.activity-table tr.log-error td{background:color-mix(in srgb,var(--danger) 9%,transparent)}.activity-table tr.log-warning td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
 @media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
+.simulator-switch:disabled{opacity:.48!important;filter:saturate(.35);cursor:not-allowed!important}.simulator-switch:disabled .simulator-switch-track{cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -1431,6 +1432,13 @@ function setSimulatorSwitchState(button,active){
   const state=button.querySelector(".simulator-switch-state");
   if(state)state.textContent=enabled?"ON":"OFF";
 }
+function setSimulatorFeatureAvailability(button,featureEnabled,simulatorActive,featureLabel){
+  if(!button)return;
+  const blocked=!Boolean(featureEnabled)&&!Boolean(simulatorActive);
+  button.disabled=blocked;
+  button.setAttribute("aria-disabled",blocked?"true":"false");
+  button.title=blocked?`Enable the ${featureLabel} feature first`:"";
+}
 function setValveSimulatorSwitchState(snapshot){
   const button=document.getElementById("municipalValveSimulatorToggleButton");
   const active=clientTruthy(snapshot?.municipal_valve_simulated,false);
@@ -1454,12 +1462,19 @@ function updateSimulatorControls(snapshot,serviceConfig){
   }
   setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),clientTruthy(snapshot?.municipal_sensor_simulated,false));
   setValveSimulatorSwitchState(snapshot);
+  setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),clientTruthy(snapshot?.source_outlet_valve_simulated,false));
   setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),clientTruthy(snapshot?.lower_turbidity_simulated,false));
   setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),clientTruthy(snapshot?.upper_turbidity_simulated,false));
+  setSimulatorFeatureAvailability(button,serviceConfig?.main_sensor_enabled,active,"upper tank sensor");
+  setSimulatorFeatureAvailability(document.getElementById("municipalSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),"municipal water");
+  setSimulatorFeatureAvailability(document.getElementById("municipalValveSimulatorToggleButton"),serviceConfig?.municipal_valve_enabled,clientTruthy(snapshot?.municipal_valve_simulated,false),"inlet motorized valve");
+  setSimulatorFeatureAvailability(document.getElementById("sourceOutletValveSimulatorToggleButton"),serviceConfig?.source_outlet_valve_enabled,clientTruthy(snapshot?.source_outlet_valve_simulated,false),"outlet motorized valve");
+  setSimulatorFeatureAvailability(document.getElementById("lowerTurbiditySimulatorToggleButton"),serviceConfig?.master_turbidity_enabled,clientTruthy(snapshot?.lower_turbidity_simulated,false),"lower turbidity");
+  setSimulatorFeatureAvailability(document.getElementById("upperTurbiditySimulatorToggleButton"),serviceConfig?.slave_turbidity_enabled,clientTruthy(snapshot?.upper_turbidity_simulated,false),"upper turbidity");
   if(helper){
     helper.textContent=active
       ? `Tank level simulation is active for ${mode}. Municipal, valve, and turbidity switches operate independently.`
-      : `Tank level simulation is inactive. Municipal, valve, and turbidity switches operate independently.`;
+      : `Tank level simulation is inactive. Enable a feature before turning on its simulator.`;
   }
 }
 function turbidityStatus(snapshot,serviceConfig,role){

@@ -19368,14 +19368,15 @@ def admin_device_detail_sensor_configure(device_id):
 def admin_device_detail_simulator(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
     target_config = {
-        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level"),
-        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water"),
-        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve"),
-        "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve"),
-        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity"),
-        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity"),
+        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled"))),
+        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled"))),
+        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled"))),
+        "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled"))),
+        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled"))),
+        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity", bool(service_config.get("slave_turbidity_enabled"))),
     }
     if simulator_target not in target_config:
         return redirect(
@@ -19385,7 +19386,15 @@ def admin_device_detail_simulator(device_id):
                 config_error="Unknown simulator target.",
             )
         )
-    simulator_enabled, command_prefix, target_label = target_config[simulator_target]
+    simulator_enabled, command_prefix, target_label, feature_enabled = target_config[simulator_target]
+    if not simulator_enabled and not feature_enabled:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error=f"Enable the {target_label} feature before enabling its simulator.",
+            )
+        )
     command = f"{command_prefix}_{'OFF' if simulator_enabled else 'ON'}"
     logger.info(
         "Simulator request received: device=%s target=%s current=%s command=%s ajax=%s",
