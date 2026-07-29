@@ -267,11 +267,12 @@
     setSensor('valveSensorStatus',m.valve+valveSuffix,m.sourceOnly?'optional':m.fault?'bad':'good');
     setSensor('lowerTurbidityStatus',m.borewell?'Optional borewell probe · not configured':'Optional · not configured','optional'); setSensor('upperTurbidityStatus','Optional · not configured','optional');
     updateCapacityLabels();updateTankReadouts();
-    if(activeMode==='auto') $('livePill').textContent=simultaneousGravity?'● AUTO · SOURCE→UPPER + GRAVITY REFILL':'● AUTO · '+plan.toUpperCase();
+    $('livePill').textContent=activeMode==='auto'
+      ?'● AUTO · '+plan.toUpperCase()
+      :'● MANUAL · '+plan.toUpperCase();
   }
   function select(mode){
     clearInterval(autoTimer); clearTimeout(fallbackTimer); activeMode=mode; document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
-    $('livePill').textContent=mode==='auto'?'● AUTO DEMO':'● MANUAL VIEW';
     if(mode==='auto'){
       const sequence=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence(); autoIndex=0; render(sequence[autoIndex]);
       autoTimer=setInterval(()=>{const next=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence();autoIndex=(autoIndex+1)%next.length;render(next[autoIndex])},5000);
