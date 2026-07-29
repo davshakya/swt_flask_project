@@ -57,7 +57,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260729-1'" in login_template
+    assert "water_flow_animation.html', v='20260729-2'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
@@ -94,6 +94,16 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
     rendered_modes = {part.split('"', 1)[0] for part in animation.split('data-mode="')[1:]}
 
     assert rendered_modes == expected_modes
+
+
+def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert '<span class="diagram-kicker">Water-supply plan</span>' in animation
+    assert 'id="connectionLegend"' in animation
+    assert 'translate(35 770)' in animation
+    assert 'translate(870 770)' in animation
+    assert animation.count('class="small compact"') >= 5
 
 
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
