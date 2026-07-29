@@ -3081,8 +3081,59 @@ display:block;
 color-scheme:dark;
 background:rgba(8,24,31,.96);
 color:#effbfd;
+caret-color:#67e8f9;
 -webkit-text-fill-color:#effbfd;
 border-color:rgba(153,209,220,.14);
+}
+.portal-form input::selection{
+background:#22b8cf;
+color:#03171d;
+-webkit-text-fill-color:#03171d;
+}
+.password-field{
+position:relative;
+}
+.password-field input{
+padding-right:46px!important;
+}
+.password-toggle{
+position:absolute;
+right:6px;
+top:50%;
+transform:translateY(-50%);
+display:grid;
+place-items:center;
+width:34px;
+height:34px;
+padding:0;
+border:0;
+border-radius:9px;
+background:transparent;
+color:#b9dce3;
+cursor:pointer;
+}
+.password-toggle:hover,
+.password-toggle:focus-visible{
+background:rgba(103,232,249,.12);
+color:#67e8f9;
+outline:none;
+}
+.password-toggle svg{
+width:19px;
+height:19px;
+fill:none;
+stroke:currentColor;
+stroke-linecap:round;
+stroke-linejoin:round;
+stroke-width:2;
+pointer-events:none;
+}
+.password-toggle .eye-off,
+.password-toggle.is-visible .eye-on{
+display:none;
+}
+.password-toggle.is-visible .eye-off{
+display:block;
 }
 textarea{
 min-height:112px;
@@ -5753,7 +5804,13 @@ min-width:0;
                 </div>
                 <div class="group">
                     <label for="customer_password">Password</label>
-                    <input id="customer_password" name="password" type="password" autocomplete="current-password" required>
+                    <div class="password-field">
+                        <input id="customer_password" name="password" type="password" autocomplete="current-password" required>
+                        <button class="password-toggle" type="button" data-password-toggle="customer_password" aria-label="Show password" aria-pressed="false" title="Show password">
+                            <svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6.5 0 10 6 10 6a17.7 17.7 0 0 1-2 2.7M6.6 6.6C3.6 8.4 2 12 2 12s3.5 6 10 6c1.8 0 3.3-.5 4.6-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <button class="button" type="submit">Open Customer Dashboard</button>
             </form>
@@ -5772,7 +5829,13 @@ min-width:0;
                 </div>
                 <div class="group">
                     <label for="admin_password">Password</label>
-                    <input id="admin_password" name="password" type="password" autocomplete="current-password" required>
+                    <div class="password-field">
+                        <input id="admin_password" name="password" type="password" autocomplete="current-password" required>
+                        <button class="password-toggle" type="button" data-password-toggle="admin_password" aria-label="Show password" aria-pressed="false" title="Show password">
+                            <svg class="eye-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+                            <svg class="eye-off" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 3 18 18"/><path d="M10.6 6.2A10.8 10.8 0 0 1 12 6c6.5 0 10 6 10 6a17.7 17.7 0 0 1-2 2.7M6.6 6.6C3.6 8.4 2 12 2 12s3.5 6 10 6c1.8 0 3.3-.5 4.6-1.2M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <button class="button" type="submit">Open Admin Dashboard</button>
             </form>
@@ -5811,6 +5874,21 @@ const roleContent = {
         description: "Sign in with your admin username and password.",
     },
 };
+
+document.querySelectorAll("[data-password-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+        const input = document.getElementById(button.dataset.passwordToggle);
+        if (!input) return;
+        const showPassword = input.type === "password";
+        input.type = showPassword ? "text" : "password";
+        button.classList.toggle("is-visible", showPassword);
+        button.setAttribute("aria-pressed", showPassword ? "true" : "false");
+        const label = showPassword ? "Hide password" : "Show password";
+        button.setAttribute("aria-label", label);
+        button.title = label;
+        input.focus({ preventScroll: true });
+    });
+});
 
 if (window.location.pathname.replace(/\/+$/, "") === publicSalesEnquiryPath.replace(/\/+$/, "")) {
     if (window.swtNavigate) {

@@ -33,6 +33,26 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
     assert template.count('width="1536" height="1024"') >= 7
 
 
+def test_login_popup_inputs_use_a_visible_caret_and_selection():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    portal_input_styles = template[template.index(".portal-form input{") : template.index("textarea{", template.index(".portal-form input{"))]
+    assert "caret-color:#67e8f9;" in portal_input_styles
+    assert ".portal-form input::selection{" in portal_input_styles
+    assert "background:#22b8cf;" in portal_input_styles
+
+
+def test_login_popup_passwords_have_accessible_visibility_toggles():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'data-password-toggle="customer_password"' in template
+    assert 'data-password-toggle="admin_password"' in template
+    assert template.count('aria-label="Show password"') == 2
+    assert 'document.querySelectorAll("[data-password-toggle]")' in template
+    assert 'input.type = showPassword ? "text" : "password";' in template
+    assert 'button.setAttribute("aria-label", label);' in template
+
+
 def test_booking_form_requires_typed_client_side_validation():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
