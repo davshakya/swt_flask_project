@@ -390,7 +390,7 @@ def test_delete_known_device_marks_ignored_before_table_purge():
 def test_root_server_wrapper_applies_delete_hotfixes():
     wrapper_source = (server.PROJECT_ROOT / "server.py").read_text(encoding="utf-8")
 
-    assert 'HOTFIX_DEPLOY_MARKER = "root-hotfix-delete-2026-07-12-v1"' in wrapper_source
+    assert 'HOTFIX_DEPLOY_MARKER = "root-device-detail-recovery-2026-07-26-v2"' in wrapper_source
     assert "def _hotfix_purge_device_app_settings(cursor, device_id):" in wrapper_source
     assert 'key_identifier = flask_server.quote_mysql_identifier("key")' in wrapper_source
     assert 'flask_server.purge_device_app_settings = _hotfix_purge_device_app_settings' in wrapper_source

@@ -494,7 +494,7 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
     assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
     assert 'function isCustomerWaterEvent(event)' in customer_template
-    assert 'Level history hidden because sensor changes failed validation.' in customer_template
+    assert 'Hidden because sensor changes exceed the water supported by observed refill cycles.' in customer_template
     assert 'label==="Today"?"Today’s water activity":"Water activity over the selected period"' in customer_template
 
 

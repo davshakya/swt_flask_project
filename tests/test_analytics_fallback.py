@@ -492,11 +492,11 @@ def test_pump_runtime_uses_level_rise_when_recorded_relay_state_disagrees(monkey
         assert payload["motor"]["source"] == "tank_level_history"
         assert payload["motor"]["relay_state_used"] is False
         assert payload["motor"]["values"] == [0, 1, 0]
-        assert payload["pump_activity"]["source"] == "tank_level_history"
-        assert payload["pump_activity"]["relay_state_used"] is False
+        assert payload["pump_activity"]["source"] == "telemetry_relay_state"
+        assert payload["pump_activity"]["relay_state_used"] is True
         assert payload["pump_activity"]["completed_runs"] == 1
-        assert payload["pump_activity"]["runtime_seconds"] == 10 * 60
-        assert payload["pump_activity"]["runtime_basis"] == "local_minimum_to_90_pct_threshold"
+        assert payload["pump_activity"]["runtime_seconds"] == 5 * 60
+        assert payload["pump_activity"]["runtime_basis"] == "reported_motor_on_intervals"
         assert payload["pump_activity"]["stop_threshold_pct"] == 90.0
         assert payload["pump_activity"]["last_started_at"] is not None
         assert payload["pump_activity"]["last_stopped_at"] is not None

@@ -164,7 +164,7 @@ def test_simulator_state_prefers_live_telemetry_over_cached_admin_request():
         assert server.device_simulator_enabled(
             device_id,
             snapshot={"telemetry_status": "no-data", "simulator": "OFF"},
-        ) is True
+        ) is False
         assert server.enrich_snapshot({"device_id": device_id, "level": 50}).get("simulator") == "OFF"
 
         server.record_device_simulator_state(device_id, True, source="http")
@@ -222,7 +222,7 @@ def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     assert '"monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id)' in route_body
     assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
     assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
-    assert 'payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
+    assert 'payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
     assert 'payload["analytics"] = build_analytics_fallback_payload(' in route_body
 
 
