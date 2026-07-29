@@ -114,6 +114,17 @@ def test_water_flow_animation_indicator_names_auto_and_manual_plans():
     assert "● MANUAL VIEW" not in animation
 
 
+def test_homepage_uses_fading_water_plan_preview_slider():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'id="waterPlanSlider"' in template
+    assert template.count("marketing/water-plan-slides/") == 8
+    assert template.count('<figure class="preview-slide') == 8
+    assert template.count('<button class="preview-slider-dot') == 8
+    assert "transition:opacity 1s ease,visibility 1s ease" in template
+    assert "smart-water-tank-hero-ai.png') }}\" alt=\"AI-generated rooftop smart water tank" not in template
+
+
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 

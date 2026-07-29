@@ -7,7 +7,6 @@
 <meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.">
 <title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
 {% include '_pwa_head.html' %}
-<link rel="preload" as="image" type="image/webp" href="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }}" imagesrcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" imagesizes="(max-width: 900px) 100vw, 48vw" fetchpriority="high">
 <style>
 :root{
 color-scheme:light dark;
@@ -957,7 +956,7 @@ overflow:hidden;
 }
 .preview-visual{
 position:relative;
-aspect-ratio:16 / 11;
+aspect-ratio:4 / 3;
 min-height:0;
 border-radius:28px;
 overflow:hidden;
@@ -965,12 +964,62 @@ background:#0d2b34;
 border:1px solid var(--line);
 box-shadow:0 20px 48px rgba(6,40,49,.2);
 }
-.preview-visual img{
+.preview-slider{
+position:absolute;
+inset:0;
+}
+.preview-slide{
+position:absolute;
+inset:0;
+width:100%;
+height:100%;
+margin:0;
+opacity:0;
+visibility:hidden;
+transition:opacity 1s ease,visibility 1s ease;
+}
+.preview-slide.is-active{
+opacity:1;
+visibility:visible;
+z-index:1;
+}
+.preview-slide img{
 width:100%;
 height:100%;
 object-fit:cover;
 object-position:center;
 }
+.preview-slider-nav{
+position:absolute;
+z-index:3;
+left:50%;
+bottom:12px;
+display:flex;
+gap:7px;
+padding:7px 9px;
+border:1px solid rgba(255,255,255,.16);
+border-radius:999px;
+background:rgba(5,23,45,.76);
+backdrop-filter:blur(10px);
+transform:translateX(-50%);
+}
+.preview-slider-dot{
+width:9px;
+height:9px;
+padding:0;
+border:0;
+border-radius:50%;
+background:#8298b5;
+cursor:pointer;
+transition:width .3s ease,background .3s ease;
+}
+.preview-slider-dot.is-active{
+width:25px;
+border-radius:999px;
+background:#35dcbd;
+}
+.preview-slider-dot:focus-visible{outline:2px solid #fff;outline-offset:3px}
+@media (prefers-reduced-motion:reduce){.preview-slide{transition:none}}
 .preview-overlay{
 position:absolute;
 padding:10px 12px;
@@ -4480,20 +4529,26 @@ min-width:0;
         </div>
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
-            <div class="preview-visual">
-                <picture>
-                    <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai.png') }}" alt="AI-generated rooftop smart water tank with sensor hardware and mobile dashboard preview." width="1536" height="1024" loading="eager" decoding="async" fetchpriority="high">
-                </picture>
-                <div class="preview-overlay preview-overlay--top">
-                    <span>Live tank status</span>
-                    <strong>72% full</strong>
-                    <p>See the tank level, alert state and pump status before problems become complaints.</p>
+            <div class="preview-visual" id="waterPlanSlider" aria-label="Animated water-supply plan previews" aria-roledescription="carousel">
+                <div class="preview-slider" aria-live="off">
+                    <figure class="preview-slide is-active" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-source.jpg') }}" alt="Municipal water gravity-filling the source tank plan." width="1280" height="960" loading="eager" decoding="async" fetchpriority="high"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-upper.jpg') }}" alt="Municipal water pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-pump-fill.jpg') }}" alt="Municipal water pumping to the source tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-upper.jpg') }}" alt="Source tank pumping to the upper tank while municipal water gravity-fills the source plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-only.jpg') }}" alt="Source-only tank pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/borewell.jpg') }}" alt="Borewell submersible pump filling the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/idle.jpg') }}" alt="Water-supply plan idle with tanks satisfied." width="1280" height="960" loading="lazy" decoding="async"></figure>
+                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/failsafe.jpg') }}" alt="Water-supply sensor fault fail-safe plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
                 </div>
-                <div class="preview-overlay preview-overlay--bottom">
-                    <span>Pump protection</span>
-                    <strong>Auto protected</strong>
-                    <p>Use one clean view for level, pump and overflow decisions.</p>
+                <div class="preview-slider-nav" aria-label="Choose a water-supply plan preview">
+                    <button class="preview-slider-dot is-active" type="button" data-plan-dot aria-label="Show municipal gravity plan" aria-current="true"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-upper plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-source pump plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-to-upper plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-only plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show borewell plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show idle plan"></button>
+                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show fail-safe plan"></button>
                 </div>
             </div>
             <div class="preview-body">
@@ -7364,6 +7419,56 @@ if (demoStoryboard && demoScenes.length) {
     }
 }
 
+})();
+</script>
+<script>
+(() => {
+    const slider = document.getElementById("waterPlanSlider");
+    if (!slider) return;
+    const slides = [...slider.querySelectorAll("[data-plan-slide]")];
+    const dots = [...slider.querySelectorAll("[data-plan-dot]")];
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    let activeIndex = 0;
+    let rotationTimer = null;
+
+    const showSlide = (index) => {
+        activeIndex = (index + slides.length) % slides.length;
+        slides.forEach((slide, slideIndex) => {
+            const active = slideIndex === activeIndex;
+            slide.classList.toggle("is-active", active);
+            slide.setAttribute("aria-hidden", String(!active));
+        });
+        dots.forEach((dot, dotIndex) => {
+            const active = dotIndex === activeIndex;
+            dot.classList.toggle("is-active", active);
+            if (active) dot.setAttribute("aria-current", "true");
+            else dot.removeAttribute("aria-current");
+        });
+    };
+    const stopRotation = () => {
+        window.clearInterval(rotationTimer);
+        rotationTimer = null;
+    };
+    const startRotation = () => {
+        stopRotation();
+        if (reducedMotion.matches || document.hidden) return;
+        rotationTimer = window.setInterval(() => showSlide(activeIndex + 1), 5000);
+    };
+
+    dots.forEach((dot, index) => dot.addEventListener("click", () => {
+        showSlide(index);
+        startRotation();
+    }));
+    slider.addEventListener("pointerenter", stopRotation);
+    slider.addEventListener("pointerleave", startRotation);
+    slider.addEventListener("focusin", stopRotation);
+    slider.addEventListener("focusout", (event) => {
+        if (!slider.contains(event.relatedTarget)) startRotation();
+    });
+    document.addEventListener("visibilitychange", startRotation);
+    if (typeof reducedMotion.addEventListener === "function") reducedMotion.addEventListener("change", startRotation);
+    showSlide(0);
+    startRotation();
 })();
 </script>
 {% include '_pwa_install.html' %}
