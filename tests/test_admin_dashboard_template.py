@@ -57,7 +57,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260727-1'" in login_template
+    assert "water_flow_animation.html', v='20260729-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
@@ -75,6 +75,25 @@ def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
     assert "$('outletValveSelector').classList.toggle('source-route'" in animation
     assert "Municipal → Pump → Source" in animation
     assert "Source bank reached maximum 95%" in animation
+
+
+def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    expected_modes = {
+        "auto",
+        "municipal-source",
+        "municipal-upper",
+        "source-pump-fill",
+        "source-upper",
+        "source-only",
+        "borewell",
+        "idle",
+        "failsafe",
+    }
+    rendered_modes = {part.split('"', 1)[0] for part in animation.split('data-mode="')[1:]}
+
+    assert rendered_modes == expected_modes
 
 
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
