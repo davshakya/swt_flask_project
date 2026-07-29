@@ -24,7 +24,10 @@ htmlcov/
 
 # IDE and OS files
 .idea/
-.vscode/
+.vscode/*
+!.vscode/
+!.vscode/settings.json
+!.vscode/pytest.env
 .DS_Store
 Thumbs.db
 

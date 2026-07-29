@@ -68,16 +68,6 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
-from flask_app.home_automation_routes import (
-    clear_home_automation_status,
-    list_home_automation_statuses,
-    record_home_automation_status,
-    register_home_automation_routes,
-    set_home_automation_command_queue,
-    set_home_automation_device_access,
-    set_home_automation_mobile_access,
-    set_home_automation_view_context,
-)
 from flask_app.runtime_utils import (
     env_float,
     env_int,
@@ -130,8 +120,6 @@ def load_workspace_device_env_files(project_root, environ):
     candidate_paths = (
         project_device_env,
         workspace_root / "device.env",
-        workspace_root / "home_automation_firmware" / "device.env",
-        workspace_root / "home_automation_android" / "device.env",
         workspace_root / "swt_firmware_project" / "device.env",
         workspace_root / "swt_android_app_project" / "device.env",
     )
@@ -284,22 +272,6 @@ def resolve_device_key_registry():
         registry_items.append(f"{shared_device_id}:{shared_device_key}")
         registry_sources.append("SWT_DEVICE_ID/SWT_DEVICE_API_KEY")
 
-    home_device_enabled = os.environ.get("HA_DEVICE_ENABLED", "true").strip().lower() not in {
-        "0",
-        "false",
-        "no",
-        "off",
-    }
-    if home_device_enabled:
-        home_device_id = os.environ.get("HA_DEVICE_ID", "").strip()
-        home_device_key = (
-            os.environ.get("HA_DEVICE_API_KEY", "").strip()
-            or os.environ.get("HA_DEVICE_KEY", "").strip()
-        )
-        if home_device_id and home_device_key:
-            registry_items.append(f"{home_device_id}:{home_device_key}")
-            registry_sources.append("HA_DEVICE_ID/HA_DEVICE_API_KEY")
-
     if registry_items:
         return ",".join(registry_items), ",".join(registry_sources)
 
@@ -342,9 +314,6 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)
-register_home_automation_routes(app)
-
-
 COMPRESSIBLE_RESPONSE_MIMETYPES = {
     "application/javascript",
     "application/json",
@@ -1910,8 +1879,6 @@ def purge_device_data(device_id, remember_deleted_device=False):
 
         forget_registered_device_touch(normalized_device_id)
         clear_runtime_caches(normalized_device_id)
-        clear_home_automation_status(normalized_device_id)
-
         return deleted_counts
 
     return run_with_database_lock_retries(
@@ -4559,7 +4526,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
-    record_home_automation_status(cleaned)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
     cleaned["telemetry_fingerprint"] = telemetry_fingerprint
 
@@ -15478,164 +15444,6 @@ def pop_device_mobile_action(device_id):
     }
 
 
-def home_automation_device_label(device_id, account=None):
-    if account and str(account.get("display_name") or "").strip():
-        return str(account.get("display_name")).strip()
-    return device_id
-
-
-def configured_home_automation_device_id():
-    if not env_flag("HA_DEVICE_ENABLED", default=True):
-        return ""
-    return normalize_device_id(os.getenv("HA_DEVICE_ID") or "sha_000-000-000-001")
-
-
-def is_home_automation_device_id(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    return bool(normalized_device_id and normalized_device_id.startswith("sha_"))
-
-
-def home_automation_truthy(value):
-    if isinstance(value, bytes):
-        return value not in {b"", b"\x00", b"0"}
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return bool(value)
-
-
-def home_automation_device_entry(device_id, account=None, status=None, access_label=None):
-    return home_automation_device_entry_with_options(device_id, account=account, status=status, access_label=access_label)
-
-
-def home_automation_device_entry_with_options(device_id, account=None, status=None, access_label=None, can_delete=False):
-    normalized_device_id = normalize_device_id(device_id)
-    snapshot = status or {}
-    channels = snapshot.get("channels") if isinstance(snapshot.get("channels"), list) else []
-    online = bool(snapshot)
-    active_account = home_automation_truthy((account or {}).get("active", 0))
-    email = str((account or {}).get("email") or "").strip()
-    return {
-        "device_id": normalized_device_id,
-        "label": home_automation_device_label(normalized_device_id, account=account),
-        "email": email,
-        "access_label": access_label or ("Customer" if account else "Registered device"),
-        "credentials_label": "Credentials active" if active_account else ("No customer credentials" if not account else "Customer inactive"),
-        "has_credentials": active_account,
-        "online": online,
-        "ip": snapshot.get("ip") or "",
-        "rssi": snapshot.get("rssi"),
-        "fan_speed": snapshot.get("fan_speed", 0),
-        "channels": channels,
-        "channel_count": len(channels),
-        "cloud_last_seen": snapshot.get("cloud_last_seen"),
-        "can_delete": bool(can_delete),
-    }
-
-
-def home_automation_accessible_devices():
-    statuses = list_home_automation_statuses()
-    configured_device_id = configured_home_automation_device_id()
-    if is_admin_user():
-        try:
-            customer_accounts = list_customer_accounts(limit=200)
-        except Exception:
-            logger.exception("Unable to load customer accounts for Home Automation dashboard")
-            customer_accounts = []
-        try:
-            registered_device_ids = list_registered_device_ids(limit=200)
-        except Exception:
-            logger.exception("Unable to load registered devices for Home Automation dashboard")
-            registered_device_ids = []
-        registered_device_id_set = set(registered_device_ids)
-
-        accounts = {normalize_device_id(account.get("device_id")): account for account in customer_accounts}
-        device_ids = set(statuses.keys())
-        device_ids.update(device_id for device_id in accounts.keys() if device_id)
-        device_ids.update(registered_device_ids)
-        device_ids.update(DEVICE_KEY_MAP.keys())
-        if configured_device_id:
-            device_ids.add(configured_device_id)
-        ordered_ids = sorted(
-            device_id
-            for device_id in device_ids
-            if is_home_automation_device_id(device_id)
-        )
-        return [
-            home_automation_device_entry_with_options(
-                device_id,
-                account=accounts.get(device_id),
-                status=statuses.get(device_id),
-                access_label="Admin/customer" if accounts.get(device_id) else "Admin",
-                can_delete=device_id in registered_device_id_set,
-            )
-            for device_id in ordered_ids
-        ]
-
-    customer_device_id = current_customer_device_id()
-    if not customer_device_id and not configured_device_id:
-        return []
-    if not is_home_automation_device_id(customer_device_id):
-        customer_device_id = configured_device_id
-    try:
-        customer_account = fetch_customer_account(customer_device_id)
-    except Exception:
-        logger.exception("Unable to load customer account for Home Automation dashboard")
-        customer_account = None
-    return [
-        home_automation_device_entry(
-            customer_device_id,
-            account=customer_account,
-            status=statuses.get(customer_device_id),
-            access_label="Your board",
-        )
-    ]
-
-
-def home_automation_view_context():
-    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
-        return {
-            "authenticated": False,
-            "login_url": url_for("customer_login", next=request.path),
-            "devices": [],
-        }
-
-    devices = home_automation_accessible_devices()
-    configured_device_id = configured_home_automation_device_id()
-    default_device_id = devices[0]["device_id"] if devices else configured_device_id
-    return {
-        "authenticated": True,
-        "role": current_user_role() or "customer",
-        "devices": devices,
-        "default_device_id": default_device_id,
-        "can_select_devices": is_admin_user() or len(devices) > 1,
-    }
-
-
-def home_automation_require_device_access(device_id):
-    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
-        return jsonify({"error": "login_required"}), 401
-
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return jsonify({"error": "device_id_required"}), 400
-    if is_admin_user():
-        return None
-
-    customer_device_id = current_customer_device_id()
-    if customer_device_id and normalized_device_id == customer_device_id:
-        return None
-    configured_device_id = configured_home_automation_device_id()
-    if configured_device_id and normalized_device_id == configured_device_id:
-        return None
-    return jsonify({"error": "forbidden"}), 403
-
-
-set_home_automation_command_queue(queue_command)
-set_home_automation_view_context(home_automation_view_context)
-set_home_automation_device_access(home_automation_require_device_access)
-set_home_automation_mobile_access(resolve_mobile_user, current_mobile_scope_device_id)
-
-
 def relay_status_to_cloud(payload):
     relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")
     if not relay_urls:
@@ -17505,105 +17313,6 @@ def admin_register_device_credentials():
         search_query=search_query,
         device_summary=device_summary,
     )
-
-
-@app.route("/admin/home-automation")
-@admin_required
-def admin_home_automation():
-    return redirect(url_for("home_automation"))
-
-
-@app.route("/admin/home-automation/register", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_home_automation_register_device():
-    device_id = normalize_device_id(request.form.get("device_id", ""))
-    device_key = request.form.get("device_key", "")
-    display_name = request.form.get("display_name", "")
-    email = request.form.get("email", "")
-    password = request.form.get("password", "")
-    try:
-        if not is_home_automation_device_id(device_id):
-            raise ValueError("Home Automation device IDs must start with sha_.")
-        normalized_device_id = register_device_credentials(
-            device_id,
-            device_key,
-            registration_source="home_automation_admin",
-            remote_addr=request.remote_addr,
-        )
-        log_audit_event(
-            actor=current_actor_username(),
-            action="register_home_automation_device",
-            target_type="device_auth_key",
-            target_id=normalized_device_id,
-            device_id=normalized_device_id,
-            details={"registration_source": "home_automation_admin"},
-        )
-        customer_profile_requested = any(str(value or "").strip() for value in (display_name, email))
-        customer_saved = False
-        if customer_profile_requested and not str(password or "").strip():
-            raise ValueError("Customer password is required when customer name or email is entered.")
-        if str(password or "").strip():
-            account = upsert_customer_account(
-                normalized_device_id,
-                password,
-                display_name=display_name,
-                email=email,
-                service_updates_enabled=True,
-                marketing_emails_enabled=False,
-            )
-            customer_saved = True
-            log_audit_event(
-                actor=current_actor_username(),
-                action="upsert_home_automation_customer_account",
-                target_type="customer_account",
-                target_id=account["device_id"],
-                device_id=account["device_id"],
-                details={
-                    "display_name": account.get("display_name"),
-                    "email": account.get("email"),
-                    "password_scope": "cloud_only",
-                    "source": "home_automation_page",
-                },
-            )
-        message = f"SHA device {normalized_device_id} registered."
-        if customer_saved:
-            message += " Customer login was also saved."
-        return redirect(url_for("home_automation", registration_success=message))
-    except ValueError as exc:
-        return redirect(url_for("home_automation", registration_error=str(exc)))
-
-
-@app.route("/admin/home-automation/<device_id>/delete", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_home_automation_delete_device(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    try:
-        if not is_home_automation_device_id(normalized_device_id):
-            raise ValueError("Home Automation device IDs must start with sha_.")
-        deleted_counts = delete_known_device(normalized_device_id)
-        with get_db() as db:
-            deleted_counts["device_auth_keys"] = int(deleted_counts.get("device_auth_keys") or 0) + int(
-                db.execute("DELETE FROM device_auth_keys WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-            )
-        clear_home_automation_status(normalized_device_id)
-        log_audit_event(
-            actor=current_actor_username(),
-            action="delete_home_automation_device",
-            target_type="device",
-            target_id=normalized_device_id,
-            device_id=normalized_device_id,
-            details=deleted_counts,
-        )
-        return redirect(
-            url_for(
-                "home_automation",
-                registration_success=f"SHA device {normalized_device_id} was deleted.",
-            )
-        )
-    except ValueError as exc:
-        return redirect(url_for("home_automation", registration_error=str(exc)))
 
 
 @app.route("/admin/customers/<device_id>/password", methods=["POST"])

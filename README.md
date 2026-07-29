@@ -14,7 +14,6 @@ Within the wider workspace:
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
-- [`../home_automation_firmware/README.md`](../home_automation_firmware/README.md) documents the home automation switch-board firmware that this Flask app can proxy/control
 
 ## What This Project Includes
 
@@ -35,7 +34,6 @@ Within the wider workspace:
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
-- Home automation dashboard and local/cloud proxy at `/home-automation`; the switch-board keeps its wired control behavior even if Wi-Fi is unavailable
 - MySQL/MariaDB schema initialization for local and hosted deployment
 - Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
 - The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
@@ -53,7 +51,6 @@ Simulator prerequisites, workflows, transitions, and troubleshooting are in [`..
 - operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
 - optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
 
-The backend is the network and persistence layer, not the runtime safety layer. Smart Tank and Home Automation devices continue local control and protection on-device when the backend is offline.
 
 ## Repository Layout
 
@@ -61,7 +58,6 @@ The backend is the network and persistence layer, not the runtime safety layer. 
 | --- | --- |
 | `server.py` | Root entrypoint and WSGI compatibility wrapper; keep this in sync with `flask_app/server.py` for cPanel / Passenger deployments |
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
-| `flask_app/home_automation_routes.py` | Home automation dashboard and proxy routes |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
 | `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
@@ -140,16 +136,9 @@ Useful first URLs:
 - Admin login: `http://localhost:8000/login/admin`
 - Customer login: `http://localhost:8000/login/customer`
 - Health check: `http://localhost:8000/health`
-- Home automation: `http://localhost:8000/home-automation`
 
-If you only need the home automation dashboard and do not have MySQL running, use the dashboard-only runner:
-
-```powershell
-$env:HA_LOCAL_DEVICE_URL="http://192.168.1.50"
-python run_home_automation_local.py
 ```
 
-Open `http://localhost:5000/home-automation`.
 
 ## Configuration Loading
 
@@ -263,30 +252,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/devices/<device_id>` | Device detail page | Logged-in user |
 | `/static/version.json` | Android update manifest for the latest uploaded APK | Public |
 | `/downloads/android/latest.apk` | Download the latest uploaded Android APK | Public |
-| `/home-automation` | Home automation switch-board dashboard | Public |
 
-### Home Automation Cloud
-
-The home automation page can control a board directly on local Wi-Fi or through the same cloud command queue used by the Smart Water Tank relay. In cloud mode, the ESP8266 posts telemetry to `/status`, polls `/device/command`, and acknowledges with `/device/command/ack`, so the home router does not need port forwarding. Local switch and relay control stay active on the board even if Wi-Fi or Flask is unavailable.
-
-Environment variables:
-
-- `HA_LOCAL_DEVICE_URL`: local board URL, for example `http://192.168.1.50`
-- `HA_DEVICE_ID`: default home automation device id shown in the dashboard
-- `HA_REQUEST_TIMEOUT`: proxy timeout in seconds, default `6`
-- `HA_HOME_AUTOMATION_CLOUD_BASE_URL`: optional external home automation API origin; leave blank to use this Flask app and the SWT command queue
-- `HA_HOME_AUTOMATION_CLOUD_API_KEY`: optional bearer token for external home automation API calls
-
-Firmware should use the same `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY` identity variables as the water tank firmware, and point `SWT_CLOUD_BASE_URL` to this Flask deployment, for example `https://salewell.co.in`.
-
-Proxy routes:
-
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/home-automation/local/status` | `GET` | Read local board status |
-| `/api/home-automation/local/<switch|fan|all>` | `POST` | Send local board command |
-| `/api/home-automation/cloud/<device_id>/status` | `GET` | Read cloud device status |
-| `/api/home-automation/cloud/<device_id>/<switch|fan|all>` | `POST` | Send cloud command |
 
 ### Device-facing endpoints
 

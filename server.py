@@ -128,7 +128,6 @@ def _hotfix_purge_device_data(device_id, remember_deleted_device=False):
 
         flask_server.forget_registered_device_touch(normalized_device_id)
         flask_server.clear_runtime_caches(normalized_device_id)
-        flask_server.clear_home_automation_status(normalized_device_id)
         return deleted_counts
 
     return _run_with_database_lock_retries(

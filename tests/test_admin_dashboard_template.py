@@ -1336,9 +1336,7 @@ def test_sales_content_uses_current_complete_wireless_architecture():
 def test_flask_pages_share_explanatory_term_tooltips():
     tooltip_source = (PROJECT_ROOT / "flask_app" / "static" / "js" / "global-tooltips.js").read_text(encoding="utf-8")
     pwa_head = (PROJECT_ROOT / "flask_app" / "templates" / "_pwa_head.html").read_text(encoding="utf-8")
-    home_automation = (PROJECT_ROOT / "flask_app" / "templates" / "home_automation.html").read_text(encoding="utf-8")
 
     for term in ("telemetry", "rssi", "signal", '"municipal sensor"', "health"):
         assert term in tooltip_source
     assert "global-tooltips.js" in pwa_head
-    assert "{% include '_pwa_head.html' %}" in home_automation

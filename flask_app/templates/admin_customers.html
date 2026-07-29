@@ -566,7 +566,6 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                 <div class="row hero-actions">
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
-                    <a class="hero-secondary" href="{{ url_for('home_automation') }}">Home Automation</a>
                     <a class="hero-secondary" href="#" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</a>
                     <a class="hero-secondary" href="/account/password">Admin Password</a>
                     <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
@@ -717,7 +716,6 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <button id="device_search_button" type="submit">Search</button>
                     <a id="device_search_clear" class="clearLink" href="/admin/customers">Clear</a>
                     <div class="searchActionGroup" aria-label="Device actions">
-                        <a class="actionLauncher" href="{{ url_for('home_automation') }}">Home Automation</a>
                         <button class="actionLauncher" type="button" data-panel-toggle aria-controls="release_channel_panel" aria-expanded="false">Android Updates</button>
                         <button class="actionLauncher" type="button" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</button>
                         <button id="export_visible_devices" class="actionLauncher" type="button">Export Visible</button>

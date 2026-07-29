@@ -136,7 +136,6 @@ Minimum validation set:
 
 Keep soak-test and pilot evidence with the project records. Use
 [`../../swt_firmware_project/docs/FIELD_VALIDATION.md`](../../swt_firmware_project/docs/FIELD_VALIDATION.md)
-and [`../../swt_3d_print_enclosure/ENCLOSURE_VALIDATION.md`](../../swt_3d_print_enclosure/ENCLOSURE_VALIDATION.md)
 as the release checklists.
 
 ## 8. Support And Installer Readiness
