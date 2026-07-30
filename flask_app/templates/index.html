@@ -460,6 +460,7 @@ canvas{height:260px!important}
             <div class="card"><span class="label">☁ Cloud</span><div id="systemCloudHealth" class="statuscopy">--</div></div>
             <div class="card"><span class="label">🤖 AI <span class="metric-help" title="Confidence based on telemetry freshness, sensor health, and usable history.">i</span></span><div id="systemAiHealth" class="statuscopy">Monitoring</div></div>
             <div class="card customer-only"><span class="label">📶 Wi-Fi signal</span><div id="systemSignalHealth" class="statuscopy">Collecting</div></div>
+            <div class="card customer-only"><span class="label">💧 Combined fill status</span><div id="customerCombinedFillStatus" class="statuscopy">Waiting for valve status</div><div id="customerCombinedFillRoute" class="subvalue">Selected route not reported.</div></div>
         </div>
     </section>
 
@@ -988,6 +989,17 @@ function renderOperationalSummary(snapshot=state.data.snapshot,system=state.data
 function scrollToAnalyticsReport(){document.querySelector(".customer-guidance-panel")?.scrollIntoView({behavior:"smooth",block:"start"});}
 function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw==="ON")return"On";if(raw==="OFF")return"Off";if(raw==="DISABLED")return"Disabled";return raw?raw.charAt(0)+raw.slice(1).toLowerCase():"--";}
 function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
+function combinedTankFillStatus(snapshot={}){
+    const inletRoute=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").trim().toLowerCase();
+    const outletRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
+    const inletState=String(snapshot.inlet_valve_state||snapshot.municipal_valve_state||"").trim().toLowerCase();
+    const outletState=String(snapshot.source_outlet_valve_state||"").trim().toLowerCase();
+    const pumpState=String(snapshot.motor_state||snapshot.motor||"").trim().toLowerCase();
+    const filling=["on","running","started","active"].includes(pumpState)||["open","opening"].includes(inletState)||["open","opening"].includes(outletState);
+    const source=inletRoute==="municipal"?"Municipal Water":"Source Tank";
+    const destination=outletRoute==="source"?"Source Tank":"Upper Tank";
+    return{filling,status:filling?`${destination} filling from ${source}`:"Not filling",route:`Selected route: ${source} → ${destination}`};
+}
 function isPumpRunning(value){const motor=String(value||"").toUpperCase();return motor==="ON"||motor.includes("RUN");}
 function nodesById(id){return Array.from(document.querySelectorAll(`#${id}`));}
 function updateUpperTankTrend(snapshot){
@@ -2360,6 +2372,10 @@ function renderSnapshot(snapshot){
     setText("customerUptime",hasDisplayNumber(snapshot.uptime_s)?formatDurationSeconds(snapshot.uptime_s):"Not reported");
     setText("customerSignal",hasDisplayNumber(snapshot.wifi_rssi)?`${Number(snapshot.wifi_rssi)} dBm`:(snapshot.wifi||"Not reported"));
     setText("customerMemory",hasDisplayNumber(snapshot.free_heap)?`${(Number(snapshot.free_heap)/1024).toFixed(1)} KB free`:"Not reported");
+    const combinedFill=combinedTankFillStatus(snapshot);
+    setText("customerCombinedFillStatus",combinedFill.status);
+    setText("customerCombinedFillRoute",combinedFill.route);
+    applyStatusTone("customerCombinedFillStatus",combinedFill.filling?"ok":"");
     setText("lower_tank_status",sourceState.sensorStatusText);
     setText("lower_tank_info",sourceState.monitoringActive
         ?`${sourceState.statusText} | ${sourceState.infoText} | ${snapshot.lower_sensor_distance_cm??"--"} cm`

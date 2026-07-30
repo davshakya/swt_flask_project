@@ -444,10 +444,22 @@ body{font-size:16px}
                 <div id="motorizedValvePath" class="detail-note">Selected path: {{ "Municipal Water" if valve_route == "municipal" else "Source Tank" }}</div>
             </div>
             {% set outlet_valve_enabled = live_snapshot.get("source_pump_fill_feature_enabled") or service_config.get("source_outlet_valve_enabled") %}
+            {% set outlet_valve_route = (live_snapshot.get("source_outlet_route") or "upper")|lower %}
+            {% set inlet_valve_state = (live_snapshot.get("inlet_valve_state") or live_snapshot.get("municipal_valve_state") or "")|lower %}
+            {% set outlet_valve_state = (live_snapshot.get("source_outlet_valve_state") or "")|lower %}
+            {% set pump_state = (live_snapshot.get("motor_state") or live_snapshot.get("motor") or "")|lower %}
+            {% set filling_active = pump_state in ["on", "running", "started", "active"] or inlet_valve_state in ["open", "opening"] or outlet_valve_state in ["open", "opening"] %}
+            {% set fill_source = "Municipal Water" if valve_route == "municipal" else "Source Tank" %}
+            {% set fill_destination = "Source Tank" if outlet_valve_route == "source" else "Upper Tank" %}
+            <div id="combinedFillStatusCard" class="info-item">
+                <div class="info-label">Combined Fill Status</div>
+                <span id="combinedFillStatus" class="info-value">{{ (fill_destination ~ " filling from " ~ fill_source) if filling_active else "Not filling" }}</span>
+                <div id="combinedFillRoute" class="detail-note">Selected route: {{ fill_source }} → {{ fill_destination }}</div>
+            </div>
             <div id="sourceOutletValveCard" class="info-item">
                 <div class="info-label">Outlet Motorized Valve</div>
                 <span id="sourceOutletValveStatus" class="info-value">{{ "ON" if outlet_valve_enabled else "OFF" }}</span>
-                <div id="sourceOutletValvePath" class="detail-note">Selected path: {{ (live_snapshot.get("source_outlet_route") or "upper")|title }}</div>
+                <div id="sourceOutletValvePath" class="detail-note">Selected path: {{ outlet_valve_route|title }}</div>
             </div>
 
             <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
@@ -1883,6 +1895,14 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   setText("motorizedValvePath",`Selected path: ${valveRoute==="municipal"?"Municipal Water":"Source Tank"}`);
   const outletValveEnabled=clientTruthy(snapshot.source_pump_fill_feature_enabled,clientTruthy(serviceConfig.source_outlet_valve_enabled,false));
   const outletValveRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
+  const inletValveState=String(snapshot.inlet_valve_state||snapshot.municipal_valve_state||"").trim().toLowerCase();
+  const outletValveState=String(snapshot.source_outlet_valve_state||"").trim().toLowerCase();
+  const pumpState=String(snapshot.motor_state||snapshot.motor||"").trim().toLowerCase();
+  const fillingActive=["on","running","started","active"].includes(pumpState)||["open","opening"].includes(inletValveState)||["open","opening"].includes(outletValveState);
+  const fillSource=valveRoute==="municipal"?"Municipal Water":"Source Tank";
+  const fillDestination=outletValveRoute==="source"?"Source Tank":"Upper Tank";
+  setText("combinedFillStatus",fillingActive?`${fillDestination} filling from ${fillSource}`:"Not filling");
+  setText("combinedFillRoute",`Selected route: ${fillSource} → ${fillDestination}`);
   setText("sourceOutletValveStatus",outletValveEnabled?"ON":"OFF");
   setText("sourceOutletValvePath",`Selected path: ${outletValveRoute==="source"?"Source Tank":"Upper Tank"}`);
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
