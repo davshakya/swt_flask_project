@@ -16597,6 +16597,7 @@ def mobile_device_peer_channel():
         )
         if requested_channel is None:
             raise ValueError("Peer channel is required.")
+        municipal_feature_enabled = "municipal_sensor_enabled" in request.form
         updated_config = upsert_device_service_config(
             target_device,
             direct_peer_wifi_channel=requested_channel,
@@ -17758,9 +17759,9 @@ def admin_customer_services(device_id):
             main_sensor_enabled=("main_sensor_enabled" in request.form),
             slave_device_enabled=("slave_device_enabled" in request.form),
             source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
-            municipal_valve_enabled=("municipal_valve_enabled" in request.form),
-            source_outlet_valve_enabled=("source_outlet_valve_enabled" in request.form),
+            municipal_sensor_enabled=municipal_feature_enabled,
+            municipal_valve_enabled=municipal_feature_enabled and ("municipal_valve_enabled" in request.form),
+            source_outlet_valve_enabled=municipal_feature_enabled and ("source_outlet_valve_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,

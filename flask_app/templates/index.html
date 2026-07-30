@@ -991,12 +991,19 @@ function serviceLabel(value){const raw=String(value||"").toUpperCase();if(raw===
 function serviceTone(value){const raw=String(value||"").toUpperCase();if(raw==="ON"||raw==="OK")return"ok";if(raw==="OFF"||raw==="DISABLED")return"warn";if(raw==="ERROR")return"bad";return"";}
 function combinedTankFillStatus(snapshot={}){
     const inletRoute=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").trim().toLowerCase();
-    const outletRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
+    const reportedOutletRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
     const inletState=String(snapshot.inlet_valve_state||snapshot.municipal_valve_state||"").trim().toLowerCase();
     const outletState=String(snapshot.source_outlet_valve_state||"").trim().toLowerCase();
     const pumpState=String(snapshot.motor_state||snapshot.motor||"").trim().toLowerCase();
-    const filling=["on","running","started","active"].includes(pumpState)||["open","opening"].includes(inletState)||["open","opening"].includes(outletState);
-    const source=inletRoute==="municipal"?"Municipal Water":"Source Tank";
+    const municipalFlag=snapshot.municipal_valve_feature_enabled??snapshot.municipal_valve_enabled;
+    const municipalSensorFlag=snapshot.municipal_sensor_feature_enabled??snapshot.municipal_sensor_enabled;
+    const flagEnabled=(flag,fallback)=>flag===undefined||flag===null||flag===""
+        ?fallback
+        :[true,1,"1","true","yes","on","enabled"].includes(typeof flag==="string"?flag.trim().toLowerCase():flag);
+    const municipalEnabled=flagEnabled(municipalSensorFlag,inletRoute==="municipal")&&flagEnabled(municipalFlag,inletRoute==="municipal");
+    const outletRoute=municipalEnabled?reportedOutletRoute:"upper";
+    const filling=["on","running","started","active"].includes(pumpState)||(municipalEnabled&&["open","opening"].includes(inletState))||(municipalEnabled&&["open","opening"].includes(outletState));
+    const source=municipalEnabled&&inletRoute==="municipal"?"Municipal Water":"Source Tank";
     const destination=outletRoute==="source"?"Source Tank":"Upper Tank";
     return{filling,status:filling?`${destination} filling from ${source}`:"Not filling",route:`Selected route: ${source} → ${destination}`};
 }

@@ -286,9 +286,9 @@ body{font-size:16px}
                         <h4>Master Configuration</h4>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
-                        <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %}> Municipal Water Feature</label>
-                        <label class="service-option"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_valve_enabled", False) %}checked{% endif %}> Inlet Motorized Valve</label>
-                        <label class="service-option"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %}> Outlet Motorized Valve</label>
+                        <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
+                        <label id="municipalValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') %} hidden-section{% endif %}"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("municipal_valve_enabled", False) %}checked{% endif %}> Inlet Motorized Valve</label>
+                        <label id="sourceOutletValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') %} hidden-section{% endif %}"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %}> Outlet Motorized Valve</label>
                         <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Lower Turbidity</label>
                         <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
@@ -436,9 +436,9 @@ body{font-size:16px}
                 </form>
                 <div class="helper-text">Use the lower/source tank's measured sensor-to-empty-tank height and capacity.</div>
             </div>
-            {% set valve_enabled = live_snapshot.get("municipal_valve_enabled") or service_config.get("municipal_valve_enabled") %}
+            {% set valve_enabled = service_config.get("municipal_sensor_enabled", False) and service_config.get("municipal_valve_enabled", False) %}
             {% set valve_route = (live_snapshot.get("inlet_valve_route") or live_snapshot.get("municipal_valve_route") or "source")|lower %}
-            <div id="motorizedValveCard" class="info-item">
+            <div id="motorizedValveCard" class="info-item{% if not valve_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Inlet Motorized Valve</div>
                 <span id="motorizedValveStatus" class="info-value">{{ "ON" if valve_enabled else "OFF" }}</span>
                 <div id="motorizedValvePath" class="detail-note">Selected path: {{ "Municipal Water" if valve_route == "municipal" else "Source Tank" }}</div>
@@ -448,15 +448,15 @@ body{font-size:16px}
             {% set inlet_valve_state = (live_snapshot.get("inlet_valve_state") or live_snapshot.get("municipal_valve_state") or "")|lower %}
             {% set outlet_valve_state = (live_snapshot.get("source_outlet_valve_state") or "")|lower %}
             {% set pump_state = (live_snapshot.get("motor_state") or live_snapshot.get("motor") or "")|lower %}
-            {% set filling_active = pump_state in ["on", "running", "started", "active"] or inlet_valve_state in ["open", "opening"] or outlet_valve_state in ["open", "opening"] %}
-            {% set fill_source = "Municipal Water" if valve_route == "municipal" else "Source Tank" %}
+            {% set filling_active = pump_state in ["on", "running", "started", "active"] or (valve_enabled and inlet_valve_state in ["open", "opening"]) or outlet_valve_state in ["open", "opening"] %}
+            {% set fill_source = "Municipal Water" if valve_enabled and valve_route == "municipal" else "Source Tank" %}
             {% set fill_destination = "Source Tank" if outlet_valve_route == "source" else "Upper Tank" %}
             <div id="combinedFillStatusCard" class="info-item">
                 <div class="info-label">Combined Fill Status</div>
                 <span id="combinedFillStatus" class="info-value">{{ (fill_destination ~ " filling from " ~ fill_source) if filling_active else "Not filling" }}</span>
                 <div id="combinedFillRoute" class="detail-note">Selected route: {{ fill_source }} → {{ fill_destination }}</div>
             </div>
-            <div id="sourceOutletValveCard" class="info-item">
+            <div id="sourceOutletValveCard" class="info-item{% if not valve_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Outlet Motorized Valve</div>
                 <span id="sourceOutletValveStatus" class="info-value">{{ "ON" if outlet_valve_enabled else "OFF" }}</span>
                 <div id="sourceOutletValvePath" class="detail-note">Selected path: {{ outlet_valve_route|title }}</div>
@@ -477,12 +477,12 @@ body{font-size:16px}
                     <input type="hidden" name="simulator_target" value="municipal">
                     <button id="municipalSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Municipal Water Simulator</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                <form id="municipalValveSimulatorForm" class="{% if not service_config.get('municipal_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="simulator_target" value="valve">
-                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Inlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ ("ON · " ~ ("Municipal Water" if valve_route == "municipal" else "Source Tank")) if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Inlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                <form id="sourceOutletValveSimulatorForm" class="{% if not service_config.get('municipal_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="simulator_target" value="outlet_valve">
                     <button id="sourceOutletValveSimulatorToggleButton" class="simulator-switch{% if outlet_valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if outlet_valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Outlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ "ON" if outlet_valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
@@ -781,6 +781,16 @@ function syncRuntimeConfigurationOptions(){
   const slaveUpper=document.getElementById("slaveUpperSensorOption");
   const slaveUpperRow=document.getElementById("slaveUpperSensorOptionRow");
   const masterUpper=document.getElementById("masterUpperSensorOption");
+  const municipalFeature=document.getElementById("municipalSensorOption");
+  const municipalValve=document.getElementById("municipalValveOption");
+  const outletValve=document.getElementById("sourceOutletValveOption");
+  const municipalEnabled=Boolean(municipalFeature?.checked);
+  document.getElementById("municipalValveOptionRow")?.classList.toggle("hidden-section",!municipalEnabled);
+  document.getElementById("sourceOutletValveOptionRow")?.classList.toggle("hidden-section",!municipalEnabled);
+  if(!municipalEnabled){
+    if(municipalValve)municipalValve.checked=false;
+    if(outletValve)outletValve.checked=false;
+  }
   if(!slaveDevice||!slaveUpper||!masterUpper)return;
   const slaveEnabled=slaveDevice.checked;
   slaveUpperRow?.classList.toggle("is-disabled",!slaveEnabled);
@@ -1459,11 +1469,6 @@ function setValveSimulatorSwitchState(snapshot){
   const button=document.getElementById("municipalValveSimulatorToggleButton");
   const active=clientTruthy(snapshot?.municipal_valve_simulated,false);
   setSimulatorSwitchState(button,active);
-  if(!button||!active)return;
-  const valveState=String(snapshot?.municipal_valve_state||"closed").trim().toUpperCase();
-  const route=String(snapshot?.inlet_valve_route||snapshot?.municipal_valve_route||(valveState==="OPEN"||valveState==="OPENING"?"municipal":"source")).trim().toLowerCase();
-  const state=button.querySelector(".simulator-switch-state");
-  if(state)state.textContent=`ON · ${route==="municipal"?"Municipal Water":"Source Tank"}${valveState==="OPENING"||valveState==="CLOSING"?" (Switching)":""}`;
 }
 function updateSimulatorControls(snapshot,serviceConfig){
   const button=document.getElementById("simulatorToggleButton");
@@ -1472,6 +1477,9 @@ function updateSimulatorControls(snapshot,serviceConfig){
   const active=simulatorActive(snapshot);
   const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
   const usesSource=Boolean(serviceConfig?.source_tank_monitoring_enabled);
+  const usesMunicipalValves=Boolean(serviceConfig?.municipal_sensor_enabled)&&Boolean(serviceConfig?.municipal_valve_enabled);
+  setVisible("municipalValveSimulatorForm",usesMunicipalValves);
+  setVisible("sourceOutletValveSimulatorForm",usesMunicipalValves);
   const mode=[usesSlave?"slave upper":"local upper",usesSource?"source":"no source"].join(" + ");
   if(button){
     setSimulatorSwitchState(button,active);
@@ -1889,21 +1897,24 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   const municipalState=municipalSensorStatus(snapshot,serviceConfig);
   setText("municipalSensorStatus",titleCase(municipalState));
   setText("municipalSensorReading",municipalSensorReading(snapshot,serviceConfig));
-  const valveEnabled=clientTruthy(snapshot.municipal_valve_enabled,clientTruthy(serviceConfig.municipal_valve_enabled,false));
+  const valveEnabled=clientTruthy(serviceConfig.municipal_sensor_enabled,false)&&clientTruthy(serviceConfig.municipal_valve_enabled,false);
   const valveRoute=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").trim().toLowerCase();
+  setVisible("motorizedValveCard",valveEnabled);
   setText("motorizedValveStatus",valveEnabled?"ON":"OFF");
   setText("motorizedValvePath",`Selected path: ${valveRoute==="municipal"?"Municipal Water":"Source Tank"}`);
   const outletValveEnabled=clientTruthy(snapshot.source_pump_fill_feature_enabled,clientTruthy(serviceConfig.source_outlet_valve_enabled,false));
-  const outletValveRoute=String(snapshot.source_outlet_route||"upper").trim().toLowerCase();
+  const effectiveOutletValveEnabled=valveEnabled&&outletValveEnabled;
+  const outletValveRoute=valveEnabled?String(snapshot.source_outlet_route||"upper").trim().toLowerCase():"upper";
   const inletValveState=String(snapshot.inlet_valve_state||snapshot.municipal_valve_state||"").trim().toLowerCase();
   const outletValveState=String(snapshot.source_outlet_valve_state||"").trim().toLowerCase();
   const pumpState=String(snapshot.motor_state||snapshot.motor||"").trim().toLowerCase();
-  const fillingActive=["on","running","started","active"].includes(pumpState)||["open","opening"].includes(inletValveState)||["open","opening"].includes(outletValveState);
-  const fillSource=valveRoute==="municipal"?"Municipal Water":"Source Tank";
+  const fillingActive=["on","running","started","active"].includes(pumpState)||(valveEnabled&&["open","opening"].includes(inletValveState))||(effectiveOutletValveEnabled&&["open","opening"].includes(outletValveState));
+  const fillSource=valveEnabled&&valveRoute==="municipal"?"Municipal Water":"Source Tank";
   const fillDestination=outletValveRoute==="source"?"Source Tank":"Upper Tank";
   setText("combinedFillStatus",fillingActive?`${fillDestination} filling from ${fillSource}`:"Not filling");
   setText("combinedFillRoute",`Selected route: ${fillSource} → ${fillDestination}`);
-  setText("sourceOutletValveStatus",outletValveEnabled?"ON":"OFF");
+  setVisible("sourceOutletValveCard",valveEnabled);
+  setText("sourceOutletValveStatus",effectiveOutletValveEnabled?"ON":"OFF");
   setText("sourceOutletValvePath",`Selected path: ${outletValveRoute==="source"?"Source Tank":"Upper Tank"}`);
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
   if(Array.isArray(data.history)){
