@@ -171,6 +171,19 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
     assert "auto_mode_enabled" in build_source
 
 
+def test_simulator_enable_queues_runtime_configuration_before_dependent_command():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index("def admin_device_detail_simulator(device_id):")
+    route_source = source[route_start : source.index("\n\n@app.route", route_start)]
+
+    assert '"source_pump_fill_feature_enabled"' in route_source
+    assert "prerequisite_command = build_device_service_command(service_config)" in route_source
+    assert "prerequisite_result = queue_command(prerequisite_command" in route_source
+    assert route_source.index("prerequisite_result = queue_command") < route_source.index(
+        "result = queue_command(command"
+    )
+
+
 def test_mysql_schema_translation_maps_device_service_state_defaults_for_mysql():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
 

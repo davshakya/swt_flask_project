@@ -19195,12 +19195,12 @@ def admin_device_detail_simulator(device_id):
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
     target_config = {
-        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled"))),
-        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled"))),
-        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled"))),
-        "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled"))),
-        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled"))),
-        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity", bool(service_config.get("slave_turbidity_enabled"))),
+        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled")), None),
+        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled")), "municipal_feature_enabled"),
+        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled")), "municipal_valve_feature_enabled"),
+        "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled")), "source_pump_fill_feature_enabled"),
+        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled")), "master_turbidity_enabled"),
+        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity", bool(service_config.get("slave_turbidity_enabled")), "slave_turbidity_enabled"),
     }
     if simulator_target not in target_config:
         return redirect(
@@ -19210,7 +19210,7 @@ def admin_device_detail_simulator(device_id):
                 config_error="Unknown simulator target.",
             )
         )
-    simulator_enabled, command_prefix, target_label, feature_enabled = target_config[simulator_target]
+    simulator_enabled, command_prefix, target_label, feature_enabled, live_feature_key = target_config[simulator_target]
     if not simulator_enabled and not feature_enabled:
         return redirect(
             url_for(
@@ -19225,6 +19225,19 @@ def admin_device_detail_simulator(device_id):
         scoped_device_id, simulator_target, "ON" if simulator_enabled else "OFF", command,
         request.headers.get("X-Requested-With") == "XMLHttpRequest",
     )
+    prerequisite_command = None
+    if (
+        not simulator_enabled
+        and live_feature_key
+        and not runtime_sync_service_enabled(snapshot, live_feature_key)
+    ):
+        prerequisite_command = build_device_service_command(service_config)
+        prerequisite_result = queue_command(prerequisite_command, target_device=scoped_device_id)
+        if isinstance(prerequisite_result, tuple):
+            payload, _status_code = prerequisite_result
+            error = payload.get("error") or f"Unable to synchronize runtime configuration for {scoped_device_id}."
+            return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -19239,6 +19252,7 @@ def admin_device_detail_simulator(device_id):
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
+            "prerequisite_command": prerequisite_command,
             "previous_simulator_enabled": simulator_enabled,
             "simulator_target": simulator_target,
             "mqtt_delivery": result.get("mqtt_delivery"),
