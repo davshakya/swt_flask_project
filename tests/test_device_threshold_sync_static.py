@@ -307,7 +307,9 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert 'name="simulator_target" value="tank"' in simulator_section
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
     assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
-    assert 'command = f"{command_prefix}_{\'OFF\' if simulator_enabled else \'ON\'}"' in source
+    assert 'command = f"{command_prefix}_{\'ON\' if desired_enabled else \'OFF\'}"' in source
+    assert 'request.form.get("simulator_enabled")' in source
+    assert 'formData.set("simulator_enabled",button.getAttribute("aria-checked")==="true"?"0":"1")' in template
     simulator_state_start = source.index("def device_simulator_enabled(device_id, snapshot=None):")
     simulator_state_body = source[simulator_state_start : source.index("\n\ndef device_detail_ajax_request", simulator_state_start)]
     assert "return False" in simulator_state_body

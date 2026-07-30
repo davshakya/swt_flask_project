@@ -114,6 +114,8 @@ def test_simulator_flags_survive_telemetry_snapshot_refresh():
         "mode": "AUTO",
         "sensor": "OK",
         "municipal_valve_simulated": True,
+        "source_outlet_valve_simulated": True,
+        "source_pump_fill_feature_enabled": True,
         "lower_turbidity_simulated": True,
         "upper_turbidity_simulated": True,
     }
@@ -131,6 +133,8 @@ def test_simulator_flags_survive_telemetry_snapshot_refresh():
 
     assert snapshot is not None
     assert bool(snapshot["municipal_valve_simulated"])
+    assert bool(snapshot["source_outlet_valve_simulated"])
+    assert bool(snapshot["source_pump_fill_feature_enabled"])
     assert bool(snapshot["lower_turbidity_simulated"])
     assert bool(snapshot["upper_turbidity_simulated"])
 

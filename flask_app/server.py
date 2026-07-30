@@ -4614,6 +4614,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("municipal_sensor_last_updated"),
         1 if boolish_enabled(cleaned.get("municipal_valve_simulated"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("municipal_valve_feature_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_outlet_valve_simulated"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_pump_fill_feature_enabled"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("lower_turbidity_simulated"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("upper_turbidity_simulated"), default=False) else 0,
         cleaned.get("device_id"),
@@ -4679,7 +4681,9 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
                 municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
                 municipal_sensor_reachable, municipal_sensor_last_updated,
-                municipal_valve_simulated, municipal_valve_feature_enabled, lower_turbidity_simulated, upper_turbidity_simulated,
+                municipal_valve_simulated, municipal_valve_feature_enabled,
+                source_outlet_valve_simulated, source_pump_fill_feature_enabled,
+                lower_turbidity_simulated, upper_turbidity_simulated,
                 device_id, firmware_version, slave_firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
@@ -5099,6 +5103,8 @@ def ensure_tank_data_columns(cursor):
         "municipal_sensor_last_updated": "TEXT",
         "municipal_valve_simulated": "INTEGER NOT NULL DEFAULT 0",
         "municipal_valve_feature_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "source_outlet_valve_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "source_pump_fill_feature_enabled": "INTEGER NOT NULL DEFAULT 0",
         "lower_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
         "upper_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
         "device_id": "TEXT",
@@ -5226,6 +5232,8 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             municipal_sensor_last_updated TEXT,
             municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
             municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
+            source_outlet_valve_simulated INTEGER NOT NULL DEFAULT 0,
+            source_pump_fill_feature_enabled INTEGER NOT NULL DEFAULT 0,
             lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
             upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
             device_id TEXT,
@@ -5867,6 +5875,8 @@ def init_db():
                 municipal_sensor_last_updated TEXT,
                 municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
                 municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
+                source_outlet_valve_simulated INTEGER NOT NULL DEFAULT 0,
+                source_pump_fill_feature_enabled INTEGER NOT NULL DEFAULT 0,
                 lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
                 upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
                 device_id TEXT,
@@ -11760,6 +11770,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                reset_reason, free_heap, uptime_s, lower_tank_level, lower_sensor,
                municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
                municipal_sensor_reachable, municipal_valve_simulated, municipal_valve_feature_enabled,
+               source_outlet_valve_simulated, source_pump_fill_feature_enabled,
                lower_turbidity_simulated, upper_turbidity_simulated,
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
@@ -11850,6 +11861,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
             "municipal_sensor_simulated": bool_flag(current.get("municipal_sensor_simulated")),
             "motorized_valve_enabled": bool_flag(current.get("municipal_valve_feature_enabled")),
             "motorized_valve_simulated": bool_flag(current.get("municipal_valve_simulated")),
+            "source_outlet_valve_enabled": bool_flag(current.get("source_pump_fill_feature_enabled")),
+            "source_outlet_valve_simulated": bool_flag(current.get("source_outlet_valve_simulated")),
             "lower_turbidity_simulated": bool_flag(current.get("lower_turbidity_simulated")),
             "upper_turbidity_simulated": bool_flag(current.get("upper_turbidity_simulated")),
         }
@@ -19211,7 +19224,13 @@ def admin_device_detail_simulator(device_id):
             )
         )
     simulator_enabled, command_prefix, target_label, feature_enabled, live_feature_key = target_config[simulator_target]
-    if not simulator_enabled and not feature_enabled:
+    requested_state = str(request.form.get("simulator_enabled") or "").strip().lower()
+    desired_enabled = (
+        boolish_enabled(requested_state, default=not simulator_enabled)
+        if requested_state in {"0", "1", "true", "false", "yes", "no", "on", "off"}
+        else not simulator_enabled
+    )
+    if desired_enabled and not feature_enabled:
         return redirect(
             url_for(
                 "device_detail_page",
@@ -19219,7 +19238,7 @@ def admin_device_detail_simulator(device_id):
                 config_error=f"Enable the {target_label} feature before enabling its simulator.",
             )
         )
-    command = f"{command_prefix}_{'OFF' if simulator_enabled else 'ON'}"
+    command = f"{command_prefix}_{'ON' if desired_enabled else 'OFF'}"
     logger.info(
         "Simulator request received: device=%s target=%s current=%s command=%s ajax=%s",
         scoped_device_id, simulator_target, "ON" if simulator_enabled else "OFF", command,
@@ -19227,7 +19246,7 @@ def admin_device_detail_simulator(device_id):
     )
     prerequisite_command = None
     if (
-        not simulator_enabled
+        desired_enabled
         and live_feature_key
         and not runtime_sync_service_enabled(snapshot, live_feature_key)
     ):
@@ -19259,15 +19278,15 @@ def admin_device_detail_simulator(device_id):
             "queued_at": result.get("queued_at"),
         },
     )
-    message = f"{target_label} simulator {'disable' if simulator_enabled else 'enable'} command queued."
+    message = f"{target_label} simulator {'enable' if desired_enabled else 'disable'} command queued."
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
             config_message=message,
-            simulator_state=("off" if simulator_enabled else "on") if simulator_target == "tank" else "",
-            valve_simulator_state=("off" if simulator_enabled else "on") if simulator_target == "valve" else "",
-            outlet_valve_simulator_state=("off" if simulator_enabled else "on") if simulator_target == "outlet_valve" else "",
+            simulator_state=("on" if desired_enabled else "off") if simulator_target == "tank" else "",
+            valve_simulator_state=("on" if desired_enabled else "off") if simulator_target == "valve" else "",
+            outlet_valve_simulator_state=("on" if desired_enabled else "off") if simulator_target == "outlet_valve" else "",
         )
     )
 
