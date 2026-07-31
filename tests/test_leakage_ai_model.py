@@ -152,6 +152,18 @@ def test_motor_activity_ignores_duplicate_on_off_samples():
     assert metrics["runtime_seconds"] == 2 * 60
 
 
+def test_current_pump_run_is_included_before_an_off_reading_arrives():
+    times, values = server.extend_ongoing_motor_activity(
+        ["2026-07-31 20:00:00", "2026-07-31 20:01:00"],
+        [0, 1],
+        "2026-07-31 20:02:23",
+    )
+    metrics = server.build_motor_activity_metrics(times, values)
+
+    assert metrics["runtime_seconds"] == 83
+    assert metrics["started_runs"] == 1
+
+
 def test_chart_downsampling_preserves_short_minimum_and_maximum():
     times = list(range(100))
     values = [50.0] * 100

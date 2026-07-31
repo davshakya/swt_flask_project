@@ -97,6 +97,18 @@ def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
     assert "Source bank reached maximum 95%" in animation
 
 
+def test_customer_dashboard_has_configuration_aware_live_water_visualization():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="waterVisualDialog"' in template
+    assert "Visualize current water flow" in template
+    assert "function renderWaterVisualization" in template
+    assert "waterSystemIssue" in template
+    assert "municipalEnabled" in template
+    assert "sourceState.monitoringActive" in template
+    assert 'classList.toggle("problem",problem)' in template
+
+
 def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 

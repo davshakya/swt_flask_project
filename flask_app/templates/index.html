@@ -106,6 +106,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-hero-stat strong{margin-top:8px;font-size:1.32rem;letter-spacing:-.03em}
 .customer-dashboard .customer-hero-stat div{margin-top:6px;font-size:13px;line-height:1.5;color:var(--customer-text-soft)}
 .customer-dashboard .customer-control-card .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.customer-dashboard .customer-control-card .controls button{width:100%;min-width:0;white-space:normal;line-height:1.2}
 .customer-dashboard .customer-control-card #commandBanner,.customer-dashboard .customer-control-card #warningBanner{margin-top:12px}
 .customer-dashboard .customer-summary-panel h3,.customer-dashboard .customer-group-panel h3,.customer-dashboard .customer-guidance-panel h3,.customer-dashboard .customer-timeline-panel h3{font-size:1.42rem;letter-spacing:-.03em}
 .customer-dashboard .customer-status-row{margin-top:18px}
@@ -134,7 +135,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}
 .customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;align-items:start;min-width:0;min-height:122px;padding:18px 20px;border-radius:22px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(239,248,247,.82));box-shadow:inset 0 1px 0 rgba(255,255,255,.84),0 12px 26px rgba(15,84,98,.08)}
 .customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;line-height:1.2;letter-spacing:.13em}
-.customer-dashboard .customer-insight-card strong{align-self:end;min-width:0;margin-top:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:clamp(1.55rem,2.3vw,2rem);line-height:1.05;letter-spacing:-.035em}
+.customer-dashboard .customer-insight-card strong{align-self:end;min-width:0;margin-top:16px;overflow-wrap:anywhere;font-size:clamp(1.55rem,2.3vw,2rem);line-height:1.08;letter-spacing:-.035em}
 .customer-dashboard .customer-recommendation{margin-top:16px;padding:16px 18px;border-radius:20px;background:var(--info-bg);border:1px solid var(--info-line)}
 .customer-dashboard .customer-recommendation strong{display:block;margin-top:7px;font-size:1.18rem}.customer-dashboard .customer-recommendation p{margin-top:5px;line-height:1.45;color:var(--customer-text-soft)}
 .metric-help{display:inline-flex!important;align-items:center;justify-content:center;width:17px;height:17px;margin-left:5px;border-radius:50%;background:var(--button-lite-bg);color:var(--primary)!important;font-size:10px!important;line-height:1!important;letter-spacing:0!important;text-transform:none!important;cursor:help;vertical-align:middle}
@@ -158,6 +159,13 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .charts{align-items:start}
 .customer-dashboard .charts .tank-chart-panel{grid-column:1/-1}
 .customer-dashboard .charts .pump-chart-panel{grid-column:1/-1}
+.water-visualize-button{width:100%;gap:9px;background:linear-gradient(135deg,#087f9c,#0f9f72);color:#fff;box-shadow:0 12px 26px rgba(8,127,156,.22)}
+.water-visual-dialog{width:min(920px,calc(100% - 24px));max-height:90vh;padding:0;border:1px solid var(--line);border-radius:24px;background:var(--panel-strong);color:var(--text);box-shadow:0 34px 90px rgba(0,0,0,.38)}.water-visual-dialog::backdrop{background:rgba(2,12,18,.72);backdrop-filter:blur(4px)}
+.water-visual-shell{padding:20px}.water-visual-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.water-visual-head h2{margin:0}.water-visual-close{min-height:40px;padding:8px 13px;background:var(--button-lite-bg);color:var(--text)}
+.water-visual-status{margin-top:14px;padding:12px 14px;border-radius:15px;background:var(--info-bg);border:1px solid var(--info-line);font-weight:800}.water-visual-status.issue{background:var(--danger-bg);border-color:var(--danger-line);color:var(--danger)}.water-visual-status.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn)}
+.water-flow-stage{margin-top:18px;padding:20px;border-radius:20px;background:linear-gradient(180deg,var(--tank-inner-bg),color-mix(in srgb,var(--tank-inner-bg) 88%,#071018));overflow:auto}.water-flow-route{min-width:650px;display:flex;align-items:center;justify-content:center;gap:0}.flow-node{position:relative;display:grid;place-items:center;align-content:center;width:128px;min-height:112px;padding:12px;border:2px solid #527080;border-radius:20px;background:#102c3a;color:#f4fbfd;text-align:center}.flow-node strong{font-size:15px}.flow-node span{margin-top:6px;color:#b8d5dc;font-size:12px}.flow-node.hidden{display:none}.flow-node.problem{border-color:#ff667d;box-shadow:0 0 0 5px rgba(255,102,125,.15);animation:issuePulse 1.2s ease-in-out infinite}.flow-node.running{border-color:#4cdaa0;box-shadow:0 0 20px rgba(76,218,160,.24)}
+.flow-link{width:64px;height:9px;background:#526a74;flex:0 0 64px;border-radius:999px;position:relative;overflow:hidden}.flow-link.active{background:#0d6480}.flow-link.active::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 10px,#7cecff 10px 18px);animation:waterMove .55s linear infinite}.flow-link.hidden{display:none}.water-visual-legend{margin-top:14px;color:var(--muted);line-height:1.5}.water-visual-config{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}.water-visual-chip{padding:7px 10px;border-radius:999px;background:var(--button-lite-bg);border:1px solid var(--button-outline);font-size:12px;font-weight:800}
+@keyframes waterMove{to{transform:translateX(18px)}}@keyframes issuePulse{50%{box-shadow:0 0 0 9px rgba(255,102,125,.06)}}
 .customer-dashboard .charts canvas{height:360px!important}
 .customer-dashboard .customer-section-grid{align-items:start}
 .customer-dashboard .system-health-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
@@ -176,6 +184,9 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-pulse-card p,.customer-pulse-card span,.customer-dashboard .hero-lead,.customer-dashboard .brand-status{color:var(--customer-text-soft)}
 .customer-pulse-card.is-featured{background:linear-gradient(135deg,rgba(12,116,131,.98),rgba(16,82,112,.96))}
 .customer-dashboard .charts .panel{background:linear-gradient(180deg,rgba(11,29,39,.92),rgba(8,23,33,.9))}
+.customer-dashboard .customer-hero-main,.customer-dashboard .customer-control-card{background:linear-gradient(180deg,rgba(12,31,42,.98),rgba(8,24,34,.94));color:#f5fcfe}
+.customer-dashboard .customer-recommendation{background:rgba(15,49,61,.92);border-color:rgba(113,215,230,.22)}
+.customer-dashboard .customer-recommendation p{color:#d5edf3}.customer-dashboard .customer-recommendation strong{color:#65e3a9}
 }
 @media (max-width:1180px){
 .customer-dashboard .hero,.customer-dashboard .split,.customer-dashboard .charts,.customer-dashboard .split.customer-only{grid-template-columns:1fr}
@@ -293,6 +304,7 @@ canvas{height:260px!important}
                     <div id="sourceTankLiters" class="sub">Monitoring OFF</div>
                 </div>
             </div>
+            <button class="water-visualize-button customer-only" type="button" onclick="openWaterVisualization()">Visualize current water flow</button>
             <div class="pair">
                 <div class="mini"><span class="label">Tank Health</span><strong id="healthScore">--</strong></div>
                 <div class="mini"><span class="label">Connection</span><strong id="tankConnectionSummary">--</strong></div>
@@ -605,6 +617,26 @@ canvas{height:260px!important}
                 <button class="btn-outline" type="button" onclick="closeMotorConfirmation(false)">Cancel</button>
                 <button id="motorConfirmButton" class="btn-on" type="button" onclick="closeMotorConfirmation(true)">Confirm</button>
             </div>
+        </div>
+    </dialog>
+
+    <dialog id="waterVisualDialog" class="water-visual-dialog" aria-labelledby="waterVisualTitle">
+        <div class="water-visual-shell">
+            <div class="water-visual-head"><div><div class="eyebrow">Live system behavior</div><h2 id="waterVisualTitle">Current water flow</h2></div><button class="water-visual-close" type="button" onclick="closeWaterVisualization()">Close</button></div>
+            <div id="waterVisualStatus" class="water-visual-status">Waiting for the current device state.</div>
+            <div class="water-flow-stage">
+                <div class="water-flow-route">
+                    <div id="flowMunicipalNode" class="flow-node"><strong>Municipal water</strong><span id="flowMunicipalDetail">Checking</span></div>
+                    <div id="flowMunicipalLink" class="flow-link"></div>
+                    <div id="flowSourceNode" class="flow-node"><strong>Source tank</strong><span id="flowSourceDetail">Checking</span></div>
+                    <div id="flowSourceLink" class="flow-link"></div>
+                    <div id="flowPumpNode" class="flow-node"><strong>Pump</strong><span id="flowPumpDetail">Stopped</span></div>
+                    <div id="flowUpperLink" class="flow-link"></div>
+                    <div id="flowUpperNode" class="flow-node"><strong>Upper tank</strong><span id="flowUpperDetail">Checking</span></div>
+                </div>
+            </div>
+            <div id="waterVisualConfig" class="water-visual-config"></div>
+            <p id="waterVisualLegend" class="water-visual-legend">Moving blue water indicates the route that is active now. A red pulse identifies the component requiring attention.</p>
         </div>
     </dialog>
 
@@ -2357,6 +2389,51 @@ function renderTank(snapshot){
     document.getElementById("sourceTankLiters").textContent=sourceState.volumeText;
 }
 
+function waterSystemIssue(snapshot,sourceState){
+    const telemetry=String(snapshot?.telemetry_status||state.data.systemStatus?.telemetry_status||"").toLowerCase();
+    if(telemetry==="stale")return{node:"pump",tone:"warn",text:"Live connection is delayed. This animation is showing the last known device behavior."};
+    const upperSensor=String(snapshot?.sensor||"").toUpperCase();
+    if(upperSensor&&upperSensor!=="OK")return{node:"upper",tone:"issue",text:"Upper-tank level sensor is not reporting correctly. Automatic filling is protected."};
+    if(sourceState.monitoringActive&&!sourceState.levelAvailable)return{node:"source",tone:"issue",text:"Source-tank reading is unavailable. The pump is protected from running without a valid source level."};
+    const valveState=String(snapshot?.motorized_valve_status||snapshot?.valve_state||snapshot?.inlet_valve_state||"").toLowerCase();
+    if(/fault|error|stuck|timeout/.test(valveState))return{node:"pump",tone:"issue",text:"A motorized valve is not reaching its requested position. Check the valve and its feedback."};
+    if(String(snapshot?.dry_run||"").toUpperCase()==="YES"||snapshot?.dry_run_active===true)return{node:"pump",tone:"issue",text:"Dry-run protection has stopped the pump because water supply was not confirmed."};
+    if(["pipe_leak","slow_leak","drip"].some((key)=>String(snapshot?.[key]||"").toUpperCase()==="YES"))return{node:"upper",tone:"issue",text:"A possible water-loss condition is active. Review alerts and inspect the plumbing."};
+    return null;
+}
+function renderWaterVisualization(snapshot=state.data.snapshot){
+    if(!snapshot)return;
+    const sourceState=buildSourceTankState(snapshot);
+    const municipalFlag=snapshot.municipal_feature_enabled??snapshot.municipal_sensor_feature_enabled??snapshot.municipal_valve_feature_enabled;
+    const municipalEnabled=municipalFlag===true||String(municipalFlag||"").toUpperCase()==="ON";
+    const pumpOn=isPumpRunning(String(snapshot.motor||"").toUpperCase());
+    const fill=combinedTankFillStatus(snapshot);
+    const routeText=String(fill.route||snapshot.water_route||"");
+    const route=routeText.toLowerCase();
+    const municipalFlow=fill.filling&&route.includes("municipal");
+    const sourceFlow=fill.filling&&(route.includes("source")||route.includes("borewell"));
+    const sourceVisible=sourceState.monitoringActive&&(!municipalFlow||sourceFlow);
+    const municipalVisible=municipalEnabled&&(!sourceFlow||municipalFlow);
+    const issue=waterSystemIssue(snapshot,sourceState);
+    const status=document.getElementById("waterVisualStatus");
+    const summary=issue?.text||(fill.filling?`Water is flowing now: ${routeText||"configured route to the upper tank"}.`:(pumpOn?"The pump is running; waiting for the tank route confirmation.":"No tank is filling now. The system is monitoring levels and is ready for the next automatic cycle."));
+    status.textContent=summary;status.className=`water-visual-status ${issue?.tone||""}`.trim();
+    const node=(id,visible,detail,running=false,problem=false)=>{const el=document.getElementById(id);el.classList.toggle("hidden",!visible);el.classList.toggle("running",running);el.classList.toggle("problem",problem);const detailEl=el.querySelector("span");if(detailEl)detailEl.textContent=detail;};
+    node("flowMunicipalNode",municipalVisible,municipalFlow?"Supplying water":"Available / standby",municipalFlow,issue?.node==="municipal");
+    node("flowSourceNode",sourceVisible,sourceState.levelAvailable?`${sourceState.visualLevel} full${sourceFlow?" / supplying":" / standby"}`:"Reading unavailable",sourceFlow,issue?.node==="source");
+    node("flowPumpNode",true,pumpOn?"Running":"Stopped",pumpOn,issue?.node==="pump");
+    node("flowUpperNode",true,`${fmtPct(snapshot.level)} full${fill.filling?" / filling":""}`,fill.filling,issue?.node==="upper");
+    const setLink=(id,visible,active)=>{const el=document.getElementById(id);el.classList.toggle("hidden",!visible);el.classList.toggle("active",active);};
+    setLink("flowMunicipalLink",municipalVisible,municipalFlow&&pumpOn);
+    setLink("flowSourceLink",sourceVisible,sourceFlow&&pumpOn);
+    setLink("flowUpperLink",true,fill.filling&&pumpOn);
+    const valvesRequired=municipalEnabled&&sourceState.monitoringActive;
+    const chips=[municipalEnabled?"Municipal feature: Enabled":"Municipal feature: Not installed",sourceState.monitoringActive?"Source tank: Monitored":"Source tank: Not installed",valvesRequired?"Motorized valves: Required":"Motorized valves: Not required",`Control: ${String(snapshot.mode||"AUTO").toUpperCase()}`];
+    const config=document.getElementById("waterVisualConfig");config.replaceChildren(...chips.map((item)=>{const chip=document.createElement("span");chip.className="water-visual-chip";chip.textContent=item;return chip;}));
+}
+function openWaterVisualization(){const dialog=document.getElementById("waterVisualDialog");renderWaterVisualization();if(typeof dialog.showModal==="function")dialog.showModal();else dialog.setAttribute("open","");}
+function closeWaterVisualization(){const dialog=document.getElementById("waterVisualDialog");if(typeof dialog.close==="function")dialog.close();else dialog.removeAttribute("open");}
+
 function renderSnapshot(snapshot){
     const upperTankIncreasing=updateUpperTankTrend(snapshot);
     renderTank(snapshot);
@@ -2410,6 +2487,7 @@ function renderSnapshot(snapshot){
     renderCustomerOverview(snapshot,state.data.systemStatus);
     updateCustomerSpotlightCards({snapshot,system:state.data.systemStatus,analytics:state.data.analytics});
     renderOperationalSummary(snapshot,state.data.systemStatus,state.data.analytics);
+    if(document.getElementById("waterVisualDialog")?.open)renderWaterVisualization(snapshot);
     setText("actionHint",sourceState.hintText);
     applyStatusTone("actionHint",sourceState.hintTone);
     ["btn_on","btn_off"].forEach((id)=>nodesById(id).forEach((button)=>button.classList.remove("active")));

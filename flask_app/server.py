@@ -8943,6 +8943,29 @@ def build_motor_activity_metrics(time_values, value_values):
     }
 
 
+def extend_ongoing_motor_activity(time_values, value_values, current_time):
+    """Close a fresh, currently-ON relay interval at the analysis time."""
+    times = list(time_values or [])
+    values = list(value_values or [])
+    if not times or not values or len(times) != len(values):
+        return times, values
+    try:
+        last_on = int(values[-1]) == 1
+    except (TypeError, ValueError):
+        return times, values
+    last_time = parse_timestamp(times[-1])
+    end_time = parse_timestamp(current_time)
+    if not last_on or last_time is None or end_time is None:
+        return times, values
+    trailing_seconds = (end_time - last_time).total_seconds()
+    freshness_limit = max(60.0, min(ANALYTICS_MAX_GAP_MINUTES * 60.0, STALE_AFTER_SECONDS))
+    if trailing_seconds <= 0 or trailing_seconds > freshness_limit:
+        return times, values
+    times.append(end_time.strftime(TIMESTAMP_FORMAT))
+    values.append(1)
+    return times, values
+
+
 def build_observed_motor_activity_series(rows):
     """Build a gap-safe relay series from raw telemetry, including sensor-error rows."""
     times = []
@@ -11017,6 +11040,12 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     valid_hours = level_usage["valid_hours"]
     valid_drop_count = level_usage["valid_drop_count"]
     consumption_rate_segments = level_usage["consumption_rate_segments"]
+    activity_window_end = min(end_exclusive, now_utc())
+    observed_motor_times, observed_motor_values = extend_ongoing_motor_activity(
+        observed_motor_times,
+        observed_motor_values,
+        activity_window_end,
+    )
     observed_motor_metrics = build_motor_activity_metrics(observed_motor_times, observed_motor_values)
     observed_motor_has_on_state = any(value == 1 for value in observed_motor_values)
     inferred_motor_metrics = build_motor_activity_metrics(inferred_motor_times, inferred_motor_values)
