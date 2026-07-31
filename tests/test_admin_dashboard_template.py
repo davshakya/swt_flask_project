@@ -102,6 +102,7 @@ def test_customer_dashboard_has_configuration_aware_live_water_visualization():
 
     assert 'id="waterVisualDialog"' in template
     assert "Visualize current water flow" in template
+    assert "openWaterVisualization,closeWaterVisualization" in template
     assert "function renderWaterVisualization" in template
     assert "waterSystemIssue" in template
     assert "municipalEnabled" in template
