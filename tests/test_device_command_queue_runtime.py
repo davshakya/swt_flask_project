@@ -1,6 +1,18 @@
 from flask_app import server
 
 
+def test_named_test_device_credentials_are_included_in_registry(monkeypatch):
+    monkeypatch.setenv("SWT_DEVICE_KEYS", "swt-test-000-000-002:old-key")
+    monkeypatch.setenv("SWT_TEST_DEVICE_ID", "swt-test-000-000-002")
+    monkeypatch.setenv("SWT_TEST_DEVICE_API_KEY", "current-test-key")
+    monkeypatch.delenv("DEVICE_KEYS", raising=False)
+
+    registry, source = server.resolve_device_key_registry()
+
+    assert registry.endswith("swt-test-000-000-002:current-test-key")
+    assert "SWT_TEST_DEVICE_ID/SWT_TEST_DEVICE_API_KEY" in source
+
+
 def test_motorized_valve_feature_defaults_off_and_persists_independently():
     device_id = "swt-valve-feature-test-001"
     with server.get_db() as db:

@@ -272,6 +272,16 @@ def resolve_device_key_registry():
         registry_items.append(f"{shared_device_id}:{shared_device_key}")
         registry_sources.append("SWT_DEVICE_ID/SWT_DEVICE_API_KEY")
 
+    # Test controllers use an independent credential so development firmware
+    # never shares the production device key. Previously SWT_TEST_DEVICE_API_KEY
+    # was loaded but omitted from the active registry, causing every telemetry
+    # upload and command poll to fail with HTTP 403.
+    test_device_id = os.environ.get("SWT_TEST_DEVICE_ID", "").strip()
+    test_device_key = os.environ.get("SWT_TEST_DEVICE_API_KEY", "").strip()
+    if test_device_id and test_device_key:
+        registry_items.append(f"{test_device_id}:{test_device_key}")
+        registry_sources.append("SWT_TEST_DEVICE_ID/SWT_TEST_DEVICE_API_KEY")
+
     if registry_items:
         return ",".join(registry_items), ",".join(registry_sources)
 
