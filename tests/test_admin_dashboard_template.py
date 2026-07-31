@@ -101,13 +101,24 @@ def test_customer_dashboard_has_configuration_aware_live_water_visualization():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
     assert 'id="waterVisualDialog"' in template
-    assert "Visualize current water flow" in template
+    assert "Visualize Water Flow" in template
     assert "openWaterVisualization,closeWaterVisualization" in template
     assert "function renderWaterVisualization" in template
     assert "waterSystemIssue" in template
     assert "municipalEnabled" in template
     assert "sourceState.monitoringActive" in template
     assert 'classList.toggle("problem",problem)' in template
+    assert 'id="waterVisualAction"' in template
+    assert 'id="waterComponentGrid"' in template
+    assert 'id="waterIssueDetail"' in template
+    assert "function normalizeWaterSystemState" in template
+    assert "function evaluateWaterSystemIssues" in template
+    assert '"PUMP_NO_LEVEL_CHANGE"' in template
+    assert '"PUMP_FLOW_UNCONFIRMED"' in template
+    assert '"FLOW_WITH_PUMP_OFF"' in template
+    assert '"VALVE_POSITION_MISMATCH"' in template
+    assert '"SLAVE_OFFLINE"' in template
+    assert "prefers-reduced-motion:reduce" in template
 
 
 def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
