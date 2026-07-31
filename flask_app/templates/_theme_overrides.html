@@ -1,0 +1,93 @@
+<style id="swt-global-theme-overrides">
+/* Loaded after page styles so every Flask surface follows the same contrast rules. */
+html{color-scheme:light dark}
+body{color:var(--text,#12303a)}
+button,input,select,textarea{font:inherit}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+select,
+textarea{
+  background-color:var(--input-bg,var(--panel,#fff))!important;
+  border-color:var(--line,rgba(19,78,94,.16))!important;
+  color:var(--text,#12303a)!important;
+  caret-color:var(--primary,#1389a5);
+}
+select option{
+  background-color:var(--panel,#fff);
+  color:var(--text,#12303a);
+}
+input::placeholder,textarea::placeholder{
+  color:var(--muted,#5f7d86)!important;
+  opacity:1;
+}
+input:disabled,select:disabled,textarea:disabled{
+  color:var(--muted,#5f7d86)!important;
+  opacity:.72;
+}
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--text,#12303a)!important;
+  box-shadow:0 0 0 1000px var(--input-bg,var(--panel,#fff)) inset!important;
+  transition:background-color 9999s ease-out 0s;
+}
+.label,.summary-label,.detail-label,.info-label,.peer-diagnostic-label,
+.form-group>label,.metric-label,.setting-label{
+  color:var(--primary,#1389a5)!important;
+}
+.value,.summary-value,.detail-value,.info-value,.peer-diagnostic-value,
+.statuscopy,.list-title,.activity-message{
+  color:var(--text,#12303a);
+}
+.subvalue,.summary-note,.detail-note,.helper-text,.list-meta,.activity-meta{
+  color:var(--muted,#5f7d86);
+}
+.result-dialog,[role="dialog"],dialog{
+  background-color:var(--panel,#fff);
+  border-color:var(--line,rgba(19,78,94,.16));
+  color:var(--text,#12303a);
+}
+table{color:var(--text,#12303a)}
+th{color:var(--muted,#5f7d86)}
+code,pre{
+  color:var(--text,#12303a);
+  background-color:var(--list-bg,var(--panel,#fff));
+}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--primary,#1389a5) 55%,transparent);outline-offset:2px}
+
+@media (prefers-color-scheme:dark){
+  body{color:var(--text,#e6f4f7)}
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea{
+    background-color:var(--input-bg,var(--panel,#0b1a23))!important;
+    border-color:var(--line,rgba(154,202,221,.18))!important;
+    color:var(--text,#e6f4f7)!important;
+  }
+  select option{
+    background-color:var(--panel,#0b1a23);
+    color:var(--text,#e6f4f7);
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus{
+    -webkit-text-fill-color:var(--text,#e6f4f7)!important;
+    box-shadow:0 0 0 1000px var(--input-bg,var(--panel,#0b1a23)) inset!important;
+  }
+  .label,.summary-label,.detail-label,.info-label,.peer-diagnostic-label,
+  .form-group>label,.metric-label,.setting-label{
+    color:var(--primary,#55c1dd)!important;
+  }
+  .value,.summary-value,.detail-value,.info-value,.peer-diagnostic-value,
+  .statuscopy,.list-title,.activity-message{
+    color:var(--text,#e6f4f7);
+  }
+  .subvalue,.summary-note,.detail-note,.helper-text,.list-meta,.activity-meta{
+    color:var(--muted,#9fb7c0);
+  }
+  .result-dialog,[role="dialog"],dialog{
+    background-color:var(--panel,#0b1a23);
+    border-color:var(--line,rgba(154,202,221,.18));
+    color:var(--text,#e6f4f7);
+  }
+}
+</style>

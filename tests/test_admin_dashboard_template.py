@@ -77,7 +77,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260730-1'" in login_template
+    assert "water_flow_animation.html', v='20260731-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
@@ -104,6 +104,7 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
         "auto",
         "municipal-source",
         "municipal-upper",
+        "municipal-direct",
         "source-pump-fill",
         "source-upper",
         "source-only",
@@ -144,6 +145,18 @@ def test_water_flow_animation_removes_optional_municipal_hardware_from_source_on
     assert "body.source-only #valveSensorCard" in animation
     assert "No municipal inlet or motorized valves are installed" in animation
     assert "independent OPEN / CLOSE pair for each installed valve" in animation
+
+
+def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'data-mode="municipal-direct"' in animation
+    assert 'id="municipalOnlyBypass"' in animation
+    assert "body.municipal-direct #sourceTankHardware" in animation
+    assert "body.municipal-direct #threeWayValve" in animation
+    assert "body.municipal-direct #outletValve" in animation
+    assert "Municipal → Pump → Upper · No source / valves" in animation
+    assert "Direct municipal setup requires a healthy water-availability input" in animation
 
 
 def test_homepage_uses_fading_water_plan_preview_slider():
@@ -903,7 +916,7 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'id="upperSensorSetupSection"' in device_template
     assert 'id="lowerSensorSetupSection"' in device_template
     assert 'id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled"' in device_template
-    assert 'onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"' in device_template
+    assert 'window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()' in device_template
     assert '{% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}' in device_template
     assert "{% if master_upper_checked or slave_upper_checked %}" in device_template
     assert 'class="admin-form sensor-setup-card {% if not service_config.get("source_tank_monitoring_enabled") %}hidden-section{% endif %}" id="lowerSensorSetupSection"' in device_template

@@ -454,6 +454,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 }
 @media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
 </style>
+{% include '_theme_overrides.html' %}
 </head>
 <body class="admin-control-room">
 {% set total_devices = device_summary.total_registered_devices or 0 %}

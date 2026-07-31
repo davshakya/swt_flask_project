@@ -16597,7 +16597,6 @@ def mobile_device_peer_channel():
         )
         if requested_channel is None:
             raise ValueError("Peer channel is required.")
-        municipal_feature_enabled = "municipal_sensor_enabled" in request.form
         updated_config = upsert_device_service_config(
             target_device,
             direct_peer_wifi_channel=requested_channel,
@@ -17754,14 +17753,16 @@ def admin_customer_services(device_id):
                     else DEVICE_SERVICE_CLOUD_FEED_BASIC
                 )
             )
+        municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+        source_tank_enabled = "source_tank_monitoring_enabled" in request.form
         updated_config = upsert_device_service_config(
             normalized_device_id,
             main_sensor_enabled=("main_sensor_enabled" in request.form),
             slave_device_enabled=("slave_device_enabled" in request.form),
-            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            source_tank_monitoring_enabled=source_tank_enabled,
             municipal_sensor_enabled=municipal_feature_enabled,
-            municipal_valve_enabled=municipal_feature_enabled and ("municipal_valve_enabled" in request.form),
-            source_outlet_valve_enabled=municipal_feature_enabled and ("source_outlet_valve_enabled" in request.form),
+            municipal_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form),
+            source_outlet_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
@@ -18262,9 +18263,22 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
     )
     outlet_valve_route = device_detail_card_title(snapshot.get("source_outlet_route"), "Not reported")
     outlet_valve_state = device_detail_card_title(snapshot.get("source_outlet_valve_state"), "Not reported")
+    municipal_direct_upper = boolish_enabled(
+        saved_service_config.get("municipal_sensor_enabled"), default=False
+    ) and not source_monitoring
+    water_routing_mode = (
+        "Municipal Water -> Pump -> Upper Tank (direct; no valves)"
+        if municipal_direct_upper
+        else (
+            "Source/municipal multi-tank routing"
+            if source_monitoring
+            else "Pump -> Upper Tank"
+        )
+    )
     card_values = [
         ("Firmware", device_detail_card_display(snapshot.get("firmware_version"))),
         ("Configuration", "Master + Slave" if uses_slave else "Master Only"),
+        ("Water Routing", water_routing_mode),
         ("Master Reachability", device_detail_card_display(system_status.get("master_status_label"), "Unreachable")),
         ("Slave Reachability", device_detail_card_display(system_status.get("slave_status_label"), "Reachable" if uses_slave else "Disabled")),
         ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
@@ -18644,6 +18658,8 @@ def admin_device_detail_configuration(device_id):
     elif slave_upper_sensor_enabled:
         master_upper_sensor_enabled = False
     main_sensor_enabled = master_upper_sensor_enabled or slave_upper_sensor_enabled
+    municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+    source_tank_enabled = "source_tank_monitoring_enabled" in request.form
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
@@ -18651,10 +18667,10 @@ def admin_device_detail_configuration(device_id):
             master_upper_sensor_enabled=master_upper_sensor_enabled,
             slave_device_enabled=slave_device_enabled,
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
-            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
-            municipal_sensor_enabled=("municipal_sensor_enabled" in request.form),
-            municipal_valve_enabled=("municipal_valve_enabled" in request.form),
-            source_outlet_valve_enabled=("source_outlet_valve_enabled" in request.form),
+            source_tank_monitoring_enabled=source_tank_enabled,
+            municipal_sensor_enabled=municipal_feature_enabled,
+            municipal_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form),
+            source_outlet_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),

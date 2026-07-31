@@ -301,8 +301,9 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert 'name="simulator_target" value="municipal"' in simulator_section
     assert 'name="simulator_target" value="valve"' in simulator_section
     assert "function setValveSimulatorSwitchState(snapshot)" in template
-    assert 'snapshot?.municipal_valve_state||"closed"' in template
-    assert '`ON · ${route==="municipal"?"Municipal Water":"Source Tank"}' in template
+    assert "setSimulatorSwitchState(button,active);" in template
+    assert 'municipalValveSimulatorToggleButton' in template
+    assert '{{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}' in template
     assert "snapshot?.municipal_valve_route" in template
     assert 'name="simulator_target" value="tank"' in simulator_section
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
