@@ -47,6 +47,22 @@ def test_admin_device_detail_template_has_threshold_save_form():
     assert "Auto Start/Stop" in source
 
 
+def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    server = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert 'name="device_setup_type"' in template
+    for setup_type in ("source_only", "municipal_direct", "dual_source_gravity", "dual_source_pumped", "custom"):
+        assert f'value="{setup_type}"' in template
+    assert "const DEVICE_SETUP_PRESETS=" in template
+    assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template
+    assert 'setVisible("municipalValveSimulatorForm",usesInletValve)' in template
+    assert 'setVisible("sourceOutletValveSimulatorForm",usesOutletValve)' in template
+    assert "DEVICE_SETUP_TYPE_FEATURES = {" in server
+    assert 'setup_type = str(request.form.get("device_setup_type") or "custom")' in server
+    assert 'setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)' in server
+
+
 def test_device_detail_status_and_template_include_live_configuration_grid():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     route_start = source.index('@app.route("/devices/<device_id>/status")')

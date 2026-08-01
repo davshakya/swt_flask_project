@@ -18647,6 +18647,33 @@ SIMULATOR_FEATURE_DEPENDENCIES = (
     ("slave_turbidity_enabled", "upper_turbidity_simulated", "UPPER_TURBIDITY_SIMULATOR_OFF", "Upper turbidity"),
 )
 
+DEVICE_SETUP_TYPE_FEATURES = {
+    "source_only": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": False,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+    },
+    "municipal_direct": {
+        "source_tank_monitoring_enabled": False,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+    },
+    "dual_source_gravity": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": True,
+        "source_outlet_valve_enabled": False,
+    },
+    "dual_source_pumped": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": True,
+        "source_outlet_valve_enabled": True,
+    },
+}
+
 
 def simulator_enabled_for_feature(snapshot, service_config, simulator_key, feature_key):
     if not bool((service_config or {}).get(feature_key)):
@@ -18698,8 +18725,17 @@ def admin_device_detail_configuration(device_id):
     elif slave_upper_sensor_enabled:
         master_upper_sensor_enabled = False
     main_sensor_enabled = master_upper_sensor_enabled or slave_upper_sensor_enabled
+    setup_type = str(request.form.get("device_setup_type") or "custom").strip().lower()
+    setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
     municipal_feature_enabled = "municipal_sensor_enabled" in request.form
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
+    municipal_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form)
+    source_outlet_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form)
+    if setup_features is not None:
+        source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
+        municipal_feature_enabled = setup_features["municipal_sensor_enabled"]
+        municipal_valve_enabled = setup_features["municipal_valve_enabled"]
+        source_outlet_valve_enabled = setup_features["source_outlet_valve_enabled"]
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
@@ -18709,8 +18745,8 @@ def admin_device_detail_configuration(device_id):
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
             source_tank_monitoring_enabled=source_tank_enabled,
             municipal_sensor_enabled=municipal_feature_enabled,
-            municipal_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form),
-            source_outlet_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form),
+            municipal_valve_enabled=municipal_valve_enabled,
+            source_outlet_valve_enabled=source_outlet_valve_enabled,
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
@@ -18780,6 +18816,7 @@ def admin_device_detail_configuration(device_id):
             device_id=scoped_device_id,
             details={
                 "service_config": updated_config,
+                "device_setup_type": setup_type,
                 "queued_command": queued_command,
                 "queue_error": queue_error,
                 "simulator_off_commands": simulator_off_commands,
