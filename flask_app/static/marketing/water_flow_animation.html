@@ -84,7 +84,9 @@
         <path class="wifi-wire" d="M900 662V700H500V662"/><text x="675" y="694" class="network-tag">CONTROLLER LINK</text>
         <path id="municipalWire" class="connection municipal-wire" d="M212 132V340H520V570H455V590"/>
         <g><rect x="365" y="590" width="185" height="72" rx="14" class="device" id="masterBox"/><text x="392" y="618" class="label">MAIN CONTROLLER</text><text x="388" y="642" class="small">safety · sensors · control</text></g>
-        <path class="control-wire" d="M550 626H580"/><path id="valveControlWire" class="control-wire" d="M630 590C560 430 450 310 350 233"/><path id="outletValveControlWire" class="control-wire" d="M680 590C680 440 650 325 570 233"/>
+        <path class="control-wire" d="M550 626H580"/><path id="valveControlWire" class="control-wire" d="M630 590C560 430 450 310 350 233"/>
+        <!-- Keep the outlet-valve cable in its own corridor, clear of the starter panel and other control wiring. -->
+        <path id="outletValveControlWire" class="control-wire" d="M760 590H778V330H590V250L570 233"/>
         <!-- Relay dry contact operates the starter coil; the starter contactor and overload feed the pump motor. -->
         <path id="relayToStarter" class="control-wire" d="M700 590V430H665V415"/>
         <path id="starterToPump" class="field-power-wire" d="M565 380H540V255H490"/>
