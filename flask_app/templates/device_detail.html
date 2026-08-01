@@ -840,6 +840,7 @@ function syncRuntimeConfigurationOptions(){
     if(municipalValve)municipalValve.checked=false;
     if(outletValve)outletValve.checked=false;
   }
+  syncSimulatorControlsWithRuntimeForm();
   if(!slaveDevice||!slaveUpper||!masterUpper)return;
   const slaveEnabled=slaveDevice.checked;
   slaveUpperRow?.classList.toggle("is-disabled",!slaveEnabled);
@@ -859,6 +860,24 @@ function syncRuntimeConfigurationOptions(){
   const setupSelect=document.getElementById("deviceSetupTypeOption");
   if(setupSelect)setupSelect.value=currentDeviceSetupType();
   syncUpperSensorSetupLabels();
+}
+function runtimeServiceConfigFromForm(){
+  return {
+    ...(INITIAL_SERVICE_CONFIG||{}),
+    main_sensor_enabled:Boolean(
+      document.getElementById("masterUpperSensorOption")?.checked||
+      document.getElementById("slaveUpperSensorOption")?.checked
+    ),
+    source_tank_monitoring_enabled:Boolean(document.getElementById("lowerSensorOption")?.checked),
+    municipal_sensor_enabled:Boolean(document.getElementById("municipalSensorOption")?.checked),
+    municipal_valve_enabled:Boolean(document.getElementById("municipalValveOption")?.checked),
+    source_outlet_valve_enabled:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
+    master_turbidity_enabled:Boolean(document.getElementById("masterTurbidityOption")?.checked),
+    slave_turbidity_enabled:Boolean(document.getElementById("slaveTurbidityOption")?.checked),
+  };
+}
+function syncSimulatorControlsWithRuntimeForm(){
+  updateSimulatorControls(INITIAL_SNAPSHOT||{},runtimeServiceConfigFromForm());
 }
 function syncUpperSensorSetupLabels(){
   const section=document.getElementById("upperSensorSetupSection");

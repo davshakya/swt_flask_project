@@ -58,6 +58,9 @@ def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
     assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template
     assert 'setVisible("municipalValveSimulatorForm",usesInletValve)' in template
     assert 'setVisible("sourceOutletValveSimulatorForm",usesOutletValve)' in template
+    assert "syncSimulatorControlsWithRuntimeForm();" in template
+    assert "function runtimeServiceConfigFromForm(){" in template
+    assert "updateSimulatorControls(INITIAL_SNAPSHOT||{},runtimeServiceConfigFromForm());" in template
     assert "DEVICE_SETUP_TYPE_FEATURES = {" in server
     assert 'setup_type = str(request.form.get("device_setup_type") or "custom")' in server
     assert 'setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)' in server
