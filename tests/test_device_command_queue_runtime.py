@@ -13,6 +13,14 @@ def test_named_test_device_credentials_are_included_in_registry(monkeypatch):
     assert "SWT_TEST_DEVICE_ID/SWT_TEST_DEVICE_API_KEY" in source
 
 
+def test_device_key_registry_resolves_bare_and_explicit_env_references(monkeypatch):
+    monkeypatch.setenv("SWT_TEST_DEVICE_API_KEY", "resolved-test-key")
+
+    assert server.resolve_device_key_value("SWT_TEST_DEVICE_API_KEY") == "resolved-test-key"
+    assert server.resolve_device_key_value("$SWT_TEST_DEVICE_API_KEY") == "resolved-test-key"
+    assert server.resolve_device_key_value("${SWT_TEST_DEVICE_API_KEY}") == "resolved-test-key"
+
+
 def test_motorized_valve_feature_defaults_off_and_persists_independently():
     device_id = "swt-valve-feature-test-001"
     with server.get_db() as db:

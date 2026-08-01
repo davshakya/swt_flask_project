@@ -965,11 +965,13 @@ RELAY_COMMAND_URL_LIST = parse_relay_url_list(RELAY_COMMAND_URLS, "/device/comma
 
 def resolve_device_key_value(value):
     text = str(value or "").strip()
-    if text == "SWT_DEVICE_API_KEY":
-        return os.environ.get("SWT_DEVICE_API_KEY", "").strip()
     env_reference = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", text)
     if env_reference:
         return os.environ.get(env_reference.group(1), "").strip()
+    # Keep backward compatibility with existing registries that use a bare
+    # SWT_*_API_KEY variable name instead of $VAR or ${VAR} syntax.
+    if re.fullmatch(r"SWT_[A-Za-z0-9_]*API_KEY", text):
+        return os.environ.get(text, "").strip()
     return text
 
 
@@ -3769,13 +3771,12 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
             logger.warning("Rejected auto-registered device auth for %s", normalized_device_id)
             return False, None, "invalid device credentials", 403
     elif require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
-        if matched_rule.get("kind") == "wildcard":
-            registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)
-            if registered_rule:
-                matched_rule = registered_rule
-            else:
-                logger.warning("Rejected device auth for %s", normalized_device_id)
-                return False, None, "invalid device credentials", 403
+        # Admin registration is the authoritative per-device credential. Let
+        # it recover a device even when an exact or wildcard environment rule
+        # is stale after a deliberate key rotation.
+        registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)
+        if registered_rule:
+            matched_rule = registered_rule
         else:
             logger.warning("Rejected device auth for %s", normalized_device_id)
             return False, None, "invalid device credentials", 403
