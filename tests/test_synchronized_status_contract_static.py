@@ -33,3 +33,15 @@ def test_android_prefers_flask_normalized_status_contract():
     assert 'synchronizedStatus?.optJSONObject("pump")' in ANDROID
     assert 'synchronizedUpperSensor.ifBlank { mainSensorStatus.label }' in ANDROID
     assert 'synchronizedSourceSensor.ifBlank { lowerSensorStatus.label }' in ANDROID
+
+
+def test_logical_pump_state_precedes_physical_relay_fallback():
+    assert 'pump_state = relay_state_label(cleaned.get("pump"))' in SERVER
+    assert 'pump_state = relay_state_label(cleaned.get("relay_on"))' in SERVER
+    assert SERVER.index('pump_state = relay_state_label(cleaned.get("pump"))') < SERVER.index(
+        'pump_state = relay_state_label(cleaned.get("relay_on"))'
+    )
+    android_pump_reader = ANDROID[ANDROID.index("private fun snapshotPumpRaw") : ANDROID.index("private fun snapshotPumpText")]
+    assert android_pump_reader.index('jsonText(snapshot, "pump")') < android_pump_reader.index(
+        'relayStateLabel(snapshot?.opt("relay_on"))'
+    )

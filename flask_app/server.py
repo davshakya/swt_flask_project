@@ -3982,13 +3982,20 @@ def apply_device_status_aliases(cleaned):
         cleaned["device_local_url"] = cleaned.get("device_ip_url")
     if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
         cleaned["level"] = cleaned.get("main_tank_level")
-    relay_state = relay_state_label(cleaned.get("relay_on"))
-    if relay_state is None:
-        relay_state = relay_state_label(cleaned.get("relay"))
-    if relay_state is not None:
-        cleaned["motor"] = relay_state
-    elif cleaned.get("motor") is None and cleaned.get("pump") is not None:
-        cleaned["motor"] = cleaned.get("pump")
+    # Firmware's logical pump state is authoritative. In simulator builds the
+    # logical pump can be ON while the physical relay output intentionally
+    # remains OFF, so relay_on must only be a legacy fallback.
+    pump_state = relay_state_label(cleaned.get("pump"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("motor"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("swt_relay"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("relay_on"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("relay"))
+    if pump_state is not None:
+        cleaned["motor"] = pump_state
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
     return cleaned
@@ -10680,7 +10687,13 @@ def build_synchronized_status_payload(snapshot, device_id=None, service_config=N
     )
     sensor_status = admin_relay_sensor_status_fields(snapshot, config)
     fresh = snapshot_is_fresh_enough_for_runtime_sync(snapshot)
-    pump_running = str(snapshot.get("motor") or snapshot.get("pump_status") or "OFF").strip().upper() in {"ON", "RUNNING", "ACTIVE"}
+    pump_running = str(
+        snapshot.get("pump")
+        or snapshot.get("motor")
+        or snapshot.get("swt_relay")
+        or snapshot.get("pump_status")
+        or "OFF"
+    ).strip().upper() in {"ON", "RUNNING", "ACTIVE"}
     ai_enabled = boolish_enabled(
         config.get("effective_ai_analysis_enabled", config.get("ai_analysis_enabled")),
         default=True,
