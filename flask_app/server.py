@@ -68,16 +68,6 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
-from flask_app.home_automation_routes import (
-    clear_home_automation_status,
-    list_home_automation_statuses,
-    record_home_automation_status,
-    register_home_automation_routes,
-    set_home_automation_command_queue,
-    set_home_automation_device_access,
-    set_home_automation_mobile_access,
-    set_home_automation_view_context,
-)
 from flask_app.runtime_utils import (
     env_float,
     env_int,
@@ -130,8 +120,6 @@ def load_workspace_device_env_files(project_root, environ):
     candidate_paths = (
         project_device_env,
         workspace_root / "device.env",
-        workspace_root / "home_automation_firmware" / "device.env",
-        workspace_root / "home_automation_android" / "device.env",
         workspace_root / "swt_firmware_project" / "device.env",
         workspace_root / "swt_android_app_project" / "device.env",
     )
@@ -205,7 +193,7 @@ DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
 DEVICE_LOCAL_WEB_PASSWORD_PREFIX = "device_local_web_password:"
-DEFAULT_DEVICE_AUTO_START_PCT = 25.0
+DEFAULT_DEVICE_AUTO_START_PCT = 30.0
 DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
@@ -231,8 +219,6 @@ def resolve_test_repo_root():
 
 
 TEST_REPO_ROOT = resolve_test_repo_root()
-
-
 def normalize_db_path(raw_path):
     return runtime_normalize_db_path(raw_path, project_root=PROJECT_ROOT)
 
@@ -286,14 +272,15 @@ def resolve_device_key_registry():
         registry_items.append(f"{shared_device_id}:{shared_device_key}")
         registry_sources.append("SWT_DEVICE_ID/SWT_DEVICE_API_KEY")
 
-    home_device_id = os.environ.get("HA_DEVICE_ID", "").strip()
-    home_device_key = (
-        os.environ.get("HA_DEVICE_API_KEY", "").strip()
-        or os.environ.get("HA_DEVICE_KEY", "").strip()
-    )
-    if home_device_id and home_device_key:
-        registry_items.append(f"{home_device_id}:{home_device_key}")
-        registry_sources.append("HA_DEVICE_ID/HA_DEVICE_API_KEY")
+    # Test controllers use an independent credential so development firmware
+    # never shares the production device key. Previously SWT_TEST_DEVICE_API_KEY
+    # was loaded but omitted from the active registry, causing every telemetry
+    # upload and command poll to fail with HTTP 403.
+    test_device_id = os.environ.get("SWT_TEST_DEVICE_ID", "").strip()
+    test_device_key = os.environ.get("SWT_TEST_DEVICE_API_KEY", "").strip()
+    if test_device_id and test_device_key:
+        registry_items.append(f"{test_device_id}:{test_device_key}")
+        registry_sources.append("SWT_TEST_DEVICE_ID/SWT_TEST_DEVICE_API_KEY")
 
     if registry_items:
         return ",".join(registry_items), ",".join(registry_sources)
@@ -337,9 +324,6 @@ app.config["SESSION_COOKIE_SECURE"] = os.environ.get(
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=env_int("SESSION_LIFETIME_HOURS", 12))
 app.config["SESSION_COOKIE_NAME"] = os.environ.get("SESSION_COOKIE_NAME", "smart_water_tank_session")
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)
-register_home_automation_routes(app)
-
-
 COMPRESSIBLE_RESPONSE_MIMETYPES = {
     "application/javascript",
     "application/json",
@@ -403,7 +387,14 @@ def apply_security_headers(response):
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
     if request.method == "GET" and request.path.startswith("/static/"):
-        response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
+        # Standalone HTML pages must be revalidated. Caching them as immutable can
+        # reopen an obsolete dashboard after navigation until the user refreshes.
+        if response.mimetype == "text/html":
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        else:
+            response.headers.setdefault("Cache-Control", "public, max-age=2592000, immutable")
     elif request.method == "GET":
         apply_dynamic_cache_headers(response)
     if should_gzip_response(response):
@@ -616,6 +607,7 @@ def build_swt_version():
 SWT_VERSION = build_swt_version()
 API_VERSION = SWT_VERSION
 OTA_CONTRACT_VERSION = 2
+DEPLOY_MARKER = "device-detail-recovery-2026-07-26-v2"
 DEVICE = os.environ.get("DEVICE_URL", "").strip()
 DEFAULT_CUSTOMER_PASSWORD = os.environ.get("DEFAULT_CUSTOMER_PASSWORD", "").strip()
 SEED_DEFAULT_CUSTOMERS = os.environ.get("SEED_DEFAULT_CUSTOMERS", "false").lower() in {"1", "true", "yes"}
@@ -702,17 +694,32 @@ DEFAULT_DEVICE_SOURCE_MODE = (
 MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
+fixed_ai_dashboard_cache = {}
 dashboard_snapshot_cache = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
+ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
+ANALYTICS_MIN_REFILL_DELTA_PCT = max(0.5, env_float("ANALYTICS_MIN_REFILL_DELTA_PCT", 3.0))
+ANALYTICS_MIN_FULL_FILL_DELTA_PCT = max(10.0, env_float("ANALYTICS_MIN_FULL_FILL_DELTA_PCT", 69.0))
+ANALYTICS_FILL_CONFIRM_INTERVALS = max(2, env_int("ANALYTICS_FILL_CONFIRM_INTERVALS", 2))
+ANALYTICS_FILL_STOP_INTERVALS = max(2, env_int("ANALYTICS_FILL_STOP_INTERVALS", 2))
+ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT = max(
+    0.0, env_float("ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT", 2.0)
+)
 ANALYTICS_MIN_BASELINE_USAGE_PCT = env_float("ANALYTICS_MIN_BASELINE_USAGE_PCT", 1.0)
+ANALYTICS_MAX_DAILY_TANK_TURNOVERS = max(
+    1.0, env_float("ANALYTICS_MAX_DAILY_TANK_TURNOVERS", 8.0)
+)
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
+AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
+FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
-ANALYTICS_LAST_VALID_SCHEMA_VERSION = 1
+ANALYTICS_LAST_VALID_SCHEMA_VERSION = 5
+ANALYTICS_ALGORITHM_VERSION = "relay-observed-minimum-to-90-ai7-v4"
 ANALYTICS_LEVEL_SERIES_MAX_POINTS = max(60, env_int("ANALYTICS_LEVEL_SERIES_MAX_POINTS", 240 if IS_RENDER else 480))
 ANALYTICS_MOTOR_SERIES_MAX_POINTS = max(40, env_int("ANALYTICS_MOTOR_SERIES_MAX_POINTS", 120 if IS_RENDER else 240))
 LEVEL_FORECAST_MODEL_PATH_ENV = "LEVEL_FORECAST_MODEL_PATH"
@@ -958,11 +965,13 @@ RELAY_COMMAND_URL_LIST = parse_relay_url_list(RELAY_COMMAND_URLS, "/device/comma
 
 def resolve_device_key_value(value):
     text = str(value or "").strip()
-    if text == "SWT_DEVICE_API_KEY":
-        return os.environ.get("SWT_DEVICE_API_KEY", "").strip()
     env_reference = re.fullmatch(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?", text)
     if env_reference:
         return os.environ.get(env_reference.group(1), "").strip()
+    # Keep backward compatibility with existing registries that use a bare
+    # SWT_*_API_KEY variable name instead of $VAR or ${VAR} syntax.
+    if re.fullmatch(r"SWT_[A-Za-z0-9_]*API_KEY", text):
+        return os.environ.get(text, "").strip()
     return text
 
 
@@ -1294,6 +1303,35 @@ def database_is_locked_error(exc):
     )
 
 
+def run_with_database_lock_retries(
+    operation,
+    *,
+    operation_name="database operation",
+    attempts=6,
+    initial_delay_s=0.5,
+):
+    last_exc = None
+    for attempt in range(max(1, int(attempts or 1))):
+        try:
+            return operation()
+        except Exception as exc:
+            if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
+                raise
+            last_exc = exc
+            delay_s = max(0.0, float(initial_delay_s or 0.0)) * (attempt + 1)
+            logger.warning(
+                "Retrying %s after database lock/deadlock (%s/%s): %s",
+                operation_name,
+                attempt + 1,
+                max(1, int(attempts or 1)),
+                exc,
+            )
+            if delay_s > 0:
+                time.sleep(delay_s)
+    if last_exc is not None:
+        raise last_exc
+
+
 def alert_touch_key(kind, device_id=None):
     normalized_kind = str(kind or "").strip().lower()
     normalized_device_id = normalize_device_id(device_id) or ""
@@ -1603,12 +1641,27 @@ def list_database_table_names(cursor):
 def table_column_names(cursor, table_name):
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", str(table_name or "")):
         return set()
+
+    def inspect_columns():
+        try:
+            rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        except Exception as exc:
+            logger.warning("Could not inspect database table %s for device purge: %s", table_name, exc)
+            return set()
+        return {str(row[1]) for row in rows}
+
     try:
-        rows = cursor.execute(f"PRAGMA table_info({table_name})").fetchall()
+        return run_with_database_lock_retries(
+            inspect_columns,
+            operation_name=f"inspect database columns for {table_name}",
+            attempts=6,
+            initial_delay_s=0.5,
+        )
     except Exception as exc:
-        logger.warning("Could not inspect database table %s for device purge: %s", table_name, exc)
-        return set()
-    return {str(row[1]) for row in rows}
+        if database_is_locked_error(exc):
+            logger.warning("Could not inspect database table %s for device purge after retries: %s", table_name, exc)
+            return set()
+        raise
 
 
 def device_scoped_app_setting_keys(device_id):
@@ -1639,72 +1692,137 @@ def device_scoped_app_setting_keys(device_id):
 
 def purge_device_app_settings(cursor, device_id):
     normalized_device_id = normalize_device_id(device_id)
-    deleted_rows = 0
-    for setting_key in device_scoped_app_setting_keys(device_id):
-        deleted_rows += int(
-            cursor.execute("DELETE FROM app_settings WHERE key = ?", (setting_key,)).rowcount or 0
-        )
-    if normalized_device_id:
-        deleted_rows += int(
-            cursor.execute(
-                "DELETE FROM app_settings WHERE key LIKE ?",
-                (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
-            ).rowcount or 0
-        )
-    return deleted_rows
+
+    def delete_app_settings():
+        deleted_rows = 0
+        key_identifier = quote_mysql_identifier("key")
+        for setting_key in device_scoped_app_setting_keys(device_id):
+            deleted_rows += int(
+                cursor.execute(f"DELETE FROM app_settings WHERE {key_identifier} = ?", (setting_key,)).rowcount or 0
+            )
+        if normalized_device_id:
+            deleted_rows += int(
+                cursor.execute(
+                    f"DELETE FROM app_settings WHERE {key_identifier} LIKE ?",
+                    (f"{ANALYTICS_LAST_VALID_SETTING_PREFIX}{normalized_device_id}:%",),
+                ).rowcount or 0
+            )
+        return deleted_rows
+
+    return run_with_database_lock_retries(
+        delete_app_settings,
+        operation_name=f"purge app settings for {normalized_device_id or device_id}",
+        attempts=6,
+        initial_delay_s=0.5,
+    )
 
 
 def purge_device_table_rows(cursor, table_name, normalized_device_id):
-    columns = table_column_names(cursor, table_name)
-    if not columns:
-        return None
+    def delete_rows():
+        columns = table_column_names(cursor, table_name)
+        if not columns:
+            return None
 
-    conditions = []
-    params = []
-    for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
-        if column_name in columns:
-            conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
-            params.append(normalized_device_id)
+        conditions = []
+        params = []
+        for column_name in DEVICE_PURGE_DIRECT_COLUMNS:
+            if column_name in columns:
+                conditions.append(f"{quote_mysql_identifier(column_name)} = ?")
+                params.append(normalized_device_id)
 
-    if (
-        table_name in DEVICE_PURGE_TARGET_TABLES
-        and "target_type" in columns
-        and "target_id" in columns
-    ):
-        conditions.append(
-            f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+        if (
+            table_name in DEVICE_PURGE_TARGET_TABLES
+            and "target_type" in columns
+            and "target_id" in columns
+        ):
+            conditions.append(
+                f"({quote_mysql_identifier('target_type')} = ? AND {quote_mysql_identifier('target_id')} = ?)"
+            )
+            params.extend(("device", normalized_device_id))
+
+        for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
+            if column_name in columns:
+                for pattern in json_device_id_like_patterns(normalized_device_id):
+                    conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
+                    params.append(pattern)
+
+        if not conditions:
+            return None
+
+        cursor.execute(
+            f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
+            tuple(params),
         )
-        params.extend(("device", normalized_device_id))
+        return int(cursor.rowcount or 0)
 
-    for column_name in DEVICE_PURGE_JSON_DEVICE_COLUMNS.get(table_name, ()):
-        if column_name in columns:
-            for pattern in json_device_id_like_patterns(normalized_device_id):
-                conditions.append(f"{quote_mysql_identifier(column_name)} LIKE ? ESCAPE '='")
-                params.append(pattern)
-
-    if not conditions:
-        return None
-
-    cursor.execute(
-        f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {' OR '.join(conditions)}",
-        tuple(params),
+    return run_with_database_lock_retries(
+        delete_rows,
+        operation_name=f"purge table rows for {table_name}",
+        attempts=6,
+        initial_delay_s=0.5,
     )
-    return int(cursor.rowcount or 0)
-
 
 def add_deleted_device_marker(cursor, normalized_device_id, note="admin_delete"):
-    return int(
-        cursor.execute(
-            """
-            INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
-            VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT(device_id) DO UPDATE SET
-                note=excluded.note,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (normalized_device_id, note),
-        ).rowcount or 0
+    def insert_marker():
+        return int(
+            cursor.execute(
+                """
+                INSERT INTO ignored_devices(device_id, note, created_at, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    note=excluded.note,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, note),
+            ).rowcount or 0
+        )
+
+    return run_with_database_lock_retries(
+        insert_marker,
+        operation_name=f"mark deleted device {normalized_device_id}",
+        attempts=6,
+        initial_delay_s=0.5,
     )
+
+
+def purge_device_data_fallback(cursor, normalized_device_id):
+    deleted_counts = {}
+    direct_deletes = [
+        ("tank_data", "device_id"),
+        ("device_events", "device_id"),
+        ("ops_alerts", "device_id"),
+        ("registered_devices", "device_id"),
+        ("device_auth_keys", "device_id"),
+        ("device_service_configs", "device_id"),
+        ("device_command_queue", "target_device"),
+        ("device_mobile_action_queue", "target_device"),
+        ("customer_accounts", "device_id"),
+        ("customer_password_reset_tokens", "device_id"),
+        ("firmware_artifacts", "target_device"),
+    ]
+    for table_name, column_name in direct_deletes:
+        try:
+            deleted_rows = int(
+                cursor.execute(
+                    f"DELETE FROM {quote_mysql_identifier(table_name)} WHERE {quote_mysql_identifier(column_name)} = ?",
+                    (normalized_device_id,),
+                ).rowcount or 0
+            )
+        except Exception as exc:
+            logger.warning("Fallback purge skipped %s for %s: %s", table_name, normalized_device_id, exc)
+            continue
+        if deleted_rows:
+            deleted_counts[table_name] = deleted_rows
+
+    try:
+        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+    except Exception as exc:
+        logger.warning("Fallback purge skipped app_settings for %s: %s", normalized_device_id, exc)
+        app_settings_count = 0
+    if app_settings_count:
+        deleted_counts["app_settings"] = app_settings_count
+
+    return deleted_counts
 
 
 def purge_device_data(device_id, remember_deleted_device=False):
@@ -1712,41 +1830,73 @@ def purge_device_data(device_id, remember_deleted_device=False):
     if not normalized_device_id:
         raise ValueError("device_id is required")
 
-    deleted_counts = {}
-    with get_db() as db:
-        cursor = db.cursor()
-        for table_name in list_database_table_names(cursor):
-            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-            if deleted_rows is not None:
-                deleted_counts[table_name] = deleted_rows
+    def execute_purge():
+        deleted_counts = {}
+        if remember_deleted_device:
+            # Mark the device as ignored before the main purge so new telemetry
+            # check-ins are rejected instead of racing with row deletion.
+            with get_db() as db:
+                add_deleted_device_marker(db.cursor(), normalized_device_id)
 
-        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-        if app_settings_count or "app_settings" not in deleted_counts:
-            deleted_counts["app_settings"] = app_settings_count
+        try:
+            with get_db() as db:
+                cursor = db.cursor()
+                for table_name in list_database_table_names(cursor):
+                    if remember_deleted_device and table_name == "ignored_devices":
+                        continue
+                    deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                    if deleted_rows is not None:
+                        deleted_counts[table_name] = deleted_rows
 
-    # Commit source deletions before the final pass so generated event rows cannot
-    # be recreated from pre-purge telemetry seen by another request/thread.
-    with get_db() as db:
-        cursor = db.cursor()
-        for table_name in list_database_table_names(cursor):
-            deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
-            if deleted_rows is not None:
-                deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
+                app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+                if app_settings_count or "app_settings" not in deleted_counts:
+                    deleted_counts["app_settings"] = app_settings_count
 
-        app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
-        if app_settings_count:
-            deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+            # Commit source deletions before the final pass so generated event rows cannot
+            # be recreated from pre-purge telemetry seen by another request/thread.
+            with get_db() as db:
+                cursor = db.cursor()
+                for table_name in list_database_table_names(cursor):
+                    if remember_deleted_device and table_name == "ignored_devices":
+                        continue
+                    deleted_rows = purge_device_table_rows(cursor, table_name, normalized_device_id)
+                    if deleted_rows is not None:
+                        deleted_counts[table_name] = int(deleted_counts.get(table_name) or 0) + deleted_rows
 
-    if remember_deleted_device:
-        with get_db() as db:
-            marker_count = add_deleted_device_marker(db.cursor(), normalized_device_id)
-            deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
+                app_settings_count = purge_device_app_settings(cursor, normalized_device_id)
+                if app_settings_count:
+                    deleted_counts["app_settings"] = int(deleted_counts.get("app_settings") or 0) + app_settings_count
+        except Exception as exc:
+            if not database_is_locked_error(exc):
+                raise
+            logger.warning(
+                "Primary device purge hit lock pressure for %s; falling back to direct row cleanup before marking ignored: %s",
+                normalized_device_id,
+                exc,
+            )
+            deleted_counts = {}
+            with get_db() as db:
+                cursor = db.cursor()
+                deleted_counts.update(purge_device_data_fallback(cursor, normalized_device_id))
+                if remember_deleted_device:
+                    marker_count = add_deleted_device_marker(cursor, normalized_device_id)
+                    deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
+                else:
+                    deleted_counts["ignored_devices"] = 0
 
-    forget_registered_device_touch(normalized_device_id)
-    clear_runtime_caches(normalized_device_id)
-    clear_home_automation_status(normalized_device_id)
+        if remember_deleted_device:
+            with get_db() as db:
+                marker_count = add_deleted_device_marker(db.cursor(), normalized_device_id)
+                deleted_counts["ignored_devices"] = int(deleted_counts.get("ignored_devices") or 0) + marker_count
 
-    return deleted_counts
+        forget_registered_device_touch(normalized_device_id)
+        clear_runtime_caches(normalized_device_id)
+        return deleted_counts
+
+    return run_with_database_lock_retries(
+        execute_purge,
+        operation_name=f"purge device data for {normalized_device_id}",
+    )
 
 
 def deleted_row_total(deleted_counts):
@@ -3055,6 +3205,27 @@ def admin_reachable_status_fields(enabled, reachable):
     return "Unreachable", "offline"
 
 
+def admin_municipal_sensor_status_fields(entry, service_config=None):
+    service_config = service_config or {}
+    online = admin_device_is_online(entry)
+    enabled = boolish_enabled(
+        entry.get("municipal_sensor_enabled"),
+        default=service_config.get("municipal_sensor_enabled", False),
+    )
+    state = str(entry.get("municipal_sensor_state") or "").strip().lower()
+    simulated = boolish_enabled(entry.get("municipal_sensor_simulated"), default=False)
+    reachable = boolish_enabled(entry.get("municipal_sensor_reachable"), default=state in {"available", "unavailable"})
+    if not enabled:
+        return "Disabled", "clear"
+    if not online:
+        return "Offline/Stale", "offline"
+    if simulated:
+        reachable = True
+    if reachable:
+        return "Reachable", "online"
+    return "Unreachable", "offline"
+
+
 def admin_sensor_reachable(raw_status):
     normalized = str(raw_status or "").strip().upper()
     if normalized in {"OK", "ON", "READY", "CONNECTED", "HEALTHY"}:
@@ -3077,16 +3248,41 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
 
     slave_upper_enabled = bool(service_config.get("slave_upper_sensor_enabled")) and bool(service_config.get("slave_device_enabled", True))
     peer_packet_fresh = direct_peer_packet_is_fresh(entry)
-    tank_level_is_valid = safe_float(entry.get("level"), -1) >= 0
+    tank_level_is_valid = (
+        boolish_enabled(entry.get("level_valid"), default=False)
+        if entry.get("level_valid") is not None
+        else safe_float(entry.get("level"), -1) >= 0
+    )
     upper_sensor = entry.get("upper_sensor") or entry.get("main_sensor") or entry.get("sensor")
+    upper_data_fresh = entry.get("upper_data_fresh")
+    upper_simulated = boolish_enabled(entry.get("upper_tank_simulator"), default=False)
+    upper_pulse_us = safe_float(entry.get("upper_sensor_pulse_us"), None)
+    upper_has_live_input = admin_sensor_reachable(upper_sensor)
+    if upper_data_fresh is not None:
+        upper_has_live_input = upper_has_live_input and boolish_enabled(upper_data_fresh, default=False)
+    # Simulator readings intentionally have a zero echo pulse. Once simulation
+    # is OFF, a zero pulse is cached simulator data rather than physical sensor
+    # evidence, so it must not keep the sensor online until the cache expires.
+    if upper_pulse_us is not None and upper_pulse_us <= 0 and not upper_simulated:
+        upper_has_live_input = False
     upper_enabled = bool(service_config.get("main_sensor_enabled", True))
     if str(upper_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
         upper_enabled = False
     if slave_upper_enabled:
         upper_enabled = True
-        upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid
+        # A fresh slave packet only proves that the slave node is reachable. It
+        # does not prove that its upper-tank sensor is producing valid data.
+        # Require the sensor health reported by firmware as well, otherwise a
+        # cached level can incorrectly keep the dashboard badge online after
+        # both the physical sensor and simulator become unavailable.
+        upper_reachable = (
+            online
+            and peer_packet_fresh is True
+            and tank_level_is_valid
+            and upper_has_live_input
+        )
     else:
-        upper_reachable = online and upper_enabled and admin_sensor_reachable(upper_sensor)
+        upper_reachable = online and upper_enabled and upper_has_live_input
     upper_label, upper_tone = admin_reachable_status_fields(
         upper_enabled,
         upper_reachable,
@@ -3094,12 +3290,11 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
 
     lower_sensor = entry.get("lower_sensor") or entry.get("source_sensor")
     lower_enabled = bool(service_config.get("source_tank_monitoring_enabled", True))
-    if str(lower_sensor or "").strip().upper() in {"DISABLED", "OFF"}:
-        lower_enabled = False
     lower_label, lower_tone = admin_reachable_status_fields(
         lower_enabled,
         online and lower_enabled and admin_sensor_reachable(lower_sensor),
     )
+    municipal_label, municipal_tone = admin_municipal_sensor_status_fields(entry, service_config)
 
     return {
         "relay_status_label": relay_label,
@@ -3108,6 +3303,8 @@ def admin_relay_sensor_status_fields(entry, service_config=None):
         "upper_sensor_status_tone": upper_tone,
         "lower_sensor_status_label": lower_label,
         "lower_sensor_status_tone": lower_tone,
+        "municipal_sensor_status_label": municipal_label,
+        "municipal_sensor_status_tone": municipal_tone,
     }
 
 
@@ -3194,6 +3391,7 @@ def build_admin_device_entry(device_id, snapshot=None):
     return {
         "device_id": normalized_device_id,
         "level": payload.get("level"),
+        "level_valid": payload.get("level_valid"),
         "firmware_version": payload.get("firmware_version"),
         "reset_reason": payload.get("reset_reason"),
         "device_local_url": device_local_url,
@@ -3237,7 +3435,19 @@ def build_admin_device_entry(device_id, snapshot=None):
         "water_depth_cm": payload.get("water_depth_cm"),
         "water_depth_label": payload.get("water_depth_label"),
         "upper_sensor": payload.get("upper_sensor") or payload.get("main_sensor") or payload.get("sensor"),
+        "upper_data_fresh": payload.get("upper_data_fresh"),
+        "upper_tank_simulator": payload.get("upper_tank_simulator"),
+        "upper_sensor_pulse_us": (
+            payload.get("upper_sensor_pulse_us")
+            if payload.get("upper_sensor_pulse_us") is not None
+            else payload.get("sensor_pulse_us")
+        ),
         "lower_sensor": payload.get("lower_sensor") or payload.get("source_sensor"),
+        "municipal_sensor_enabled": payload.get("municipal_sensor_enabled"),
+        "municipal_sensor_state": payload.get("municipal_sensor_state"),
+        "municipal_sensor_simulated": payload.get("municipal_sensor_simulated"),
+        "municipal_sensor_reachable": payload.get("municipal_sensor_reachable"),
+        "municipal_sensor_last_updated": payload.get("municipal_sensor_last_updated"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
         "registered_account": False,
@@ -3266,12 +3476,62 @@ def build_admin_device_summary(available_devices):
     total_registered_devices = len(seen_device_ids)
     warning_alert_devices = len(seen_device_ids.intersection(alert_device_ids))
     offline_devices = max(0, total_registered_devices - online_devices)
+    critical_devices = sum(1 for device in available_devices if str(device.get("latest_alert_severity") or "").lower() == "danger")
+    warning_devices = sum(1 for device in available_devices if str(device.get("latest_alert_severity") or "").lower() == "warning")
+    maintenance_devices = sum(1 for device in available_devices if not bool(device.get("service_updates_enabled", True)))
+    healthy_devices = max(0, total_registered_devices - critical_devices - warning_devices - maintenance_devices)
+    average_health = round(
+        sum(safe_float(device.get("admin_health_score"), 0) for device in available_devices) / total_registered_devices
+    ) if total_registered_devices else 0
 
     return {
         "total_registered_devices": total_registered_devices,
         "online_devices": online_devices,
         "offline_devices": offline_devices,
         "warning_alert_devices": warning_alert_devices,
+        "healthy_devices": healthy_devices,
+        "critical_devices": critical_devices,
+        "warning_devices": warning_devices,
+        "maintenance_devices": maintenance_devices,
+        "online_percent": round((online_devices / total_registered_devices) * 100) if total_registered_devices else 0,
+        "offline_percent": round((offline_devices / total_registered_devices) * 100) if total_registered_devices else 0,
+        "average_health": average_health,
+    }
+
+
+def admin_device_health_fields(entry):
+    online = admin_device_is_online(entry)
+    telemetry = str(entry.get("telemetry_status") or "no-data").strip().lower()
+    score = 100.0
+    if not online:
+        score -= 35
+    if telemetry in {"stale", "offline", "no-data"}:
+        score -= 20
+    rssi = safe_float(entry.get("wifi_rssi"), None)
+    if rssi is None:
+        score -= 5
+    elif rssi <= -80:
+        score -= 18
+    elif rssi <= -70:
+        score -= 10
+    for sensor_key in ("upper_sensor_status_tone", "lower_sensor_status_tone"):
+        if str(entry.get(sensor_key) or "").lower() in {"danger", "bad", "offline"}:
+            score -= 10
+    severity = str(entry.get("latest_alert_severity") or "").lower()
+    if severity == "danger":
+        score -= 20
+    elif severity == "warning":
+        score -= 10
+    score = int(round(max(0, min(100, score))))
+    tone = "online" if score >= 85 else "warning" if score >= 60 else "danger"
+    age_seconds = safe_float(entry.get("seconds_since_sync"), None)
+    if age_seconds is None and entry.get("last_sync_at"):
+        parsed = parse_timestamp(entry.get("last_sync_at"))
+        age_seconds = max(0, (now_utc() - parsed).total_seconds()) if parsed else None
+    return {
+        "admin_health_score": score,
+        "admin_health_tone": tone,
+        "last_seen_age_seconds": int(age_seconds) if age_seconds is not None else None,
     }
 
 
@@ -3383,6 +3643,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
+        entry.update(admin_device_health_fields(entry))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
         entry["service_profile_tone"] = (
             "info"
@@ -3414,6 +3675,9 @@ def filter_admin_search_results(items, search_query):
                 item.get("device_local_url"),
                 item.get("display_name"),
                 item.get("email"),
+                item.get("cloud_device_id"),
+                item.get("firmware_version"),
+                item.get("swt_version"),
             )
         )
         if normalized_query in haystack:
@@ -3507,13 +3771,12 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
             logger.warning("Rejected auto-registered device auth for %s", normalized_device_id)
             return False, None, "invalid device credentials", 403
     elif require_key and not hmac.compare_digest(str(device_key or ""), str(matched_rule["key"] or "")):
-        if matched_rule.get("kind") == "wildcard":
-            registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)
-            if registered_rule:
-                matched_rule = registered_rule
-            else:
-                logger.warning("Rejected device auth for %s", normalized_device_id)
-                return False, None, "invalid device credentials", 403
+        # Admin registration is the authoritative per-device credential. Let
+        # it recover a device even when an exact or wildcard environment rule
+        # is stale after a deliberate key rotation.
+        registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)
+        if registered_rule:
+            matched_rule = registered_rule
         else:
             logger.warning("Rejected device auth for %s", normalized_device_id)
             return False, None, "invalid device credentials", 403
@@ -3719,13 +3982,20 @@ def apply_device_status_aliases(cleaned):
         cleaned["device_local_url"] = cleaned.get("device_ip_url")
     if cleaned.get("level") is None and cleaned.get("main_tank_level") is not None:
         cleaned["level"] = cleaned.get("main_tank_level")
-    relay_state = relay_state_label(cleaned.get("relay_on"))
-    if relay_state is None:
-        relay_state = relay_state_label(cleaned.get("relay"))
-    if relay_state is not None:
-        cleaned["motor"] = relay_state
-    elif cleaned.get("motor") is None and cleaned.get("pump") is not None:
-        cleaned["motor"] = cleaned.get("pump")
+    # Firmware's logical pump state is authoritative. In simulator builds the
+    # logical pump can be ON while the physical relay output intentionally
+    # remains OFF, so relay_on must only be a legacy fallback.
+    pump_state = relay_state_label(cleaned.get("pump"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("motor"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("swt_relay"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("relay_on"))
+    if pump_state is None:
+        pump_state = relay_state_label(cleaned.get("relay"))
+    if pump_state is not None:
+        cleaned["motor"] = pump_state
     if cleaned.get("sensor") is None and cleaned.get("upper_sensor") is not None:
         cleaned["sensor"] = cleaned.get("upper_sensor")
     return cleaned
@@ -4274,7 +4544,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
-    record_home_automation_status(cleaned)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
     cleaned["telemetry_fingerprint"] = telemetry_fingerprint
 
@@ -4296,6 +4565,20 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     mode = str(cleaned.get("mode", "AUTO")).upper()
     if mode not in {"AUTO", "MANUAL"}:
         mode = "AUTO"
+    municipal_enabled = boolish_enabled(cleaned.get("municipal_sensor_enabled"), default=False)
+    cleaned["municipal_sensor_enabled"] = municipal_enabled
+    if not municipal_enabled:
+        cleaned["municipal_sensor_state"] = cleaned.get("municipal_sensor_state") or "unknown"
+        cleaned["municipal_sensor_simulated"] = False
+        cleaned["municipal_sensor_reachable"] = False
+        cleaned["municipal_sensor_last_updated"] = cleaned.get("municipal_sensor_last_updated")
+    else:
+        cleaned["municipal_sensor_state"] = str(cleaned.get("municipal_sensor_state") or "unknown").strip().lower()
+        cleaned["municipal_sensor_simulated"] = boolish_enabled(cleaned.get("municipal_sensor_simulated"), default=False)
+        cleaned["municipal_sensor_reachable"] = boolish_enabled(
+            cleaned.get("municipal_sensor_reachable"),
+            default=cleaned["municipal_sensor_state"] in {"available", "unavailable"},
+        )
 
     latest_row_id = None
     received_at = now_utc().strftime(TIMESTAMP_FORMAT)
@@ -4342,6 +4625,17 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("lower_sensor"),
         cleaned.get("lower_sensor_info"),
         cleaned.get("lower_sensor_distance_cm"),
+        1 if cleaned.get("municipal_sensor_enabled") else 0,
+        cleaned.get("municipal_sensor_state"),
+        1 if cleaned.get("municipal_sensor_simulated") else 0,
+        1 if cleaned.get("municipal_sensor_reachable") else 0,
+        cleaned.get("municipal_sensor_last_updated"),
+        1 if boolish_enabled(cleaned.get("municipal_valve_simulated"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("municipal_valve_feature_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_outlet_valve_simulated"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_pump_fill_feature_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("lower_turbidity_simulated"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("upper_turbidity_simulated"), default=False) else 0,
         cleaned.get("device_id"),
         cleaned.get("firmware_version"),
         cleaned.get("slave_firmware_version"),
@@ -4403,6 +4697,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 slave_free_heap, slave_cpu_utilization_pct, slave_uptime_s,
                 uptime_s,
                 lower_tank_level, lower_sensor, lower_sensor_info, lower_sensor_distance_cm,
+                municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
+                municipal_sensor_reachable, municipal_sensor_last_updated,
+                municipal_valve_simulated, municipal_valve_feature_enabled,
+                source_outlet_valve_simulated, source_pump_fill_feature_enabled,
+                lower_turbidity_simulated, upper_turbidity_simulated,
                 device_id, firmware_version, slave_firmware_version, reset_reason, source_ip, device_local_url,
                 channel_mode, telemetry_service, command_service, ota_service, lower_tank_service,
                 buzzer_service, led_display_service, local_firmware_upload_service,
@@ -4633,6 +4932,7 @@ def translate_mysql_query(sql, params=None):
     sql = translate_mysql_upsert_sql(sql)
     sql = sql.replace("app_settings(key", "app_settings(`key`")
     sql = re.sub(r"\bWHERE\s+key\s*=", "WHERE `key` =", sql, flags=re.I)
+    sql = re.sub(r"\bWHERE\s+key\s+LIKE\b", "WHERE `key` LIKE", sql, flags=re.I)
     sql = re.sub(r"\bLIMIT\s+-1\s+OFFSET\b", "LIMIT 18446744073709551615 OFFSET", sql, flags=re.I)
     sql = sql.replace("?", "%s")
     return sql, tuple(params or ())
@@ -4814,6 +5114,17 @@ def ensure_tank_data_columns(cursor):
         "lower_sensor": "TEXT",
         "lower_sensor_info": "TEXT",
         "lower_sensor_distance_cm": "REAL",
+        "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_state": "VARCHAR(32) NOT NULL DEFAULT 'unknown'",
+        "municipal_sensor_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_reachable": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_sensor_last_updated": "TEXT",
+        "municipal_valve_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_valve_feature_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "source_outlet_valve_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "source_pump_fill_feature_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "lower_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
+        "upper_turbidity_simulated": "INTEGER NOT NULL DEFAULT 0",
         "device_id": "TEXT",
         "firmware_version": "TEXT",
         "slave_firmware_version": "TEXT",
@@ -4932,6 +5243,17 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             lower_sensor TEXT,
             lower_sensor_info TEXT,
             lower_sensor_distance_cm REAL,
+            municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_state VARCHAR(32) NOT NULL DEFAULT 'unknown',
+            municipal_sensor_simulated INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
+            municipal_sensor_last_updated TEXT,
+            municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
+            municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
+            source_outlet_valve_simulated INTEGER NOT NULL DEFAULT 0,
+            source_pump_fill_feature_enabled INTEGER NOT NULL DEFAULT 0,
+            lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
+            upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
             device_id TEXT,
             firmware_version TEXT,
             slave_firmware_version TEXT,
@@ -5226,6 +5548,12 @@ def ensure_device_service_configs_table(cursor):
             slave_device_enabled INTEGER NOT NULL DEFAULT 1,
             slave_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             source_tank_monitoring_enabled INTEGER NOT NULL DEFAULT 1,
+            municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            municipal_valve_enabled INTEGER NOT NULL DEFAULT 0,
+            source_outlet_valve_enabled INTEGER NOT NULL DEFAULT 0,
+            turbidity_monitoring_enabled INTEGER NOT NULL DEFAULT 0,
+            master_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
+            slave_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
             relay_enabled INTEGER NOT NULL DEFAULT 1,
             ai_analysis_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_mode TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}',
@@ -5269,6 +5597,12 @@ def ensure_device_service_configs_columns(cursor):
         "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
         "slave_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "source_tank_monitoring_enabled": "INTEGER NOT NULL DEFAULT 1",
+        "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "municipal_valve_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "source_outlet_valve_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "turbidity_monitoring_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "master_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "slave_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
         "relay_enabled": "INTEGER NOT NULL DEFAULT 1",
         "ai_analysis_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_mode": f"TEXT NOT NULL DEFAULT '{DEVICE_SERVICE_CLOUD_FEED_FULL}'",
@@ -5552,6 +5886,17 @@ def init_db():
                 lower_sensor TEXT,
                 lower_sensor_info TEXT,
                 lower_sensor_distance_cm REAL,
+                municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_state VARCHAR(32) NOT NULL DEFAULT 'unknown',
+                municipal_sensor_simulated INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_reachable INTEGER NOT NULL DEFAULT 0,
+                municipal_sensor_last_updated TEXT,
+                municipal_valve_simulated INTEGER NOT NULL DEFAULT 0,
+                municipal_valve_feature_enabled INTEGER NOT NULL DEFAULT 0,
+                source_outlet_valve_simulated INTEGER NOT NULL DEFAULT 0,
+                source_pump_fill_feature_enabled INTEGER NOT NULL DEFAULT 0,
+                lower_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
+                upper_turbidity_simulated INTEGER NOT NULL DEFAULT 0,
                 device_id TEXT,
                 firmware_version TEXT,
                 slave_firmware_version TEXT,
@@ -6324,6 +6669,13 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         default=True,
     )
     source_tank_monitoring_enabled = boolish_enabled(payload.get("source_tank_monitoring_enabled"), default=True)
+    municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
+    municipal_valve_enabled = boolish_enabled(payload.get("municipal_valve_enabled"), default=False)
+    source_outlet_valve_enabled = boolish_enabled(payload.get("source_outlet_valve_enabled"), default=False)
+    turbidity_monitoring_enabled = boolish_enabled(payload.get("turbidity_monitoring_enabled"), default=False)
+    master_turbidity_enabled = boolish_enabled(payload.get("master_turbidity_enabled"), default=turbidity_monitoring_enabled)
+    slave_turbidity_enabled = boolish_enabled(payload.get("slave_turbidity_enabled"), default=turbidity_monitoring_enabled)
+    turbidity_monitoring_enabled = master_turbidity_enabled or slave_turbidity_enabled
     relay_enabled = boolish_enabled(payload.get("relay_enabled"), default=True)
     ai_analysis_enabled = boolish_enabled(payload.get("ai_analysis_enabled"), default=True)
     ota_enabled = boolish_enabled(payload.get("ota_enabled"), default=False)
@@ -6385,6 +6737,12 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "slave_upper_sensor_enabled": slave_upper_sensor_enabled,
         "upper_sensor_source": "slave" if slave_device_enabled else "master",
         "source_tank_monitoring_enabled": source_tank_monitoring_enabled,
+        "municipal_sensor_enabled": municipal_sensor_enabled,
+        "municipal_valve_enabled": municipal_valve_enabled,
+        "source_outlet_valve_enabled": source_outlet_valve_enabled,
+        "turbidity_monitoring_enabled": turbidity_monitoring_enabled,
+        "master_turbidity_enabled": master_turbidity_enabled,
+        "slave_turbidity_enabled": slave_turbidity_enabled,
         "relay_enabled": relay_enabled,
         "ai_analysis_enabled": ai_analysis_enabled,
         "effective_ai_analysis_enabled": effective_ai_analysis_enabled,
@@ -6423,6 +6781,10 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "hardware_enabled_label": f"{hardware_enabled_count}/5 device services active",
         "service_profile_hint": (
             f"Source {'On' if source_tank_monitoring_enabled else 'Off'}"
+            f" | Municipal {'On' if municipal_sensor_enabled else 'Off'}"
+            f" | Inlet valve {'On' if municipal_valve_enabled else 'Off'}"
+            f" | Outlet valve {'On' if source_outlet_valve_enabled else 'Off'}"
+            f" | Turbidity {'On' if turbidity_monitoring_enabled else 'Off'}"
             f" | Upper {'Slave' if slave_device_enabled else 'Master'}"
             f" | Relay {'On' if relay_enabled else 'Off'}"
             f" | AI {ai_label}"
@@ -6444,6 +6806,12 @@ def default_device_service_config(device_id=None, account=None):
             "slave_device_enabled": True,
             "slave_upper_sensor_enabled": True,
             "source_tank_monitoring_enabled": True,
+            "municipal_sensor_enabled": False,
+            "municipal_valve_enabled": False,
+            "source_outlet_valve_enabled": False,
+            "turbidity_monitoring_enabled": False,
+            "master_turbidity_enabled": False,
+            "slave_turbidity_enabled": False,
             "relay_enabled": True,
             "ai_analysis_enabled": True,
             "auto_mode_enabled": False,
@@ -6540,6 +6908,8 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         ("led_display_service", "led_display_enabled"),
         ("ota_service", "ota_enabled"),
         ("local_firmware_upload_service", "local_firmware_upload_enabled"),
+        ("municipal_valve_feature_enabled", "municipal_valve_enabled"),
+        ("source_pump_fill_feature_enabled", "source_outlet_valve_enabled"),
     ):
         live_flag = snapshot_device_service_flag(snapshot, snapshot_key)
         if live_flag is not None:
@@ -6606,7 +6976,8 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+                   source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+                   master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                    tank_height_cm, tank_capacity_liters,
@@ -6647,7 +7018,8 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+               source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+               master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                tank_height_cm, tank_capacity_liters,
@@ -6722,6 +7094,12 @@ def upsert_device_service_config(
     slave_device_enabled=None,
     slave_upper_sensor_enabled=None,
     source_tank_monitoring_enabled=None,
+    municipal_sensor_enabled=None,
+    municipal_valve_enabled=None,
+    source_outlet_valve_enabled=None,
+    turbidity_monitoring_enabled=None,
+    master_turbidity_enabled=None,
+    slave_turbidity_enabled=None,
     relay_enabled=None,
     ai_analysis_enabled=None,
     cloud_feed_mode=None,
@@ -6787,6 +7165,29 @@ def upsert_device_service_config(
         source_tank_monitoring_enabled,
         default=existing.get("source_tank_monitoring_enabled", True),
     )
+    resolved_municipal_sensor_enabled = boolish_enabled(
+        municipal_sensor_enabled,
+        default=existing.get("municipal_sensor_enabled", False),
+    )
+    resolved_municipal_valve_enabled = boolish_enabled(
+        municipal_valve_enabled,
+        default=existing.get("municipal_valve_enabled", False),
+    )
+    resolved_source_outlet_valve_enabled = boolish_enabled(
+        source_outlet_valve_enabled,
+        default=existing.get("source_outlet_valve_enabled", False),
+    )
+    resolved_turbidity_monitoring_enabled = boolish_enabled(
+        turbidity_monitoring_enabled,
+        default=existing.get("turbidity_monitoring_enabled", False),
+    )
+    resolved_master_turbidity_enabled = boolish_enabled(
+        master_turbidity_enabled, default=existing.get("master_turbidity_enabled", resolved_turbidity_monitoring_enabled)
+    )
+    resolved_slave_turbidity_enabled = boolish_enabled(
+        slave_turbidity_enabled, default=existing.get("slave_turbidity_enabled", resolved_turbidity_monitoring_enabled)
+    )
+    resolved_turbidity_monitoring_enabled = resolved_master_turbidity_enabled or resolved_slave_turbidity_enabled
     resolved_relay_enabled = boolish_enabled(
         relay_enabled,
         default=existing.get("relay_enabled", True),
@@ -6897,7 +7298,8 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, relay_enabled, ai_analysis_enabled,
+                source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+                master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
                 tank_height_cm, tank_capacity_liters,
@@ -6910,13 +7312,19 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
                 slave_device_enabled=excluded.slave_device_enabled,
                 slave_upper_sensor_enabled=excluded.slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled=excluded.source_tank_monitoring_enabled,
+                municipal_sensor_enabled=excluded.municipal_sensor_enabled,
+                municipal_valve_enabled=excluded.municipal_valve_enabled,
+                source_outlet_valve_enabled=excluded.source_outlet_valve_enabled,
+                turbidity_monitoring_enabled=excluded.turbidity_monitoring_enabled,
+                master_turbidity_enabled=excluded.master_turbidity_enabled,
+                slave_turbidity_enabled=excluded.slave_turbidity_enabled,
                 relay_enabled=excluded.relay_enabled,
                 ai_analysis_enabled=excluded.ai_analysis_enabled,
                 cloud_feed_mode=excluded.cloud_feed_mode,
@@ -6953,6 +7361,12 @@ def upsert_device_service_config(
                 1 if resolved_slave_device_enabled else 0,
                 1 if resolved_slave_upper_sensor_enabled else 0,
                 1 if resolved_source_tank_monitoring_enabled else 0,
+                1 if resolved_municipal_sensor_enabled else 0,
+                1 if resolved_municipal_valve_enabled else 0,
+                1 if resolved_source_outlet_valve_enabled else 0,
+                1 if resolved_turbidity_monitoring_enabled else 0,
+                1 if resolved_master_turbidity_enabled else 0,
+                1 if resolved_slave_turbidity_enabled else 0,
                 1 if resolved_relay_enabled else 0,
                 1 if resolved_ai_analysis_enabled else 0,
                 resolved_cloud_feed_mode,
@@ -7008,9 +7422,15 @@ def build_device_service_command(service_config):
     if not slave_upper_sensor_enabled:
         master_upper_sensor_enabled = True
     source_tank_enabled = bool(config.get("source_tank_monitoring_enabled"))
+    municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))
+    municipal_valve_enabled = bool(config.get("municipal_valve_enabled", False))
+    source_outlet_valve_enabled = bool(config.get("source_outlet_valve_enabled", False))
+    turbidity_monitoring_enabled = bool(config.get("turbidity_monitoring_enabled", False))
+    master_turbidity_enabled = bool(config.get("master_turbidity_enabled", turbidity_monitoring_enabled))
+    slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG5:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}".format(
+    return "SERVICECFG10:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -7020,6 +7440,11 @@ def build_device_service_command(service_config):
         ota=0,
         upload=1 if bool(config.get("local_firmware_upload_enabled", True)) else 0,
         auto_mode=1 if auto_mode_enabled else 0,
+        municipal=1 if municipal_sensor_enabled else 0,
+        master_turbidity=1 if master_turbidity_enabled else 0,
+        slave_turbidity=1 if slave_turbidity_enabled else 0,
+        municipal_valve=1 if municipal_valve_enabled else 0,
+        source_outlet_valve=1 if source_outlet_valve_enabled else 0,
     )
 
 
@@ -7301,7 +7726,7 @@ def runtime_sync_float_matches(live_value, saved_value, tolerance=0.11):
 
 
 def runtime_sync_service_enabled(snapshot, key):
-    return str((snapshot or {}).get(key) or "").strip().upper() == "ON"
+    return snapshot_device_service_flag(snapshot, key) is True
 
 
 def build_runtime_sync_command(device_id, snapshot=None, account=None):
@@ -7339,6 +7764,16 @@ def build_runtime_sync_command(device_id, snapshot=None, account=None):
             != bool(service_config.get("led_display_enabled", True)),
             runtime_sync_service_enabled(live_snapshot, "local_firmware_upload_service")
             != bool(service_config.get("local_firmware_upload_enabled", True)),
+            runtime_sync_service_enabled(live_snapshot, "municipal_feature_enabled")
+            != bool(service_config.get("municipal_sensor_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "municipal_valve_feature_enabled")
+            != bool(service_config.get("municipal_valve_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "source_pump_fill_feature_enabled")
+            != bool(service_config.get("source_outlet_valve_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "master_turbidity_enabled")
+            != bool(service_config.get("master_turbidity_enabled", False)),
+            runtime_sync_service_enabled(live_snapshot, "slave_turbidity_enabled")
+            != bool(service_config.get("slave_turbidity_enabled", False)),
         )
     )
     if desired_master_upper_enabled and live_upper_source != "master" and not desired_slave_enabled:
@@ -7878,13 +8313,16 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     if created_at:
         seconds_since_sync = int((now_utc() - created_at).total_seconds())
 
-    level = max(0.0, min(100.0, safe_float(data.get("level"), 0)))
+    raw_level = safe_float(data.get("level"), None)
+    level_valid = raw_level is not None and 0.0 <= raw_level <= 100.0
+    level = raw_level if level_valid else 0.0
     capacity_liters = safe_float(data.get("tank_capacity_liters"), TANK_CAPACITY_LITERS)
     if capacity_liters <= 0:
         capacity_liters = TANK_CAPACITY_LITERS
     liters = round((level / 100) * capacity_liters, 1)
 
-    data["level"] = round(level, 2)
+    data["level_valid"] = level_valid
+    data["level"] = round(level, 2) if level_valid else None
     mode = str(data.get("mode", "AUTO")).upper()
     data["mode"] = mode if mode in {"AUTO", "MANUAL"} else "AUTO"
     stored_simulator_state = load_device_simulator_state(data.get("device_id"))
@@ -7959,12 +8397,28 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         data["lower_water_depth_label"] = "--"
     lower_capacity_liters = safe_float(
         data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters"),
-        capacity_liters,
+        2000.0,
     )
     if lower_capacity_liters <= 0:
         lower_capacity_liters = capacity_liters
     data["source_tank_capacity_liters"] = round(lower_capacity_liters, 1)
     data["lower_tank_capacity_liters"] = round(lower_capacity_liters, 1)
+    data["upper_tank_count"] = max(1, int(safe_float(data.get("upper_tank_count"), 1)))
+    data["source_tank_count"] = max(1, int(safe_float(data.get("source_tank_count"), 1)))
+    data["inlet_valve_route"] = str(
+        data.get("inlet_valve_route") or data.get("municipal_valve_route") or "source"
+    ).strip().lower()
+    data["municipal_valve_route"] = data["inlet_valve_route"]
+    data["inlet_valve_state"] = str(
+        data.get("inlet_valve_state") or data.get("municipal_valve_state") or "unknown"
+    ).strip().lower()
+    data["municipal_detection_mode"] = str(
+        data.get("municipal_detection_mode") or
+        ("sensor" if data.get("municipal_sensor_enabled") else "upper_level_rise")
+    ).strip().lower()
+    data["source_gravity_fill_active"] = boolish_enabled(
+        data.get("source_gravity_fill_active"), default=False
+    )
     if data["lower_tank_level"] is not None:
         lower_liters = round((data["lower_tank_level"] / 100) * lower_capacity_liters, 1)
         data["lower_water_available_label"] = f"{lower_liters:.1f} L / {lower_capacity_liters:.1f} L"
@@ -8111,17 +8565,50 @@ def resolve_date_window():
         return start_dt, end_exclusive, label
 
     days = max(1, min(days or 7, 365))
-    end_exclusive = now_utc() + timedelta(seconds=1)
-    start_dt = now_utc() - timedelta(days=days)
-    label = f"Last {days} days"
+    now = now_utc()
+    now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=days - 1)
+    start_dt = start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    end_exclusive = now + timedelta(seconds=1)
+    label = "Today" if days == 1 else f"Last {days} days"
     return start_dt, end_exclusive, label
+
+
+def attach_default_chart_windows(payload, device_id=None):
+    """Supply legacy default chart windows only when no range was requested."""
+    if not isinstance(payload, dict):
+        return payload
+    requested_days = request.args.get("days", type=int)
+    if request.args.get("start_date") or request.args.get("end_date") or requested_days is not None:
+        return payload
+    now = now_utc()
+    now_ist = now.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    midnight_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = midnight_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    today_payload = build_analytics(today_start, now + timedelta(seconds=1), "Today", device_id=device_id)
+    payload["default_chart_windows"] = {
+        "tank_level": {
+            "range": today_payload.get("range") or {},
+            "levels": today_payload.get("levels") or {},
+        },
+        "pump_activity": {
+            "range": today_payload.get("range") or {},
+            "motor": today_payload.get("motor") or {},
+            "pump_activity": today_payload.get("pump_activity") or {},
+        },
+        "daily_use": {
+            "range": payload.get("range") or {},
+            "daily": payload.get("daily") or {},
+        },
+    }
+    return payload
 
 
 def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_sources=False):
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
-               ai_usage_rate, tomorrow_prediction, created_at
+               ai_usage_rate, tomorrow_prediction, tank_capacity_liters, created_at
         FROM tank_data
         WHERE """
     params = []
@@ -8293,6 +8780,27 @@ def downsample_series(time_values, value_values, max_points, preserve_nulls=Fals
     if preserve_nulls:
         mandatory.update(index for index, value in enumerate(safe_values[:size]) if value is None)
 
+    # Preserve representative minima and maxima instead of relying only on
+    # evenly spaced points, which can hide short tank peaks and drawdowns.
+    numeric_budget = max(0, max_points - len(mandatory))
+    bucket_count = max(1, numeric_budget // 2) if numeric_budget else 0
+    if bucket_count:
+        interior_size = max(0, size - 2)
+        for bucket in range(bucket_count):
+            start = 1 + int(bucket * interior_size / bucket_count)
+            stop = 1 + int((bucket + 1) * interior_size / bucket_count)
+            candidates = [
+                index for index in range(start, max(start + 1, stop))
+                if index < size - 1 and safe_values[index] is not None
+            ]
+            if not candidates:
+                continue
+            try:
+                mandatory.add(min(candidates, key=lambda index: float(safe_values[index])))
+                mandatory.add(max(candidates, key=lambda index: float(safe_values[index])))
+            except (TypeError, ValueError):
+                pass
+
     if len(mandatory) >= max_points:
         final_indices = pick_series_indices(sorted(mandatory), max_points)
     else:
@@ -8303,6 +8811,11 @@ def downsample_series(time_values, value_values, max_points, preserve_nulls=Fals
 
 
 def compact_motor_series(time_values, value_values):
+    """Return one point per real binary-state transition.
+
+    Repeated ON or OFF samples are observation duplicates, not new pump
+    cycles. A telemetry gap is retained once and starts a new state segment.
+    """
     safe_times = list(time_values or [])
     safe_values = list(value_values or [])
     size = min(len(safe_times), len(safe_values))
@@ -8315,26 +8828,23 @@ def compact_motor_series(time_values, value_values):
     for index in range(size):
         raw_value = safe_values[index]
         if raw_value is None or raw_value == "":
-            compact_times.append(safe_times[index])
-            compact_values.append(None)
+            if not compact_values or compact_values[-1] is not None:
+                compact_times.append(safe_times[index])
+                compact_values.append(None)
             last_state = None
             continue
 
-        current_state = 1 if int(raw_value) == 1 else 0
+        try:
+            numeric_state = int(raw_value)
+        except (TypeError, ValueError):
+            continue
+        if numeric_state not in (0, 1):
+            continue
+        current_state = numeric_state
         if last_state is None or current_state != last_state:
             compact_times.append(safe_times[index])
             compact_values.append(current_state)
             last_state = current_state
-
-    tail_value = safe_values[size - 1]
-    if tail_value is None or tail_value == "":
-        normalized_tail = None
-    else:
-        normalized_tail = 1 if int(tail_value) == 1 else 0
-
-    if compact_times[-1] != safe_times[size - 1]:
-        compact_times.append(safe_times[size - 1])
-        compact_values.append(normalized_tail)
 
     return compact_times, compact_values
 
@@ -8349,6 +8859,7 @@ def build_motor_activity_metrics(time_values, value_values):
             "runtime_hours": 0,
             "observed_hours": 0,
             "duty_cycle_pct": 0,
+            "started_runs": 0,
             "completed_runs": 0,
             "avg_run_seconds": 0,
             "short_cycle_count": 0,
@@ -8363,6 +8874,24 @@ def build_motor_activity_metrics(time_values, value_values):
     current_off_seconds = 0.0
     run_active = False
     off_active = False
+
+    # Count every observed OFF/unknown-to-ON relay transition. This is kept
+    # separate from completed_runs because a telemetry gap can prevent safely
+    # timing a run without erasing the fact that the pump started.
+    started_runs = 0
+    previous_state = None
+    for raw_value in safe_values[:size]:
+        if raw_value is None or raw_value == "":
+            previous_state = None
+            continue
+        try:
+            state = 1 if int(raw_value) == 1 else 0
+        except (TypeError, ValueError):
+            previous_state = None
+            continue
+        if state == 1 and previous_state != 1:
+            started_runs += 1
+        previous_state = state
 
     for index in range(size - 1):
         start_time = parse_timestamp(safe_times[index])
@@ -8404,6 +8933,16 @@ def build_motor_activity_metrics(time_values, value_values):
             run_active = False
             current_run_seconds = 0.0
 
+    # The final sample is an endpoint rather than an interval. It still closes
+    # a run whose last ON interval ends at that sample.
+    if run_active and current_run_seconds > 0:
+        try:
+            final_state = int(safe_values[-1])
+        except (TypeError, ValueError):
+            final_state = None
+        if final_state == 0:
+            run_durations.append(current_run_seconds)
+
     completed_runs = len(run_durations)
     avg_run_seconds = sum(run_durations) / completed_runs if completed_runs else 0.0
     avg_off_seconds = sum(off_durations) / len(off_durations) if off_durations else 0.0
@@ -8414,10 +8953,374 @@ def build_motor_activity_metrics(time_values, value_values):
         "runtime_hours": round(runtime_seconds / 3600.0, 3),
         "observed_hours": round(observed_seconds / 3600.0, 3),
         "duty_cycle_pct": round(duty_cycle_pct, 2),
+        "started_runs": started_runs,
         "completed_runs": completed_runs,
         "avg_run_seconds": int(round(avg_run_seconds)),
         "short_cycle_count": short_cycle_count,
         "avg_off_seconds": int(round(avg_off_seconds)),
+    }
+
+
+def extend_ongoing_motor_activity(time_values, value_values, current_time):
+    """Close a fresh, currently-ON relay interval at the analysis time."""
+    times = list(time_values or [])
+    values = list(value_values or [])
+    if not times or not values or len(times) != len(values):
+        return times, values
+    try:
+        last_on = int(values[-1]) == 1
+    except (TypeError, ValueError):
+        return times, values
+    last_time = parse_timestamp(times[-1])
+    end_time = parse_timestamp(current_time)
+    if not last_on or last_time is None or end_time is None:
+        return times, values
+    trailing_seconds = (end_time - last_time).total_seconds()
+    freshness_limit = max(60.0, min(ANALYTICS_MAX_GAP_MINUTES * 60.0, STALE_AFTER_SECONDS))
+    if trailing_seconds <= 0 or trailing_seconds > freshness_limit:
+        return times, values
+    times.append(end_time.strftime(TIMESTAMP_FORMAT))
+    values.append(1)
+    return times, values
+
+
+def build_observed_motor_activity_series(rows):
+    """Build a gap-safe relay series from raw telemetry, including sensor-error rows."""
+    times = []
+    values = []
+    parsed_times = []
+    for row in rows or []:
+        created_at = parse_timestamp((row or {}).get("created_at"))
+        if created_at is None:
+            continue
+        motor = str((row or {}).get("motor") or "").strip().upper()
+        if motor in {"ON", "RUNNING", "RUN", "1", "TRUE"}:
+            value = 1
+        elif motor in {"OFF", "STOPPED", "STOP", "0", "FALSE"}:
+            value = 0
+        else:
+            value = None
+        times.append(created_at.strftime(TIMESTAMP_FORMAT))
+        values.append(value)
+        parsed_times.append(created_at)
+
+    gap_limit_seconds = max(60.0, ANALYTICS_MAX_GAP_MINUTES * 60.0)
+    for index in range(len(parsed_times) - 1):
+        gap_seconds = (parsed_times[index + 1] - parsed_times[index]).total_seconds()
+        if gap_seconds <= 0 or gap_seconds > gap_limit_seconds:
+            values[index] = None
+    return times, values
+
+
+def infer_pump_activity_from_level_history(
+    time_values,
+    level_values,
+    stop_threshold_pct=None,
+    start_threshold_pct=None,
+):
+    """Infer tank-fill cycles without using the relay pulse state.
+
+    With a configured stop threshold, a complete cycle runs from the clear
+    local minimum through the first observed reading at or above 90%. The
+    legacy consecutive-rise detector remains available when no threshold is
+    supplied.
+    """
+    safe_times = list(time_values or [])
+    safe_levels = list(level_values or [])
+    size = min(len(safe_times), len(safe_levels))
+    if size <= 0:
+        return [], [], []
+
+    parsed_times = [parse_timestamp(value) for value in safe_times[:size]]
+    levels = [safe_float(value, None) if value is not None else None for value in safe_levels[:size]]
+    states = [0] * size
+    runs = []
+    gap_limit_seconds = max(60.0, ANALYTICS_MAX_GAP_MINUTES * 60.0)
+    candidate_start = None
+    candidate_base = None
+    candidate_peak = None
+    candidate_peak_index = None
+    candidate_stop_index = None
+    consecutive_rises = 0
+    non_rising_intervals = 0
+    candidate_confirmed = False
+    configured_stop_threshold = safe_float(stop_threshold_pct, None)
+    if configured_stop_threshold is not None and not 0 < configured_stop_threshold <= 100:
+        configured_stop_threshold = None
+    configured_start_threshold = safe_float(start_threshold_pct, None)
+    if (
+        configured_start_threshold is not None
+        and (
+            configured_stop_threshold is None
+            or not 0 <= configured_start_threshold < configured_stop_threshold
+        )
+    ):
+        configured_start_threshold = None
+
+    # When an upper stop threshold is configured, a completed filling cycle is
+    # the lowest reading after the previous fill through the first reading at
+    # or above 90%. Intermediate dips, zero readings, sparse telemetry, and
+    # sensor fluctuations do not split that minimum-to-maximum cycle.
+    if configured_stop_threshold is not None:
+        target_level = 90.0
+        # A fixed 69-point rise cannot occur for common 30% start / 90% stop
+        # configurations. When the start threshold is known, accept a complete
+        # threshold-spanning refill while retaining the stricter legacy rule for
+        # callers that do not have trustworthy configuration data.
+        configured_fill_range = (
+            target_level - configured_start_threshold
+            if configured_start_threshold is not None
+            else None
+        )
+        required_fill_delta = ANALYTICS_MIN_FULL_FILL_DELTA_PCT
+        if configured_fill_range is not None and configured_fill_range > 0:
+            required_fill_delta = min(
+                required_fill_delta,
+                max(ANALYTICS_MIN_REFILL_DELTA_PCT, configured_fill_range),
+            )
+        minimum_index = None
+        minimum_level = None
+        for index in range(size):
+            level = levels[index]
+            timestamp = parsed_times[index]
+            if level is None or timestamp is None or not 0 <= level <= 100:
+                continue
+            if level < target_level:
+                if minimum_level is None or level < minimum_level:
+                    minimum_index = index
+                    minimum_level = level
+                continue
+            if minimum_index is None or minimum_level is None:
+                continue
+
+            started_at = parsed_times[minimum_index]
+            rise = float(level - minimum_level)
+            if (
+                started_at is not None
+                and timestamp > started_at
+                and rise >= required_fill_delta
+            ):
+                for state_index in range(minimum_index, index):
+                    states[state_index] = 1
+                runs.append(
+                    {
+                        "start_index": minimum_index,
+                        "stop_index": index,
+                        "started_at": safe_times[minimum_index],
+                        "stopped_at": safe_times[index],
+                        "duration_seconds": int(round((timestamp - started_at).total_seconds())),
+                        "level_rise_pct": round(rise, 2),
+                        "start_level_pct": round(float(minimum_level), 2),
+                        "stop_level_pct": round(float(level), 2),
+                        "stop_threshold_pct": round(target_level, 2),
+                    }
+                )
+            minimum_index = None
+            minimum_level = None
+
+        states[-1] = 0 if levels[-1] is not None and parsed_times[-1] is not None else None
+        return safe_times[:size], states, runs
+
+    def reset_candidate():
+        nonlocal candidate_start, candidate_base, candidate_peak, candidate_peak_index, candidate_stop_index
+        nonlocal consecutive_rises, non_rising_intervals
+        nonlocal candidate_confirmed
+        candidate_start = None
+        candidate_base = None
+        candidate_peak = None
+        candidate_peak_index = None
+        candidate_stop_index = None
+        consecutive_rises = 0
+        non_rising_intervals = 0
+        candidate_confirmed = False
+
+    def confirm_candidate(confirmation_index):
+        if candidate_start is None or candidate_peak_index is None:
+            reset_candidate()
+            return
+        stop_index = candidate_stop_index if candidate_stop_index is not None else candidate_peak_index
+        if stop_index is None:
+            reset_candidate()
+            return
+        if not candidate_confirmed:
+            reset_candidate()
+            return
+        stop_level = levels[stop_index]
+        if stop_level is None:
+            reset_candidate()
+            return
+        rise = float(stop_level - candidate_base)
+        if rise < ANALYTICS_MIN_REFILL_DELTA_PCT:
+            reset_candidate()
+            return
+        confirmation_level = levels[confirmation_index] if 0 <= confirmation_index < size else None
+        # A symmetric rise-and-fall on the next reading is sensor bounce, not a
+        # confirmed refill. Allow only a small post-fill settling movement.
+        settling_tolerance = max(1.0, rise * 0.25)
+        if confirmation_level is None or candidate_peak - confirmation_level > settling_tolerance:
+            reset_candidate()
+            return
+        started_at = parsed_times[candidate_start]
+        stopped_at = parsed_times[stop_index]
+        if started_at is None or stopped_at is None or stopped_at <= started_at:
+            reset_candidate()
+            return
+        for state_index in range(candidate_start, stop_index):
+            states[state_index] = 1
+        runs.append(
+            {
+                "start_index": candidate_start,
+                "stop_index": stop_index,
+                "started_at": safe_times[candidate_start],
+                "stopped_at": safe_times[stop_index],
+                "duration_seconds": int(round((stopped_at - started_at).total_seconds())),
+                "level_rise_pct": round(rise, 2),
+                "stop_level_pct": round(float(stop_level), 2),
+                "stop_threshold_pct": round(configured_stop_threshold, 2) if configured_stop_threshold is not None else None,
+            }
+        )
+        reset_candidate()
+
+    for index in range(size - 1):
+        current_time = parsed_times[index]
+        next_time = parsed_times[index + 1]
+        current_level = levels[index]
+        next_level = levels[index + 1]
+        valid_interval = (
+            current_time is not None
+            and next_time is not None
+            and current_level is not None
+            and next_level is not None
+            and 0 < (next_time - current_time).total_seconds() <= gap_limit_seconds
+            and abs(next_level - current_level) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+        )
+        if not valid_interval:
+            states[index] = None
+            reset_candidate()
+            continue
+
+        delta = next_level - current_level
+        if candidate_start is None:
+            effective_stop_threshold = (
+                max(0.0, configured_stop_threshold - ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT)
+                if configured_stop_threshold is not None
+                else None
+            )
+            below_stop_threshold = effective_stop_threshold is None or current_level < effective_stop_threshold
+            if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT and below_stop_threshold:
+                candidate_start = index
+                candidate_base = current_level
+                candidate_peak = next_level
+                candidate_peak_index = index + 1
+                consecutive_rises = 1
+                if effective_stop_threshold is not None and next_level >= effective_stop_threshold:
+                    candidate_stop_index = index + 1
+            continue
+
+        if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+            consecutive_rises += 1
+            non_rising_intervals = 0
+        else:
+            consecutive_rises = 0
+            non_rising_intervals += 1
+
+        # Ignore sub-noise movements when selecting the runtime endpoint.
+        if delta >= ANALYTICS_MIN_USAGE_DELTA_PCT and next_level > candidate_peak:
+            candidate_peak = next_level
+            candidate_peak_index = index + 1
+        effective_stop_threshold = (
+            max(0.0, configured_stop_threshold - ANALYTICS_STOP_THRESHOLD_TOLERANCE_PCT)
+            if configured_stop_threshold is not None
+            else None
+        )
+        if (
+            effective_stop_threshold is not None
+            and candidate_stop_index is None
+            and next_level >= effective_stop_threshold
+        ):
+            candidate_stop_index = index + 1
+
+        confirmed_rise = (
+            consecutive_rises >= ANALYTICS_FILL_CONFIRM_INTERVALS
+            and candidate_peak - candidate_base >= ANALYTICS_MIN_REFILL_DELTA_PCT
+        )
+        candidate_confirmed = candidate_confirmed or confirmed_rise
+        if candidate_stop_index is not None and candidate_confirmed:
+            confirm_candidate(index + 1)
+        elif non_rising_intervals >= ANALYTICS_FILL_STOP_INTERVALS:
+            confirm_candidate(index + 1)
+
+    # A rise at the edge of the selected range has no confirming stop reading,
+    # so it is intentionally not reported as a completed pump cycle.
+    states[-1] = 0 if levels[-1] is not None and parsed_times[-1] is not None else None
+    return safe_times[:size], states, runs
+
+
+def estimate_level_history_usage(time_values, level_values, fill_states):
+    """Estimate drawdown only outside confirmed level-derived fill cycles."""
+    safe_times = list(time_values or [])
+    safe_levels = list(level_values or [])
+    safe_states = list(fill_states or [])
+    size = min(len(safe_times), len(safe_levels), len(safe_states))
+    daily_usage = {}
+    hourly_usage = [0.0] * 24
+    hourly_timeline = {}
+    rate_segments = []
+    total_usage = 0.0
+    valid_hours = 0.0
+    valid_drop_count = 0
+    usage_floor = None
+
+    for index in range(size):
+        created_at = parse_timestamp(safe_times[index])
+        level = safe_float(safe_levels[index], None) if safe_levels[index] is not None else None
+        if created_at is None or level is None:
+            usage_floor = None
+            continue
+        date_key = created_at.date().isoformat()
+        daily_usage.setdefault(date_key, 0.0)
+        if index == 0:
+            usage_floor = level
+            continue
+        previous_at = parse_timestamp(safe_times[index - 1])
+        previous_level = safe_float(safe_levels[index - 1], None) if safe_levels[index - 1] is not None else None
+        delta_hours = (created_at - previous_at).total_seconds() / 3600.0 if previous_at else 0.0
+        valid_interval = (
+            previous_at is not None
+            and previous_level is not None
+            and 0 < delta_hours <= (ANALYTICS_MAX_GAP_MINUTES / 60.0)
+            and abs(level - previous_level) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
+        )
+        if not valid_interval:
+            usage_floor = level
+            continue
+        valid_hours += delta_hours
+        interval_fill = safe_states[index - 1] == 1
+        if interval_fill:
+            usage_floor = level
+            continue
+        if usage_floor is None:
+            usage_floor = previous_level
+        usage = max(0.0, usage_floor - level)
+        if usage >= ANALYTICS_MIN_USAGE_DELTA_PCT:
+            total_usage += usage
+            daily_usage[date_key] += usage
+            hourly_usage[created_at.hour] += usage
+            hour_key = created_at.replace(minute=0, second=0, microsecond=0).strftime(TIMESTAMP_FORMAT)
+            hourly_timeline[hour_key] = hourly_timeline.get(hour_key, 0.0) + usage
+            if delta_hours >= (1.0 / 60.0):
+                valid_drop_count += 1
+                rate_segments.append(usage / delta_hours)
+            usage_floor = level
+
+    return {
+        "daily_usage": daily_usage,
+        "hourly_usage": hourly_usage,
+        "hourly_timeline": hourly_timeline,
+        "total_usage": total_usage,
+        "valid_hours": valid_hours,
+        "valid_drop_count": valid_drop_count,
+        "consumption_rate_segments": rate_segments,
     }
 
 
@@ -8461,6 +9364,7 @@ def build_analytics_cache_key(start_dt, end_exclusive, device_id=None):
         end_exclusive.strftime(DATE_ONLY_FORMAT),
         normalized_device_id or "*",
         get_device_source_mode(),
+        ANALYTICS_ALGORITHM_VERSION,
     )
 
 
@@ -8627,7 +9531,6 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
     }
     live_snapshot_available = bool(snapshot and snapshot.get("device_id"))
     snapshot_level = round(safe_float(snapshot.get("level"), 0), 2)
-    snapshot_motor = str(snapshot.get("motor") or "OFF").strip().upper()
     snapshot_time = format_timestamp(snapshot.get("created_at")) or now_utc().strftime(TIMESTAMP_FORMAT)
     snapshot_dt = parse_timestamp(snapshot_time) or now_utc()
     baseline_time = (snapshot_dt - timedelta(minutes=10)).strftime(TIMESTAMP_FORMAT)
@@ -8635,7 +9538,8 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
     level_times = [baseline_time, snapshot_time] if live_snapshot_available else []
     level_values = [snapshot_level, snapshot_level] if live_snapshot_available else []
     motor_times = [baseline_time, snapshot_time] if live_snapshot_available else []
-    motor_values = [1 if snapshot_motor == "ON" else 0, 1 if snapshot_motor == "ON" else 0] if live_snapshot_available else []
+    motor_values = [0, 0] if live_snapshot_available else []
+    motor_cycles = 0
     daily_dates = []
     if live_snapshot_available:
         cursor_date = start_dt.date()
@@ -8688,9 +9592,14 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "reasons": snapshot.get("tank_health_reasons", ["No data has been received yet."])
         },
         "daily": {"dates": daily_dates, "values": daily_values},
-        "pattern": {"hours": list(range(24)), "values": [0] * 24},
+        "pattern": {"time": [], "values": [], "aggregation": "hourly_selected_range"},
         "levels": {"time": level_times, "values": level_values},
-        "motor": {"time": motor_times, "values": motor_values},
+        "motor": {
+            "time": motor_times,
+            "values": motor_values,
+            "source": "tank_level_history",
+            "relay_state_used": False,
+        },
         "comparison": {
             "latest_day": "--",
             "latest_day_usage": 0,
@@ -8698,32 +9607,47 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "previous_day_usage": 0,
             "change_pct": None
         },
-        "prediction": {"tomorrow_usage": None},
+        "prediction": {
+            "tomorrow_usage": None,
+            "tomorrow_usage_liters": None,
+            "confidence": 0,
+            "sample_days": 0,
+            "status": "insufficient_data",
+            "method": "robust_weighted_daily_baseline_v2",
+            "limitations": ["At least two complete days with reliable telemetry are required."],
+        },
         "analysis": {
             "quality": {
-                "score": 20,
+                "score": 0,
                 "row_count": 0,
                 "usable_hours": 0,
+                "requested_hours": round(max(0.0, (end_exclusive - start_dt).total_seconds() / 3600.0), 2),
+                "coverage_ratio": 0,
+                "coverage_percent": 0,
                 "gap_count": 0,
                 "valid_drop_count": 0,
                 "status": "limited",
+                "sufficient_for_anomaly": False,
+                "sufficient_for_forecast": False,
+                "limitations": ["Historical telemetry is not available."],
             },
-            "forecast_confidence": 20,
+            "forecast_confidence": 0,
             "anomaly_count": 0,
             "anomalies": [],
             "leakage": {
-                "model": "telemetry-leakage-ai-v1",
-                "status": "normal",
-                "label": "No leakage pattern",
-                "severity": "ok",
+                "model": "telemetry-leakage-ai-v2",
+                "status": "insufficient_data",
+                "label": "Not enough reliable data",
+                "severity": "info",
                 "score": 0,
-                "confidence": 20,
+                "confidence": 0,
                 "leak_type": "none",
                 "features": {},
                 "reasons": ["Not enough telemetry is available for leakage analysis."],
             },
             "model": {
-                "family": "robust-rule-ml-hybrid",
+                "family": "coverage-aware-robust-hybrid-v2",
+                "calibration": "evidence-gated",
                 "signals": ["live_snapshot_fallback"] if live_snapshot_available else [],
             },
             "live_snapshot_fallback": live_snapshot_available,
@@ -8743,10 +9667,19 @@ def build_empty_analytics(start_dt, end_exclusive, label, device_id=None):
             "runtime_hours": 0,
             "observed_hours": 0,
             "duty_cycle_pct": 0,
+            "started_runs": 0,
             "completed_runs": 0,
             "avg_run_seconds": 0,
             "short_cycle_count": 0,
             "avg_off_seconds": 0,
+            "source": "tank_level_history",
+            "relay_state_used": False,
+            "inference_status": "insufficient_level_history",
+            "runtime_basis": "tank_level_rise_to_configured_stop_threshold",
+            "stop_threshold_pct": round(safe_float(snapshot.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT), 1),
+            "last_started_at": None,
+            "last_stopped_at": None,
+            "validated_runs": [],
         },
         "alerts": [fallback_alert]
     }
@@ -8775,6 +9708,8 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     leak_signal = any(bool_flag((snapshot or {}).get(key)) for key in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     ai_leak_status = str(leakage_model.get("status") or "").lower()
     ai_leak_score = safe_float(leakage_model.get("score"), 0)
+    if confidence < 60 or not bool(quality.get("sufficient_for_forecast", confidence >= 60)):
+        return None
     # A short extrapolated empty-time from noisy history should not override a
     # clearly full live tank. Keep the forecast actionable only near the working
     # range or when current consumption is extremely high.
@@ -8783,7 +9718,7 @@ def meaningful_forecast_hours(snapshot, analytics_payload):
     if level >= 75 and forecast_hours < 6 and consumption_rate < 12:
         return None
     if level >= 70 and forecast_hours < 6 and not leak_signal:
-        if ai_leak_status != "likely_leak" or ai_leak_score < 70 or confidence < 90:
+        if not ai_leakage_alert_eligible(leakage_model) or ai_leak_status != "likely_leak" or ai_leak_score < 70:
             return None
     if level >= 70 and forecast_hours < 4 and confidence < 75 and not leak_signal:
         return None
@@ -8873,37 +9808,117 @@ def robust_consumption_rate(mean_rate, segment_rates, valid_hours, valid_drop_co
     return round(float(blended_rate), 4)
 
 
-def build_analytics_quality_payload(row_count, valid_hours, gap_count, valid_drop_count, latest_seconds_since_sync):
-    score = 35
-    score += min(25, int(row_count / 4))
-    score += min(25, int(valid_hours * 3))
-    score += min(15, valid_drop_count * 3)
-    score -= min(20, gap_count * 4)
-    if latest_seconds_since_sync is not None and latest_seconds_since_sync > STALE_AFTER_SECONDS:
-        score -= 20
-    score = max(20, min(96, score))
+def level_usage_matches_observed_refills(total_usage_pct, motor_cycles, allowance_per_fill_pct=120.0):
+    """Reject accumulated level drops that exceed observed available tank volume.
+
+    The opening tank contributes one fill. Each observed pump start can contribute at
+    most roughly one additional fill; a 20% allowance covers thresholds and rounding.
+    Missing pump history cannot prove a high usage estimate, so callers should hide it.
+    """
+    total = max(0.0, safe_float(total_usage_pct, 0.0))
+    cycles = max(0, int(safe_float(motor_cycles, 0)))
+    limit = float((cycles + 1) * max(100.0, safe_float(allowance_per_fill_pct, 120.0)))
+    return total <= limit, round(limit, 1)
+
+
+def daily_usage_matches_tank_turnover_limit(daily_usage, max_turnovers=None):
+    """Reject daily drawdown totals that imply an unreasonable number of tankfuls.
+
+    Refill inference can otherwise make sensor oscillation look physically possible:
+    every false rise adds another refill and therefore another usage allowance.
+    """
+    turnover_limit = max(
+        1.0,
+        safe_float(max_turnovers, ANALYTICS_MAX_DAILY_TANK_TURNOVERS),
+    )
+    limit_pct = turnover_limit * 100.0
+    values = [
+        max(0.0, safe_float(value, 0.0))
+        for value in (daily_usage or {}).values()
+    ]
+    peak_usage_pct = max(values, default=0.0)
+    return peak_usage_pct <= limit_pct, round(limit_pct, 1), round(peak_usage_pct, 1)
+
+
+def build_analytics_quality_payload(
+    row_count,
+    valid_hours,
+    gap_count,
+    valid_drop_count,
+    latest_seconds_since_sync,
+    window_hours=None,
+):
+    requested_hours = max(0.0, safe_float(window_hours, valid_hours))
+    coverage_ratio = min(1.0, (float(valid_hours) / requested_hours)) if requested_hours > 0 else 0.0
+    row_score = min(20.0, (max(0, int(row_count)) / 48.0) * 20.0)
+    duration_target = min(max(requested_hours, 1.0), 24.0)
+    duration_score = min(25.0, (max(0.0, float(valid_hours)) / duration_target) * 25.0)
+    evidence_score = min(15.0, (max(0, int(valid_drop_count)) / 8.0) * 15.0)
+    coverage_score = coverage_ratio * 25.0
+    freshness_score = 15.0
+    stale = latest_seconds_since_sync is None or latest_seconds_since_sync > STALE_AFTER_SECONDS
+    if stale:
+        freshness_score = 0.0
+    gap_penalty = min(20.0, max(0, int(gap_count)) * 2.5)
+    score = int(round(max(0.0, min(96.0, row_score + duration_score + evidence_score + coverage_score + freshness_score - gap_penalty))))
+    limitations = []
+    if row_count < 4:
+        limitations.append("Too few telemetry samples.")
+    if coverage_ratio < 0.5:
+        limitations.append("Less than half of the selected time range has continuous telemetry.")
+    if valid_drop_count < 3:
+        limitations.append("Too few validated off-pump level drops for pattern detection.")
+    if stale:
+        limitations.append("The latest telemetry is stale or unavailable.")
+    sufficient_for_anomaly = score >= 60 and valid_hours >= 2 and valid_drop_count >= 3 and row_count >= 8
+    sufficient_for_forecast = score >= 60 and valid_hours >= 6 and row_count >= 12
     return {
         "score": score,
         "row_count": int(row_count),
         "usable_hours": round(float(valid_hours), 2),
+        "requested_hours": round(requested_hours, 2),
+        "coverage_ratio": round(coverage_ratio, 3),
+        "coverage_percent": round(coverage_ratio * 100.0, 1),
         "gap_count": int(gap_count),
         "valid_drop_count": int(valid_drop_count),
         "status": "strong" if score >= 80 else "moderate" if score >= 60 else "limited",
+        "sufficient_for_anomaly": sufficient_for_anomaly,
+        "sufficient_for_forecast": sufficient_for_forecast,
+        "limitations": limitations,
     }
 
 
 def forecast_confidence_from_quality(quality, consumption_rate, current_level, leak_events=0):
-    score = safe_float((quality or {}).get("score"), 35)
+    score = safe_float((quality or {}).get("score"), 0)
+    if not bool((quality or {}).get("sufficient_for_forecast", score >= 60)):
+        score = min(score, 45)
     if consumption_rate <= 0:
         score -= 25
     if current_level >= 70 and consumption_rate >= 25 and leak_events <= 0:
         score -= 18
     if leak_events > 0:
         score += 8
-    return max(20, min(96, int(round(score))))
+    return max(0, min(95, int(round(score))))
 
 
-def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usage, peak_value):
+def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usage, peak_value, daily_history=None):
+    if daily_history is not None:
+        history = [float(value) for value in daily_history if value is not None and math.isfinite(float(value)) and float(value) >= 0]
+        if len(history) < 2:
+            return None
+        recent = history[-7:]
+        median = percentile_value(recent, 50)
+        weights = list(range(1, len(recent) + 1))
+        weighted_mean = sum(value * weight for value, weight in zip(recent, weights)) / sum(weights)
+        changes = [
+            (current - previous) / previous
+            for previous, current in zip(recent, recent[1:])
+            if previous > 0
+        ]
+        trend = percentile_value(changes, 50) if changes else 0.0
+        trend = max(-0.25, min(0.25, trend))
+        robust_baseline = (median * 0.6) + (weighted_mean * 0.4)
+        return round(max(0.0, robust_baseline * (1.0 + trend * 0.35)), 2)
     values = [float(value or 0.0) for value in (avg_daily_usage, latest_day_usage, previous_day_usage, peak_value)]
     avg_usage, latest_usage, previous_usage, peak_usage = values
     if max(values) <= 0:
@@ -8912,6 +9927,46 @@ def estimate_tomorrow_usage(avg_daily_usage, latest_day_usage, previous_day_usag
     if latest_usage > previous_usage > 0:
         baseline *= min(1.18, 1.0 + ((latest_usage - previous_usage) / previous_usage) * 0.12)
     return round(max(0.0, baseline), 2)
+
+
+def build_daily_usage_forecast(daily_history, quality):
+    history = [float(value) for value in (daily_history or []) if value is not None and math.isfinite(float(value)) and float(value) >= 0]
+    quality_score = int(safe_float((quality or {}).get("score"), 0))
+    sufficient_quality = bool((quality or {}).get("sufficient_for_forecast", quality_score >= 60))
+    if len(history) < 2 or not sufficient_quality:
+        reasons = []
+        if len(history) < 2:
+            reasons.append("At least two complete days are required.")
+        if not sufficient_quality:
+            reasons.append("Telemetry coverage is insufficient for a reliable forecast.")
+        return {
+            "value": None,
+            "lower": None,
+            "upper": None,
+            "confidence": min(45, quality_score),
+            "sample_days": len(history),
+            "status": "insufficient_data",
+            "method": "robust_weighted_daily_baseline_v2",
+            "limitations": reasons,
+        }
+
+    value = estimate_tomorrow_usage(0, 0, 0, 0, daily_history=history)
+    median = percentile_value(history, 50)
+    deviations = [abs(item - median) for item in history]
+    mad = percentile_value(deviations, 50)
+    relative_variability = (mad / median) if median > 0 else (1.0 if mad > 0 else 0.0)
+    uncertainty_fraction = max(0.10, min(0.60, 0.12 + relative_variability * 1.5 + (0.12 if len(history) < 4 else 0.0)))
+    confidence = int(round(max(0.0, min(95.0, quality_score - relative_variability * 35.0 - (12 if len(history) < 4 else 0)))))
+    return {
+        "value": round(float(value), 2),
+        "lower": round(max(0.0, float(value) * (1.0 - uncertainty_fraction)), 2),
+        "upper": round(float(value) * (1.0 + uncertainty_fraction), 2),
+        "confidence": confidence,
+        "sample_days": len(history),
+        "status": "ready" if confidence >= 60 else "low_confidence",
+        "method": "robust_weighted_daily_baseline_v2",
+        "limitations": [] if confidence >= 60 else ["Recent daily usage varies substantially."],
+    }
 
 
 def percentile_value(values, percentile):
@@ -8996,13 +10051,24 @@ def build_leakage_ai_model(
         score = max(0.0, score - min(12.0, refill_events * 3.0))
 
     quality_score = safe_float((quality or {}).get("score"), 35)
+    sufficient_evidence = bool(
+        (quality or {}).get(
+            "sufficient_for_anomaly",
+            quality_score >= 60 and valid_hours >= 2 and valid_drop_count >= 3,
+        )
+    )
     if quality_score < 60:
         score *= 0.82
         reasons.append("Telemetry quality is limited, so the model reduced confidence.")
 
     score = round(max(0.0, min(100.0, score)), 1)
-    confidence = int(max(20, min(96, quality_score + (10 if len(rates) >= 6 else -8) + (8 if leak_events > 0 else 0))))
-    if score >= 70:
+    confidence = int(max(0, min(95, quality_score + (10 if len(rates) >= 6 else -12) + (8 if leak_events > 0 else 0))))
+    if leak_events <= 0 and not sufficient_evidence:
+        status = "insufficient_data"
+        severity = "info"
+        label = "Not enough reliable data"
+        reasons.insert(0, "More continuous off-pump telemetry is required before classifying leakage.")
+    elif score >= 70:
         status = "likely_leak"
         severity = "danger"
         label = "Likely leakage"
@@ -9020,7 +10086,7 @@ def build_leakage_ai_model(
         label = "No leakage pattern"
 
     leak_type = "none"
-    if score >= 45:
+    if status in {"likely_leak", "possible_leak"}:
         if leak_events > 0 or p90_rate >= 20:
             leak_type = "pipe_leak"
         elif valid_drop_count >= 3 or rate_ratio >= 1.7:
@@ -9028,13 +10094,20 @@ def build_leakage_ai_model(
         else:
             leak_type = "usage_anomaly"
 
+    alert_eligible = (
+        status in {"likely_leak", "possible_leak"}
+        and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+        and score > 90.0
+    )
     return {
-        "model": "telemetry-leakage-ai-v1",
+        "model": "telemetry-leakage-ai-v2",
         "status": status,
         "label": label,
         "severity": severity,
         "score": score,
         "confidence": confidence,
+        "alert_confidence_threshold": AI_LEAK_ALERT_MIN_CONFIDENCE,
+        "alert_eligible": alert_eligible,
         "leak_type": leak_type,
         "features": {
             "off_pump_drop_count": int(valid_drop_count),
@@ -9048,9 +10121,22 @@ def build_leakage_ai_model(
             "pump_duty_cycle_pct": round(duty_cycle_pct, 2),
             "pump_short_cycle_count": short_cycle_count,
             "avg_pump_run_seconds": int(safe_float(pump_activity_metrics.get("avg_run_seconds"), 0)),
+            "sufficient_evidence": sufficient_evidence,
         },
         "reasons": reasons[:5] or ["No unusual off-pump water loss pattern was found."],
     }
+
+
+def ai_leakage_alert_eligible(leakage_model):
+    model = leakage_model or {}
+    status = str(model.get("status") or "").strip().lower()
+    confidence = safe_float(model.get("confidence"), 0)
+    score = safe_float(model.get("score"), 0)
+    return (
+        status in {"likely_leak", "possible_leak"}
+        and confidence > AI_LEAK_ALERT_MIN_CONFIDENCE
+        and score > 90.0
+    )
 
 
 def build_analysis_payload(
@@ -9072,25 +10158,27 @@ def build_analysis_payload(
     pump_activity_metrics = pump_activity_metrics or {}
     event_counts = event_analysis.get("event_counts") or {}
     severity_counts = event_analysis.get("severity_counts") or {}
+    sufficient_anomaly_evidence = bool((quality or {}).get("sufficient_for_anomaly", safe_float((quality or {}).get("score"), 0) >= 60))
     anomalies = []
     event_leak_count = sum(int(event_counts.get(kind, 0) or 0) for kind in ("pipe_leak", "slow_leak", "drip", "abnormal"))
     if leak_events > 0 or event_leak_count > 0:
         anomalies.append({"kind": "leak_signal", "severity": "danger", "message": "Leak indicators were active in this range."})
-    if leakage_model.get("status") in {"likely_leak", "possible_leak"} and leak_events <= 0 and event_leak_count <= 0:
+    if ai_leakage_alert_eligible(leakage_model) and leak_events <= 0 and event_leak_count <= 0:
         anomalies.append(
             {
                 "kind": "ai_leakage",
                 "severity": leakage_model.get("severity") or "warning",
                 "message": "AI/ML telemetry pattern suggests possible leakage.",
                 "score": leakage_model.get("score"),
+                "confidence": leakage_model.get("confidence"),
             }
         )
-    if usage_change_pct is not None and usage_change_pct >= 60:
+    if sufficient_anomaly_evidence and usage_change_pct is not None and usage_change_pct >= 60:
         anomalies.append({"kind": "usage_spike", "severity": "danger", "message": "Usage is far above the recent baseline."})
-    elif usage_change_pct is not None and usage_change_pct >= 25:
+    elif sufficient_anomaly_evidence and usage_change_pct is not None and usage_change_pct >= 25:
         anomalies.append({"kind": "usage_spike", "severity": "warning", "message": "Usage is above the recent baseline."})
     telemetry_short_cycles = int(safe_float(pump_activity_metrics.get("short_cycle_count"), 0))
-    if motor_cycles > 12 or int(event_counts.get("pump_started", 0) or 0) > 12 or telemetry_short_cycles >= 4:
+    if int(event_counts.get("pump_started", 0) or 0) > 12 or (sufficient_anomaly_evidence and (motor_cycles > 12 or telemetry_short_cycles >= 4)):
         anomalies.append({"kind": "short_cycling", "severity": "warning", "message": "Pump cycling is higher than expected."})
     if int(severity_counts.get("warning", 0) or 0) >= 3:
         anomalies.append({"kind": "event_warning_pattern", "severity": "warning", "message": "Several warning events were recorded in the event history."})
@@ -9103,7 +10191,7 @@ def build_analysis_payload(
         current_level,
         leak_events=max(leak_events, event_leak_count),
     )
-    if empty_prediction is not None and empty_prediction <= 6:
+    if forecast_confidence >= 60 and empty_prediction is not None and empty_prediction <= 6:
         severity = "danger" if empty_prediction <= 3 else "warning"
         anomalies.append({"kind": "empty_forecast", "severity": severity, "message": "Tank may run low soon if the current trend continues."})
 
@@ -9123,7 +10211,8 @@ def build_analysis_payload(
         },
         "leakage": leakage_model,
         "model": {
-            "family": "robust-rule-ml-hybrid",
+            "family": "coverage-aware-robust-hybrid-v2",
+            "calibration": "evidence-gated",
             "signals": [
                 "level_trend",
                 "consumption_rate",
@@ -9216,6 +10305,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     severity_counts = event_analysis.get("severity_counts") or {}
     comparison = analytics_payload.get("comparison") or {}
     leakage_model = analysis.get("leakage") or {}
+    sufficient_anomaly_evidence = bool(quality.get("sufficient_for_anomaly", safe_float(quality.get("score"), 0) >= 60))
 
     level = safe_float(snapshot.get("level"), 0)
     motor = str(snapshot.get("motor") or "").upper()
@@ -9234,7 +10324,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
 
     pipe_leak = any(bool_flag(snapshot.get(key)) for key in ("pipe_leak", "slow_leak", "drip"))
     ai_leak_status = str(leakage_model.get("status") or "").lower()
-    ai_leak_active = ai_leak_status in {"likely_leak", "possible_leak"}
+    ai_leak_active = ai_leakage_alert_eligible(leakage_model)
     dry_run = effective_dry_run_active(snapshot)
     source_monitoring_active = source_service == "ON"
     source_blocked = (
@@ -9284,15 +10374,22 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         severity = "critical" if ai_leak_status == "likely_leak" else "warning"
         tone = "bad" if severity == "critical" else "warn"
         if ai_leak_status == "likely_leak":
-            title = "AI found a leakage pattern"
+            title = "Possible Water Leak Detected"
             action_title = "Inspect pipes and taps"
         else:
-            title = "AI found a possible leakage pattern"
+            title = "Possible Water Leak Detected"
             action_title = "Check pipes and taps"
-        summary = f"Telemetry leakage score is {safe_float(leakage_model.get('score'), 0):.0f}%."
-        action_note = "Check outlets, flush lines, valves, overflow, and hidden damp areas, then compare the next trend."
-        observations.extend((leakage_model.get("reasons") or [])[:2])
-        actions.append("Inspect pipes, taps, valves, overflow, and pump line for continuous water loss.")
+        summary = "Unusual water loss was observed while the pump was off. No motor-safety alert is active."
+        action_note = "Check taps and toilet flush tanks first, then inspect visible pipes, overflow, and the pump outlet valve."
+        observations.extend((leakage_model.get("reasons") or [])[:4])
+        actions.extend(
+            [
+                "Check kitchen and bathroom taps.",
+                "Check toilet flush tanks for continuous flow.",
+                "Check visible pipes, tank overflow, garden lines, and the pump outlet valve.",
+                "Review the leak report after the next device update.",
+            ]
+        )
     elif source_blocked:
         severity = "warning"
         tone = "warn"
@@ -9321,7 +10418,7 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         action_title = "Let the cycle finish"
         action_note = "Auto protection still controls the stop point while the tank fills."
         observations.append("The pump is currently running and the tank is refilling.")
-    elif usage_change is not None and usage_change >= 35:
+    elif sufficient_anomaly_evidence and usage_change is not None and usage_change >= 35:
         severity = "warning"
         tone = "warn"
         title = "Water use is higher than normal"
@@ -9339,6 +10436,15 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         action_note = "Clean wiring and sensor placement, then wait for the next telemetry sync."
         observations.append("The main tank sensor needs attention.")
         actions.append(action_title)
+    elif quality.get("usage_physically_plausible") is False:
+        severity = "warning"
+        tone = "warn"
+        title = "Usage history needs review"
+        summary = "Live tank status is available, but historical level changes cannot support a reliable usage estimate."
+        action_title = "Verify sensor stability and refill reporting"
+        action_note = "Keep auto protection enabled; review sensor mounting and pump-state telemetry before using forecasts."
+        observations.append("Recorded level changes exceed the water supported by observed refill cycles.")
+        actions.append("Check sensor mounting, wiring, tank dimensions, and whether pump ON/OFF states are reported correctly.")
     else:
         observations.append("Tank level, pump state, and connection look steady right now.")
         actions.append("Keep auto protection enabled and review the chart trend later today.")
@@ -9346,27 +10452,80 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
     motor_cycles = safe_float(insights.get("motor_cycles"), safe_float(snapshot.get("motor_cycles"), 0))
     event_pump_cycles = safe_float(event_counts.get("pump_started"), 0)
     telemetry_short_cycles = safe_float(pump_activity.get("short_cycle_count"), 0)
-    if max(motor_cycles, event_pump_cycles) > 12 or telemetry_short_cycles >= 4:
-        observations.append("Pump cycling is higher than normal.")
+    if event_pump_cycles > 12 or (sufficient_anomaly_evidence and (motor_cycles > 12 or telemetry_short_cycles >= 4)):
+        observations.append("Your pump is starting more often than usual.")
         actions.append("Review auto-start and auto-stop thresholds if the pump keeps short-cycling.")
     if safe_float(severity_counts.get("warning"), 0) >= 3:
-        observations.append("Event history shows repeated warnings in this range.")
+        observations.append("This issue has occurred several times in the selected period.")
         actions.append("Review recent device events before changing automation settings.")
 
-    confidence = int(safe_float(analysis.get("forecast_confidence"), safe_float(quality.get("score"), 0)))
-    if confidence <= 0:
-        confidence = 72
-    if telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
-        confidence = max(confidence, 72)
-    if severity == "normal" and telemetry in {"live", "recent", "online"} and sensor in {"OK", ""}:
-        confidence = max(confidence, 80 if analytics_payload else 74)
+    quality_confidence = int(safe_float(quality.get("score"), 0))
+    confidence = int(safe_float(analysis.get("forecast_confidence"), quality_confidence))
+    direct_hardware_signal = dry_run or source_blocked or main_sensor_bad or pipe_leak
+    if direct_hardware_signal and telemetry in {"live", "recent", "online"}:
+        confidence = max(confidence, 85)
+    elif analytics_payload:
+        confidence = min(confidence, quality_confidence)
+    else:
+        confidence = 0
     if telemetry == "stale":
         confidence -= 20
     if not analytics_payload or not (analytics_payload.get("levels") or {}).get("values"):
         confidence -= 10
     if main_sensor_bad:
         confidence -= 8
-    confidence = max(45, min(96, confidence))
+    if quality.get("usage_physically_plausible") is False:
+        confidence = min(confidence, 45)
+    confidence = max(0, min(95, confidence))
+
+    if ai_leak_active:
+        confidence = max(confidence, int(safe_float(leakage_model.get("confidence"), 0)))
+        confidence = min(95, confidence)
+
+    friendly_reason_map = {
+        "Device leak flags were active.": "The device reported a leak-related signal.",
+        "Tank level dropped repeatedly while the pump was off.": "The tank level dropped repeatedly while the pump was off.",
+        "Peak off-pump loss rate is very high.": "Water was being used even while the pump was off.",
+        "Peak off-pump loss rate is above normal.": "Water use while the pump was off was above the normal range.",
+        "Average consumption rate is high for the selected range.": "Water use was high during the selected period.",
+        "Recent usage is much higher than the learned baseline.": "Recent water use was much higher than usual.",
+        "Daily usage jumped sharply against the previous day.": "Daily water use increased sharply compared with the previous day.",
+        "Daily usage is above the recent baseline.": "Daily water use was above its recent normal range.",
+        "Pump activity shows repeated short runs.": "The pump started repeatedly for short periods.",
+        "Pump duty cycle is high during this range.": "The pump ran for an unusually large part of this period.",
+        "Telemetry quality is limited, so the model reduced confidence.": "Some device readings are missing, so this result is less reliable.",
+    }
+    observations = [friendly_reason_map.get(item, item) for item in observations]
+    reliability_label = "High" if confidence >= 90 else "Medium" if confidence >= 70 else "Limited"
+    risk_label = "High" if severity == "critical" else "Medium" if severity == "warning" else "Low"
+    motor_safety = (
+        "Motor protection is active; do not restart until source water is available."
+        if dry_run
+        else "No immediate motor-safety alert was detected."
+    )
+    possible_causes = (
+        ["Tap left open", "Toilet flush leak", "Visible pipe or valve leak", "Tank overflow"]
+        if ai_leak_active or pipe_leak
+        else []
+    )
+    leakage_features = leakage_model.get("features") or {}
+    capacity_liters = safe_float(snapshot.get("capacity_liters"), TANK_CAPACITY_LITERS)
+    loss_rate_pct_per_hour = safe_float(leakage_features.get("avg_loss_rate_pct_per_hour"), 0)
+    usable_loss_hours = min(24.0, max(0.0, safe_float(leakage_features.get("usable_hours"), 0)))
+    estimated_abnormal_loss = None
+    impact_period = None
+    if (ai_leak_active or pipe_leak) and sufficient_anomaly_evidence and capacity_liters > 0 and loss_rate_pct_per_hour > 0 and usable_loss_hours > 0:
+        estimated_abnormal_loss = round(capacity_liters * (loss_rate_pct_per_hour / 100.0) * usable_loss_hours, 1)
+        impact_period = f"over {usable_loss_hours:g} observed hrs"
+    elif sufficient_anomaly_evidence and not ai_leak_active and not pipe_leak:
+        estimated_abnormal_loss = 0.0
+        impact_period = "in the validated period"
+
+    risk_reason = (
+        f"High because the tank may empty in about {effective_empty:g} hours; system health and motor safety are separate checks."
+        if risk_label == "High" and effective_empty is not None and effective_empty <= 3
+        else "Based on water availability, active alerts, forecast urgency, and recent usage—not only device health."
+    )
 
     return {
         "severity": severity,
@@ -9377,6 +10536,26 @@ def build_shared_guidance_payload(snapshot=None, analytics_payload=None):
         "action_note": action_note,
         "time_to_empty_hours": effective_empty,
         "confidence_percent": int(confidence),
+        "reliability_label": reliability_label,
+        "risk_label": risk_label,
+        "risk_reason": risk_reason,
+        "motor_safety": motor_safety,
+        "possible_causes": possible_causes,
+        "estimated_impact": {
+            "water_loss_liters": estimated_abnormal_loss,
+            "period": impact_period,
+            "cost_inr": None,
+            "message": (
+                "Estimated from validated off-pump level loss."
+                if estimated_abnormal_loss is not None and estimated_abnormal_loss > 0
+                else "No abnormal water loss was detected in the validated period."
+                if estimated_abnormal_loss == 0
+                else "Not enough evidence from reliable off-pump telemetry is available to estimate abnormal loss."
+            ),
+        },
+        "last_checked_at": snapshot.get("last_sync_at") or snapshot.get("updated_at"),
+        "confidence_basis": "direct_device_signal" if direct_hardware_signal else "telemetry_quality",
+        "limitations": list(quality.get("limitations") or [])[:4],
         "observations": observations[:5],
         "actions": list(dict.fromkeys(actions))[:5],
         "source": "shared_server_guidance",
@@ -9495,6 +10674,66 @@ def snapshot_is_fresh_enough_for_runtime_sync(snapshot):
         return True
 
 
+STATUS_CONTRACT_VERSION = 1
+
+
+def build_synchronized_status_payload(snapshot, device_id=None, service_config=None):
+    snapshot = snapshot or {}
+    normalized_device_id = normalize_device_id(device_id or snapshot.get("device_id"))
+    config = service_config or (
+        fetch_device_service_config(normalized_device_id, snapshot=snapshot)
+        if normalized_device_id
+        else {}
+    )
+    sensor_status = admin_relay_sensor_status_fields(snapshot, config)
+    fresh = snapshot_is_fresh_enough_for_runtime_sync(snapshot)
+    pump_running = str(
+        snapshot.get("pump")
+        or snapshot.get("motor")
+        or snapshot.get("swt_relay")
+        or snapshot.get("pump_status")
+        or "OFF"
+    ).strip().upper() in {"ON", "RUNNING", "ACTIVE"}
+    ai_enabled = boolish_enabled(
+        config.get("effective_ai_analysis_enabled", config.get("ai_analysis_enabled")),
+        default=True,
+    )
+    return {
+        "contract_version": STATUS_CONTRACT_VERSION,
+        "firmware_contract_version": snapshot.get("status_contract_version"),
+        "device_id": normalized_device_id,
+        "observed_at": snapshot.get("last_sync_at") or snapshot.get("created_at"),
+        "telemetry_status": snapshot.get("telemetry_status") or "no-data",
+        "pump": {
+            "state": "ON" if pump_running else "OFF",
+            "mode": str(snapshot.get("mode") or "UNKNOWN").strip().upper(),
+            "health": sensor_status.get("relay_status_label") or "Unreachable",
+            "source": "firmware",
+        },
+        "sensors": {
+            "upper": sensor_status.get("upper_sensor_status_label") or "Unreachable",
+            "source": sensor_status.get("lower_sensor_status_label") or "Unreachable",
+            "municipal": sensor_status.get("municipal_sensor_status_label") or "Disabled",
+            "source_of_truth": "firmware",
+        },
+        "ai_ml": {
+            "state": "ON" if ai_enabled else "OFF",
+            "cloud_feed_mode": config.get("cloud_feed_mode") or "off",
+            "firmware_state": snapshot.get("ai_ml_status") or "SERVER_MANAGED",
+            "source": "flask",
+        },
+        "configuration": {
+            "state": "SYNCED" if fresh else ("STALE" if snapshot else "WAITING"),
+            "firmware_state": snapshot.get("configuration_status") or "UNKNOWN",
+            "auto_mode": "ON" if boolish_enabled(config.get("auto_mode_enabled"), default=False) else "OFF",
+            "source_tank": "ON" if boolish_enabled(config.get("source_tank_monitoring_enabled"), default=True) else "OFF",
+            "municipal": "ON" if boolish_enabled(config.get("municipal_sensor_enabled"), default=False) else "OFF",
+            "updated_at": config.get("updated_at"),
+            "source": "flask+firmware",
+        },
+    }
+
+
 def build_system_status_payload(snapshot, device_id=None, service_config=None):
     if snapshot_has_live_device_data(snapshot):
         evaluate_snapshot_alerts(snapshot)
@@ -9506,6 +10745,9 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         resolved_service_config = fetch_device_service_config(normalized_device_id, snapshot=snapshot)
     node_status = admin_node_status_fields(snapshot or {}, resolved_service_config or {})
 
+    synchronized_status = build_synchronized_status_payload(
+        snapshot, device_id=normalized_device_id, service_config=resolved_service_config
+    )
     return {
         "server": "online",
         "database": "online",
@@ -9543,6 +10785,7 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
+        "synchronized_status": synchronized_status,
     }
 
 
@@ -9744,6 +10987,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     query, params = build_analytics_query(start_dt, end_exclusive, normalized_device_id)
     with get_db() as db:
         raw_tank_rows = [dict(row) for row in db.execute(query, params)]
+    observed_motor_times, observed_motor_values = build_observed_motor_activity_series(raw_tank_rows)
     tank_rows = filter_valid_analytics_rows(raw_tank_rows)
     history_source = "tank_data"
     if len(tank_rows) < 2 and normalized_device_id:
@@ -9754,9 +10998,11 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             include_all_sources=True,
         )
         with get_db() as db:
-            all_source_rows = filter_valid_analytics_rows([dict(row) for row in db.execute(all_source_query, all_source_params)])
+            raw_all_source_rows = [dict(row) for row in db.execute(all_source_query, all_source_params)]
+            all_source_rows = filter_valid_analytics_rows(raw_all_source_rows)
         if len(all_source_rows) > len(tank_rows):
             tank_rows = all_source_rows
+            observed_motor_times, observed_motor_values = build_observed_motor_activity_series(raw_all_source_rows)
             history_source = "tank_data_all_sources"
     existing_source_row_ids = {str(row.get("id")) for row in tank_rows if row.get("id") not in (None, "")}
     event_rows = []
@@ -9772,9 +11018,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     analytics_rows = merge_analytics_source_rows(tank_rows, event_rows)
     gap_threshold_hours = ANALYTICS_MAX_GAP_MINUTES / 60.0
     daily_usage = {}
-    hourly_usage = [0.0] * 24
     level_times = []
     level_values = []
+    fill_level_values = []
     motor_times = []
     motor_values = []
     row_count = 0
@@ -9790,14 +11036,18 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     refill_events = 0
     consumption_rate_segments = []
     prev_created_at = None
+    first_created_at = None
     prev_level = None
-    prev_motor = "OFF"
+    last_display_level = None
     latest_row = None
 
     for row in analytics_rows:
         created_at = parse_timestamp(row["created_at"])
         if created_at is None:
             continue
+
+        if first_created_at is None:
+            first_created_at = created_at
 
         row_count += 1
         timestamp_label = created_at.strftime(TIMESTAMP_FORMAT)
@@ -9818,39 +11068,14 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
                 gap_count += 1
 
         drop = 0.0 if prev_level is None else level - prev_level
-        refill_event = (
-            prev_level is not None
-            and (not gap_break)
-            and drop > 0.25
-            and abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT
-        )
-        if refill_event:
-            refill_events += 1
-        valid_drop = (
-            (not gap_break)
-            and (drop < -0.05)
-            and (abs(drop) <= ANALYTICS_MAX_LEVEL_DELTA_PCT)
-        )
-        stable_consumption_window = prev_motor != "ON" and motor != "ON"
-        usage = abs(drop) if valid_drop and stable_consumption_window else 0.0
-        total_usage += usage
-        if not gap_break:
-            valid_hours += delta_hours
-        if usage > 0 and delta_hours >= (1.0 / 60.0):
-            valid_drop_count += 1
-            consumption_rate_segments.append(usage / delta_hours)
-
-        date_key = created_at.date().isoformat()
-        daily_usage[date_key] = daily_usage.get(date_key, 0.0) + usage
-        hourly_usage[created_at.hour] += usage
-
+        implausible_level_jump = prev_level is not None and abs(drop) > ANALYTICS_MAX_LEVEL_DELTA_PCT
         level_times.append(timestamp_label)
-        level_values.append(None if gap_break else level)
-        motor_times.append(timestamp_label)
-        motor_values.append(None if gap_break else (1 if motor == "ON" else 0))
-
-        if motor == "ON" and prev_motor != "ON":
-            motor_cycles += 1
+        if gap_break or implausible_level_jump:
+            level_values.append(last_display_level if last_display_level is not None else level)
+        else:
+            level_values.append(level)
+            last_display_level = level
+        fill_level_values.append(level)
         if pipe_leak == "YES":
             leak_events += 1
 
@@ -9862,7 +11087,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
 
         prev_created_at = created_at
         prev_level = level
-        prev_motor = motor
 
     if row_count < 2 or latest_row is None or prev_level is None:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -9872,6 +11096,50 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             reason="Fresh analytics needs more history; showing the last successful AI analysis if available.",
             now_ts=now_ts,
         )
+
+    automation_settings = fetch_device_automation_settings(
+        normalized_device_id,
+        snapshot=latest_row,
+    ) if normalized_device_id else default_device_automation_settings()
+    stop_threshold_pct = safe_float(
+        automation_settings.get("auto_stop_pct"),
+        DEFAULT_DEVICE_AUTO_STOP_PCT,
+    )
+    start_threshold_pct = safe_float(
+        automation_settings.get("auto_start_pct"),
+        DEFAULT_DEVICE_AUTO_START_PCT,
+    )
+    inferred_motor_times, inferred_motor_values, inferred_fill_runs = infer_pump_activity_from_level_history(
+        level_times,
+        fill_level_values,
+        stop_threshold_pct=stop_threshold_pct,
+        start_threshold_pct=start_threshold_pct,
+    )
+    level_usage = estimate_level_history_usage(level_times, level_values, inferred_motor_values)
+    daily_usage = level_usage["daily_usage"]
+    hourly_timeline = level_usage["hourly_timeline"]
+    total_usage = level_usage["total_usage"]
+    valid_hours = level_usage["valid_hours"]
+    valid_drop_count = level_usage["valid_drop_count"]
+    consumption_rate_segments = level_usage["consumption_rate_segments"]
+    activity_window_end = min(end_exclusive, now_utc())
+    observed_motor_times, observed_motor_values = extend_ongoing_motor_activity(
+        observed_motor_times,
+        observed_motor_values,
+        activity_window_end,
+    )
+    observed_motor_metrics = build_motor_activity_metrics(observed_motor_times, observed_motor_values)
+    observed_motor_has_on_state = any(value == 1 for value in observed_motor_values)
+    inferred_motor_metrics = build_motor_activity_metrics(inferred_motor_times, inferred_motor_values)
+    if observed_motor_has_on_state:
+        motor_times = observed_motor_times
+        motor_values = observed_motor_values
+        motor_cycles = observed_motor_metrics["started_runs"]
+    else:
+        motor_times = inferred_motor_times
+        motor_values = inferred_motor_values
+        motor_cycles = inferred_motor_metrics["completed_runs"]
+    refill_events = motor_cycles
 
     mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
     consumption_rate = robust_consumption_rate(
@@ -9884,31 +11152,129 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     empty_prediction = current_level / consumption_rate if consumption_rate > 0 else None
     daily_dates = list(daily_usage.keys())
     daily_values = list(daily_usage.values())
+    configured_capacity = safe_float(latest_row.get("tank_capacity_liters"), None)
+    if configured_capacity is None or configured_capacity <= 0:
+        service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
+        configured_capacity = safe_float(service_config.get("tank_capacity_liters"), TANK_CAPACITY_LITERS)
+    tank_capacity_liters = configured_capacity if configured_capacity and configured_capacity > 0 else TANK_CAPACITY_LITERS
+    def percent_to_liters(value):
+        if value is None:
+            return None
+        return round((float(value) * tank_capacity_liters) / 100.0, 1)
+    daily_liters = [percent_to_liters(value) for value in daily_values]
+    daily_complete = []
+    completed_through = min(end_exclusive, now_utc())
+    pattern_times = []
+    pattern_values = []
+    pattern_cursor = start_dt.replace(minute=0, second=0, microsecond=0)
+    while pattern_cursor < completed_through and len(pattern_times) < 24 * 62:
+        pattern_key = pattern_cursor.strftime(TIMESTAMP_FORMAT)
+        pattern_times.append(pattern_key)
+        pattern_values.append(float(hourly_timeline.get(pattern_key, 0.0)))
+        pattern_cursor += timedelta(hours=1)
+    pattern_liters = [percent_to_liters(value) for value in pattern_values]
+    for date_text in daily_dates:
+        day_start = datetime.strptime(date_text, DATE_ONLY_FORMAT)
+        daily_complete.append(start_dt <= day_start and completed_through >= day_start + timedelta(days=1))
+    complete_usage = {
+        date_text: daily_usage[date_text]
+        for date_text, is_complete in zip(daily_dates, daily_complete)
+        if is_complete
+    }
+    comparison_usage = complete_usage or daily_usage
+    comparison_dates = list(comparison_usage.keys())
+    comparison_values = list(comparison_usage.values())
 
-    peak_day = max(daily_usage, key=daily_usage.get) if daily_usage else "--"
-    lowest_day = min(daily_usage, key=daily_usage.get) if daily_usage else "--"
-    peak_value = float(daily_usage.get(peak_day, 0.0)) if daily_usage else 0.0
-    lowest_value = float(daily_usage.get(lowest_day, 0.0)) if daily_usage else 0.0
-    avg_daily_usage = float(sum(daily_values) / len(daily_values)) if daily_values else 0.0
+    peak_day = max(comparison_usage, key=comparison_usage.get) if comparison_usage else "--"
+    lowest_day = min(comparison_usage, key=comparison_usage.get) if comparison_usage else "--"
+    peak_value = float(comparison_usage.get(peak_day, 0.0)) if comparison_usage else 0.0
+    lowest_value = float(comparison_usage.get(lowest_day, 0.0)) if comparison_usage else 0.0
+    avg_daily_usage = float(sum(comparison_values) / len(comparison_values)) if comparison_values else 0.0
 
-    latest_day = str(daily_dates[-1]) if daily_dates else "--"
-    previous_day = str(daily_dates[-2]) if len(daily_dates) >= 2 else "--"
-    latest_day_usage = float(daily_values[-1]) if daily_values else 0.0
-    previous_day_usage = float(daily_values[-2]) if len(daily_values) >= 2 else 0.0
+    latest_day = str(comparison_dates[-1]) if comparison_dates else "--"
+    previous_day = str(comparison_dates[-2]) if len(comparison_dates) >= 2 else "--"
+    latest_day_usage = float(comparison_values[-1]) if comparison_values else 0.0
+    previous_day_usage = float(comparison_values[-2]) if len(comparison_values) >= 2 else 0.0
     if previous_day_usage >= ANALYTICS_MIN_BASELINE_USAGE_PCT:
         usage_change_pct = ((latest_day_usage - previous_day_usage) / previous_day_usage) * 100
     else:
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
-    pump_activity_metrics = build_motor_activity_metrics(motor_times, motor_values)
+    pump_activity_metrics = observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics
+    pump_activity_metrics.update(
+        {
+            "source": "telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history",
+            "relay_state_used": observed_motor_has_on_state,
+            "inference_status": (
+                "observed_relay_transitions"
+                if observed_motor_has_on_state
+                else "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles"
+            ),
+            "runtime_basis": "reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold",
+            "stop_threshold_pct": round(stop_threshold_pct, 1),
+            "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
+            "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,
+            "validated_runs": inferred_fill_runs,
+        }
+    )
+    quality_window_end = min(end_exclusive, now_utc())
+    quality_window_start = max(start_dt, first_created_at or start_dt)
     analytics_quality = build_analytics_quality_payload(
         row_count=row_count,
         valid_hours=valid_hours,
         gap_count=gap_count,
         valid_drop_count=valid_drop_count,
         latest_seconds_since_sync=latest_row["seconds_since_sync"],
+        # Do not count days before a newly installed device's first telemetry as
+        # missing coverage. Gaps after the first reading remain fully penalized.
+        window_hours=max(0.0, (quality_window_end - quality_window_start).total_seconds() / 3600.0),
     )
+    # A level-derived usage total cannot reliably exceed the water made available by
+    # the opening tank plus observed refill cycles. Large excesses usually indicate
+    # sensor bounce (repeated false drops and recoveries), not real consumption.
+    usage_physically_plausible, plausible_usage_limit_pct = level_usage_matches_observed_refills(
+        total_usage, motor_cycles
+    )
+    daily_turnover_plausible, daily_turnover_limit_pct, peak_daily_usage_pct = (
+        daily_usage_matches_tank_turnover_limit(daily_usage)
+    )
+    usage_physically_plausible = bool(usage_physically_plausible and daily_turnover_plausible)
+    complete_day_count = len(complete_usage)
+    usage_rate_reliable = bool(
+        usage_physically_plausible and analytics_quality.get("sufficient_for_anomaly")
+    )
+    daily_usage_reliable = bool(
+        usage_physically_plausible
+        and analytics_quality.get("sufficient_for_forecast")
+        and complete_day_count >= 2
+    )
+    analytics_quality["usage_physically_plausible"] = usage_physically_plausible
+    analytics_quality["usage_plausibility_limit_pct"] = round(plausible_usage_limit_pct, 1)
+    analytics_quality["daily_turnover_plausible"] = daily_turnover_plausible
+    analytics_quality["daily_turnover_limit_pct"] = daily_turnover_limit_pct
+    analytics_quality["peak_daily_usage_pct"] = peak_daily_usage_pct
+    analytics_quality["complete_day_count"] = complete_day_count
+    analytics_quality["usage_rate_reliable"] = usage_rate_reliable
+    analytics_quality["daily_usage_reliable"] = daily_usage_reliable
+    if not usage_physically_plausible:
+        analytics_quality["sufficient_for_forecast"] = False
+        analytics_quality["sufficient_for_anomaly"] = False
+        analytics_quality["status"] = "limited"
+        analytics_quality.setdefault("limitations", []).append(
+            "Level changes exceed the volume supported by observed refill cycles; daily usage is hidden as unreliable."
+        )
+        if not daily_turnover_plausible:
+            analytics_quality.setdefault("limitations", []).append(
+                "Daily level changes exceed the configured tank-turnover safety limit."
+            )
+    if complete_day_count < 2:
+        analytics_quality.setdefault("limitations", []).append(
+            "At least two complete days are required for average daily usage."
+        )
+    if not analytics_quality.get("sufficient_for_anomaly"):
+        usage_change_pct = None
+    usage_forecast = build_daily_usage_forecast(comparison_values, analytics_quality)
     leakage_model = build_leakage_ai_model(
         leak_events=leak_events,
         consumption_rate=consumption_rate,
@@ -9931,19 +11297,21 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     alerts = []
     if leak_events > 0:
         alerts.append("Possible pipe leak detected in the selected period.")
-    elif leakage_model.get("status") == "likely_leak":
+    elif leakage_model.get("status") == "likely_leak" and ai_leakage_alert_eligible(leakage_model):
         alerts.append("AI/ML model found a likely leakage pattern in tank level history.")
-    elif leakage_model.get("status") == "possible_leak":
+    elif leakage_model.get("status") == "possible_leak" and ai_leakage_alert_eligible(leakage_model):
         alerts.append("AI/ML model found a possible leakage pattern. Inspect pipes and taps.")
-    if consumption_rate > 15:
+    if analytics_quality.get("sufficient_for_anomaly") and consumption_rate > 15:
         alerts.append("Water consumption is above the usual range.")
-    if empty_prediction is not None and empty_prediction < 6:
+    if analytics_quality.get("sufficient_for_forecast") and empty_prediction is not None and empty_prediction < 6:
         alerts.append("Tank may empty within the next 6 hours.")
-    if motor_cycles > 12 or int(pump_activity_metrics.get("short_cycle_count", 0) or 0) >= 4:
+    if analytics_quality.get("sufficient_for_anomaly") and (motor_cycles > 12 or int(pump_activity_metrics.get("short_cycle_count", 0) or 0) >= 4):
         alerts.append("Motor is cycling frequently. Check automation thresholds.")
     if latest_row["seconds_since_sync"] > STALE_AFTER_SECONDS:
         alerts.append("Live telemetry looks stale. Check device connectivity.")
-    if not alerts:
+    if not alerts and analytics_quality.get("status") == "limited":
+        alerts.append("More continuous telemetry is needed before AI/ML conclusions are reliable.")
+    elif not alerts:
         alerts.append("System is stable for the selected range.")
 
     level_times, level_values = downsample_series(
@@ -9975,23 +11343,37 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "motor_cycles": motor_cycles,
             "consumption_rate": round(float(consumption_rate), 2),
             "leak_events": leak_events,
-            "avg_daily_usage": round(avg_daily_usage, 2),
-            "peak_usage_day": peak_day,
-            "peak_usage_value": round(peak_value, 2),
-            "lowest_usage_day": lowest_day,
-            "lowest_usage_value": round(lowest_value, 2),
+            "avg_daily_usage": round(avg_daily_usage, 2) if daily_usage_reliable else None,
+            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage) if daily_usage_reliable else None,
+            "peak_usage_day": peak_day if daily_usage_reliable else "--",
+            "peak_usage_value": round(peak_value, 2) if daily_usage_reliable else None,
+            "peak_usage_liters": percent_to_liters(peak_value) if daily_usage_reliable else None,
+            "lowest_usage_day": lowest_day if daily_usage_reliable else "--",
+            "lowest_usage_value": round(lowest_value, 2) if daily_usage_reliable else None,
+            "lowest_usage_liters": percent_to_liters(lowest_value) if daily_usage_reliable else None,
             "latest_day_usage": round(latest_day_usage, 2),
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage),
             "previous_day_usage": round(previous_day_usage, 2),
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage),
             "usage_change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
         },
         "health": health,
         "daily": {
             "dates": daily_dates,
             "values": [round(float(value), 2) for value in daily_values],
+            "liters": daily_liters if daily_usage_reliable else [None for _ in daily_liters],
+            "unit": "L",
+            "measurement": "estimated_from_level_change",
+            "complete": daily_complete,
+            "reliable": daily_usage_reliable,
         },
         "pattern": {
-            "hours": list(range(24)),
-            "values": [round(float(value), 2) for value in hourly_usage],
+            "time": pattern_times,
+            "values": [round(float(value), 2) for value in pattern_values],
+            "liters": pattern_liters if usage_rate_reliable else [None for _ in pattern_liters],
+            "unit": "L",
+            "measurement": "estimated_from_level_change",
+            "aggregation": "hourly_selected_range",
         },
         "levels": {
             "time": level_times,
@@ -10000,22 +11382,37 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "motor": {
             "time": motor_times,
             "values": [int(value) if value is not None else None for value in motor_values],
+            "source": "tank_level_history",
+            "relay_state_used": False,
         },
         "pump_activity": pump_activity_metrics,
         "comparison": {
-            "latest_day": latest_day,
-            "latest_day_usage": round(latest_day_usage, 2),
-            "previous_day": previous_day,
-            "previous_day_usage": round(previous_day_usage, 2),
-            "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
+            "latest_day": latest_day if daily_usage_reliable else "--",
+            "latest_day_usage": round(latest_day_usage, 2) if daily_usage_reliable else None,
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage) if daily_usage_reliable else None,
+            "previous_day": previous_day if daily_usage_reliable else "--",
+            "previous_day_usage": round(previous_day_usage, 2) if daily_usage_reliable else None,
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage) if daily_usage_reliable else None,
+            "change_pct": round(float(usage_change_pct), 2) if daily_usage_reliable and usage_change_pct is not None else None,
         },
         "prediction": {
-            "tomorrow_usage": estimate_tomorrow_usage(
-                avg_daily_usage,
-                latest_day_usage,
-                previous_day_usage,
-                peak_value,
-            ),
+            "tomorrow_usage": usage_forecast["value"],
+            "tomorrow_usage_liters": percent_to_liters(usage_forecast["value"]),
+            "lower_usage": usage_forecast["lower"],
+            "upper_usage": usage_forecast["upper"],
+            "lower_usage_liters": percent_to_liters(usage_forecast["lower"]),
+            "upper_usage_liters": percent_to_liters(usage_forecast["upper"]),
+            "confidence": usage_forecast["confidence"],
+            "sample_days": usage_forecast["sample_days"],
+            "status": usage_forecast["status"],
+            "method": usage_forecast["method"],
+            "limitations": usage_forecast["limitations"],
+        },
+        "usage": {
+            "unit": "L",
+            "tank_capacity_liters": round(tank_capacity_liters, 1),
+            "measurement": "estimated_from_level_change",
+            "reliable": daily_usage_reliable,
         },
         "alerts": alerts,
     }
@@ -10047,6 +11444,94 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     payload["guidance"] = build_shared_guidance_payload(guidance_snapshot, payload)
 
     return store_cached_analytics(cache_key, payload, now_ts=now_ts)
+
+
+AI_INSIGHT_KEYS = {
+    "empty_prediction",
+    "consumption_rate",
+    "avg_daily_usage",
+    "avg_daily_usage_liters",
+    "peak_usage_day",
+    "peak_usage_value",
+    "peak_usage_liters",
+    "lowest_usage_day",
+    "lowest_usage_value",
+    "lowest_usage_liters",
+    "latest_day_usage",
+    "latest_day_usage_liters",
+    "previous_day_usage",
+    "previous_day_usage_liters",
+    "usage_change_pct",
+}
+
+
+def fixed_ai_analysis_window(now=None):
+    current = now_utc() if now is None else now
+    current_ist = current.replace(tzinfo=timezone.utc).astimezone(IST_TIMEZONE)
+    start_ist = current_ist.replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)
+    start_dt = start_ist.astimezone(timezone.utc).replace(tzinfo=None)
+    return start_dt, current + timedelta(seconds=1), "Last 7 days"
+
+
+def build_cached_fixed_ai_analytics(device_id=None):
+    ai_start, ai_end, ai_label = fixed_ai_analysis_window()
+    cache_key = (
+        normalize_device_id(device_id) or "*",
+        ai_start.strftime(DATE_ONLY_FORMAT),
+        get_device_source_mode(),
+        ANALYTICS_ALGORITHM_VERSION,
+    )
+    current_time = time.time()
+    cached = fixed_ai_dashboard_cache.get(cache_key)
+    if cached and current_time - float(cached.get("created_at") or 0.0) < FIXED_AI_CACHE_TTL_SECONDS:
+        return copy_analytics_payload(cached.get("payload")), ai_start, ai_end, ai_label
+    payload = build_analytics(ai_start, ai_end, ai_label, device_id=device_id)
+    fixed_ai_dashboard_cache[cache_key] = {
+        "created_at": current_time,
+        "payload": copy_analytics_payload(payload),
+    }
+    # Retain a small per-device cache so one customer's request does not evict
+    # every other customer's seven-day analysis.
+    if len(fixed_ai_dashboard_cache) > 32:
+        oldest_key = min(
+            fixed_ai_dashboard_cache,
+            key=lambda key: float(fixed_ai_dashboard_cache[key].get("created_at") or 0.0),
+        )
+        fixed_ai_dashboard_cache.pop(oldest_key, None)
+    return payload, ai_start, ai_end, ai_label
+
+
+def build_dashboard_analytics(start_dt, end_exclusive, label, device_id=None):
+    """Build selected-range charts with a fixed seven-day AI/ML window."""
+    selected = copy_analytics_payload(build_analytics(start_dt, end_exclusive, label, device_id=device_id))
+    ai_start, ai_end, ai_label = fixed_ai_analysis_window()
+    selected_is_ai_window = (
+        start_dt.strftime(DATE_ONLY_FORMAT) == ai_start.strftime(DATE_ONLY_FORMAT)
+        and end_exclusive.strftime(DATE_ONLY_FORMAT) == ai_end.strftime(DATE_ONLY_FORMAT)
+    )
+    if selected_is_ai_window:
+        ai_payload = selected
+    else:
+        ai_payload, ai_start, ai_end, ai_label = build_cached_fixed_ai_analytics(device_id=device_id)
+    selected["analysis_window"] = {
+        "label": ai_label,
+        "start_date": ai_start.strftime(DATE_ONLY_FORMAT),
+        "end_date": (ai_end - timedelta(seconds=1)).strftime(DATE_ONLY_FORMAT),
+        "days": 7,
+        "fixed": True,
+    }
+    selected["chart_quality"] = copy_analytics_payload(((selected.get("analysis") or {}).get("quality") or {}))
+    selected_insights = selected.setdefault("insights", {})
+    ai_insights = (ai_payload or {}).get("insights") or {}
+    for key in AI_INSIGHT_KEYS:
+        if key in ai_insights:
+            selected_insights[key] = copy.deepcopy(ai_insights[key])
+    for key in ("prediction", "analysis", "alerts", "guidance", "comparison", "usage", "events_analysis"):
+        if key in (ai_payload or {}):
+            selected[key] = copy_analytics_payload(ai_payload[key])
+    selected["ai_daily"] = copy_analytics_payload((ai_payload or {}).get("daily") or {})
+    selected["analytics_version"] = analytics_payload_version(selected)
+    return selected
 
 
 def analytics_csv_filename_token(value, fallback):
@@ -10104,6 +11589,39 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "lower_sensor",
     "lower_sensor_info",
     "lower_sensor_distance_cm",
+    "municipal_sensor_enabled",
+    "municipal_sensor_state",
+    "municipal_sensor_simulated",
+    "municipal_sensor_reachable",
+    "municipal_sensor_last_updated",
+    "municipal_valve_enabled",
+    "municipal_valve_feature_enabled",
+    "municipal_valve_hardware_ready",
+    "municipal_valve_simulated",
+    "municipal_valve_state",
+    "municipal_valve_route",
+    "source_pump_fill_feature_enabled",
+    "source_pump_fill_active",
+    "source_outlet_valve_state",
+    "source_outlet_route",
+    "source_outlet_valve_simulated",
+    "inlet_valve_route",
+    "inlet_valve_state",
+    "municipal_detection_mode",
+    "municipal_trial_locked_to_source",
+    "source_gravity_fill_active",
+    "upper_tank_count",
+    "source_tank_count",
+    "water_supply_plan",
+    "turbidity_monitoring_enabled",
+    "upper_turbidity_sensor",
+    "lower_turbidity_sensor",
+    "upper_turbidity_raw_adc",
+    "lower_turbidity_raw_adc",
+    "upper_turbidity_estimated_ntu",
+    "lower_turbidity_estimated_ntu",
+    "upper_turbidity_simulated",
+    "lower_turbidity_simulated",
     "firmware_version",
     "slave_firmware_version",
     "reset_reason",
@@ -10264,21 +11782,18 @@ def build_analytics_csv_rows(payload, device_id=None):
     )
     append_series(
         "daily_water_use",
-        "Daily Water Use",
+        "Estimated Daily Water Use",
         (payload.get("daily") or {}).get("dates") or [],
-        (payload.get("daily") or {}).get("values") or [],
-        "percent",
+        (payload.get("daily") or {}).get("liters") or [],
+        "L",
         label_builder=lambda _x, y: format_analytics_csv_value(y),
     )
     append_series(
         "hourly_water_pattern",
-        "24-Hour Water Pattern",
-        [
-            f"{int(hour):02d}:00" if str(hour).strip() not in {"", "None"} else ""
-            for hour in ((payload.get("pattern") or {}).get("hours") or [])
-        ],
-        (payload.get("pattern") or {}).get("values") or [],
-        "percent",
+        "Estimated Hourly Water Use",
+        (payload.get("pattern") or {}).get("time") or [],
+        (payload.get("pattern") or {}).get("liters") or [],
+        "L",
         label_builder=lambda _x, y: format_analytics_csv_value(y),
     )
     append_series(
@@ -10364,6 +11879,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         SELECT id, device_id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, sensor, wifi, wifi_rssi, firmware_version, slave_firmware_version,
                reset_reason, free_heap, uptime_s, lower_tank_level, lower_sensor,
+               municipal_sensor_enabled, municipal_sensor_state, municipal_sensor_simulated,
+               municipal_sensor_reachable, municipal_valve_simulated, municipal_valve_feature_enabled,
+               source_outlet_valve_simulated, source_pump_fill_feature_enabled,
+               lower_turbidity_simulated, upper_turbidity_simulated,
                channel_mode, telemetry_service, command_service, ota_service,
                lower_tank_service, buzzer_service, led_display_service,
                local_firmware_upload_service, tank_height_cm, tank_capacity_liters,
@@ -10391,7 +11910,23 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         rows = db.execute(query, tuple(params)).fetchall()
 
     timeline = []
-    latest_peer_row = dict(rows[0]) if rows else None
+    def row_with_event_telemetry_status(row):
+        current = dict(row or {})
+        if str(current.get("telemetry_status") or "").strip():
+            return current
+        created_at = parse_timestamp(current.get("created_at"))
+        if created_at is None:
+            current["telemetry_status"] = "no-data"
+            return current
+        age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
+        current["telemetry_status"] = telemetry_status(age_seconds)
+        return current
+
+    latest_snapshot_row = fetch_device_snapshot(normalized_device_id) if normalized_device_id else None
+    if snapshot_has_live_device_data(latest_snapshot_row):
+        latest_peer_row = dict(latest_snapshot_row)
+    else:
+        latest_peer_row = row_with_event_telemetry_status(rows[0]) if rows else None
     previous = None
     pump_started_at = None
     pump_started_level = None
@@ -10422,6 +11957,26 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
     event_service_config = fetch_device_service_config(normalized_device_id) if normalized_device_id else {}
 
     def add_event(current, severity, message, kind, details=None, event_time=None):
+        telemetry_details = {
+            "main_tank_level": current.get("level"),
+            "source_tank_level": current.get("lower_tank_level"),
+            "motor_state": current.get("motor"),
+            "mode": current.get("mode"),
+            "main_sensor_state": current.get("sensor"),
+            "source_sensor_state": current.get("lower_sensor"),
+            "wifi_state": current.get("wifi"),
+            "wifi_rssi": current.get("wifi_rssi"),
+            "municipal_sensor_enabled": bool_flag(current.get("municipal_sensor_enabled")),
+            "municipal_sensor_state": current.get("municipal_sensor_state"),
+            "municipal_sensor_reachable": bool_flag(current.get("municipal_sensor_reachable")),
+            "municipal_sensor_simulated": bool_flag(current.get("municipal_sensor_simulated")),
+            "motorized_valve_enabled": bool_flag(current.get("municipal_valve_feature_enabled")),
+            "motorized_valve_simulated": bool_flag(current.get("municipal_valve_simulated")),
+            "source_outlet_valve_enabled": bool_flag(current.get("source_pump_fill_feature_enabled")),
+            "source_outlet_valve_simulated": bool_flag(current.get("source_outlet_valve_simulated")),
+            "lower_turbidity_simulated": bool_flag(current.get("lower_turbidity_simulated")),
+            "upper_turbidity_simulated": bool_flag(current.get("upper_turbidity_simulated")),
+        }
         timeline.append(
             {
                 "time": format_timestamp(event_time or current.get("created_at")),
@@ -10434,6 +11989,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                     "device_id": normalize_device_id(current.get("device_id")),
                     "node_role": current.get("node_role"),
                     "device_type": current.get("device_type"),
+                    **telemetry_details,
                     **(details or {}),
                 },
             }
@@ -10758,7 +12314,7 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         return details
 
     for row in reversed(rows):
-        current = dict(row)
+        current = row_with_event_telemetry_status(row)
         current_time = parse_timestamp(current.get("created_at"))
         previous_time = parse_timestamp(previous.get("created_at")) if previous else None
         level = safe_float(current.get("level"), 0)
@@ -12474,9 +14030,9 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
-        labels = (
+        labels = [
             "master upper",
             "slave upper",
             "source tank",
@@ -12486,7 +14042,17 @@ def describe_command_activity(command):
             "OTA",
             "local upload",
             "auto mode",
-        )
+        ]
+        if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
+            labels.append("municipal sensor")
+        if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
+            labels.extend(("lower turbidity", "upper turbidity"))
+        elif normalized.startswith("SERVICECFG7:"):
+            labels.append("turbidity monitoring")
+        if normalized.startswith("SERVICECFG10:"):
+            labels.extend(("inlet motorized valve", "outlet motorized valve"))
+        elif normalized.startswith("SERVICECFG9:"):
+            labels.append("inlet motorized valve")
 
         def service_state_label(value):
             return "ON" if str(value or "").strip().upper() in {"1", "ON", "TRUE", "ENABLED"} else "OFF"
@@ -14002,162 +15568,6 @@ def pop_device_mobile_action(device_id):
     }
 
 
-def home_automation_device_label(device_id, account=None):
-    if account and str(account.get("display_name") or "").strip():
-        return str(account.get("display_name")).strip()
-    return device_id
-
-
-def configured_home_automation_device_id():
-    return normalize_device_id(os.getenv("HA_DEVICE_ID") or "sha_000-000-000-001")
-
-
-def is_home_automation_device_id(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    return bool(normalized_device_id and normalized_device_id.startswith("sha_"))
-
-
-def home_automation_truthy(value):
-    if isinstance(value, bytes):
-        return value not in {b"", b"\x00", b"0"}
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on"}
-    return bool(value)
-
-
-def home_automation_device_entry(device_id, account=None, status=None, access_label=None):
-    return home_automation_device_entry_with_options(device_id, account=account, status=status, access_label=access_label)
-
-
-def home_automation_device_entry_with_options(device_id, account=None, status=None, access_label=None, can_delete=False):
-    normalized_device_id = normalize_device_id(device_id)
-    snapshot = status or {}
-    channels = snapshot.get("channels") if isinstance(snapshot.get("channels"), list) else []
-    online = bool(snapshot)
-    active_account = home_automation_truthy((account or {}).get("active", 0))
-    email = str((account or {}).get("email") or "").strip()
-    return {
-        "device_id": normalized_device_id,
-        "label": home_automation_device_label(normalized_device_id, account=account),
-        "email": email,
-        "access_label": access_label or ("Customer" if account else "Registered device"),
-        "credentials_label": "Credentials active" if active_account else ("No customer credentials" if not account else "Customer inactive"),
-        "has_credentials": active_account,
-        "online": online,
-        "ip": snapshot.get("ip") or "",
-        "rssi": snapshot.get("rssi"),
-        "fan_speed": snapshot.get("fan_speed", 0),
-        "channels": channels,
-        "channel_count": len(channels),
-        "cloud_last_seen": snapshot.get("cloud_last_seen"),
-        "can_delete": bool(can_delete),
-    }
-
-
-def home_automation_accessible_devices():
-    statuses = list_home_automation_statuses()
-    configured_device_id = configured_home_automation_device_id()
-    if is_admin_user():
-        try:
-            customer_accounts = list_customer_accounts(limit=200)
-        except Exception:
-            logger.exception("Unable to load customer accounts for Home Automation dashboard")
-            customer_accounts = []
-        try:
-            registered_device_ids = list_registered_device_ids(limit=200)
-        except Exception:
-            logger.exception("Unable to load registered devices for Home Automation dashboard")
-            registered_device_ids = []
-        registered_device_id_set = set(registered_device_ids)
-
-        accounts = {normalize_device_id(account.get("device_id")): account for account in customer_accounts}
-        device_ids = set(statuses.keys())
-        device_ids.update(device_id for device_id in accounts.keys() if device_id)
-        device_ids.update(registered_device_ids)
-        device_ids.update(DEVICE_KEY_MAP.keys())
-        if configured_device_id:
-            device_ids.add(configured_device_id)
-        ordered_ids = sorted(
-            device_id
-            for device_id in device_ids
-            if is_home_automation_device_id(device_id)
-        )
-        return [
-            home_automation_device_entry_with_options(
-                device_id,
-                account=accounts.get(device_id),
-                status=statuses.get(device_id),
-                access_label="Admin/customer" if accounts.get(device_id) else "Admin",
-                can_delete=device_id in registered_device_id_set,
-            )
-            for device_id in ordered_ids
-        ]
-
-    customer_device_id = current_customer_device_id()
-    if not customer_device_id and not configured_device_id:
-        return []
-    if not is_home_automation_device_id(customer_device_id):
-        customer_device_id = configured_device_id
-    try:
-        customer_account = fetch_customer_account(customer_device_id)
-    except Exception:
-        logger.exception("Unable to load customer account for Home Automation dashboard")
-        customer_account = None
-    return [
-        home_automation_device_entry(
-            customer_device_id,
-            account=customer_account,
-            status=statuses.get(customer_device_id),
-            access_label="Your board",
-        )
-    ]
-
-
-def home_automation_view_context():
-    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
-        return {
-            "authenticated": False,
-            "login_url": url_for("customer_login", next=request.path),
-            "devices": [],
-        }
-
-    devices = home_automation_accessible_devices()
-    configured_device_id = configured_home_automation_device_id()
-    default_device_id = devices[0]["device_id"] if devices else configured_device_id
-    return {
-        "authenticated": True,
-        "role": current_user_role() or "customer",
-        "devices": devices,
-        "default_device_id": default_device_id,
-        "can_select_devices": is_admin_user() or len(devices) > 1,
-    }
-
-
-def home_automation_require_device_access(device_id):
-    if not (is_logged_in() or activate_dashboard_identity("admin") or activate_dashboard_identity("customer")):
-        return jsonify({"error": "login_required"}), 401
-
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return jsonify({"error": "device_id_required"}), 400
-    if is_admin_user():
-        return None
-
-    customer_device_id = current_customer_device_id()
-    if customer_device_id and normalized_device_id == customer_device_id:
-        return None
-    configured_device_id = configured_home_automation_device_id()
-    if configured_device_id and normalized_device_id == configured_device_id:
-        return None
-    return jsonify({"error": "forbidden"}), 403
-
-
-set_home_automation_command_queue(queue_command)
-set_home_automation_view_context(home_automation_view_context)
-set_home_automation_device_access(home_automation_require_device_access)
-set_home_automation_mobile_access(resolve_mobile_user, current_mobile_scope_device_id)
-
-
 def relay_status_to_cloud(payload):
     relay_urls = relay_urls_for_current_request(RELAY_STATUS_URL_LIST, "/status")
     if not relay_urls:
@@ -14817,7 +16227,7 @@ def mobile_bootstrap():
     if include_analytics and current_customer_ai_analysis_enabled():
         try:
             start_dt, end_exclusive, label = resolve_date_window()
-            payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+            payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
         except Exception as exc:
             logger.exception("Mobile bootstrap analytics fallback used for %s: %s", scoped_device_id, exc)
             try:
@@ -14849,7 +16259,7 @@ def mobile_analytics():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     try:
-        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -14859,6 +16269,7 @@ def mobile_analytics():
             device_id=scoped_device_id,
             reason="AI analysis is using the last successful result while fresh analytics catches up.",
         )
+    payload = attach_default_chart_windows(payload, device_id=scoped_device_id)
     return jsonify(payload)
 
 
@@ -15828,8 +17239,8 @@ def render_dashboard_page(selected_device_id=None):
 @admin_required
 @csrf_protect
 def admin_customers():
-    error = None
-    success = None
+    error = request.args.get("error", "", type=str) or None
+    success = request.args.get("success", "", type=str) or None
     search_query = request.args.get("q", "", type=str) or ""
 
     if request.method == "POST":
@@ -15902,7 +17313,9 @@ def admin_customers_device_table_json():
                 "device_id": device.get("device_id") or "",
                 "search": (
                     f"{device.get('device_id') or ''} {device.get('source_ip') or ''} "
-                    f"{device.get('device_local_host') or ''} {device.get('display_name') or ''}"
+                    f"{device.get('device_local_host') or ''} {device.get('display_name') or ''} "
+                    f"{device.get('email') or ''} {device.get('cloud_device_id') or ''} "
+                    f"{device.get('firmware_version') or device.get('swt_version') or ''}"
                 ).lower(),
                 "status_rank": device.get("status_sort_value") or 1,
                 "alert_count": active_alert_count,
@@ -15918,6 +17331,8 @@ def admin_customers_device_table_json():
                 "upper_sensor_status_tone": device.get("upper_sensor_status_tone") or "offline",
                 "lower_sensor_status": device.get("lower_sensor_status_label") or "Unreachable",
                 "lower_sensor_status_tone": device.get("lower_sensor_status_tone") or "offline",
+                "municipal_sensor_status": device.get("municipal_sensor_status_label") or "Disabled",
+                "municipal_sensor_status_tone": device.get("municipal_sensor_status_tone") or "clear",
                 "tank_level": f"{level}%" if has_sync and level is not None else "--",
                 "pump_mode": f"Pump {device.get('motor') or '--'} / {device.get('mode') or '--'}" if has_sync else "Pump --",
                 "depth_echo": (
@@ -15931,6 +17346,9 @@ def admin_customers_device_table_json():
                     else "clear" if active_alert_count == 0
                     else "info"
                 ),
+                "health_score": int(device.get("admin_health_score") or 0),
+                "health_tone": device.get("admin_health_tone") or "danger",
+                "last_seen_age_seconds": device.get("last_seen_age_seconds"),
                 "last_sync_at": last_sync_at,
             }
         )
@@ -16019,105 +17437,6 @@ def admin_register_device_credentials():
         search_query=search_query,
         device_summary=device_summary,
     )
-
-
-@app.route("/admin/home-automation")
-@admin_required
-def admin_home_automation():
-    return redirect(url_for("home_automation"))
-
-
-@app.route("/admin/home-automation/register", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_home_automation_register_device():
-    device_id = normalize_device_id(request.form.get("device_id", ""))
-    device_key = request.form.get("device_key", "")
-    display_name = request.form.get("display_name", "")
-    email = request.form.get("email", "")
-    password = request.form.get("password", "")
-    try:
-        if not is_home_automation_device_id(device_id):
-            raise ValueError("Home Automation device IDs must start with sha_.")
-        normalized_device_id = register_device_credentials(
-            device_id,
-            device_key,
-            registration_source="home_automation_admin",
-            remote_addr=request.remote_addr,
-        )
-        log_audit_event(
-            actor=current_actor_username(),
-            action="register_home_automation_device",
-            target_type="device_auth_key",
-            target_id=normalized_device_id,
-            device_id=normalized_device_id,
-            details={"registration_source": "home_automation_admin"},
-        )
-        customer_profile_requested = any(str(value or "").strip() for value in (display_name, email))
-        customer_saved = False
-        if customer_profile_requested and not str(password or "").strip():
-            raise ValueError("Customer password is required when customer name or email is entered.")
-        if str(password or "").strip():
-            account = upsert_customer_account(
-                normalized_device_id,
-                password,
-                display_name=display_name,
-                email=email,
-                service_updates_enabled=True,
-                marketing_emails_enabled=False,
-            )
-            customer_saved = True
-            log_audit_event(
-                actor=current_actor_username(),
-                action="upsert_home_automation_customer_account",
-                target_type="customer_account",
-                target_id=account["device_id"],
-                device_id=account["device_id"],
-                details={
-                    "display_name": account.get("display_name"),
-                    "email": account.get("email"),
-                    "password_scope": "cloud_only",
-                    "source": "home_automation_page",
-                },
-            )
-        message = f"SHA device {normalized_device_id} registered."
-        if customer_saved:
-            message += " Customer login was also saved."
-        return redirect(url_for("home_automation", registration_success=message))
-    except ValueError as exc:
-        return redirect(url_for("home_automation", registration_error=str(exc)))
-
-
-@app.route("/admin/home-automation/<device_id>/delete", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_home_automation_delete_device(device_id):
-    normalized_device_id = normalize_device_id(device_id)
-    try:
-        if not is_home_automation_device_id(normalized_device_id):
-            raise ValueError("Home Automation device IDs must start with sha_.")
-        deleted_counts = delete_known_device(normalized_device_id)
-        with get_db() as db:
-            deleted_counts["device_auth_keys"] = int(deleted_counts.get("device_auth_keys") or 0) + int(
-                db.execute("DELETE FROM device_auth_keys WHERE device_id = ?", (normalized_device_id,)).rowcount or 0
-            )
-        clear_home_automation_status(normalized_device_id)
-        log_audit_event(
-            actor=current_actor_username(),
-            action="delete_home_automation_device",
-            target_type="device",
-            target_id=normalized_device_id,
-            device_id=normalized_device_id,
-            details=deleted_counts,
-        )
-        return redirect(
-            url_for(
-                "home_automation",
-                registration_success=f"SHA device {normalized_device_id} was deleted.",
-            )
-        )
-    except ValueError as exc:
-        return redirect(url_for("home_automation", registration_error=str(exc)))
 
 
 @app.route("/admin/customers/<device_id>/password", methods=["POST"])
@@ -16545,11 +17864,18 @@ def admin_customer_services(device_id):
                     else DEVICE_SERVICE_CLOUD_FEED_BASIC
                 )
             )
+        municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+        source_tank_enabled = "source_tank_monitoring_enabled" in request.form
         updated_config = upsert_device_service_config(
             normalized_device_id,
             main_sensor_enabled=("main_sensor_enabled" in request.form),
             slave_device_enabled=("slave_device_enabled" in request.form),
-            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            source_tank_monitoring_enabled=source_tank_enabled,
+            municipal_sensor_enabled=municipal_feature_enabled,
+            municipal_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form),
+            source_outlet_valve_enabled=municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form),
+            master_turbidity_enabled=("master_turbidity_enabled" in request.form),
+            slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             ai_analysis_enabled=ai_analysis_enabled,
             cloud_feed_mode=cloud_feed_mode,
             ota_enabled=False,
@@ -16719,106 +18045,64 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
     )
 
 
-@app.route("/admin/customers/<device_id>/delete", methods=["POST"])
+@app.route("/admin/customers/<device_id>/delete", methods=["GET", "POST"])
 @admin_required
 @csrf_protect
 def admin_delete_known_device(device_id):
-    error = None
-    success = None
     search_query = request.values.get("q", "", type=str) or ""
     normalized_device_id = normalize_device_id(device_id)
-    delete_mode = str(request.form.get("delete_mode") or "").strip().lower()
-    purge_requested = delete_mode == "purge"
+    if request.method == "GET":
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=f"Delete for {normalized_device_id} must be submitted from the admin dashboard form.",
+            )
+        )
+
+    logger.info("Admin device delete requested for %s", normalized_device_id)
 
     try:
-        if purge_requested:
-            deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
-            total_deleted = deleted_row_total(deleted_counts)
-            log_audit_event(
-                actor=current_actor_username(),
-                action="purge_device_data",
-                target_type="admin_operation",
-                details={
-                    "deleted_rows": total_deleted,
-                    "deleted_counts": deleted_counts,
-                },
-            )
-            success = (
-                f"Purged {total_deleted} database row"
-                f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
-                "and ignored future check-ins until it is registered again."
-            )
-        else:
-            deleted_counts = delete_known_device(normalized_device_id)
-            log_audit_event(
-                actor=current_actor_username(),
-                action="delete_known_device",
-                target_type="device",
-                target_id=normalized_device_id,
-                details=deleted_counts,
-            )
-            success = f"Deleted device {normalized_device_id} from admin records."
-    except ValueError as exc:
-        error = str(exc)
-
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
-    )
-
-
-@app.route("/admin/customers/<device_id>/purge", methods=["POST"])
-@admin_required
-@csrf_protect
-def admin_purge_device_data(device_id):
-    error = None
-    success = None
-    search_query = request.values.get("q", "", type=str) or ""
-    normalized_device_id = normalize_device_id(device_id)
-
-    try:
-        deleted_counts = purge_device_data(normalized_device_id, remember_deleted_device=True)
+        deleted_counts = delete_known_device(normalized_device_id)
         total_deleted = deleted_row_total(deleted_counts)
         log_audit_event(
             actor=current_actor_username(),
-            action="purge_device_data",
-            target_type="admin_operation",
+            action="delete_known_device",
+            target_type="device",
+            target_id=normalized_device_id,
             details={
                 "deleted_rows": total_deleted,
                 "deleted_counts": deleted_counts,
             },
         )
         success = (
-            f"Purged {total_deleted} database row"
-            f"{'' if total_deleted == 1 else 's'} for device {normalized_device_id} "
-            "and ignored future check-ins until it is registered again."
+            f"Deleted device {normalized_device_id} and removed {total_deleted} stored row"
+            f"{'' if total_deleted == 1 else 's'}. Future check-ins are ignored until the device is registered again."
         )
     except ValueError as exc:
-        error = str(exc)
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=str(exc),
+            )
+        )
+    except Exception:
+        logger.exception("Admin device delete failed for %s", normalized_device_id)
+        return redirect(
+            url_for(
+                "admin_customers",
+                q=search_query,
+                error=f"Delete failed for {normalized_device_id}. Check the server log for details.",
+            )
+        )
 
-    accounts = list_customer_accounts(limit=100)
-    available_devices = load_admin_known_devices(accounts, inventory_limit=100)
-    device_summary = build_admin_device_summary(available_devices)
-    filtered_accounts = filter_admin_search_results(accounts, search_query)
-    filtered_available_devices = filter_admin_search_results(available_devices, search_query)
-
-    return render_customer_admin_page(
-        accounts=filtered_accounts,
-        available_devices=filtered_available_devices,
-        error=error,
-        success=success,
-        search_query=search_query,
-        device_summary=device_summary,
+    return redirect(
+        url_for(
+            "admin_customers",
+            q=search_query,
+            success=success,
+        )
     )
 
 
@@ -17069,9 +18353,43 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         or saved_service_config.get("lower_tank_height_cm")
         or snapshot.get("lower_tank_height_cm")
     )
+    motorized_valve_enabled = boolish_enabled(
+        snapshot.get("municipal_valve_enabled"),
+        default=boolish_enabled(saved_service_config.get("municipal_valve_enabled"), default=False),
+    )
+    motorized_valve_route = str(
+        snapshot.get("inlet_valve_route") or snapshot.get("municipal_valve_route") or ""
+    ).strip().lower()
+    motorized_valve_path = {
+        "municipal": "Municipal Water",
+        "source": "Source Tank",
+    }.get(motorized_valve_route, "Not reported")
+    motorized_valve_state = device_detail_card_title(
+        snapshot.get("inlet_valve_state") or snapshot.get("municipal_valve_state"),
+        "Not reported",
+    )
+    outlet_valve_enabled = boolish_enabled(
+        snapshot.get("source_pump_fill_feature_enabled"),
+        default=boolish_enabled(saved_service_config.get("source_outlet_valve_enabled"), default=False),
+    )
+    outlet_valve_route = device_detail_card_title(snapshot.get("source_outlet_route"), "Not reported")
+    outlet_valve_state = device_detail_card_title(snapshot.get("source_outlet_valve_state"), "Not reported")
+    municipal_direct_upper = boolish_enabled(
+        saved_service_config.get("municipal_sensor_enabled"), default=False
+    ) and not source_monitoring
+    water_routing_mode = (
+        "Municipal Water -> Pump -> Upper Tank (direct; no valves)"
+        if municipal_direct_upper
+        else (
+            "Source/municipal multi-tank routing"
+            if source_monitoring
+            else "Pump -> Upper Tank"
+        )
+    )
     card_values = [
         ("Firmware", device_detail_card_display(snapshot.get("firmware_version"))),
         ("Configuration", "Master + Slave" if uses_slave else "Master Only"),
+        ("Water Routing", water_routing_mode),
         ("Master Reachability", device_detail_card_display(system_status.get("master_status_label"), "Unreachable")),
         ("Slave Reachability", device_detail_card_display(system_status.get("slave_status_label"), "Reachable" if uses_slave else "Disabled")),
         ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
@@ -17080,6 +18398,12 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
         ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
         ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
+        ("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF"),
+        ("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled"),
+        ("Inlet Valve Feedback", motorized_valve_state if motorized_valve_enabled else "Disabled"),
+        ("Outlet Motorized Valve", "ON" if outlet_valve_enabled else "OFF"),
+        ("Outlet Selected Path", outlet_valve_route if outlet_valve_enabled else "Disabled"),
+        ("Outlet Valve Feedback", outlet_valve_state if outlet_valve_enabled else "Disabled"),
         ("Tank Capacity", device_detail_card_liters(tank_capacity)),
         ("Tank Height", device_detail_card_cm(tank_height)),
         ("Auto Start Threshold", device_detail_card_percent(auto_start)),
@@ -17133,6 +18457,8 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
 @app.route("/devices/<device_id>")
 @admin_required
 def device_detail_page(device_id):
+    # Release guard: keep public/static marketing routes outside this handler.
+    # Ending this function early makes Flask return a 500 for every device page.
     scoped_device_id = current_scope_device_id(device_id)
     account = fetch_customer_account(scoped_device_id)
     snapshot = fetch_device_snapshot(scoped_device_id)
@@ -17148,6 +18474,63 @@ def device_detail_page(device_id):
     automation_settings = current_saved_config.get("automation_settings") or default_device_automation_settings(scoped_device_id)
     simulator_state = str(request.args.get("simulator_state", "", type=str) or "").strip().lower()
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
+    municipal_simulator_state = str(
+        request.args.get("municipal_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    municipal_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "municipal_sensor_simulated",
+        "municipal_sensor_enabled",
+    )
+    if service_config.get("municipal_sensor_enabled") and municipal_simulator_state in {"on", "off"}:
+        municipal_simulator_enabled = municipal_simulator_state == "on"
+    valve_simulator_state = str(
+        request.args.get("valve_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    valve_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "municipal_valve_simulated",
+        "municipal_valve_enabled",
+    )
+    if service_config.get("municipal_valve_enabled") and valve_simulator_state in {"on", "off"}:
+        valve_simulator_enabled = valve_simulator_state == "on"
+    outlet_valve_simulator_state = str(
+        request.args.get("outlet_valve_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    outlet_valve_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "source_outlet_valve_simulated",
+        "source_outlet_valve_enabled",
+    )
+    if service_config.get("source_outlet_valve_enabled") and outlet_valve_simulator_state in {"on", "off"}:
+        outlet_valve_simulator_enabled = outlet_valve_simulator_state == "on"
+    lower_turbidity_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "lower_turbidity_simulated",
+        "master_turbidity_enabled",
+    )
+    upper_turbidity_simulator_enabled = simulator_enabled_for_feature(
+        snapshot,
+        service_config,
+        "upper_turbidity_simulated",
+        "slave_turbidity_enabled",
+    )
+    turbidity_simulator_role = str(
+        request.args.get("turbidity_simulator_role", "", type=str) or ""
+    ).strip().lower()
+    turbidity_simulator_state = str(
+        request.args.get("turbidity_simulator_state", "", type=str) or ""
+    ).strip().lower()
+    if turbidity_simulator_role in {"lower", "upper"} and turbidity_simulator_state in {"on", "off"}:
+        if turbidity_simulator_role == "lower":
+            if service_config.get("master_turbidity_enabled"):
+                lower_turbidity_simulator_enabled = turbidity_simulator_state == "on"
+        elif service_config.get("slave_turbidity_enabled"):
+            upper_turbidity_simulator_enabled = turbidity_simulator_state == "on"
     live_simulator_status = simulator_payload_status(snapshot)
     if (
         simulator_state in {"on", "off"}
@@ -17188,6 +18571,11 @@ def device_detail_page(device_id):
         firmware_install_profile=firmware_install_profile,
         simulator_enabled=simulator_enabled,
         simulator_state=simulator_state if simulator_state in {"on", "off"} else "",
+        municipal_simulator_enabled=municipal_simulator_enabled,
+        valve_simulator_enabled=valve_simulator_enabled,
+        outlet_valve_simulator_enabled=outlet_valve_simulator_enabled,
+        lower_turbidity_simulator_enabled=lower_turbidity_simulator_enabled,
+        upper_turbidity_simulator_enabled=upper_turbidity_simulator_enabled,
         initial_events=initial_events,
         initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
@@ -17272,11 +18660,7 @@ def device_simulator_enabled(device_id, snapshot=None):
     live_status = simulator_payload_status(snapshot)
     if live_status is not None and str((snapshot or {}).get("telemetry_status") or "").strip().lower() != "no-data":
         return live_status
-
-    state = load_device_simulator_state(device_id)
-    if state:
-        return bool(state.get("enabled"))
-    return bool(live_status)
+    return False
 
 
 def device_detail_ajax_request():
@@ -17325,11 +18709,80 @@ def safe_queue_device_detail_command(command, device_id, failure_message):
     return queue_result, ""
 
 
+SIMULATOR_FEATURE_DEPENDENCIES = (
+    ("main_sensor_enabled", "simulator", "SIMULATOR_OFF", "Tank level"),
+    ("municipal_sensor_enabled", "municipal_sensor_simulated", "MUNICIPAL_SIMULATOR_OFF", "Municipal water"),
+    ("municipal_valve_enabled", "municipal_valve_simulated", "MUNICIPAL_VALVE_SIMULATOR_OFF", "Inlet motorized valve"),
+    ("source_outlet_valve_enabled", "source_outlet_valve_simulated", "SOURCE_OUTLET_VALVE_SIMULATOR_OFF", "Outlet motorized valve"),
+    ("master_turbidity_enabled", "lower_turbidity_simulated", "LOWER_TURBIDITY_SIMULATOR_OFF", "Lower turbidity"),
+    ("slave_turbidity_enabled", "upper_turbidity_simulated", "UPPER_TURBIDITY_SIMULATOR_OFF", "Upper turbidity"),
+)
+
+DEVICE_SETUP_TYPE_FEATURES = {
+    "source_only": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": False,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+    },
+    "municipal_direct": {
+        "source_tank_monitoring_enabled": False,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+    },
+    "dual_source_gravity": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": True,
+        "source_outlet_valve_enabled": False,
+    },
+    "dual_source_pumped": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": True,
+        "source_outlet_valve_enabled": True,
+    },
+}
+
+
+def simulator_enabled_for_feature(snapshot, service_config, simulator_key, feature_key):
+    if not bool((service_config or {}).get(feature_key)):
+        return False
+    if simulator_key == "simulator":
+        return device_simulator_enabled((snapshot or {}).get("device_id"), snapshot=snapshot)
+    return boolish_enabled((snapshot or {}).get(simulator_key), default=False)
+
+
+def disable_orphaned_device_simulators(device_id, snapshot, service_config):
+    queued_commands = []
+    queue_errors = []
+    for feature_key, simulator_key, command, label in SIMULATOR_FEATURE_DEPENDENCIES:
+        feature_enabled = bool((service_config or {}).get(feature_key))
+        if simulator_key == "simulator":
+            simulator_active = device_simulator_enabled(device_id, snapshot=snapshot)
+        else:
+            simulator_active = boolish_enabled((snapshot or {}).get(simulator_key), default=False)
+        if feature_enabled or not simulator_active:
+            continue
+        result, error = safe_queue_device_detail_command(
+            command,
+            device_id,
+            f"Unable to disable the {label} simulator",
+        )
+        if error:
+            queue_errors.append(error)
+        elif result:
+            queued_commands.append(command)
+    return queued_commands, queue_errors
+
+
 @app.route("/devices/<device_id>/configuration", methods=["POST"])
 @admin_required
 @csrf_protect
 def admin_device_detail_configuration(device_id):
     scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
     slave_device_enabled = "slave_device_enabled" in request.form
     upper_sensor_source = request.form.get("upper_sensor_source")
     if upper_sensor_source in {"master", "slave"}:
@@ -17343,6 +18796,17 @@ def admin_device_detail_configuration(device_id):
     elif slave_upper_sensor_enabled:
         master_upper_sensor_enabled = False
     main_sensor_enabled = master_upper_sensor_enabled or slave_upper_sensor_enabled
+    setup_type = str(request.form.get("device_setup_type") or "custom").strip().lower()
+    setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
+    municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+    source_tank_enabled = "source_tank_monitoring_enabled" in request.form
+    municipal_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form)
+    source_outlet_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form)
+    if setup_features is not None:
+        source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
+        municipal_feature_enabled = setup_features["municipal_sensor_enabled"]
+        municipal_valve_enabled = setup_features["municipal_valve_enabled"]
+        source_outlet_valve_enabled = setup_features["source_outlet_valve_enabled"]
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
@@ -17350,7 +18814,12 @@ def admin_device_detail_configuration(device_id):
             master_upper_sensor_enabled=master_upper_sensor_enabled,
             slave_device_enabled=slave_device_enabled,
             slave_upper_sensor_enabled=slave_upper_sensor_enabled,
-            source_tank_monitoring_enabled=("source_tank_monitoring_enabled" in request.form),
+            source_tank_monitoring_enabled=source_tank_enabled,
+            municipal_sensor_enabled=municipal_feature_enabled,
+            municipal_valve_enabled=municipal_valve_enabled,
+            source_outlet_valve_enabled=source_outlet_valve_enabled,
+            master_turbidity_enabled=("master_turbidity_enabled" in request.form),
+            slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
@@ -17380,10 +18849,34 @@ def admin_device_detail_configuration(device_id):
         )
 
     queued_command = build_device_service_command(updated_config)
+    logger.info(
+        "Admin water features saved: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s command=%s",
+        scoped_device_id,
+        "ON" if updated_config.get("municipal_sensor_enabled") else "OFF",
+        "ON" if updated_config.get("master_turbidity_enabled") else "OFF",
+        "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
+        queued_command,
+    )
     queue_result, queue_error = safe_queue_device_detail_command(
         queued_command,
         scoped_device_id,
         "Unable to queue runtime configuration update",
+    )
+    simulator_off_commands, simulator_off_errors = disable_orphaned_device_simulators(
+        scoped_device_id,
+        snapshot,
+        updated_config,
+    )
+    if simulator_off_errors:
+        queue_error = "; ".join([error for error in [queue_error, *simulator_off_errors] if error])
+    logger.info(
+        "Admin water feature command queue result: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s queued=%s error=%s",
+        scoped_device_id,
+        "ON" if updated_config.get("municipal_sensor_enabled") else "OFF",
+        "ON" if updated_config.get("master_turbidity_enabled") else "OFF",
+        "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
+        bool(queue_result),
+        queue_error or "none",
     )
     try:
         log_audit_event(
@@ -17394,8 +18887,10 @@ def admin_device_detail_configuration(device_id):
             device_id=scoped_device_id,
             details={
                 "service_config": updated_config,
+                "device_setup_type": setup_type,
                 "queued_command": queued_command,
                 "queue_error": queue_error,
+                "simulator_off_commands": simulator_off_commands,
                 "android_sessions_preserved": True,
             },
         )
@@ -17414,9 +18909,14 @@ def admin_device_detail_configuration(device_id):
             service_config=updated_config,
             queued_command=queued_command,
         )
+    simulator_message = (
+        f" Disabled simulator commands queued: {', '.join(simulator_off_commands)}."
+        if simulator_off_commands
+        else ""
+    )
     message = (
         f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
-        "Device changes apply on the next command poll."
+        f"Device changes apply on the next command poll.{simulator_message}"
     )
     return device_detail_action_response(
         scoped_device_id,
@@ -17869,9 +19369,59 @@ def admin_device_detail_sensor_configure(device_id):
 @csrf_protect
 def admin_device_detail_simulator(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    snapshot = fetch_device_snapshot(scoped_device_id)
-    simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
-    command = "SIMULATOR_OFF" if simulator_enabled else "SIMULATOR_ON"
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
+    simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
+    target_config = {
+        "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled")), None),
+        "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled")), "municipal_feature_enabled"),
+        "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled")), "municipal_valve_feature_enabled"),
+        "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled")), "source_pump_fill_feature_enabled"),
+        "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled")), "master_turbidity_enabled"),
+        "upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated"), default=False), "UPPER_TURBIDITY_SIMULATOR", "Upper turbidity", bool(service_config.get("slave_turbidity_enabled")), "slave_turbidity_enabled"),
+    }
+    if simulator_target not in target_config:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error="Unknown simulator target.",
+            )
+        )
+    simulator_enabled, command_prefix, target_label, feature_enabled, live_feature_key = target_config[simulator_target]
+    requested_state = str(request.form.get("simulator_enabled") or "").strip().lower()
+    desired_enabled = (
+        boolish_enabled(requested_state, default=not simulator_enabled)
+        if requested_state in {"0", "1", "true", "false", "yes", "no", "on", "off"}
+        else not simulator_enabled
+    )
+    if desired_enabled and not feature_enabled:
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_error=f"Enable the {target_label} feature before enabling its simulator.",
+            )
+        )
+    command = f"{command_prefix}_{'ON' if desired_enabled else 'OFF'}"
+    logger.info(
+        "Simulator request received: device=%s target=%s current=%s command=%s ajax=%s",
+        scoped_device_id, simulator_target, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
+    prerequisite_command = None
+    if (
+        desired_enabled
+        and live_feature_key
+        and not runtime_sync_service_enabled(snapshot, live_feature_key)
+    ):
+        prerequisite_command = build_device_service_command(service_config)
+        prerequisite_result = queue_command(prerequisite_command, target_device=scoped_device_id)
+        if isinstance(prerequisite_result, tuple):
+            payload, _status_code = prerequisite_result
+            error = payload.get("error") or f"Unable to synchronize runtime configuration for {scoped_device_id}."
+            return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
     result = queue_command(command, target_device=scoped_device_id)
     if isinstance(result, tuple):
         payload, _status_code = result
@@ -17880,28 +19430,195 @@ def admin_device_detail_simulator(device_id):
 
     log_audit_event(
         actor=current_actor_username(),
-        action="queue_device_simulator_toggle",
+        action="queue_device_simulator_toggle" if simulator_target == "tank" else "queue_targeted_simulator_toggle",
         target_type="device",
         target_id=scoped_device_id,
         device_id=scoped_device_id,
         details={
             "command": result.get("command"),
+            "prerequisite_command": prerequisite_command,
             "previous_simulator_enabled": simulator_enabled,
+            "simulator_target": simulator_target,
             "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
     )
-    message = (
-        "Simulator disable command queued."
-        if simulator_enabled
-        else "Simulator enable command queued. The device will apply it using the current service configuration."
+
+    synchronized_status = system_status.get("synchronized_status") or build_synchronized_status_payload(
+        snapshot, device_id=normalized_device_id, service_config=service_config
     )
+    pump_status = synchronized_status.get("pump") or {}
+    sensors_status = synchronized_status.get("sensors") or {}
+    ai_status = synchronized_status.get("ai_ml") or {}
+    configuration_status = synchronized_status.get("configuration") or {}
+    add_event(
+        "synchronized_status_current_status",
+        "success" if configuration_status.get("state") == "SYNCED" else "warning",
+        (
+            f"Synchronized status: pump {pump_status.get('state', 'UNKNOWN')}; "
+            f"upper sensor {sensors_status.get('upper', 'Unreachable')}; "
+            f"source sensor {sensors_status.get('source', 'Unreachable')}; "
+            f"municipal sensor {sensors_status.get('municipal', 'Disabled')}; "
+            f"AI/ML {ai_status.get('state', 'OFF')}; "
+            f"configuration {configuration_status.get('state', 'WAITING')}."
+        ),
+        {"status_contract": synchronized_status},
+    )
+    message = f"{target_label} simulator {'enable' if desired_enabled else 'disable'} command queued."
     return redirect(
         url_for(
             "device_detail_page",
             device_id=scoped_device_id,
             config_message=message,
-            simulator_state="off" if simulator_enabled else "on",
+            simulator_state=("on" if desired_enabled else "off") if simulator_target == "tank" else "",
+            valve_simulator_state=("on" if desired_enabled else "off") if simulator_target == "valve" else "",
+            outlet_valve_simulator_state=("on" if desired_enabled else "off") if simulator_target == "outlet_valve" else "",
+        )
+    )
+
+
+@app.route("/admin/customers/<device_id>/municipal-simulator", methods=["POST"])
+@app.route("/devices/<device_id>/municipal-simulator", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_municipal_simulator(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False)
+    command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"
+    logger.info(
+        "Municipal sensor simulator request received: device=%s current=%s command=%s ajax=%s",
+        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue municipal simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_municipal_sensor_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={
+            "command": result.get("command"),
+            "previous_municipal_simulator_enabled": simulator_enabled,
+            "queued_at": result.get("queued_at"),
+        },
+    )
+    enabled = not simulator_enabled
+    logger.info(
+        "Municipal sensor simulator command queued: device=%s requested=%s command=%s",
+        scoped_device_id,
+        "ON" if enabled else "OFF",
+        command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=(
+                "Municipal sensor simulator enable command queued."
+                if enabled
+                else "Municipal sensor simulator disable command queued."
+            ),
+            municipal_simulator_state="on" if enabled else "off",
+        )
+    )
+
+
+@app.route("/admin/customers/<device_id>/municipal-valve-simulator", methods=["POST"])
+@app.route("/devices/<device_id>/municipal-valve-simulator", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_municipal_valve_simulator(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False)
+    enabled = not simulator_enabled
+    command = f"MUNICIPAL_VALVE_SIMULATOR_{'ON' if enabled else 'OFF'}"
+    logger.info(
+        "Municipal valve simulator request received: device=%s current=%s command=%s ajax=%s",
+        scoped_device_id, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue inlet motorized valve simulator command for {scoped_device_id}."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_municipal_valve_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={"command": command, "enabled": enabled, "queued_at": result.get("queued_at")},
+    )
+    logger.info(
+        "Municipal valve simulator command queued: device=%s requested=%s command=%s",
+        scoped_device_id, "ON" if enabled else "OFF", command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"Inlet motorized valve simulator {'enable' if enabled else 'disable'} command queued.",
+            valve_simulator_state="on" if enabled else "off",
+        )
+    )
+
+
+@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>", methods=["POST"])
+@app.route("/devices/<device_id>/turbidity-simulator/<role>", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_turbidity_simulator(device_id, role):
+    scoped_device_id = current_scope_device_id(device_id)
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in {"lower", "upper"}:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Unknown turbidity simulator role."))
+
+    snapshot = fetch_device_snapshot(scoped_device_id) or {}
+    simulator_enabled = boolish_enabled(
+        snapshot.get(f"{normalized_role}_turbidity_simulated"), default=False
+    )
+    command = f"{normalized_role.upper()}_TURBIDITY_SIMULATOR_{'OFF' if simulator_enabled else 'ON'}"
+    logger.info(
+        "Turbidity simulator request received: device=%s role=%s current=%s command=%s ajax=%s",
+        scoped_device_id, normalized_role, "ON" if simulator_enabled else "OFF", command,
+        request.headers.get("X-Requested-With") == "XMLHttpRequest",
+    )
+    result = queue_command(command, target_device=scoped_device_id)
+    if isinstance(result, tuple):
+        payload, _status_code = result
+        error = payload.get("error") or f"Unable to queue {normalized_role} turbidity simulator command."
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error=error))
+
+    enabled = not simulator_enabled
+    log_audit_event(
+        actor=current_actor_username(),
+        action="queue_turbidity_sensor_simulator_toggle",
+        target_type="device",
+        target_id=scoped_device_id,
+        device_id=scoped_device_id,
+        details={"role": normalized_role, "command": command, "enabled": enabled},
+    )
+    logger.info(
+        "Turbidity simulator command queued: device=%s role=%s requested=%s command=%s",
+        scoped_device_id, normalized_role, "ON" if enabled else "OFF", command,
+    )
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id,
+            config_message=f"{normalized_role.title()} turbidity simulator {'enable' if enabled else 'disable'} command queued.",
+            turbidity_simulator_role=normalized_role,
+            turbidity_simulator_state="on" if enabled else "off",
         )
     )
 
@@ -18128,6 +19845,7 @@ def health():
     mysql_config = mysql_connection_config()
     return {
         "status": "ok",
+        "deploy_marker": DEPLOY_MARKER,
         "database": mysql_config.get("database"),
         "database_backend": DB_BACKEND,
         "version": API_VERSION,
@@ -18395,7 +20113,7 @@ def analytics():
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
     try:
-        payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -18405,6 +20123,7 @@ def analytics():
             device_id=scoped_device_id,
             reason="AI analysis is using the last successful result while fresh analytics catches up.",
         )
+    payload = attach_default_chart_windows(payload, device_id=scoped_device_id)
     return jsonify(payload)
 
 
@@ -18423,7 +20142,7 @@ def analytics_csv_export():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    payload = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
     csv_payload = build_analytics_csv_payload(payload, device_id=scoped_device_id)
     filename = build_analytics_csv_filename(payload, device_id=scoped_device_id)
     return Response(
@@ -18491,6 +20210,7 @@ logger.info(
     _mysql_config_for_log.get("database"),
     _mysql_config_for_log.get("user"),
 )
+logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
 init_db()
 resolve_relay_alert_when_disabled()

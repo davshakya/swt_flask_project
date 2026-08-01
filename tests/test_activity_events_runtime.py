@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from flask_app import server
 
 
@@ -94,7 +96,87 @@ def test_build_events_generates_activity_from_telemetry_when_event_table_is_empt
     assert events
     assert events[0]["kind"] != "device_config_current_status" or "Live device config" in events[0]["message"]
     assert any(event["kind"] == "telemetry_feed_active" for event in events)
+    node_status_event = next(event for event in events if event["kind"] == "node_current_status")
+    assert "Live node status: master reachable, slave reachable;" in node_status_event["message"]
     assert all("Activity log is ready" not in event["message"] for event in events)
+
+
+def test_build_events_current_node_status_uses_live_snapshot_over_raw_telemetry(monkeypatch):
+    device_id = "swt-999-999-999-993"
+    created_at = server.format_timestamp(server.now_utc() - timedelta(hours=3))
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute(
+            """
+            INSERT INTO tank_data(
+                device_id, device_source, level, motor, mode, sensor, wifi, firmware_version,
+                free_heap, lower_tank_level, telemetry_service, command_service,
+                direct_peer, direct_peer_config_channel, direct_peer_wifi_channel,
+                direct_peer_last_packet_age_s, direct_peer_remote_mac, node_role,
+                device_type, created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                device_id,
+                server.DEVICE_SOURCE_REAL,
+                41.1,
+                "OFF",
+                "AUTO",
+                "OK",
+                "ONLINE",
+                "26.1.698",
+                224000,
+                89.9,
+                "ON",
+                "ON",
+                "enabled",
+                11,
+                11,
+                0,
+                "48:3F:DA:8A:FC:93",
+                "master",
+                "master",
+                created_at,
+            ),
+        )
+
+    monkeypatch.setattr(
+        server,
+        "fetch_device_snapshot",
+        lambda requested_device_id: {
+            "device_id": requested_device_id,
+            "telemetry_status": "live",
+            "node_role": "master",
+            "device_type": "master",
+            "direct_peer": "enabled",
+            "direct_peer_config_channel": 11,
+            "direct_peer_wifi_channel": 11,
+            "direct_peer_last_packet_age_s": 0,
+            "direct_peer_last_packet_bytes": 84,
+            "direct_peer_remote_mac": "48:3F:DA:8A:FC:93",
+            "direct_peer_sync_last_ok_age_s": 10,
+            "telemetry_service": "ON",
+            "command_service": "ON",
+            "ota_service": "OFF",
+            "lower_tank_service": "ON",
+            "buzzer_service": "ON",
+            "led_display_service": "ON",
+            "local_firmware_upload_service": "ON",
+        },
+    )
+
+    try:
+        events = server.build_events(limit=10, device_id=device_id, sync=False)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    node_status_event = next(event for event in events if event["kind"] == "node_current_status")
+    assert "Live node status: master reachable, slave reachable;" in node_status_event["message"]
 
 
 def test_local_firmware_logs_become_activity_events(monkeypatch):

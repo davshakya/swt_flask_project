@@ -36,6 +36,29 @@ def test_shared_guidance_prioritizes_dry_run_as_critical_pump_protection():
     assert guidance["action_title"] == "Check the source of water before starting the pump"
 
 
+def test_shared_guidance_warns_when_usage_history_is_physically_implausible():
+    guidance = server.build_shared_guidance_payload(
+        {"level": 87, "motor": "OFF", "sensor": "OK", "telemetry_status": "online"},
+        {
+            "insights": {},
+            "analysis": {
+                "quality": {
+                    "score": 97,
+                    "usage_physically_plausible": False,
+                    "reading_count": 1035,
+                }
+            },
+            "comparison": {},
+            "events_analysis": {},
+            "levels": {"values": [87, 40, 90]},
+        },
+    )
+
+    assert guidance["severity"] == "warning"
+    assert guidance["title"] == "Usage history needs review"
+    assert guidance["confidence_percent"] <= 45
+
+
 def test_shared_guidance_names_source_tank_only_when_source_monitoring_is_active():
     guidance = server.build_shared_guidance_payload(
         {
@@ -79,10 +102,11 @@ def test_recovered_dry_run_flag_no_longer_drives_guidance_or_alerts():
     assert server.effective_dry_run_active(snapshot) is False
     assert server.effective_pump_failure_active(snapshot) is False
     assert guidance["title"] == "Water system is stable"
-    assert guidance["confidence_percent"] >= 70
+    assert guidance["confidence_percent"] == 60
+    assert guidance["confidence_basis"] == "telemetry_quality"
 
 
-def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_leak():
+def test_shared_guidance_suppresses_low_confidence_ai_leak_for_high_tank():
     guidance = server.build_shared_guidance_payload(
         {
             "level": 75.9,
@@ -113,9 +137,47 @@ def test_shared_guidance_suppresses_short_empty_forecast_for_high_tank_possible_
         },
     )
 
-    assert guidance["title"] == "AI found a possible leakage pattern"
+    assert guidance["title"] == "Water system is stable"
     assert guidance["time_to_empty_hours"] is None
     assert "1.3" not in guidance["summary"]
+
+
+def test_shared_guidance_explains_high_confidence_leak_in_customer_language():
+    guidance = server.build_shared_guidance_payload(
+        {
+            "level": 72,
+            "motor": "OFF",
+            "sensor": "OK",
+            "telemetry_status": "live",
+            "last_sync_at": "2026-07-13 08:10:00",
+        },
+        {
+            "analysis": {
+                "quality": {"score": 92},
+                "forecast_confidence": 92,
+                "leakage": {
+                    "status": "possible_leak",
+                    "score": 94,
+                    "confidence": 94,
+                    "reasons": [
+                        "Tank level dropped repeatedly while the pump was off.",
+                        "Peak off-pump loss rate is very high.",
+                    ],
+                },
+            },
+            "levels": {"values": [78, 75, 72]},
+        },
+    )
+
+    assert guidance["title"] == "Possible Water Leak Detected"
+    assert guidance["risk_label"] == "Medium"
+    assert guidance["reliability_label"] == "High"
+    assert guidance["confidence_percent"] == 94
+    assert guidance["motor_safety"] == "No immediate motor-safety alert was detected."
+    assert "Water was being used even while the pump was off." in guidance["observations"]
+    assert guidance["possible_causes"]
+    assert guidance["estimated_impact"]["water_loss_liters"] is None
+    assert "Not enough evidence" in guidance["estimated_impact"]["message"]
 
 
 def test_evaluate_snapshot_alerts_maps_dry_run_to_active_alert(monkeypatch):

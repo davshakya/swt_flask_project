@@ -129,9 +129,9 @@ def pytest_sessionstart(session):
     os.environ["DB_BACKEND"] = "mysql"
     os.environ["DATABASE_URL"] = ""
     os.environ.setdefault("MYSQL_HOST", "127.0.0.1")
-    os.environ.setdefault("MYSQL_PORT", "3306")
-    os.environ.setdefault("MYSQL_USER", "root")
-    os.environ.setdefault("MYSQL_PASSWORD", "")
+    os.environ.setdefault("MYSQL_PORT", "3307")
+    os.environ.setdefault("MYSQL_USER", "swt")
+    os.environ.setdefault("MYSQL_PASSWORD", "swt-test-db-password")
     os.environ.setdefault("MYSQL_DATABASE", "swt_flask_test")
     os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-for-mysql-only-backend-2026")
     cleanup_test_artifacts()

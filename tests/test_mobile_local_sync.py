@@ -104,6 +104,41 @@ def test_android_local_sync_duplicate_payload_is_deduplicated():
     assert int(row["count"]) == 1
 
 
+def test_simulator_flags_survive_telemetry_snapshot_refresh():
+    device_id = "swt-simulator-state-001"
+    payload = {
+        "device_id": device_id,
+        "device_source": server.DEVICE_SOURCE_REAL,
+        "level": 50.0,
+        "motor": "OFF",
+        "mode": "AUTO",
+        "sensor": "OK",
+        "municipal_valve_simulated": True,
+        "source_outlet_valve_simulated": True,
+        "source_pump_fill_feature_enabled": True,
+        "lower_turbidity_simulated": True,
+        "upper_turbidity_simulated": True,
+    }
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    try:
+        server.process_telemetry_payload(payload, source_ip="test", transport="http")
+        snapshot = server.fetch_device_snapshot(device_id)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    assert snapshot is not None
+    assert bool(snapshot["municipal_valve_simulated"])
+    assert bool(snapshot["source_outlet_valve_simulated"])
+    assert bool(snapshot["source_pump_fill_feature_enabled"])
+    assert bool(snapshot["lower_turbidity_simulated"])
+    assert bool(snapshot["upper_turbidity_simulated"])
+
+
 def test_mobile_simulator_route_queues_firmware_simulator_commands():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 
@@ -133,7 +168,7 @@ def test_simulator_state_prefers_live_telemetry_over_cached_admin_request():
         assert server.device_simulator_enabled(
             device_id,
             snapshot={"telemetry_status": "no-data", "simulator": "OFF"},
-        ) is True
+        ) is False
         assert server.enrich_snapshot({"device_id": device_id, "level": 50}).get("simulator") == "OFF"
 
         server.record_device_simulator_state(device_id, True, source="http")
@@ -191,7 +226,7 @@ def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     assert '"monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id)' in route_body
     assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
     assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
-    assert 'payload["analytics"] = build_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
+    assert 'payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
     assert 'payload["analytics"] = build_analytics_fallback_payload(' in route_body
 
 
@@ -264,7 +299,8 @@ def test_empty_cloud_analytics_do_not_emit_zero_liter_predictions():
     function_body = server_source[function_start : server_source.index("\n\ndef meaningful_forecast_hours", function_start)]
 
     assert '"avg_daily_usage": None' in function_body
-    assert '"prediction": {"tomorrow_usage": None}' in function_body
+    assert '"tomorrow_usage": None' in function_body
+    assert '"status": "insufficient_data"' in function_body
     assert '"daily": {"dates": daily_dates, "values": daily_values}' in function_body
     assert '"Live snapshot is available for {normalized_device_id}; more history is needed for forecasts."' in function_body
 

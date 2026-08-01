@@ -14,6 +14,9 @@
 *{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:var(--link-blue);text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);text-underline-offset:3px;font-weight:800;transition:color .18s ease,text-decoration-color .18s ease}a:hover{color:var(--link-blue-hover);text-decoration-color:currentColor}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:24px 0 36px;display:grid;gap:14px}.panel{background:linear-gradient(180deg,var(--panel),color-mix(in srgb,var(--panel) 84%,rgba(19,137,165,.08)));border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}.panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:30px;line-height:1.1}.hero-title p{margin:7px 0 0;color:var(--muted);line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit;min-width:0;width:auto}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:auto}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}.summary-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.22);transition:transform .18s ease,border-color .18s ease}.summary-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.summary-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:7px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45}.content-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:13px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.2);transition:transform .18s ease,border-color .18s ease}.detail-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:7px;font-size:19px;font-weight:800;line-height:1.2}.detail-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}.info-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:14px}.info-item{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.2);min-width:0}.info-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.info-value{display:block;margin-top:5px;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.45}.list{list-style:none;padding:0;margin:0;display:grid;gap:9px}.list li{padding:12px 13px;border-radius:14px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}.admin-form{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.2);min-width:0;align-content:start}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700;min-width:0}.service-option input{width:auto}.flag-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}.flag-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.2);font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;min-width:0}.hidden-section{display:none!important}
 .activity-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.activity-page-size{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;font-weight:800}.activity-page-size select{min-height:40px;padding:0 34px 0 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:800 13px "Trebuchet MS","Segoe UI",sans-serif}.activity-count{color:var(--muted);font-size:12px;font-weight:800}.activity-table-wrap{margin-top:12px;border:1px solid var(--line);border-radius:16px;overflow:auto;background:var(--list-bg)}.activity-table{width:100%;border-collapse:collapse;min-width:760px}.activity-table th,.activity-table td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.activity-table th{position:sticky;top:0;background:color-mix(in srgb,var(--panel) 92%,var(--bg) 8%);color:var(--muted);font-size:10px;letter-spacing:.13em;text-transform:uppercase;z-index:1}.activity-table tbody tr:last-child td{border-bottom:0}.activity-message{font-weight:800;line-height:1.35}.activity-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}.activity-node{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary);font-size:12px;font-weight:800}.activity-pagination{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}.activity-page-status{min-width:118px;text-align:center;color:var(--muted);font-size:12px;font-weight:800}
 .peer-diagnostics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:14px}.peer-diagnostic-card{padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.2);min-width:0}.peer-diagnostic-card.alert{grid-column:1/-1;background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,var(--line))}.peer-diagnostic-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.peer-diagnostic-value{display:block;margin-top:6px;font-size:14px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.peer-diagnostic-note{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}
+/* Consistent Key: Value contrast in both color schemes. */
+.summary-label,.detail-label,.info-label,.peer-diagnostic-label{color:var(--primary)!important}
+.summary-value,.detail-value,.info-value,.peer-diagnostic-value{color:var(--text)}
 @media (max-width:960px){.content-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 .btn{min-height:40px;min-width:0;padding:0 14px;border-radius:11px;background:rgba(255,255,255,.24);line-height:1.15;font-size:13px;cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease,filter .16s ease}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.34)}.btn:disabled{cursor:not-allowed;opacity:.56;filter:saturate(.65);transform:none}.hero-actions{align-items:center}.hero-actions form{display:flex}.hero-actions .btn{width:auto;height:40px;background:linear-gradient(135deg,#34b9d6,#1c89a3);border:0;color:#fff;box-shadow:0 8px 18px rgba(19,137,165,.16)}.hero-actions .btn:hover,.hero-actions .btn:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.admin-form .btn{width:auto;height:42px}.btn-admin{animation:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);background-size:auto;box-shadow:0 8px 18px rgba(19,137,165,.16);color:#fff}.btn-admin::after{display:none}.btn-admin:hover,.btn-admin:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.btn-admin:disabled,.btn-admin:disabled:hover,.btn-admin:disabled:focus-visible{background:linear-gradient(135deg,#7aa6b2,#6f8790);box-shadow:none;color:#eef8fb}.btn-danger{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ed6b7e,#c93c56);color:#fff;box-shadow:0 10px 22px rgba(218,79,99,.22);filter:brightness(1.03)}.admin-form form{display:grid}.form-group input[type=file]{min-height:44px;padding:8px 10px;background:rgba(255,255,255,.58)}.form-group input[type=file]::file-selector-button{height:28px;margin-right:10px;border:0;border-radius:9px;padding:0 12px;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font:800 12px "Trebuchet MS","Segoe UI",sans-serif;cursor:pointer}
@@ -69,11 +72,28 @@ body{font-size:16px}
 .hero-actions form,.hero-actions .btn{width:auto}
 .info-grid{grid-template-columns:1fr}
 }
+.device-action-bar{position:sticky;top:8px;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 12px 30px rgba(17,52,64,.16);backdrop-filter:blur(16px)}.device-action-group,.quick-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.device-action-bar .btn{min-height:34px;height:34px;padding:0 10px;font-size:11px}.quick-nav a{padding:7px 9px;border-radius:9px;text-decoration:none;font-size:11px;background:rgba(255,255,255,.24)}
+.summary-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.summary-card.is-primary{border-left:4px solid var(--primary)}.summary-card.is-healthy{border-left:4px solid var(--good)}.summary-card.is-warning{border-left:4px solid var(--warn)}.summary-card.is-critical{border-left:4px solid var(--danger)}.last-seen-value{font-size:20px}
+.section-panel.is-collapsed>*:not(.section-head){display:none}.section-toggle{min-height:34px;padding:7px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.24);color:var(--text);font:800 11px inherit;cursor:pointer}.section-panel{scroll-margin-top:74px}
+.info-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}.info-tab{min-height:32px;padding:6px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.22);color:var(--text);font-weight:800;cursor:pointer}.info-tab.is-active{background:var(--primary);color:#fff}.info-item.is-tab-hidden{display:none}
+.command-group{border-left:4px solid var(--primary)}.command-group.simulation{border-left-color:var(--good)}.command-group.maintenance{border-left-color:var(--warn)}.command-group.destructive{border-left-color:var(--danger)}
+.simulator-section{grid-column:1/-1;border-left-color:var(--good);background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 7%,var(--panel)),color-mix(in srgb,var(--good) 7%,var(--panel)))}.simulator-section>form{margin:0}.simulator-switch{--switch-accent:#16a6c9;width:100%!important;min-height:58px!important;height:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:9px 12px 9px 15px!important;border:1px solid color-mix(in srgb,var(--switch-accent) 24%,var(--line))!important;border-radius:12px!important;background:color-mix(in srgb,var(--switch-accent) 7%,var(--panel))!important;color:var(--text)!important;box-shadow:none!important;text-align:left;cursor:default!important}.simulator-switch:hover,.simulator-switch:focus-visible{transform:none!important;background:color-mix(in srgb,var(--switch-accent) 13%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 50%,var(--line))!important}.simulator-switch-label{min-width:0;font-size:14px;font-weight:800;line-height:1.3}.simulator-switch-state{min-width:30px;color:var(--danger);font-size:11px;font-weight:900;text-align:right}.simulator-switch-track{position:relative;width:50px;height:28px;flex:none;border-radius:999px;background:#8a9ba1;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);transition:background .2s ease;cursor:pointer}.simulator-switch-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .2s ease}.simulator-switch.is-on{background:color-mix(in srgb,var(--switch-accent) 16%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 54%,var(--line))!important}.simulator-switch.is-on .simulator-switch-state{color:var(--good)}.simulator-switch.is-on .simulator-switch-track{background:var(--switch-accent)}.simulator-switch.is-on .simulator-switch-knob{transform:translateX(22px)}.simulator-switch.is-loading{opacity:.65}.simulator-switch[data-tone="municipal"]{--switch-accent:#1687d9}.simulator-switch[data-tone="valve"]{--switch-accent:#e58a18}.simulator-switch[data-tone="lower"]{--switch-accent:#13a37d}.simulator-switch[data-tone="upper"]{--switch-accent:#d64f72}@media(max-width:720px){.simulator-switch{min-height:64px!important}.simulator-switch-label{font-size:15px}}
+.threshold-visual{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--good),var(--warn),var(--danger));position:relative}.threshold-visual::after{content:"";position:absolute;left:var(--threshold);top:-4px;width:4px;height:18px;border-radius:4px;background:var(--text)}
+.log-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.log-tools input,.log-tools select{min-height:38px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text)}.activity-table tr.log-error td{background:color-mix(in srgb,var(--danger) 9%,transparent)}.activity-table tr.log-warning td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
+@media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
+.simulator-switch:disabled{opacity:.48!important;filter:saturate(.35);cursor:not-allowed!important}.simulator-switch:disabled .simulator-switch-track{cursor:not-allowed}
 </style>
+{% include '_theme_overrides.html' %}
 </head>
 <body>
     {% set live_snapshot = snapshot or {} %}
     {% set source_monitoring_active = live_snapshot.get("lower_tank_level") is not none or live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") or service_config.get("source_tank_monitoring_enabled") %}
+    {% set lower_turbidity_enabled = service_config.get("master_turbidity_enabled", False) %}
+    {% set upper_turbidity_enabled = service_config.get("slave_turbidity_enabled", False) %}
+    {% set lower_turbidity_status = (live_snapshot.get("lower_turbidity_sensor") or ("WAITING" if lower_turbidity_enabled else "DISABLED"))|upper %}
+    {% set upper_turbidity_status = (live_snapshot.get("upper_turbidity_sensor") or ("WAITING" if upper_turbidity_enabled else "DISABLED"))|upper %}
+    {% set municipal_enabled = service_config.get("municipal_sensor_enabled", False) %}
+    {% set municipal_status = (live_snapshot.get("municipal_sensor_state") or ("WAITING" if municipal_enabled else "DISABLED"))|upper %}
 <div class="shell">
     <div class="panel">
         <div class="eyebrow">Device Detail</div>
@@ -97,11 +117,24 @@ body{font-size:16px}
         </div>
     </div>
 
+    <nav class="device-action-bar" aria-label="Device actions and section navigation">
+        <div class="quick-nav">
+            <a href="#device-overview">Overview</a><a href="#device-memory">Diagnostics</a><a href="#device-configuration">Configuration</a><a href="#device-firmware">Firmware</a><a href="#device-logs">Logs</a>
+        </div>
+        <div class="device-action-group">
+            <a class="btn" href="{{ url_for('admin_customers') }}">← Back to Devices</a>
+            <button id="deviceRefreshButton" class="btn" type="button">↻ Refresh</button>
+            {% if is_admin %}<button id="deviceSaveConfigButton" class="btn btn-admin" type="button"><span>Save Configuration</span></button><button id="deviceRestartButton" class="btn btn-danger" type="button">Restart</button><a class="btn" href="#device-firmware">OTA Update</a>{% endif %}
+            <a class="btn" href="#device-logs">Open Logs</a>
+        </div>
+    </nav>
+
     {% set config_type = "master_slave" if service_config.get("slave_device_enabled") else "master_only" %}
     {% set slave_device_checked = service_config.get("slave_device_enabled", True) %}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
     {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
+    {% set configured_setup_type = "municipal_direct" if service_config.get("municipal_sensor_enabled") and not service_config.get("source_tank_monitoring_enabled") else ("source_only" if service_config.get("source_tank_monitoring_enabled") and not service_config.get("municipal_sensor_enabled") else ("dual_source_pumped" if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and service_config.get("source_outlet_valve_enabled") else ("dual_source_gravity" if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and not service_config.get("source_outlet_valve_enabled") else "custom"))) %}
     {% set upper_tank_height_value = current_saved_config.get("upper_tank_height_cm") or current_saved_config.get("tank_height_cm") or service_config.get("upper_tank_height_cm") or service_config.get("tank_height_cm") or live_snapshot.get("tank_height_cm") or "" %}
     {% set upper_tank_capacity_value = current_saved_config.get("upper_tank_capacity_liters") or current_saved_config.get("tank_capacity_liters") or service_config.get("upper_tank_capacity_liters") or service_config.get("tank_capacity_liters") or live_snapshot.get("tank_capacity_liters") or live_snapshot.get("capacity_liters") or "" %}
     {% set lower_tank_height_value = current_saved_config.get("lower_tank_height_cm") or service_config.get("lower_tank_height_cm") or live_snapshot.get("lower_tank_height_cm") or live_snapshot.get("source_tank_height_cm") or "" %}
@@ -134,34 +167,39 @@ body{font-size:16px}
         {% endif %}
     {% endif %}
     <section class="summary-grid">
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Tank Level</div>
             <div id="level" class="summary-value">{% if live_snapshot.get("level") is not none %}{{ live_snapshot.get("level") }}%{% else %}--{% endif %}</div>
             <div id="levelNote" class="summary-note">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L available right now.{% else %}Waiting for telemetry.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Available Water</div>
             <div id="availableWater" class="summary-value">{% if live_snapshot.get("remaining_liters") is not none %}{{ live_snapshot.get("remaining_liters") }} L{% else %}--{% endif %}</div>
             <div id="availableWaterNote" class="summary-note">{% if live_snapshot.get("capacity_liters") is not none %}Out of {{ live_snapshot.get("capacity_liters") }} L total tank capacity.{% else %}Capacity information will appear here.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-healthy">
             <div class="summary-label">Pump</div>
             <div id="motor" class="summary-value">{% if live_snapshot.get("motor") %}{{ live_snapshot.get("motor")|title }}{% else %}--{% endif %}</div>
             <div id="pumpNote" class="summary-note">{% if live_snapshot.get("motor") and live_snapshot.get("motor")|upper == "ON" %}The pump is currently running.{% elif live_snapshot.get("motor") %}The pump is currently stopped.{% else %}Current motor state.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Mode</div>
             <div id="mode" class="summary-value">{% if live_snapshot.get("mode") %}{{ live_snapshot.get("mode")|title }}{% else %}--{% endif %}</div>
             <div id="modeNote" class="summary-note">{% if live_snapshot.get("mode") and live_snapshot.get("mode")|upper == "MANUAL" %}Manual control is active.{% elif live_snapshot.get("mode") %}Automatic control is active.{% else %}Auto or manual control.{% endif %}</div>
         </div>
-        <div class="summary-card">
+        <div class="summary-card is-primary">
             <div class="summary-label">Connection</div>
             <div id="connection" class="summary-value">{{ ((live_snapshot.get("telemetry_status") or "--")|replace("_", " ")|title) if live_snapshot else "--" }}</div>
             <div id="connectionNote" class="summary-note">{% if live_snapshot.get("last_sync_at") %}Last updated {{ live_snapshot.get("last_sync_at") }}.{% else %}Last update will appear here.{% endif %}</div>
         </div>
+        <div class="summary-card is-healthy"><div class="summary-label">Device Health</div><div id="deviceHealthScore" class="summary-value">{% if live_snapshot.get("tank_health") is not none %}{{ live_snapshot.get("tank_health") }}%{% else %}--{% endif %}</div><div id="deviceHealthNote" class="summary-note">Sensors, telemetry, pump, and alerts.</div></div>
+        <div class="summary-card"><div class="summary-label">Last Seen</div><div id="lastSeenAge" class="summary-value last-seen-value" data-age-seconds="{{ live_snapshot.get('seconds_since_sync') if live_snapshot.get('seconds_since_sync') is not none else '' }}">--</div><div id="lastSeenTimestamp" class="summary-note">{{ live_snapshot.get("last_sync_at") or "No communication yet" }}</div></div>
+        <div class="summary-card"><div class="summary-label">Firmware</div><div id="firmwareVersion" class="summary-value">{{ live_snapshot.get("firmware_version") or live_snapshot.get("swt_version") or "--" }}</div><div class="summary-note">Current installed version.</div></div>
+        <div class="summary-card"><div class="summary-label">RSSI Signal</div><div id="rssiSignal" class="summary-value">{% if live_snapshot.get("wifi_rssi") is not none %}{{ live_snapshot.get("wifi_rssi") }} dBm{% else %}--{% endif %}</div><div id="rssiNote" class="summary-note">{{ live_snapshot.get("signal_quality") or "Signal not reported" }}</div></div>
+        <div class="summary-card"><div class="summary-label">Uptime</div><div id="deviceUptime" class="summary-value">{{ live_snapshot.get("uptime_label") or live_snapshot.get("runtime") or "--" }}</div><div class="summary-note">Since the last controller restart.</div></div>
     </section>
 
-    <section class="panel">
+    <section id="device-overview" class="panel section-panel" data-collapsible data-expanded="true">
         <div class="section-head">
             <div>
                 <div class="eyebrow">Device Configuration</div>
@@ -179,7 +217,23 @@ body{font-size:16px}
                 <span id="sourceLevel" class="info-value">{% if live_snapshot.get("lower_tank_level") is not none %}{{ live_snapshot.get("lower_tank_level") }}%{% else %}--{% endif %}</span>
                 <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
             </div>
+            <div id="lowerTurbidityCard" class="info-item">
+                <div class="info-label">Lower Tank Turbidity (Master)</div>
+                <span id="lowerTurbidityStatus" class="info-value">{{ lower_turbidity_status|title }}</span>
+                <div id="lowerTurbidityReading" class="detail-note">{% if lower_turbidity_status == "OK" and live_snapshot.get("lower_turbidity_estimated_ntu") is not none and live_snapshot.get("lower_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("lower_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("lower_turbidity_raw_adc", "--") }}{% elif lower_turbidity_status == "DISABLED" %}Enable Master Turbidity in runtime configuration.{% elif lower_turbidity_status == "ERROR" %}Sensor signal unavailable or outside its valid ADC range.{% else %}Waiting for device telemetry.{% endif %}</div>
+            </div>
+            <div id="upperTurbidityCard" class="info-item">
+                <div class="info-label">Upper Tank Turbidity (Slave)</div>
+                <span id="upperTurbidityStatus" class="info-value">{{ upper_turbidity_status|title }}</span>
+                <div id="upperTurbidityReading" class="detail-note">{% if upper_turbidity_status == "OK" and live_snapshot.get("upper_turbidity_estimated_ntu") is not none and live_snapshot.get("upper_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("upper_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("upper_turbidity_raw_adc", "--") }}{% elif upper_turbidity_status == "DISABLED" %}Enable Slave Turbidity in runtime configuration.{% elif upper_turbidity_status == "ERROR" %}Sensor or slave telemetry is unavailable.{% else %}Waiting for device telemetry.{% endif %}</div>
+            </div>
+            <div id="municipalSensorCard" class="info-item">
+                <div class="info-label">Municipal Water</div>
+                <span id="municipalSensorStatus" class="info-value">{{ municipal_status|replace("_", " ")|title }}</span>
+                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "UNAVAILABLE" %}No municipal water is currently detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}Waiting for valid municipal sensor telemetry.{% endif %}</div>
+            </div>
         </div>
+        <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
         <div id="deviceInfoGrid" class="info-grid">
             {% if initial_info_cards %}
                 {% for card in initial_info_cards %}
@@ -194,7 +248,7 @@ body{font-size:16px}
         </div>
     </section>
 
-    <section class="panel">
+    <section id="device-memory" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Memory Health</div>
@@ -220,7 +274,7 @@ body{font-size:16px}
     </section>
 
     {% if is_admin %}
-    <section class="panel">
+    <section id="device-configuration" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Admin Configuration</div>
@@ -232,19 +286,36 @@ body{font-size:16px}
             <form class="admin-form config-form" method="post" action="{{ url_for('admin_device_detail_configuration', device_id=device_id) }}" data-ajax-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Device Runtime Configuration</h3>
+                <div class="form-group">
+                    <label for="deviceSetupTypeOption">Device Setup Type</label>
+                    <select id="deviceSetupTypeOption" name="device_setup_type" onchange="window.swtApplyDeviceSetupType&&window.swtApplyDeviceSetupType(this.value)">
+                        <option value="source_only" {% if configured_setup_type == "source_only" %}selected{% endif %}>Source Tank → Pump → Upper Tank</option>
+                        <option value="municipal_direct" {% if configured_setup_type == "municipal_direct" %}selected{% endif %}>Municipal Water → Pump → Upper Tank (No Source)</option>
+                        <option value="dual_source_gravity" {% if configured_setup_type == "dual_source_gravity" %}selected{% endif %}>Municipal Gravity → Source + Source/Municipal → Upper</option>
+                        <option value="dual_source_pumped" {% if configured_setup_type == "dual_source_pumped" %}selected{% endif %}>Fully Routed Municipal/Source (Inlet + Outlet Valves)</option>
+                        <option value="custom" {% if configured_setup_type == "custom" %}selected{% endif %}>Custom Configuration</option>
+                    </select>
+                </div>
+                <div id="deviceSetupTypeHelp" class="helper-text">Selecting a setup applies compatible tank, municipal-water and valve features. Sensor-controller location and turbidity remain independently configurable.</div>
                 <div class="config-sections">
                     <div class="config-section">
                         <h4>Master Configuration</h4>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
-                        <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"> Lower Sensor</label>
-                        <label class="service-option"><input type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
+                        <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Lower Sensor</label>
+                        <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
+                        <label id="municipalValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') or not service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Inlet Motorized Valve</label>
+                        <label id="sourceOutletValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') or not service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Outlet Motorized Valve</label>
+                        <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Lower Turbidity</label>
+                        <label class="service-option"><input id="relayOption" type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
+                        <div id="municipalDirectUpperHint" class="helper-text{% if not service_config.get('municipal_sensor_enabled') or service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}">Direct municipal setup: Municipal Water → Pump → Upper Tank. No source tank or motorized valves are required.</div>
                     </div>
                     <div class="config-section">
                         <h4>Slave Configuration</h4>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
                         <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
+                        <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Upper Turbidity</label>
                         <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
@@ -270,11 +341,11 @@ body{font-size:16px}
                 <h3>Tank Auto Thresholds</h3>
                 <div class="form-group">
                     <label for="auto_start_pct">Start Pump At Or Below (%)</label>
-                    <input id="auto_start_pct" name="auto_start_pct" type="number" min="0" max="95" step="0.1" inputmode="decimal" value="{{ automation_settings.get('auto_start_pct', 25) }}">
+                    <input id="auto_start_pct" name="auto_start_pct" type="range" min="0" max="95" step="0.1" value="{{ automation_settings.get('auto_start_pct', 25) }}"><output id="autoStartOutput" for="auto_start_pct">{{ automation_settings.get('auto_start_pct', 25) }}%</output>
                 </div>
                 <div class="form-group">
                     <label for="auto_stop_pct">Stop Pump At Or Above (%)</label>
-                    <input id="auto_stop_pct" name="auto_stop_pct" type="number" min="5" max="100" step="0.1" inputmode="decimal" value="{{ automation_settings.get('auto_stop_pct', 95) }}">
+                    <input id="auto_stop_pct" name="auto_stop_pct" type="range" min="5" max="100" step="0.1" value="{{ automation_settings.get('auto_stop_pct', 95) }}"><output id="autoStopOutput" for="auto_stop_pct">{{ automation_settings.get('auto_stop_pct', 95) }}%</output>
                 </div>
                 <div class="helper-text">These thresholds are shared across Flask, Android, and firmware. Saving here queues the update for the controller and keeps the cloud copy aligned.</div>
                 <button class="btn btn-admin" type="submit"><span>Save Tank Thresholds</span></button>
@@ -309,13 +380,9 @@ body{font-size:16px}
                 {% endif %}
             </form>
 
-            <div class="admin-form">
+            <div class="admin-form command-group maintenance">
                 <h3>Device Commands</h3>
-                <form method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="{{ 'Disable simulator?' if simulator_enabled|default(false) else 'Enable simulator?' }}" data-confirm-message="{{ 'Queue a simulator disable command for device ' ~ device_id ~ '?' if simulator_enabled|default(false) else 'Queue a simulator enable command for device ' ~ device_id ~ '? The device will apply it using the current service configuration.' }}" data-confirm-button="{{ 'Disable Simulator' if simulator_enabled|default(false) else 'Enable Simulator' }}">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="return_to" value="device_detail">
-                    <button id="simulatorToggleButton" class="btn btn-admin btn-full" type="submit"><span>{{ "Disable Simulator" if simulator_enabled|default(false) else "Enable Simulator" }}</span></button>
-                </form>
+                <div class="summary-label">Diagnostics and maintenance</div>
                 <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
@@ -335,18 +402,12 @@ body{font-size:16px}
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-admin btn-full" type="submit"><span>Log Out Mobile Devices</span></button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Delete device?" data-confirm-message="Delete device {{ device_id }} and its stored admin records? This cannot be undone." data-confirm-button="Delete Device" data-confirm-danger="true" data-confirm-mode="navigate">
+                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Delete device?" data-confirm-message="Delete device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. A small deleted-device marker is kept so the controller does not immediately recreate data while it is still powered." data-confirm-button="Delete Device" data-confirm-danger="true" data-confirm-mode="navigate">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-danger btn-full" type="submit">Delete Device</button>
                 </form>
-                <form method="post" action="/admin/customers/{{ device_id }}/delete" data-confirm-title="Purge device data?" data-confirm-message="Purge device {{ device_id }} from every device-scoped database table? This removes telemetry, commands, config, firmware records, sessions, auth keys, events, alerts, audit rows, and customer records. A small deleted-device marker is kept so the controller does not immediately recreate data while it is still powered." data-confirm-button="Purge Data" data-confirm-danger="true" data-confirm-mode="navigate">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="delete_mode" value="purge">
-                    <button class="btn btn-danger btn-full" type="submit">Purge Device Data</button>
-                </form>
-                <div id="simulatorHelperText" class="helper-text">Simulator commands use the device's current service configuration.</div>
                 <div class="helper-text">Ping checks use the latest cloud telemetry and direct peer packet age; no local LAN access is required.</div>
-                <div class="helper-text">Delete returns to the admin fleet table because the device detail record is removed.</div>
+                <div class="helper-text">Delete removes the stored device data and returns to the admin fleet table.</div>
             </div>
 
             {% if master_upper_checked or slave_upper_checked %}
@@ -392,6 +453,70 @@ body{font-size:16px}
                 </form>
                 <div class="helper-text">Use the lower/source tank's measured sensor-to-empty-tank height and capacity.</div>
             </div>
+            {% set valve_enabled = service_config.get("municipal_sensor_enabled", False) and service_config.get("source_tank_monitoring_enabled", False) and service_config.get("municipal_valve_enabled", False) %}
+            {% set municipal_direct = service_config.get("municipal_sensor_enabled", False) and not service_config.get("source_tank_monitoring_enabled", False) %}
+            {% set valve_route = (live_snapshot.get("inlet_valve_route") or live_snapshot.get("municipal_valve_route") or "source")|lower %}
+            <div id="motorizedValveCard" class="info-item{% if not valve_enabled %} hidden-section{% endif %}">
+                <div class="info-label">Inlet Motorized Valve</div>
+                <span id="motorizedValveStatus" class="info-value">{{ "ON" if valve_enabled else "OFF" }}</span>
+                <div id="motorizedValvePath" class="detail-note">Selected path: {{ "Municipal Water" if valve_route == "municipal" else "Source Tank" }}</div>
+            </div>
+            {% set outlet_valve_enabled = live_snapshot.get("source_pump_fill_feature_enabled") or service_config.get("source_outlet_valve_enabled") %}
+            {% set outlet_valve_route = (live_snapshot.get("source_outlet_route") or "upper")|lower %}
+            {% set inlet_valve_state = (live_snapshot.get("inlet_valve_state") or live_snapshot.get("municipal_valve_state") or "")|lower %}
+            {% set outlet_valve_state = (live_snapshot.get("source_outlet_valve_state") or "")|lower %}
+            {% set pump_state = (live_snapshot.get("motor_state") or live_snapshot.get("motor") or "")|lower %}
+            {% set filling_active = pump_state in ["on", "running", "started", "active"] or (valve_enabled and inlet_valve_state in ["open", "opening"]) or outlet_valve_state in ["open", "opening"] %}
+            {% set fill_source = "Municipal Water" if municipal_direct or (valve_enabled and valve_route == "municipal") else "Source Tank" %}
+            {% set fill_destination = "Upper Tank" if municipal_direct else ("Source Tank" if outlet_valve_route == "source" else "Upper Tank") %}
+            <div id="combinedFillStatusCard" class="info-item">
+                <div class="info-label">Combined Fill Status</div>
+                <span id="combinedFillStatus" class="info-value">{{ (fill_destination ~ " filling from " ~ fill_source) if filling_active else "Not filling" }}</span>
+                <div id="combinedFillRoute" class="detail-note">Selected route: {{ fill_source }} → {{ fill_destination }}</div>
+            </div>
+            <div id="sourceOutletValveCard" class="info-item{% if not valve_enabled %} hidden-section{% endif %}">
+                <div class="info-label">Outlet Motorized Valve</div>
+                <span id="sourceOutletValveStatus" class="info-value">{{ "ON" if outlet_valve_enabled else "OFF" }}</span>
+                <div id="sourceOutletValvePath" class="detail-note">Selected path: {{ outlet_valve_route|title }}</div>
+            </div>
+
+            <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
+                <h3>Device Simulators</h3>
+                <div class="summary-label">Sensor and valve simulation</div>
+                <form id="tankSimulatorForm" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <input type="hidden" name="simulator_target" value="tank">
+                    <button id="simulatorToggleButton" class="simulator-switch{% if simulator_enabled|default(false) %} is-on{% endif %}" data-tone="tank" type="submit" role="switch" aria-checked="{{ 'true' if simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Tank Level Simulator</span><span class="simulator-switch-state">{{ "ON" if simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form id="municipalSimulatorForm" class="{% if not service_config.get('municipal_sensor_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <input type="hidden" name="simulator_target" value="municipal">
+                    <button id="municipalSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Municipal Water Simulator</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form id="municipalValveSimulatorForm" class="{% if not service_config.get('municipal_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="simulator_target" value="valve">
+                    <button id="municipalValveSimulatorToggleButton" class="simulator-switch{% if valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Inlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form id="sourceOutletValveSimulatorForm" class="{% if not service_config.get('source_outlet_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="simulator_target" value="outlet_valve">
+                    <button id="sourceOutletValveSimulatorToggleButton" class="simulator-switch{% if outlet_valve_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="valve" type="submit" role="switch" aria-checked="{{ 'true' if outlet_valve_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Outlet Motorized Valve Simulator</span><span class="simulator-switch-state">{{ "ON" if outlet_valve_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form id="lowerTurbiditySimulatorForm" class="{% if not service_config.get('master_turbidity_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="simulator_target" value="lower_turbidity">
+                    <button id="lowerTurbiditySimulatorToggleButton" class="simulator-switch{% if lower_turbidity_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="lower" type="submit" role="switch" aria-checked="{{ 'true' if lower_turbidity_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Lower Turbidity Simulator</span><span class="simulator-switch-state">{{ "ON" if lower_turbidity_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <form id="upperTurbiditySimulatorForm" class="{% if not service_config.get('slave_turbidity_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="simulator_target" value="upper_turbidity">
+                    <button id="upperTurbiditySimulatorToggleButton" class="simulator-switch{% if upper_turbidity_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="upper" type="submit" role="switch" aria-checked="{{ 'true' if upper_turbidity_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Upper Turbidity Simulator</span><span class="simulator-switch-state">{{ "ON" if upper_turbidity_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                </form>
+                <div id="simulatorHelperText" class="helper-text">Each switch independently simulates its named sensor or valve.</div>
+            </div>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_password', device_id=device_id) }}" data-ajax-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -410,7 +535,7 @@ body{font-size:16px}
         </div>
     </section>
 
-    <section class="panel">
+    <section id="device-firmware" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Admin Actions</div>
@@ -420,7 +545,7 @@ body{font-size:16px}
         <div class="firmware-upload-grid">
             {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
             {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload master firmware?" data-confirm-message="Store this master firmware binary for device {{ device_id }}? Verify the selected build and profile before continuing." data-confirm-button="Upload Master Firmware">
                 <h3>Master Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -443,7 +568,7 @@ body{font-size:16px}
                 <label class="service-option upload-override"><input type="checkbox" name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override> <span><strong>Store for recovery/profile change</strong><span>Profile mismatch is allowed for master uploads. Apply the correct MCU runtime configuration before upgrade/install.</span></span></label>
                 <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
             </form>
-            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form>
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload slave firmware?" data-confirm-message="Store this slave firmware binary for device {{ device_id }}? Verify that it matches the slave hardware before continuing." data-confirm-button="Upload Slave Firmware">
                 <h3>Slave Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <input type="hidden" name="return_to" value="device_detail">
@@ -480,7 +605,7 @@ body{font-size:16px}
     </section>
     {% endif %}
 
-    <section class="panel">
+    <section id="device-logs" class="panel section-panel is-collapsed" data-collapsible>
         <div class="section-head">
             <div>
                 <div class="eyebrow">Activity Log</div>
@@ -488,6 +613,13 @@ body{font-size:16px}
             </div>
         </div>
         <div class="activity-toolbar">
+            <div class="log-tools">
+                <input id="activitySearch" type="search" placeholder="Search logs" aria-label="Search activity logs">
+                <select id="activitySeverity" aria-label="Filter log severity"><option value="">All levels</option><option value="info">Info</option><option value="success">Success</option><option value="warning">Warning</option><option value="danger">Error/Critical</option></select>
+                <button id="activityPause" class="btn" type="button">Pause auto-scroll</button>
+                <button id="activityCopy" class="btn" type="button">Copy</button>
+                <button id="activityDownload" class="btn" type="button">Download</button>
+            </div>
             <label class="activity-page-size" for="activityPageSize">Display
                 <select id="activityPageSize">
                     <option value="10">10 logs</option>
@@ -572,6 +704,10 @@ let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
 let activityRefreshTimer=0;
 let latestHistory=[];
+let activitySearch="";
+let activitySeverity="";
+let activityPaused=false;
+let activeInfoTab="overview";
 function compactClientNumber(value,digits=1){
   const number=Number(value);
   return Number.isFinite(number)?number.toFixed(digits):"not reported";
@@ -622,9 +758,9 @@ function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceCo
   if(snapshot.motor||snapshot.mode){
     add("pump_current_status","info",`Pump is ${String(snapshot.motor||"not reported").toUpperCase()} in ${String(snapshot.mode||"unknown").toUpperCase()} mode.`,{motor:snapshot.motor,mode:snapshot.mode});
   }
-  const masterStatus=systemStatus.master_status_label||"Reachable";
-  const slaveStatus=systemStatus.slave_status_label||(usesSlave?"Reachable":"Disabled");
-  add("node_current_status",String(masterStatus).toLowerCase()==="reachable"&&["reachable","disabled"].includes(String(slaveStatus).toLowerCase())?"success":"warning",`Master ${String(masterStatus).toLowerCase()}, slave ${String(slaveStatus).toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
+  const masterStatus=onlineOfflineLabel(systemStatus.master_status_label);
+  const slaveStatus=usesSlave?onlineOfflineLabel(systemStatus.slave_status_label):"Disabled";
+  add("node_current_status",masterStatus==="Online"&&["Online","Disabled"].includes(slaveStatus)?"success":"warning",`Master ${masterStatus.toLowerCase()}, slave ${slaveStatus.toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
   if(usesSlave||snapshot.direct_peer){
     const age=snapshot.direct_peer_last_packet_age_s;
     const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
@@ -653,6 +789,34 @@ const ACTIVITY_INITIAL_FETCH_LIMIT=20;
 const ACTIVITY_FETCH_LIMIT=50;
 const ACTIVITY_REFRESH_MS=30000;
 const DEVICE_REFRESH_MS=30000;
+const DEVICE_SETUP_PRESETS={
+  source_only:{source:true,municipal:false,inlet:false,outlet:false},
+  municipal_direct:{source:false,municipal:true,inlet:false,outlet:false},
+  dual_source_gravity:{source:true,municipal:true,inlet:true,outlet:false},
+  dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true},
+};
+function currentDeviceSetupType(){
+  const state={
+    source:Boolean(document.getElementById("lowerSensorOption")?.checked),
+    municipal:Boolean(document.getElementById("municipalSensorOption")?.checked),
+    inlet:Boolean(document.getElementById("municipalValveOption")?.checked),
+    outlet:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
+  };
+  return Object.entries(DEVICE_SETUP_PRESETS).find(([,preset])=>Object.keys(state).every(key=>state[key]===preset[key]))?.[0]||"custom";
+}
+function applyDeviceSetupType(type){
+  const preset=DEVICE_SETUP_PRESETS[type];
+  if(!preset)return;
+  const setChecked=(id,value)=>{const node=document.getElementById(id);if(node)node.checked=Boolean(value);};
+  setChecked("lowerSensorOption",preset.source);
+  setChecked("municipalSensorOption",preset.municipal);
+  setChecked("municipalValveOption",preset.inlet);
+  setChecked("sourceOutletValveOption",preset.outlet);
+  setChecked("relayOption",true);
+  syncLowerSensorSetupVisibility();
+  syncRuntimeConfigurationOptions();
+}
+window.swtApplyDeviceSetupType=applyDeviceSetupType;
 function setStableHtml(node,html){
   if(!node)return;
   const next=html??"";
@@ -663,6 +827,20 @@ function syncRuntimeConfigurationOptions(){
   const slaveUpper=document.getElementById("slaveUpperSensorOption");
   const slaveUpperRow=document.getElementById("slaveUpperSensorOptionRow");
   const masterUpper=document.getElementById("masterUpperSensorOption");
+  const municipalFeature=document.getElementById("municipalSensorOption");
+  const sourceFeature=document.getElementById("lowerSensorOption");
+  const municipalValve=document.getElementById("municipalValveOption");
+  const outletValve=document.getElementById("sourceOutletValveOption");
+  const municipalEnabled=Boolean(municipalFeature?.checked);
+  const municipalValvesApplicable=municipalEnabled&&Boolean(sourceFeature?.checked);
+  document.getElementById("municipalValveOptionRow")?.classList.toggle("hidden-section",!municipalValvesApplicable);
+  document.getElementById("sourceOutletValveOptionRow")?.classList.toggle("hidden-section",!municipalValvesApplicable);
+  document.getElementById("municipalDirectUpperHint")?.classList.toggle("hidden-section",!(municipalEnabled&&!sourceFeature?.checked));
+  if(!municipalValvesApplicable){
+    if(municipalValve)municipalValve.checked=false;
+    if(outletValve)outletValve.checked=false;
+  }
+  syncSimulatorControlsWithRuntimeForm();
   if(!slaveDevice||!slaveUpper||!masterUpper)return;
   const slaveEnabled=slaveDevice.checked;
   slaveUpperRow?.classList.toggle("is-disabled",!slaveEnabled);
@@ -679,7 +857,27 @@ function syncRuntimeConfigurationOptions(){
   }else{
     slaveUpper.disabled=false;
   }
+  const setupSelect=document.getElementById("deviceSetupTypeOption");
+  if(setupSelect)setupSelect.value=currentDeviceSetupType();
   syncUpperSensorSetupLabels();
+}
+function runtimeServiceConfigFromForm(){
+  return {
+    ...(INITIAL_SERVICE_CONFIG||{}),
+    main_sensor_enabled:Boolean(
+      document.getElementById("masterUpperSensorOption")?.checked||
+      document.getElementById("slaveUpperSensorOption")?.checked
+    ),
+    source_tank_monitoring_enabled:Boolean(document.getElementById("lowerSensorOption")?.checked),
+    municipal_sensor_enabled:Boolean(document.getElementById("municipalSensorOption")?.checked),
+    municipal_valve_enabled:Boolean(document.getElementById("municipalValveOption")?.checked),
+    source_outlet_valve_enabled:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
+    master_turbidity_enabled:Boolean(document.getElementById("masterTurbidityOption")?.checked),
+    slave_turbidity_enabled:Boolean(document.getElementById("slaveTurbidityOption")?.checked),
+  };
+}
+function syncSimulatorControlsWithRuntimeForm(){
+  updateSimulatorControls(INITIAL_SNAPSHOT||{},runtimeServiceConfigFromForm());
 }
 function syncUpperSensorSetupLabels(){
   const section=document.getElementById("upperSensorSetupSection");
@@ -951,6 +1149,14 @@ document.addEventListener("DOMContentLoaded",()=>{
       });
     });
   });
+  document.querySelectorAll(".simulator-switch").forEach((button)=>{
+    button.addEventListener("click",(event)=>{
+      if(event.detail>0&&!event.target.closest(".simulator-switch-track")){
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    });
+  });
   document.querySelectorAll("[data-ajax-form]").forEach((form)=>{
     if((form.action||"").includes("/delete"))return;
     form.addEventListener("submit",async(event)=>{
@@ -963,10 +1169,18 @@ document.addEventListener("DOMContentLoaded",()=>{
       const scrollY=window.scrollY||0;
       if(button){
         button.disabled=true;
-        button.textContent=form.dataset.loadingText||"Saving...";
+        if(button.classList.contains("simulator-switch")){
+          button.classList.add("is-loading");
+          button.setAttribute("aria-busy","true");
+        }else{
+          button.textContent=form.dataset.loadingText||"Saving...";
+        }
       }
       try{
         const formData=new FormData(form);
+        if(button?.classList.contains("simulator-switch")){
+          formData.set("simulator_enabled",button.getAttribute("aria-checked")==="true"?"0":"1");
+        }
         if(button?.name&&!formData.has(button.name))formData.append(button.name,button.value||"");
         const response=await fetch(form.action,{method:"POST",body:formData,credentials:"same-origin",redirect:"follow",headers:{"X-Requested-With":"XMLHttpRequest"}});
         const contentType=String(response.headers.get("content-type")||"").toLowerCase();
@@ -999,7 +1213,12 @@ document.addEventListener("DOMContentLoaded",()=>{
       }finally{
         if(button){
           button.disabled=false;
-          button.textContent=originalLabel;
+          if(button.classList.contains("simulator-switch")){
+            button.classList.remove("is-loading");
+            button.removeAttribute("aria-busy");
+          }else{
+            button.textContent=originalLabel;
+          }
         }
         window.requestAnimationFrame(()=>window.scrollTo(scrollX,scrollY));
       }
@@ -1076,6 +1295,11 @@ function firstReason(reasons,fallback="--"){
 function displayValue(value,fallback="--"){
   if(value===undefined||value===null||value==="")return fallback;
   return String(value);
+}
+function onlineOfflineLabel(value,fallback="Offline"){
+  const normalized=String(value||fallback).trim().toLowerCase();
+  if(normalized.includes("disabled")) return "Disabled";
+  return (normalized.includes("reachable")&&!normalized.includes("unreachable"))||normalized.includes("online")?"Online":"Offline";
 }
 function infoValue(value,fallback="Not reported"){
   if(value===undefined||value===null)return fallback;
@@ -1295,32 +1519,90 @@ function simulatorStatusText(snapshot,serviceConfig){
   const pumpText=pump==="ON"?" / pump active":"";
   return `${active?"ON":"OFF"} - ${parts.join(" + ")}${pumpText}`;
 }
+function setSimulatorSwitchState(button,active){
+  if(!button)return;
+  const enabled=Boolean(active);
+  button.classList.toggle("is-on",enabled);
+  button.setAttribute("aria-checked",enabled?"true":"false");
+  const state=button.querySelector(".simulator-switch-state");
+  if(state)state.textContent=enabled?"ON":"OFF";
+}
+function setSimulatorFeatureAvailability(button,featureEnabled,simulatorActive,featureLabel){
+  if(!button)return;
+  const blocked=!Boolean(featureEnabled);
+  if(blocked)setSimulatorSwitchState(button,false);
+  button.disabled=blocked;
+  button.setAttribute("aria-disabled",blocked?"true":"false");
+  button.title=blocked?`Enable the ${featureLabel} feature first`:"";
+}
+function setValveSimulatorSwitchState(snapshot){
+  const button=document.getElementById("municipalValveSimulatorToggleButton");
+  const active=clientTruthy(snapshot?.municipal_valve_simulated,false);
+  setSimulatorSwitchState(button,active);
+}
 function updateSimulatorControls(snapshot,serviceConfig){
   const button=document.getElementById("simulatorToggleButton");
   const helper=document.getElementById("simulatorHelperText");
-  const form=button?.closest("form");
   if(!button&&!helper)return;
   const active=simulatorActive(snapshot);
   const usesSlave=Boolean(serviceConfig?.slave_device_enabled);
   const usesSource=Boolean(serviceConfig?.source_tank_monitoring_enabled);
+  const usesMunicipal=Boolean(serviceConfig?.municipal_sensor_enabled);
+  const usesInletValve=usesMunicipal&&Boolean(serviceConfig?.municipal_valve_enabled);
+  const usesOutletValve=usesMunicipal&&Boolean(serviceConfig?.source_outlet_valve_enabled);
+  setVisible("municipalSimulatorForm",usesMunicipal);
+  setVisible("municipalValveSimulatorForm",usesInletValve);
+  setVisible("sourceOutletValveSimulatorForm",usesOutletValve);
+  setVisible("lowerTurbiditySimulatorForm",Boolean(serviceConfig?.master_turbidity_enabled));
+  setVisible("upperTurbiditySimulatorForm",Boolean(serviceConfig?.slave_turbidity_enabled));
   const mode=[usesSlave?"slave upper":"local upper",usesSource?"source":"no source"].join(" + ");
   if(button){
-    const label=active?"Disable Simulator":"Enable Simulator";
-    const span=button.querySelector("span");
-    if(span)span.textContent=label;else button.textContent=label;
+    setSimulatorSwitchState(button,active);
   }
-  if(form){
-    form.dataset.confirmTitle=active?"Disable simulator?":"Enable simulator?";
-    form.dataset.confirmMessage=active
-      ?`Queue a simulator disable command for device ${DEVICE_ID}?`
-      :`Queue a simulator enable command for device ${DEVICE_ID}? The device will apply it using the current service configuration.`;
-    form.dataset.confirmButton=active?"Disable Simulator":"Enable Simulator";
-  }
+  setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
+  if(Boolean(serviceConfig?.municipal_valve_enabled))setValveSimulatorSwitchState(snapshot);else setSimulatorSwitchState(document.getElementById("municipalValveSimulatorToggleButton"),false);
+  setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),Boolean(serviceConfig?.source_outlet_valve_enabled)&&clientTruthy(snapshot?.source_outlet_valve_simulated,false));
+  setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.master_turbidity_enabled)&&clientTruthy(snapshot?.lower_turbidity_simulated,false));
+  setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.slave_turbidity_enabled)&&clientTruthy(snapshot?.upper_turbidity_simulated,false));
+  setSimulatorFeatureAvailability(button,serviceConfig?.main_sensor_enabled,active,"upper tank sensor");
+  setSimulatorFeatureAvailability(document.getElementById("municipalSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),"municipal water");
+  setSimulatorFeatureAvailability(document.getElementById("municipalValveSimulatorToggleButton"),serviceConfig?.municipal_valve_enabled,clientTruthy(snapshot?.municipal_valve_simulated,false),"inlet motorized valve");
+  setSimulatorFeatureAvailability(document.getElementById("sourceOutletValveSimulatorToggleButton"),serviceConfig?.source_outlet_valve_enabled,clientTruthy(snapshot?.source_outlet_valve_simulated,false),"outlet motorized valve");
+  setSimulatorFeatureAvailability(document.getElementById("lowerTurbiditySimulatorToggleButton"),serviceConfig?.master_turbidity_enabled,clientTruthy(snapshot?.lower_turbidity_simulated,false),"lower turbidity");
+  setSimulatorFeatureAvailability(document.getElementById("upperTurbiditySimulatorToggleButton"),serviceConfig?.slave_turbidity_enabled,clientTruthy(snapshot?.upper_turbidity_simulated,false),"upper turbidity");
   if(helper){
     helper.textContent=active
-      ? `Simulator is active for ${mode}. Disable queues one unified simulator command.`
-      : `Simulator is inactive. Enable queues one unified simulator command for ${mode}.`;
+      ? `Tank level simulation is active for ${mode}. Municipal, valve, and turbidity switches operate independently.`
+      : `Tank level simulation is inactive. Enable a feature before turning on its simulator.`;
   }
+}
+function turbidityStatus(snapshot,serviceConfig,role){
+  const enabledKey=role==="lower"?"master_turbidity_enabled":"slave_turbidity_enabled";
+  if(!Boolean(serviceConfig?.[enabledKey]))return"DISABLED";
+  const status=String(snapshot?.[`${role}_turbidity_sensor`]||"").trim().toUpperCase();
+  return ["OK","ERROR","DISABLED"].includes(status)?status:"WAITING";
+}
+function turbidityReading(snapshot,serviceConfig,role){
+  const status=turbidityStatus(snapshot,serviceConfig,role);
+  if(status==="DISABLED")return `Enable ${role==="lower"?"Master":"Slave"} Turbidity in runtime configuration.`;
+  if(status==="WAITING")return"Waiting for device telemetry.";
+  if(status==="ERROR")return role==="lower"?"Sensor signal unavailable or outside its valid ADC range.":"Sensor or slave telemetry is unavailable.";
+  const ntu=Number(snapshot?.[`${role}_turbidity_estimated_ntu`]);
+  const adc=Number(snapshot?.[`${role}_turbidity_raw_adc`]);
+  if(!Number.isFinite(ntu)||ntu<0)return"Waiting for a valid sensor reading.";
+  return `${ntu.toFixed(1)} NTU | ADC ${Number.isFinite(adc)?Math.round(adc):"--"}`;
+}
+function municipalSensorStatus(snapshot,serviceConfig){
+  if(!Boolean(serviceConfig?.municipal_sensor_enabled))return"DISABLED";
+  const status=String(snapshot?.municipal_sensor_state||"").trim().toUpperCase();
+  return ["AVAILABLE","UNAVAILABLE"].includes(status)?status:"WAITING";
+}
+function municipalSensorReading(snapshot,serviceConfig){
+  const status=municipalSensorStatus(snapshot,serviceConfig);
+  if(status==="DISABLED")return"Enable Municipal Water Feature in runtime configuration.";
+  if(status==="AVAILABLE")return"Municipal water is detected.";
+  if(status==="UNAVAILABLE")return"No municipal water is currently detected.";
+  return"Waiting for valid municipal sensor telemetry.";
 }
 function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig){
   const root=document.getElementById("deviceInfoGrid");
@@ -1347,6 +1629,12 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const sourceTankHeight=Number.isFinite(sourceHeightNumber)&&sourceHeightNumber>0?`${sourceHeightNumber.toFixed(1)} cm`:"Disabled";
   const usesSlave=Boolean(savedServiceConfig.slave_device_enabled);
   const sourceMonitoringEnabled=Boolean(savedServiceConfig.source_tank_monitoring_enabled)||isPositiveServiceValue(snapshot.lower_tank_service);
+  const municipalDirectUpper=Boolean(savedServiceConfig.municipal_sensor_enabled)&&!sourceMonitoringEnabled;
+  const waterRoutingMode=municipalDirectUpper
+    ?"Municipal Water → Pump → Upper Tank (direct; no valves)"
+    :sourceMonitoringEnabled
+      ?"Source/municipal multi-tank routing"
+      :"Pump → Upper Tank";
   const mainSensorEnabled=savedServiceConfig.main_sensor_enabled!==false;
   const slaveIp=infoValue(snapshot.direct_peer_remote_ip,"");
   const upperSource=infoValue(snapshot?.upper_sensor_source,usesSlave?"slave":"master");
@@ -1355,6 +1643,13 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const autoStop=savedConfig.auto_stop_pct??savedAutomationSettings?.auto_stop_pct??savedServiceConfig?.auto_stop_pct??snapshot?.auto_stop_pct??snapshot?.auto_stop_level_pct??snapshot?.upper_threshold_pct;
   const autoStartStableMs=Number(snapshot?.auto_start_stable_ms);
   const autoLevelAverageSamples=Number(snapshot?.auto_level_average_samples);
+  const motorizedValveEnabled=clientTruthy(snapshot?.municipal_valve_enabled,clientTruthy(savedServiceConfig?.municipal_valve_enabled,false));
+  const motorizedValveRoute=String(snapshot?.inlet_valve_route||snapshot?.municipal_valve_route||"").trim().toLowerCase();
+  const motorizedValvePath=motorizedValveRoute==="municipal"?"Municipal Water":motorizedValveRoute==="source"?"Source Tank":"Not reported";
+  const motorizedValveState=infoValue(titleCase(snapshot?.inlet_valve_state||snapshot?.municipal_valve_state||""),"Not reported");
+  const outletValveEnabled=clientTruthy(snapshot?.source_pump_fill_feature_enabled,clientTruthy(savedServiceConfig?.source_outlet_valve_enabled,false));
+  const outletValvePath=infoValue(titleCase(snapshot?.source_outlet_route||""),"Not reported");
+  const outletValveState=infoValue(titleCase(snapshot?.source_outlet_valve_state||""),"Not reported");
   const sourceSensorLocationRaw=String(snapshot?.source_sensor_location??snapshot?.lower_sensor_location??"").trim();
   const sourceSensorLocation=sourceMonitoringEnabled
     ? infoValue(titleCase(sourceSensorLocationRaw),"Source Tank")
@@ -1368,14 +1663,21 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const items=[
     {label:"Firmware",value:infoValue(snapshot.firmware_version)},
     {label:"Configuration",value:usesSlave?"Master + Slave":"Master Only",show:true},
-    {label:"Master Reachability",value:infoValue(systemStatus?.master_status_label,"Unreachable"),show:true},
-    {label:"Slave Reachability",value:infoValue(systemStatus?.slave_status_label,usesSlave?"Unreachable":"Disabled"),show:true},
+    {label:"Water Routing",value:waterRoutingMode,show:true},
+    {label:"Master Status",value:onlineOfflineLabel(systemStatus?.master_status_label),show:true},
+    {label:"Slave Status",value:usesSlave?onlineOfflineLabel(systemStatus?.slave_status_label):"Disabled",show:true},
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
     {label:"Upper Sensor Source",value:upperSource},
     {label:"Source Tank Sensor",value:sourceSensorLocation},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
+    {label:"Inlet Motorized Valve",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
+    {label:"Inlet Selected Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
+    {label:"Inlet Valve Feedback",value:motorizedValveEnabled?motorizedValveState:"Disabled",category:"sensors"},
+    {label:"Outlet Motorized Valve",value:outletValveEnabled?"ON":"OFF",category:"configuration"},
+    {label:"Outlet Selected Path",value:outletValveEnabled?outletValvePath:"Disabled",category:"configuration"},
+    {label:"Outlet Valve Feedback",value:outletValveEnabled?outletValveState:"Disabled",category:"sensors"},
     {label:"Tank Capacity",value:formatLiters(capacity),show:showAllDetails||isReportedInfoValue(capacity)},
     {label:"Tank Height",value:tankHeight,show:showAllDetails||isReportedInfoValue(tankHeight)},
     {label:"Source Capacity",value:formatLiters(sourceCapacity),show:sourceMonitoringEnabled&&(showAllDetails||isReportedInfoValue(sourceCapacity))},
@@ -1418,8 +1720,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
   ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
-  setStableHtml(root,items.map(({label,value})=>`<div class="info-item"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
+  setStableHtml(root,items.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  applyInfoTab();
 }
+function applyInfoTab(){document.querySelectorAll("#deviceInfoGrid [data-info-category]").forEach((item)=>item.classList.toggle("is-tab-hidden",item.dataset.infoCategory!==activeInfoTab));document.querySelectorAll("[data-info-tab]").forEach((button)=>button.classList.toggle("is-active",button.dataset.infoTab===activeInfoTab));}
 function uniqueFeedItems(items){
   const seen=new Set();
   return (items||[]).filter((item)=>{
@@ -1513,11 +1818,17 @@ function setButtonDisabled(id,disabled){
 function renderActivityTable(){
   const root=document.getElementById("events");
   if(!root)return;
-  const total=latestEvents.length;
+  const filteredEvents=latestEvents.filter((entry)=>{
+    const severity=String(entry?.severity||"info").toLowerCase();
+    const severityMatch=!activitySeverity||(activitySeverity==="danger"?["danger","error","critical"].includes(severity):severity===activitySeverity);
+    const searchMatch=!activitySearch||`${entry?.message||""} ${entry?.kind||""} ${activityNodeLabel(entry)}`.toLowerCase().includes(activitySearch);
+    return severityMatch&&searchMatch;
+  });
+  const total=filteredEvents.length;
   const pageCount=Math.max(1,Math.ceil(total/activityPageSize));
   activityPage=Math.min(Math.max(1,activityPage),pageCount);
   const start=(activityPage-1)*activityPageSize;
-  const pageItems=latestEvents.slice(start,start+activityPageSize);
+  const pageItems=filteredEvents.slice(start,start+activityPageSize);
   const count=document.getElementById("activityCount");
   const status=document.getElementById("activityPageStatus");
   if(count){
@@ -1535,7 +1846,7 @@ function renderActivityTable(){
     return;
   }
   setStableHtml(root,pageItems.map((entry)=>`
-    <tr>
+    <tr class="${["danger","error","critical"].includes(String(entry.severity||"").toLowerCase())?"log-error":String(entry.severity||"").toLowerCase().includes("warn")?"log-warning":""}">
       <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
       <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
       <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div></td>
@@ -1548,7 +1859,7 @@ function setActivityPage(nextPage){
   renderActivityTable();
 }
 async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
-  if(activityRefreshInFlight)return;
+  if(activityRefreshInFlight||activityPaused)return;
   activityRefreshInFlight=true;
   try{
     const eventsUrl=new URL("/events",window.location.origin);
@@ -1646,11 +1957,48 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
     setText("healthStatus",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}% ${snapshot.tank_health_status||""}`.trim():"--");
     setText("healthReason",firstReason(snapshot.tank_health_reasons,"Health details unavailable."));
   }
+  setText("deviceHealthScore",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}%`:"--");
+  setText("deviceHealthNote",firstReason(snapshot.tank_health_reasons,"Sensors, telemetry, pump, and alerts."));
+  setText("firmwareVersion",snapshot.firmware_version||snapshot.swt_version||"--");
+  setText("rssiSignal",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`${snapshot.wifi_rssi} dBm`:"--");
+  setText("rssiNote",snapshot.signal_quality||systemStatus.signal_quality||"Signal not reported");
+  setText("deviceUptime",snapshot.uptime_label||snapshot.runtime||"--");
+  const lastSeen=document.getElementById("lastSeenAge");if(lastSeen){lastSeen.dataset.ageSeconds=snapshot.seconds_since_sync??"";lastSeen.dataset.loadedAt=String(Date.now());lastSeen.textContent=snapshot.seconds_since_sync!==undefined&&snapshot.seconds_since_sync!==null?`${formatDurationSeconds(snapshot.seconds_since_sync)} ago`:"--";}
+  setText("lastSeenTimestamp",lastSync?formatLocaleDateTime(lastSync):"No communication yet");
   setVisible("sourceCard",sourceMonitoringActive);
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
   }
+  const lowerTurbidityState=turbidityStatus(snapshot,serviceConfig,"lower");
+  const upperTurbidityState=turbidityStatus(snapshot,serviceConfig,"upper");
+  setText("lowerTurbidityStatus",titleCase(lowerTurbidityState));
+  setText("lowerTurbidityReading",turbidityReading(snapshot,serviceConfig,"lower"));
+  setText("upperTurbidityStatus",titleCase(upperTurbidityState));
+  setText("upperTurbidityReading",turbidityReading(snapshot,serviceConfig,"upper"));
+  const municipalState=municipalSensorStatus(snapshot,serviceConfig);
+  setText("municipalSensorStatus",titleCase(municipalState));
+  setText("municipalSensorReading",municipalSensorReading(snapshot,serviceConfig));
+  const municipalDirect=clientTruthy(serviceConfig.municipal_sensor_enabled,false)&&!clientTruthy(serviceConfig.source_tank_monitoring_enabled,true);
+  const valveEnabled=clientTruthy(serviceConfig.municipal_sensor_enabled,false)&&clientTruthy(serviceConfig.source_tank_monitoring_enabled,false)&&clientTruthy(serviceConfig.municipal_valve_enabled,false);
+  const valveRoute=String(snapshot.inlet_valve_route||snapshot.municipal_valve_route||"source").trim().toLowerCase();
+  setVisible("motorizedValveCard",valveEnabled);
+  setText("motorizedValveStatus",valveEnabled?"ON":"OFF");
+  setText("motorizedValvePath",`Selected path: ${valveRoute==="municipal"?"Municipal Water":"Source Tank"}`);
+  const outletValveEnabled=clientTruthy(snapshot.source_pump_fill_feature_enabled,clientTruthy(serviceConfig.source_outlet_valve_enabled,false));
+  const effectiveOutletValveEnabled=valveEnabled&&outletValveEnabled;
+  const outletValveRoute=valveEnabled?String(snapshot.source_outlet_route||"upper").trim().toLowerCase():"upper";
+  const inletValveState=String(snapshot.inlet_valve_state||snapshot.municipal_valve_state||"").trim().toLowerCase();
+  const outletValveState=String(snapshot.source_outlet_valve_state||"").trim().toLowerCase();
+  const pumpState=String(snapshot.motor_state||snapshot.motor||"").trim().toLowerCase();
+  const fillingActive=["on","running","started","active"].includes(pumpState)||(valveEnabled&&["open","opening"].includes(inletValveState))||(effectiveOutletValveEnabled&&["open","opening"].includes(outletValveState));
+  const fillSource=municipalDirect||(valveEnabled&&valveRoute==="municipal")?"Municipal Water":"Source Tank";
+  const fillDestination=municipalDirect?"Upper Tank":outletValveRoute==="source"?"Source Tank":"Upper Tank";
+  setText("combinedFillStatus",fillingActive?`${fillDestination} filling from ${fillSource}`:"Not filling");
+  setText("combinedFillRoute",`Selected route: ${fillSource} → ${fillDestination}`);
+  setVisible("sourceOutletValveCard",valveEnabled);
+  setText("sourceOutletValveStatus",effectiveOutletValveEnabled?"ON":"OFF");
+  setText("sourceOutletValvePath",`Selected path: ${outletValveRoute==="source"?"Source Tank":"Upper Tank"}`);
   renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig);
   if(Array.isArray(data.history)){
     latestHistory=data.history;
@@ -1684,6 +2032,21 @@ document.getElementById("activityPageSize")?.addEventListener("change",(event)=>
     refreshActivityEvents({limit:activityPageSize});
   }
 });
+document.querySelectorAll("[data-collapsible]").forEach((section)=>{const head=section.querySelector(".section-head");if(!head)return;const button=document.createElement("button");button.type="button";button.className="section-toggle";const sync=()=>button.textContent=section.classList.contains("is-collapsed")?"Expand":"Collapse";sync();button.addEventListener("click",()=>{section.classList.toggle("is-collapsed");sync();});head.appendChild(button);});
+document.querySelectorAll(".quick-nav a,.device-action-group a[href^='#']").forEach((link)=>link.addEventListener("click",()=>{const section=document.querySelector(link.getAttribute("href"));section?.classList.remove("is-collapsed");section?.querySelector(".section-toggle")&&(section.querySelector(".section-toggle").textContent="Collapse");}));
+document.querySelectorAll("[data-info-tab]").forEach((button)=>button.addEventListener("click",()=>{activeInfoTab=button.dataset.infoTab||"overview";applyInfoTab();}));
+document.getElementById("deviceRefreshButton")?.addEventListener("click",()=>loadDevice({silent:false,includeHistory:true,includeEvents:true}));
+document.getElementById("deviceSaveConfigButton")?.addEventListener("click",()=>{document.querySelector(".config-form")?.requestSubmit();});
+document.getElementById("deviceRestartButton")?.addEventListener("click",()=>{document.querySelector('form[action$="/reboot"]')?.requestSubmit();});
+[["auto_start_pct","autoStartOutput"],["auto_stop_pct","autoStopOutput"]].forEach(([inputId,outputId])=>document.getElementById(inputId)?.addEventListener("input",(event)=>setText(outputId,`${event.target.value}%`)));
+document.getElementById("activitySearch")?.addEventListener("input",(event)=>{activitySearch=String(event.target.value||"").trim().toLowerCase();activityPage=1;renderActivityTable();});
+document.getElementById("activitySeverity")?.addEventListener("change",(event)=>{activitySeverity=event.target.value||"";activityPage=1;renderActivityTable();});
+document.getElementById("activityPause")?.addEventListener("click",(event)=>{activityPaused=!activityPaused;event.currentTarget.textContent=activityPaused?"Resume auto-scroll":"Pause auto-scroll";});
+function activityLogText(){return latestEvents.map((entry)=>`${entry.time||"--"}\t${activityNodeLabel(entry)}\t${entry.severity||"info"}\t${entry.message||"Event"}`).join("\n");}
+document.getElementById("activityCopy")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(activityLogText());}catch(error){}});
+document.getElementById("activityDownload")?.addEventListener("click",()=>{const blob=new Blob([activityLogText()],{type:"text/plain;charset=utf-8"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${DEVICE_ID}-activity.log`;link.click();URL.revokeObjectURL(link.href);});
+function refreshLastSeenAge(){const node=document.getElementById("lastSeenAge");if(!node||node.dataset.ageSeconds==="")return;const base=Number(node.dataset.ageSeconds||0);const loaded=Number(node.dataset.loadedAt||Date.now());if(!node.dataset.loadedAt)node.dataset.loadedAt=String(Date.now());node.textContent=`${formatDurationSeconds(base+Math.max(0,(Date.now()-loaded)/1000))} ago`;}
+refreshLastSeenAge();window.setInterval(refreshLastSeenAge,30000);
 document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
   document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
   document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));

@@ -47,6 +47,25 @@ def test_admin_device_detail_template_has_threshold_save_form():
     assert "Auto Start/Stop" in source
 
 
+def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    server = SERVER_SOURCE.read_text(encoding="utf-8")
+
+    assert 'name="device_setup_type"' in template
+    for setup_type in ("source_only", "municipal_direct", "dual_source_gravity", "dual_source_pumped", "custom"):
+        assert f'value="{setup_type}"' in template
+    assert "const DEVICE_SETUP_PRESETS=" in template
+    assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template
+    assert 'setVisible("municipalValveSimulatorForm",usesInletValve)' in template
+    assert 'setVisible("sourceOutletValveSimulatorForm",usesOutletValve)' in template
+    assert "syncSimulatorControlsWithRuntimeForm();" in template
+    assert "function runtimeServiceConfigFromForm(){" in template
+    assert "updateSimulatorControls(INITIAL_SNAPSHOT||{},runtimeServiceConfigFromForm());" in template
+    assert "DEVICE_SETUP_TYPE_FEATURES = {" in server
+    assert 'setup_type = str(request.form.get("device_setup_type") or "custom")' in server
+    assert 'setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)' in server
+
+
 def test_device_detail_status_and_template_include_live_configuration_grid():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     route_start = source.index('@app.route("/devices/<device_id>/status")')
@@ -94,6 +113,14 @@ def test_live_service_config_sync_uses_firmware_snapshot_as_source_of_truth():
     assert '("slave_device_service", "slave_device_service_state")' in function_source
     assert "snapshot_device_auto_mode_enabled(snapshot)" in function_source
     assert 'base_payload["auto_mode_enabled"] = live_auto_mode_enabled' in function_source
+    assert '("master_turbidity_enabled", "master_turbidity_enabled")' not in function_source
+    assert '("slave_turbidity_enabled", "slave_turbidity_enabled")' not in function_source
+
+    runtime_sync_start = source.index("def build_runtime_sync_command(device_id, snapshot=None, account=None):")
+    runtime_sync_source = source[runtime_sync_start : source.index("\n\ndef runtime_sync_command_allowed", runtime_sync_start)]
+    assert 'runtime_sync_service_enabled(live_snapshot, "master_turbidity_enabled")' in runtime_sync_source
+    assert 'runtime_sync_service_enabled(live_snapshot, "slave_turbidity_enabled")' in runtime_sync_source
+    assert 'runtime_sync_service_enabled(live_snapshot, "municipal_feature_enabled")' in runtime_sync_source
 
     services_route_start = source.index('@app.route("/api/mobile/device/services", methods=["GET", "POST"])')
     services_route_source = source[services_route_start : source.index('\n\n@app.route("/api/mobile/device/thresholds", methods=["GET", "POST"])', services_route_start)]
@@ -155,8 +182,25 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG5:" in build_source
+    assert "SERVICECFG10:" in build_source
+    assert "municipal_sensor_enabled" in build_source
+    assert "turbidity_monitoring_enabled" in build_source
+    assert "master_turbidity_enabled" in build_source
+    assert "slave_turbidity_enabled" in build_source
     assert "auto_mode_enabled" in build_source
+
+
+def test_simulator_enable_queues_runtime_configuration_before_dependent_command():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index("def admin_device_detail_simulator(device_id):")
+    route_source = source[route_start : source.index("\n\n@app.route", route_start)]
+
+    assert '"source_pump_fill_feature_enabled"' in route_source
+    assert "prerequisite_command = build_device_service_command(service_config)" in route_source
+    assert "prerequisite_result = queue_command(prerequisite_command" in route_source
+    assert route_source.index("prerequisite_result = queue_command") < route_source.index(
+        "result = queue_command(command"
+    )
 
 
 def test_mysql_schema_translation_maps_device_service_state_defaults_for_mysql():
@@ -174,9 +218,53 @@ def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
 
     assert "safe_queue_device_detail_command(" in route_source
     assert '"Unable to queue runtime configuration update"' in route_source
+    assert "Admin water features saved:" in route_source
+    assert "Admin water feature command queue result:" in route_source
     assert "Configuration saved in Flask" in route_source
     assert "device_detail_action_response(" in route_source
     assert "Auto Start/Stop is {auto_mode_label}" in route_source
+
+
+def test_device_detail_has_independent_municipal_simulator_toggle():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '@app.route("/devices/<device_id>/municipal-simulator", methods=["POST"])' in source
+    assert "def admin_device_detail_municipal_simulator(device_id):" in source
+    assert 'command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"' in source
+    assert 'action="queue_municipal_sensor_simulator_toggle"' in source
+    assert 'id="municipalSimulatorToggleButton"' in template
+    assert "Municipal Water Simulator" in template
+
+
+def test_disabled_features_force_simulators_off_and_queue_device_cleanup():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    configuration_start = source.index("def admin_device_detail_configuration(device_id):")
+    configuration_source = source[
+        configuration_start : source.index('\n\n@app.route("/devices/<device_id>/thresholds", methods=["POST"])', configuration_start)
+    ]
+
+    assert "SIMULATOR_FEATURE_DEPENDENCIES" in source
+    assert '"municipal_sensor_enabled", "municipal_sensor_simulated", "MUNICIPAL_SIMULATOR_OFF"' in source
+    assert "disable_orphaned_device_simulators(" in configuration_source
+    assert '"simulator_off_commands": simulator_off_commands' in configuration_source
+    assert "const blocked=!Boolean(featureEnabled);" in template
+    assert "if(blocked)setSimulatorSwitchState(button,false);" in template
+    assert "Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false)" in template
+
+
+def test_device_detail_has_independent_upper_and_lower_turbidity_simulators():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '@app.route("/devices/<device_id>/turbidity-simulator/<role>", methods=["POST"])' in source
+    assert "def admin_device_detail_turbidity_simulator(device_id, role):" in source
+    assert "LOWER_TURBIDITY_SIMULATOR_" in source or "normalized_role.upper()" in source
+    assert 'id="lowerTurbiditySimulatorToggleButton"' in template
+    assert 'id="upperTurbiditySimulatorToggleButton"' in template
+    assert "Lower Turbidity Simulator" in template
+    assert "Upper Turbidity Simulator" in template
 
 
 def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_db_password():
@@ -201,6 +289,80 @@ def test_threshold_persistence_prefers_device_config_table_and_local_auth_uses_d
     assert '"auto_mode_enabled": saved_service_config.get("auto_mode_enabled")' in saved_config_source
     assert '"service_config": saved_service_config' in saved_config_source
     assert '"automation_settings": saved_automation_settings' in saved_config_source
+
+
+def test_device_detail_has_motorized_valve_simulator():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '"municipal_valve_simulated"' in source
+    assert "def admin_device_detail_municipal_valve_simulator(device_id):" in source
+    assert "MUNICIPAL_VALVE_SIMULATOR_" in source
+    assert 'id="municipalValveSimulatorToggleButton"' in template
+
+
+def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    simulator_section = template[
+        template.index('id="deviceSimulatorsSection"') : template.index('id="simulatorHelperText"')
+    ]
+
+    assert '@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>"' in source
+    assert simulator_section.count("<form ") == 6
+    assert 'name="simulator_target" value="outlet_valve"' in simulator_section
+    assert "Outlet Motorized Valve Simulator" in simulator_section
+    assert simulator_section.count("data-ajax-form") == 6
+    assert simulator_section.count("data-confirm-title=") == 0
+    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 6
+    assert 'name="simulator_target" value="lower_turbidity"' in simulator_section
+    assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
+    assert 'name="simulator_target" value="municipal"' in simulator_section
+    assert 'name="simulator_target" value="valve"' in simulator_section
+    assert "function setValveSimulatorSwitchState(snapshot)" in template
+    assert "setSimulatorSwitchState(button,active);" in template
+    assert 'municipalValveSimulatorToggleButton' in template
+    assert '{{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}' in template
+    assert "snapshot?.municipal_valve_route" in template
+    assert 'name="simulator_target" value="tank"' in simulator_section
+    assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
+    assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
+    assert 'command = f"{command_prefix}_{\'ON\' if desired_enabled else \'OFF\'}"' in source
+    assert 'request.form.get("simulator_enabled")' in source
+    assert 'formData.set("simulator_enabled",button.getAttribute("aria-checked")==="true"?"0":"1")' in template
+    simulator_state_start = source.index("def device_simulator_enabled(device_id, snapshot=None):")
+    simulator_state_body = source[simulator_state_start : source.index("\n\ndef device_detail_ajax_request", simulator_state_start)]
+    assert "return False" in simulator_state_body
+    assert "load_device_simulator_state" not in simulator_state_body
+    assert 'document.querySelectorAll(".simulator-switch")' in template
+    assert '!event.target.closest(".simulator-switch-track")' in template
+    assert "event.stopImmediatePropagation();" in template
+
+
+def test_device_detail_does_not_expose_admin_pytest_runner():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+    assert '@app.route("/admin/customers/<device_id>/pytest"' not in source
+    assert "def admin_device_detail_pytest(" not in source
+    assert 'id="runPytestButton"' not in template
+    assert 'id="pytestSimulatorForm"' not in template
+    assert 'id="pytestEnvironment"' not in template
+
+
+def test_device_runtime_information_displays_motorized_valve_status_and_path():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
+
+    assert '{label:"Inlet Motorized Valve"' in template
+    assert '{label:"Inlet Selected Path"' in template
+    assert '{label:"Inlet Valve Feedback"' in template
+    assert '{label:"Outlet Motorized Valve"' in template
+    assert 'category:"configuration"' in template
+    assert 'category:"sensors"' in template
+    assert 'motorizedValveRoute==="municipal"?"Municipal Water"' in template
+    assert '("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF")' in source
+    assert '("Outlet Motorized Valve", "ON" if outlet_valve_enabled else "OFF")' in source
+    assert '("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled")' in source
 
 
 def test_sensor_configuration_routes_upsert_expected_tank_dimensions():

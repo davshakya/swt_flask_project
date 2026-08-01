@@ -1,6 +1,99 @@
 from flask_app import server
 
 
+def test_named_test_device_credentials_are_included_in_registry(monkeypatch):
+    monkeypatch.setenv("SWT_DEVICE_KEYS", "swt-test-000-000-002:old-key")
+    monkeypatch.setenv("SWT_TEST_DEVICE_ID", "swt-test-000-000-002")
+    monkeypatch.setenv("SWT_TEST_DEVICE_API_KEY", "current-test-key")
+    monkeypatch.delenv("DEVICE_KEYS", raising=False)
+
+    registry, source = server.resolve_device_key_registry()
+
+    assert registry.endswith("swt-test-000-000-002:current-test-key")
+    assert "SWT_TEST_DEVICE_ID/SWT_TEST_DEVICE_API_KEY" in source
+
+
+def test_device_key_registry_resolves_bare_and_explicit_env_references(monkeypatch):
+    monkeypatch.setenv("SWT_TEST_DEVICE_API_KEY", "resolved-test-key")
+
+    assert server.resolve_device_key_value("SWT_TEST_DEVICE_API_KEY") == "resolved-test-key"
+    assert server.resolve_device_key_value("$SWT_TEST_DEVICE_API_KEY") == "resolved-test-key"
+    assert server.resolve_device_key_value("${SWT_TEST_DEVICE_API_KEY}") == "resolved-test-key"
+
+
+def test_motorized_valve_feature_defaults_off_and_persists_independently():
+    device_id = "swt-valve-feature-test-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+    try:
+        default_config = server.default_device_service_config(device_id)
+        assert default_config["municipal_valve_enabled"] is False
+        assert default_config["source_outlet_valve_enabled"] is False
+
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=True,
+            municipal_valve_enabled=True,
+            source_outlet_valve_enabled=True,
+        )
+        assert saved["municipal_sensor_enabled"] is True
+        assert saved["municipal_valve_enabled"] is True
+        assert saved["source_outlet_valve_enabled"] is True
+        assert server.build_device_service_command(saved).startswith("SERVICECFG10:")
+        assert server.build_device_service_command(saved).endswith(":1")
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+
+def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg9(monkeypatch):
+    device_id = "swt-999-999-999-994"
+    desired = server.default_device_service_config(device_id)
+    desired.update(
+        {
+            "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
+            "master_upper_sensor_enabled": False,
+            "source_tank_monitoring_enabled": True,
+            "relay_enabled": True,
+            "buzzer_enabled": True,
+            "led_display_enabled": True,
+            "local_firmware_upload_enabled": True,
+            "municipal_sensor_enabled": True,
+            "master_turbidity_enabled": True,
+            "slave_turbidity_enabled": True,
+        }
+    )
+    old_snapshot = {
+        "device_id": device_id,
+        "telemetry_status": "live",
+        "seconds_since_sync": 0,
+        "upper_sensor_source": "slave",
+        "lower_tank_service": "ON",
+        "relay_service": "ON",
+        "buzzer_service": "ON",
+        "led_display_service": "ON",
+        "local_firmware_upload_service": "ON",
+        "municipal_feature_enabled": True,
+        "master_turbidity_enabled": False,
+        "slave_turbidity_enabled": False,
+    }
+
+    rendered = server.snapshot_device_service_config(old_snapshot, device_id=device_id, existing=desired)
+    assert rendered["master_turbidity_enabled"] is True
+    assert rendered["slave_turbidity_enabled"] is True
+
+    monkeypatch.setattr(
+        server,
+        "build_current_saved_config",
+        lambda *_args, **_kwargs: {"service_config": desired, "automation_settings": {}},
+    )
+    sync = server.build_runtime_sync_command(device_id, snapshot=old_snapshot)
+    assert sync == {"command": server.build_device_service_command(desired), "reason": "service_config"}
+    assert sync["command"].startswith("SERVICECFG10:")
+    assert sync["command"].endswith(":1:1:0:0")
+
+
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():
     device_id = "swt-999-999-999-996"
 

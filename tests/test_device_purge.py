@@ -10,6 +10,52 @@ def count_device_rows(db, table_name, column_name, device_id):
     return int(row["count"] or 0)
 
 
+def test_purge_device_app_settings_uses_quoted_key_identifier(monkeypatch):
+    class FakeCursor:
+        def __init__(self):
+            self.executed_sql = []
+
+        def execute(self, sql, params=None):
+            self.executed_sql.append((sql, params))
+            return type("Result", (), {"rowcount": 1})()
+
+    cursor = FakeCursor()
+    monkeypatch.setattr(
+        server,
+        "device_scoped_app_setting_keys",
+        lambda device_id: ["device-setting", f"{server.ANALYTICS_LAST_VALID_SETTING_PREFIX}{device_id}:%"],
+    )
+
+    server.purge_device_app_settings(cursor, "swt-purge-app-settings-001")
+
+    assert any(sql == "DELETE FROM app_settings WHERE `key` = ?" for sql, _ in cursor.executed_sql)
+    assert any(sql == "DELETE FROM app_settings WHERE `key` LIKE ?" for sql, _ in cursor.executed_sql)
+
+
+def test_purge_device_app_settings_retries_transient_deadlock(monkeypatch):
+    class FlakyCursor:
+        def __init__(self):
+            self.calls = 0
+
+        def execute(self, sql, params=None):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+            return type("Result", (), {"rowcount": 1})()
+
+    cursor = FlakyCursor()
+    monkeypatch.setattr(
+        server,
+        "device_scoped_app_setting_keys",
+        lambda device_id: ["device-setting"],
+    )
+
+    deleted_rows = server.purge_device_app_settings(cursor, "swt-purge-app-settings-retry")
+
+    assert deleted_rows == 2
+    assert cursor.calls == 3
+
+
 def test_purge_device_data_removes_device_scoped_tables_and_settings():
     device_id = "swt-purge-device-001"
     now = server.now_utc().strftime(server.TIMESTAMP_FORMAT)
@@ -222,3 +268,132 @@ def test_delete_known_device_keeps_marker_and_ignored_telemetry_does_not_recreat
             assert count_device_rows(db, "device_events", "device_id", device_id) == 0
     finally:
         server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_purge_device_table_rows_retries_transient_deadlock(monkeypatch):
+    device_id = "swt-purge-row-retry-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+    original_table_column_names = server.table_column_names
+    state = {"raised": False}
+
+    def flaky_table_column_names(cursor, table_name):
+        if table_name == "tank_data" and not state["raised"]:
+            state["raised"] = True
+            raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+        return original_table_column_names(cursor, table_name)
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 71, "OFF", "AUTO"),
+            )
+
+        monkeypatch.setattr(server, "table_column_names", flaky_table_column_names)
+        with server.get_db() as db:
+            deleted_rows = server.purge_device_table_rows(db.cursor(), "tank_data", device_id)
+
+        assert state["raised"] is True
+        assert deleted_rows >= 1
+        with server.get_db() as db:
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+    finally:
+        monkeypatch.setattr(server, "table_column_names", original_table_column_names)
+        server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_falls_back_when_purge_keep_deadlocking(monkeypatch):
+    device_id = "swt-purge-fallback-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+    original_purge = server.purge_device_table_rows
+    original_app_settings = server.purge_device_app_settings
+
+    def always_deadlock(cursor, table_name, normalized_device_id):
+        raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+
+    def always_deadlock_app_settings(cursor, device_id):
+        raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 71, "OFF", "AUTO"),
+            )
+
+        monkeypatch.setattr(server, "purge_device_table_rows", always_deadlock)
+        monkeypatch.setattr(server, "purge_device_app_settings", always_deadlock_app_settings)
+        deleted_counts = server.delete_known_device(device_id)
+
+        assert deleted_counts["tank_data"] >= 1
+        with server.get_db() as db:
+            assert count_device_rows(db, "ignored_devices", "device_id", device_id) == 1
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+    finally:
+        monkeypatch.setattr(server, "purge_device_table_rows", original_purge)
+        monkeypatch.setattr(server, "purge_device_app_settings", original_app_settings)
+        server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_retries_transient_database_deadlock(monkeypatch):
+    device_id = "swt-purge-retry-001"
+    server.purge_device_data(device_id, remember_deleted_device=False)
+    original_purge = server.purge_device_table_rows
+    state = {"raised": False}
+
+    def flaky_purge(cursor, table_name, normalized_device_id):
+        if normalized_device_id == device_id and not state["raised"]:
+            state["raised"] = True
+            raise RuntimeError("Deadlock found when trying to get lock; try restarting transaction")
+        return original_purge(cursor, table_name, normalized_device_id)
+
+    try:
+        with server.get_db() as db:
+            db.execute(
+                """
+                INSERT INTO tank_data(device_id, device_source, level, motor, mode, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                (device_id, server.DEVICE_SOURCE_REAL, 71, "OFF", "AUTO"),
+            )
+
+        monkeypatch.setattr(server, "purge_device_table_rows", flaky_purge)
+        deleted_counts = server.delete_known_device(device_id)
+
+        assert state["raised"] is True
+        assert deleted_counts["tank_data"] >= 1
+        with server.get_db() as db:
+            assert count_device_rows(db, "tank_data", "device_id", device_id) == 0
+            assert count_device_rows(db, "ignored_devices", "device_id", device_id) == 1
+    finally:
+        monkeypatch.setattr(server, "purge_device_table_rows", original_purge)
+        server.purge_device_data(device_id, remember_deleted_device=False)
+
+
+def test_delete_known_device_marks_ignored_before_table_purge():
+    server_source = (server.PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert "attempts=6" in server_source
+    assert "initial_delay_s=0.5" in server_source
+    assert "if remember_deleted_device:" in server_source
+    assert "add_deleted_device_marker(db.cursor(), normalized_device_id)" in server_source
+    assert 'if remember_deleted_device and table_name == "ignored_devices":' in server_source
+    assert "check-ins are rejected instead of racing with row deletion" in server_source
+
+
+def test_root_server_wrapper_applies_delete_hotfixes():
+    wrapper_source = (server.PROJECT_ROOT / "server.py").read_text(encoding="utf-8")
+
+    assert 'HOTFIX_DEPLOY_MARKER = "root-device-detail-recovery-2026-07-26-v2"' in wrapper_source
+    assert "def _hotfix_purge_device_app_settings(cursor, device_id):" in wrapper_source
+    assert 'key_identifier = flask_server.quote_mysql_identifier("key")' in wrapper_source
+    assert 'flask_server.purge_device_app_settings = _hotfix_purge_device_app_settings' in wrapper_source
+    assert 'flask_server.purge_device_data = _hotfix_purge_device_data' in wrapper_source
+    assert 'flask_server.delete_known_device = _hotfix_delete_known_device' in wrapper_source
+    assert 'payload.setdefault("wrapper_hotfix_marker", HOTFIX_DEPLOY_MARKER)' in wrapper_source

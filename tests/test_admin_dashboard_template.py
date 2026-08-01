@@ -5,6 +5,16 @@ import sys
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_turbidity_simulator_routes_are_registered_for_both_url_shapes():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    rules = {rule.rule for rule in server.app.url_map.iter_rules()}
+    assert "/devices/<device_id>/turbidity-simulator/<role>" in rules
+    assert "/admin/customers/<device_id>/turbidity-simulator/<role>" in rules
+
+
 def test_admin_customer_page_renders_one_popup_status_message_slot():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
@@ -21,6 +31,26 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
     assert template.count("<source type=\"image/webp\"") >= 7
     assert template.count('decoding="async"') >= 7
     assert template.count('width="1536" height="1024"') >= 7
+
+
+def test_login_popup_inputs_use_a_visible_caret_and_selection():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    portal_input_styles = template[template.index(".portal-form input{") : template.index("textarea{", template.index(".portal-form input{"))]
+    assert "caret-color:#67e8f9;" in portal_input_styles
+    assert ".portal-form input::selection{" in portal_input_styles
+    assert "background:#22b8cf;" in portal_input_styles
+
+
+def test_login_popup_passwords_have_accessible_visibility_toggles():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'data-password-toggle="customer_password"' in template
+    assert 'data-password-toggle="admin_password"' in template
+    assert template.count('aria-label="Show password"') == 2
+    assert 'document.querySelectorAll("[data-password-toggle]")' in template
+    assert 'input.type = showPassword ? "text" : "password";' in template
+    assert 'button.setAttribute("aria-label", label);' in template
 
 
 def test_booking_form_requires_typed_client_side_validation():
@@ -41,13 +71,127 @@ def test_booking_form_requires_typed_client_side_validation():
 def test_flask_static_assets_have_cache_and_compression_support():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     service_worker = (PROJECT_ROOT / "flask_app" / "static" / "service-worker.js").read_text(encoding="utf-8")
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'app.config["SEND_FILE_MAX_AGE_DEFAULT"] = timedelta(days=30)' in server_source
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
+    assert 'response.mimetype == "text/html"' in server_source
+    assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
+    assert "water_flow_animation.html', v='20260731-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
+
+
+def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'data-mode="source-pump-fill"' in animation
+    assert 'id="pumpToSource"' in animation
+    assert 'id="outletValve"' in animation
+    assert 'id="outletValveSelector"' in animation
+    assert "outlet-valve-selector source-route" not in animation
+    assert "$('outletValveSelector').classList.toggle('source-route'" in animation
+    assert "Municipal → Pump → Source" in animation
+    assert "Source bank reached maximum 95%" in animation
+
+
+def test_customer_dashboard_has_configuration_aware_live_water_visualization():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'id="waterVisualDialog"' in template
+    assert "Visualize Water Flow" in template
+    assert "openWaterVisualization,closeWaterVisualization" in template
+    assert "function renderWaterVisualization" in template
+    assert "waterSystemIssue" in template
+    assert "municipalEnabled" in template
+    assert "sourceState.monitoringActive" in template
+    assert 'classList.toggle("problem",problem)' in template
+    assert 'id="waterVisualAction"' in template
+    assert 'id="waterComponentGrid"' in template
+    assert 'id="waterIssueDetail"' in template
+    assert "function normalizeWaterSystemState" in template
+    assert "function evaluateWaterSystemIssues" in template
+    assert '"PUMP_NO_LEVEL_CHANGE"' in template
+    assert '"PUMP_FLOW_UNCONFIRMED"' in template
+    assert '"FLOW_WITH_PUMP_OFF"' in template
+    assert '"VALVE_POSITION_MISMATCH"' in template
+    assert '"SLAVE_OFFLINE"' in template
+    assert "prefers-reduced-motion:reduce" in template
+
+
+def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    expected_modes = {
+        "auto",
+        "municipal-source",
+        "municipal-upper",
+        "municipal-direct",
+        "source-pump-fill",
+        "source-upper",
+        "source-only",
+        "borewell",
+        "idle",
+        "failsafe",
+    }
+    rendered_modes = {part.split('"', 1)[0] for part in animation.split('data-mode="')[1:]}
+
+    assert rendered_modes == expected_modes
+
+
+def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert '<span class="diagram-kicker">Customer route demonstration</span>' in animation
+    assert 'id="connectionLegend"' in animation
+    assert 'translate(35 770)' in animation
+    assert 'translate(870 770)' in animation
+    assert animation.count('class="small compact"') >= 5
+
+
+def test_water_flow_animation_indicator_names_auto_and_manual_plans():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "?'● AUTO TOUR · '+plan.toUpperCase()" in animation
+    assert ":'● SELECTED DEMO · '+plan.toUpperCase();" in animation
+    assert "● MANUAL VIEW" not in animation
+
+
+def test_water_flow_animation_removes_optional_municipal_hardware_from_source_only_demo():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "body.source-only #outletValve" in animation
+    assert "body.source-only #threeWayValve" in animation
+    assert "body.source-only #municipalSensorCard" in animation
+    assert "body.source-only #valveMetricCard" in animation
+    assert "body.source-only #valveSensorCard" in animation
+    assert "No municipal inlet or motorized valves are installed" in animation
+    assert "independent OPEN / CLOSE pair for each installed valve" in animation
+
+
+def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'data-mode="municipal-direct"' in animation
+    assert 'id="municipalOnlyBypass"' in animation
+    assert "body.municipal-direct #sourceTankHardware" in animation
+    assert "body.municipal-direct #threeWayValve" in animation
+    assert "body.municipal-direct #outletValve" in animation
+    assert "Municipal → Pump → Upper · No source / valves" in animation
+    assert "Direct municipal setup requires a healthy water-availability input" in animation
+
+
+def test_homepage_uses_fading_water_plan_preview_slider():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'id="waterPlanSlider"' in template
+    assert template.count("marketing/water-plan-slides/") == 8
+    assert template.count('<figure class="preview-slide') == 8
+    assert template.count('<button class="preview-slider-dot') == 8
+    assert "transition:opacity 1s ease,visibility 1s ease" in template
+    assert "smart-water-tank-hero-ai.png') }}\" alt=\"AI-generated rooftop smart water tank" not in template
 
 
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
@@ -162,21 +306,100 @@ def test_admin_slave_status_uses_direct_peer_packet_freshness():
     assert "def direct_peer_packet_is_fresh" in server_source
     assert "peer_packet_fresh = direct_peer_packet_is_fresh(entry)" in server_source
     assert "slave_upper_enabled = bool(service_config.get(\"slave_upper_sensor_enabled\"))" in server_source
-    assert "upper_reachable = online and peer_packet_fresh is True and tank_level_is_valid" in server_source
+    assert "upper_has_live_input = admin_sensor_reachable(upper_sensor)" in server_source
+    assert "and upper_has_live_input" in server_source
     assert '"direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s")' in server_source
     assert 'cleaned.get("direct_peer_last_packet_age_s")' in server_source
     assert '"direct_peer_last_packet_age_s": "INTEGER"' in server_source
 
 
-def test_admin_device_table_shows_raw_upper_echo_distance():
+def test_admin_upper_sensor_requires_sensor_health_even_when_slave_packet_is_fresh():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    fields = server.admin_relay_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "direct_peer_last_packet_age_s": 1,
+            "level": 42.0,
+            "upper_sensor": "ERROR",
+        },
+        {
+            "main_sensor_enabled": True,
+            "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
+        },
+    )
+
+    assert fields["upper_sensor_status_label"] == "Unreachable"
+    assert fields["upper_sensor_status_tone"] == "offline"
+
+
+def test_admin_upper_sensor_rejects_cached_simulator_level_after_simulator_is_off():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    fields = server.admin_relay_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "direct_peer_last_packet_age_s": 1,
+            "level": 0.0,
+            "upper_sensor": "OK",
+            "upper_data_fresh": True,
+            "upper_tank_simulator": "OFF",
+            "upper_sensor_pulse_us": 0,
+        },
+        {
+            "main_sensor_enabled": True,
+            "slave_device_enabled": True,
+            "slave_upper_sensor_enabled": True,
+        },
+    )
+
+    assert fields["upper_sensor_status_label"] == "Unreachable"
+    assert fields["upper_sensor_status_tone"] == "offline"
+
+
+def test_invalid_firmware_level_remains_unavailable_in_enriched_snapshot():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    snapshot = server.enrich_snapshot(
+        {
+            "level": -1.0,
+            "sensor": "ERROR",
+            "created_at": server.now_utc().strftime(server.TIMESTAMP_FORMAT),
+            "device_id": "swt-test-invalid-upper",
+        }
+    )
+
+    assert snapshot["level"] is None
+    assert snapshot["level_valid"] is False
+
+
+def test_admin_dashboard_maps_municipal_sensor_snapshot_fields():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert '"municipal_sensor_enabled": payload.get("municipal_sensor_enabled")' in server_source
+    assert '"municipal_sensor_state": payload.get("municipal_sensor_state")' in server_source
+    assert '"municipal_sensor_simulated": payload.get("municipal_sensor_simulated")' in server_source
+    assert '"municipal_sensor_reachable": payload.get("municipal_sensor_reachable")' in server_source
+    assert '"municipal_sensor_last_updated": payload.get("municipal_sensor_last_updated")' in server_source
+
+
+def test_admin_device_table_keeps_echo_data_available_but_shows_only_tank_level():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
     assert '"sensor_distance_cm": payload.get("sensor_distance_cm")' in server_source
     assert '"sensor_distance_label": sensor_distance_label' in server_source
     assert '"water_depth_label": payload.get("water_depth_label")' in server_source
-    assert "Depth {{ device.water_depth_label" in admin_template
-    assert "Echo {{ device.sensor_distance_label" in admin_template
+    assert "Depth {{ device.water_depth_label" not in admin_template
+    assert "Echo {{ device.sensor_distance_label" not in admin_template
+    assert 'data-device-field="tank_level"' in admin_template
     assert '"%.1f"|format(device.sensor_distance_cm)' not in admin_template
 
 
@@ -207,6 +430,53 @@ def test_admin_customer_page_renders_string_sensor_distance():
         session["csrf_token"] = "test-csrf-token"
     response = client.get("/admin/customers")
     assert response.status_code == 200
+
+
+def test_admin_lower_sensor_status_uses_saved_enable_flag_not_raw_off_snapshot():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    fields = server.admin_relay_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "lower_sensor": "OFF",
+        },
+        {"source_tank_monitoring_enabled": True},
+    )
+
+    assert fields["lower_sensor_status_label"] == "Unreachable"
+    assert fields["lower_sensor_status_tone"] == "offline"
+
+
+def test_admin_municipal_sensor_status_uses_reachability_labels_for_simulator():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    simulated_fields = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": True,
+            "municipal_sensor_reachable": True,
+            "municipal_sensor_state": "available",
+        },
+        {"municipal_sensor_enabled": True},
+    )
+    unreachable_fields = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": False,
+            "municipal_sensor_reachable": False,
+            "municipal_sensor_state": "unknown",
+        },
+        {"municipal_sensor_enabled": True},
+    )
+
+    assert simulated_fields == ("Reachable", "online")
+    assert unreachable_fields == ("Unreachable", "offline")
 
 
 def test_dashboards_render_company_icon_home_links():
@@ -271,7 +541,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v4";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -312,25 +582,255 @@ def test_customer_dashboard_stop_button_uses_effective_running_state():
     assert 'nodesById("btn_off").forEach((button)=>{button.disabled=!baseEnabled||!running;});' in update_body
 
 
-def test_customer_dashboard_motor_chart_shows_two_color_activity_bars():
+def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert "function buildMotorActivitySegments" in customer_template
-    assert "function drawMotorActivityTimeline" in customer_template
-    assert "drawMotorActivityTimeline(charts.motor.canvas,\"Motor State\",motorSeriesRaw.time,motorSeriesRaw.values" in customer_template
-    assert 'drawCanvasSeries(charts.motor.canvas,"Motor State"' not in customer_template
+    assert 'id="motorChart"' not in customer_template
+    assert '["motor","motorChart","Pump state"]' not in customer_template
+    assert 'id="chartPumpRuntime"' in customer_template
+    assert 'id="chartPumpStarts"' in customer_template
+    assert 'id="chartPumpAverage"' in customer_template
+    assert 'id="chartPumpDuty"' in customer_template
+    assert "Hourly water use" in customer_template
+    assert "data.pattern?.time||[]" in customer_template
+    assert 'xScale:"time"' in customer_template
+    assert customer_template.count('class="chart-scroll"') == 3
+    assert 'aria-label="Scrollable tank level timeline"' in customer_template
+    assert 'aria-label="Scrollable daily water use timeline"' in customer_template
+    assert 'aria-label="Scrollable hourly water use timeline"' in customer_template
+    assert 'aria-label="Scrollable pump activity timeline"' not in customer_template
+    assert "function prepareScrollableChart(" in customer_template
+    assert 'Math.min(8000,Math.max(viewportWidth,96+(count*pointWidth)))' in customer_template
+    assert 'canvas.style.setProperty("--chart-width"' in customer_template
+    assert "function scrollChartToLatest(canvas)" in customer_template
+    assert "viewport.scrollWidth-viewport.clientWidth" in customer_template
+    assert "[charts.level.canvas,charts.daily.canvas,charts.pattern.canvas].forEach(scrollChartToLatest);" in customer_template
+    assert ".chart-scroll{width:100%;overflow-x:auto" in customer_template
     assert "function formatDurationSeconds(value)" in customer_template
-    assert "pumpActivity?.avg_run_seconds" in customer_template
-    assert 'xLabelMode:"datetime"' in customer_template
-    assert '--chart-motor-on:#22c55e' in customer_template
-    assert '--chart-motor-off:#2563eb' in customer_template
-    assert 'const onColor=themeVar("--chart-motor-on")' in customer_template
-    assert 'const offColor=themeVar("--chart-motor-off")' in customer_template
-    assert 'const barColor=(state)=>state===1?onColor:offColor;' in customer_template
-    assert 'const summaryParts=["Green ON","Blue OFF"];' in customer_template
-    assert 'const labelText=`ON ${formatDurationSeconds(segment.durationSeconds)}`' in customer_template
-    assert 'const axisStartLabel=chartAxisLabel(finiteSegments[0]?.startLabel??labels[0]??"",{timeOnly:useTimeLabels});' in customer_template
-    assert 'const axisEndLabel=chartAxisLabel(finiteSegments[finiteSegments.length-1]?.endLabel??labels[Math.max(0,labels.length-1)]??"",{timeOnly:useTimeLabels});' in customer_template
+    assert "pump.avg_run_seconds" in customer_template
+    assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
+    assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
+    assert 'function isCustomerWaterEvent(event)' in customer_template
+    assert 'Hidden because sensor changes exceed the water supported by observed refill cycles.' in customer_template
+    assert 'label==="Today"?"Today’s water activity":"Water activity over the selected period"' in customer_template
+
+
+def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    sticky_start = customer_template.index('<nav class="ops-sticky"')
+    sticky_end = customer_template.index("</nav>", sticky_start)
+    assert customer_template.rfind("{% if is_admin %}", 0, sticky_start) > customer_template.rfind("{% endif %}", 0, sticky_start)
+    assert customer_template.index("{% endif %}", sticky_end) > sticky_end
+    assert 'id="stickyTankLevel"' in customer_template
+    assert 'id="stickyPumpStatus"' in customer_template
+    assert 'id="stickyAiAlert"' in customer_template
+    assert 'id="systemHealthScore"' in customer_template
+    assert 'id="motorConfirmDialog"' in customer_template
+    assert "function closeMotorConfirmation(confirmed)" in customer_template
+    assert "executeMotorCommand(request.path,request.label)" in customer_template
+    assert 'id="dashboardSettings"' in customer_template
+    assert '<details id="dashboardSettings"' not in customer_template
+    assert '<div id="dashboardSettings" class="customer-settings-pane">' in customer_template
+    assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
+    assert 'class="panel customer-only customer-tools-panel"' in customer_template
+    assert 'class="customer-tools-grid"' in customer_template
+    assert 'class="customer-guidance-panel"' in customer_template
+    assert '.customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}' in customer_template
+    assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);align-items:stretch}' in customer_template
+    assert 'class="settings customer-settings-grid"' in customer_template
+    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}' in customer_template
+    assert '<details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary>' not in customer_template
+    assert '<div class="customer-technical-details"><h4>Technical details</h4>' in customer_template
+    assert "function eventPresentation(event)" in customer_template
+    assert 'showValues:true' in customer_template
+    assert 'highlightPeak:true' in customer_template
+    assert "eventMarkers:levelEvents" in customer_template
+    assert 'id="viewLeakReportButton"' in customer_template
+    assert "aiLeakConfidence>90" in customer_template
+
+
+def test_customer_usage_cards_show_live_values_while_history_confidence_builds():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    usage_start = customer_template.index("function updateCustomerUsageCards(")
+    usage_end = customer_template.index("function updateCustomerSpotlightCards", usage_start)
+    usage_body = customer_template[usage_start:usage_end]
+
+    assert 'setText("usage_change",displayedLiters!==null?' in usage_body
+    assert "usage_physically_plausible!==false" in usage_body
+    assert 'setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use")' in usage_body
+    assert "Hidden because sensor changes exceed the water supported by observed refill cycles." in usage_body
+    assert 'Number(snapshot.tomorrow_prediction)' in usage_body
+    assert 'Number(snapshot.ai_usage_rate)' in usage_body
+    assert '"Live device estimate; historical confidence is still building."' in usage_body
+    assert '"Live device usage-rate estimate."' in usage_body
+    assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
+    assert "function customerUsageSavings(" in customer_template
+    assert 'analytics?.daily?.reliable!==true' in customer_template
+    assert 'Savings insight appears after two complete days of reliable usage history.' in customer_template
+    assert 'value:"0.0 L"' not in customer_template
+    assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in customer_template
+    assert "function analyticsReliabilityNote(" in customer_template
+
+
+def test_customer_dashboard_avoids_duplicate_summary_cards():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert '<section class="panel customer-only customer-summary-panel"' not in customer_template
+    assert '<div class="eyebrow">Pump Section</div>' not in customer_template
+    assert 'id="customerHeroTankLevel"' not in customer_template
+    assert 'id="customerConfidenceScore"' not in customer_template
+    assert 'id="heroConnectionStatus"' not in customer_template
+    assert 'id="customerConfidenceGuidance"' not in customer_template
+    assert '<span>Current state</span><strong id="motor">' in customer_template
+    assert '<span>Mode</span><strong id="mode">' in customer_template
+    assert 'id="customerKpiUsage"' in customer_template
+    assert 'id="ai_tomorrow_usage"' in customer_template
+    assert 'id="consumption_rate"' in customer_template
+    assert 'id="customerSavingsNow"' in customer_template
+    assert 'class="customer-stat-grid customer-usage-grid"' in customer_template
+    assert '.customer-dashboard .customer-usage-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}' in customer_template
+    assert '.customer-dashboard .customer-usage-grid .card{min-width:0;min-height:112px;padding:14px 16px;border-radius:18px}' in customer_template
+    assert '.customer-dashboard .customer-usage-grid .label,.customer-dashboard .customer-usage-grid .value,.customer-dashboard .customer-usage-grid .subvalue' in customer_template
+    assert 'id="customerPumpRuntime"' not in customer_template
+    assert 'id="customerPumpStarts"' not in customer_template
+    assert 'id="customerPumpDuty"' not in customer_template
+    assert 'id="customerPumpStopThreshold"' not in customer_template
+    assert 'class="analytics-toolbar"' in customer_template
+    assert 'class="panel tank-chart-panel"' in customer_template
+    assert 'id="chartLevelHigh"' in customer_template
+    assert 'id="chartPumpAverage"' in customer_template
+    assert 'Building baseline' in customer_template
+    assert 'id="customerFirmware"' not in customer_template
+    assert 'id="customerUptime"' in customer_template
+    assert 'id="customerSignal"' in customer_template
+    assert 'id="customerMemory"' in customer_template
+    assert 'snapshot.firmware_version||"Not reported"' in customer_template
+    assert '<span>Tank status</span>' not in customer_template
+    assert 'id="customerKpiTankStatus"' not in customer_template
+    assert '<span>Remaining water</span>' in customer_template
+    assert 'id="customerKpiRemainingWater"' in customer_template
+    assert 'id="customerSuggestedAction"' in customer_template
+    assert customer_template.count('class="customer-hero-stat customer-insight-card"') == 4
+    assert customer_template.index('<span class="label">Pump Control</span>') < customer_template.index('id="customerSuggestedAction"')
+    assert '.customer-dashboard .customer-insight-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:20px}' in customer_template
+    assert '.customer-dashboard .customer-insight-card{display:grid;grid-template-rows:auto 1fr;' in customer_template
+    assert '.customer-dashboard .customer-insight-card span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;' in customer_template
+    assert '.customer-dashboard .customer-insight-card strong{align-self:end;' in customer_template
+    assert 'id="headerLastSync"' in customer_template
+    assert 'id="customerPumpLastStarted"' not in customer_template
+    assert 'id="customerPumpLastStopped"' not in customer_template
+    assert 'id="chartLevelCurrent"' in customer_template
+    assert 'function analyticsReadinessText(' in customer_template
+    assert 'Need ${remaining} more complete day' in customer_template
+    assert 'No alerts today. No customer-relevant device activity has been recorded yet.' in customer_template
+    assert 'changeRaw!==null&&changeRaw!==undefined' in customer_template
+    assert 'class="panel pump-chart-panel"' in customer_template
+    assert 'const EVENT_FEED_FETCH_LIMIT=30;' in customer_template
+    assert 'function customerEventMessage(event)' in customer_template
+    assert 'function customerDerivedTimelineEvents()' in customer_template
+    assert '"pump_started","pump_stopped","pump_no_level_rise","mode_changed"' in customer_template
+    assert 'VIEWER_ROLE==="customer"?customerEventMessage(event)' in customer_template
+    assert '(state.data.events||[]).filter(isCustomerWaterEvent)' in customer_template
+    assert 'id="pumpAnalyticsSourceNote"' not in customer_template
+    assert 'class="pump-facts"' not in customer_template
+    assert 'const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);' in customer_template
+    assert 'id="customerMonthlyEstimate"' in customer_template
+    assert 'id="assistantTankRange"' not in customer_template
+
+
+def test_customer_ai_analysis_tracks_selected_range_and_defaults_to_seven_days():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "const DEFAULT_ANALYTICS_RANGE_DAYS=7;" in customer_template
+    assert 'quickRange:DEFAULT_ANALYTICS_RANGE_DAYS' in customer_template
+    assert 'id="range_7" class="btn-lite active"' in customer_template
+    assert "function updateAnalyticsRangeContext(" in customer_template
+    assert "function beginAnalyticsRangeChange()" in customer_template
+    assert 'updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:null})' in customer_template
+    assert 'const requestQuery=query();' in customer_template
+    assert 'if(state.inFlight.analytics){if(state.analyticsRequestQuery===requestQuery)return;state.controllers.analytics?.abort();}' in customer_template
+    assert 'const READY_ANALYTICS_RANGE_DAYS=[1,7];' in customer_template
+    assert 'id="range_30"' not in customer_template
+    assert 'function quickRangeQuery(days)' in customer_template
+    assert 'async function prefetchReadyAnalyticsRanges()' in customer_template
+    assert 'function scheduleReadyAnalyticsPrefetch()' in customer_template
+    assert 'saveAnalyticsCache(data,requestQuery,{remember:false})' in customer_template
+    assert 'function analyticsCacheKey(queryString=query())' in customer_template
+    assert 'function loadAnalyticsCache(queryString=query())' in customer_template
+    assert 'scheduleReadyAnalyticsPrefetch();' in customer_template
+    for range_id in (
+        "customerUsageRange",
+        "customerGuidanceRange",
+        "levelChartRange",
+        "dailyChartRange",
+        "patternChartRange",
+        "motorChartRange",
+    ):
+        assert f'id="{range_id}"' in customer_template
+
+
+def test_admin_fleet_page_has_actionable_triage_and_reliable_filters():
+    admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'class="searchBar fleet-toolbar-sticky"' in admin_template
+    for filter_name in ("all", "online", "offline", "critical", "warning", "recent", "poor-signal", "telemetry-missing"):
+        assert f'data-quick-filter="{filter_name}"' in admin_template
+    assert 'id="customer_filter"' in admin_template
+    assert 'data-resolve-alert="{{ lead_alert.id }}"' in admin_template
+    assert 'data-device-field="health_score"' not in admin_template
+    assert 'data-last-seen-age=' in admin_template
+    assert 'id="export_visible_devices"' in admin_template
+    assert 'id="device_table_top_scroll"' in admin_template
+    assert 'id="device_table_scroll"' in admin_template
+    assert 'id="device_page_status"' in admin_template
+    assert 'id="device_page_first"' in admin_template
+    assert 'id="device_page_previous"' in admin_template
+    assert 'id="device_page_next"' in admin_template
+    assert 'id="device_page_last"' in admin_template
+    assert "function syncDeviceTableScrollerWidth()" in admin_template
+    assert '<th>Actions</th>' not in admin_template
+    assert 'class="device-actions"' not in admin_template
+    assert 'data-device-field="pump_mode"' not in admin_template
+    assert 'data-device-field="depth_echo"' not in admin_template
+    assert 'class="last-seen-indicator"' in admin_template
+    assert "connectivityLabel(device.master_status" in admin_template
+    assert "&#9989; No Active Alerts" in admin_template
+    assert 'data-summary-field="online_percent"' not in admin_template
+    assert 'class="summary-percent"' not in admin_template
+    assert "priorityDifference" in admin_template
+    assert "function formatAgeSeconds(seconds)" in admin_template
+    assert "def admin_device_health_fields(entry):" in server_source
+    assert '"health_score": int(device.get("admin_health_score") or 0)' in server_source
+    assert 'item.get("firmware_version")' in server_source
+
+
+def test_device_detail_reduces_density_and_keeps_critical_actions_safe():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert 'class="device-action-bar"' in template
+    for section_id in ("device-overview", "device-memory", "device-configuration", "device-firmware", "device-logs"):
+        assert f'id="{section_id}"' in template
+    assert 'id="deviceHealthScore"' in template
+    assert 'id="lastSeenAge"' in template
+    assert 'id="firmwareVersion"' in template
+    assert 'id="rssiSignal"' in template
+    assert 'id="deviceUptime"' in template
+    assert 'data-info-tab="network"' in template
+    assert 'data-info-tab="sensors"' in template
+    assert 'type="range" min="0" max="95"' in template
+    assert 'id="activitySearch"' in template
+    assert 'id="activitySeverity"' in template
+    assert 'id="activityPause"' in template
+    assert 'id="activityCopy"' in template
+    assert 'id="activityDownload"' in template
+    assert 'data-confirm-title="Upload master firmware?"' in template
+    assert 'data-confirm-title="Upload slave firmware?"' in template
+    assert 'document.getElementById("deviceRestartButton")' in template
+    assert "function refreshLastSeenAge()" in template
 
 
 def test_dashboard_titles_are_simple_and_icon_precedes_title():
@@ -345,6 +845,9 @@ def test_dashboard_titles_are_simple_and_icon_precedes_title():
     assert "Admin Dashboard</h1>" not in admin_template
     assert "Home Water Dashboard" not in customer_template
     assert "Home Water Dashboard" in login_template
+    assert 'data-demo-title="Dashboard Without Municipal Feature"' in login_template
+    assert "No municipal sensor or motorized valve required." in login_template
+    assert 'data-total-ms="33000"' in login_template
 
 
 def test_device_detail_dashboard_button_returns_to_admin_dashboard():
@@ -437,7 +940,7 @@ def test_device_detail_exposes_admin_tank_setup_controls():
     assert 'id="upperSensorSetupSection"' in device_template
     assert 'id="lowerSensorSetupSection"' in device_template
     assert 'id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled"' in device_template
-    assert 'onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility()"' in device_template
+    assert 'window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()' in device_template
     assert '{% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}' in device_template
     assert "{% if master_upper_checked or slave_upper_checked %}" in device_template
     assert 'class="admin-form sensor-setup-card {% if not service_config.get("source_tank_monitoring_enabled") %}hidden-section{% endif %}" id="lowerSensorSetupSection"' in device_template
@@ -634,17 +1137,28 @@ def test_device_detail_has_device_purge_action():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
-    assert '@app.route("/admin/customers/<device_id>/purge", methods=["POST"])' in server_source
-    assert "def admin_purge_device_data(device_id):" in server_source
     assert "def purge_device_data(device_id, remember_deleted_device=False):" in server_source
     assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
-    assert 'name="delete_mode" value="purge"' in device_template
-    assert 'purge_requested = delete_mode == "purge"' in server_source
-    assert "and ignored future check-ins until it is registered again." in server_source
+    assert 'name="delete_mode" value="purge"' not in device_template
+    assert 'purge_requested = delete_mode == "purge"' not in server_source
+    assert "Future check-ins are ignored until the device is registered again." in server_source
     assert "device_is_ignored(normalized_device_id)" in server_source
-    assert "Purge Device Data" in device_template
-    assert "Purge device {{ device_id }} from every device-scoped database table?" in device_template
+    assert "Purge Device Data" not in device_template
+    assert "Delete device {{ device_id }} from every device-scoped database table?" in device_template
     assert "small deleted-device marker is kept" in device_template
+    assert 'error = request.args.get("error", "", type=str) or None' in server_source
+    assert 'success = request.args.get("success", "", type=str) or None' in server_source
+    assert 'url_for(\n                "admin_customers",' in server_source
+    assert '@app.route("/admin/customers/<device_id>/delete", methods=["GET", "POST"])' in server_source
+    assert 'if request.method == "GET":' in server_source
+    assert 'error=f"Delete for {normalized_device_id} must be submitted from the admin dashboard form."' in server_source
+    assert 'logger.info("Admin device delete requested for %s", normalized_device_id)' in server_source
+    assert 'logger.exception("Admin device delete failed for %s", normalized_device_id)' in server_source
+    assert 'logger.exception("Admin device purge failed for %s", normalized_device_id)' not in server_source
+    assert 'error=f"Delete failed for {normalized_device_id}. Check the server log for details."' in server_source
+    assert 'error=f"Purge failed for {normalized_device_id}. Check the server log for details."' not in server_source
+    assert 'key_identifier = quote_mysql_identifier("key")' in server_source
+    assert 'f"DELETE FROM app_settings WHERE {key_identifier} LIKE ?"' in server_source
 
 
 def test_device_detail_removes_cloud_firmware_upgrade():
@@ -709,7 +1223,7 @@ def test_android_app_update_check_compares_installed_version_code():
     assert "serverUpdateAvailable && latestVersionCode > currentVersionCode && apkUrl.isNotBlank()" in android_source
 
 
-def test_android_cloud_pump_activity_chart_uses_two_color_activity_bars():
+def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
     android_source = (
         PROJECT_ROOT.parent
         / "swt_android_app_project"
@@ -722,37 +1236,28 @@ def test_android_cloud_pump_activity_chart_uses_two_color_activity_bars():
         / "app"
         / "MainActivity.kt"
     ).read_text(encoding="utf-8")
-    chart_view_source = (
+    android_layout = (
         PROJECT_ROOT.parent
         / "swt_android_app_project"
         / "app"
         / "src"
         / "main"
-        / "java"
-        / "com"
-        / "smartwatertank"
-        / "app"
-        / "DashboardChartView.kt"
+        / "res"
+        / "layout"
+        / "activity_main.xml"
     ).read_text(encoding="utf-8")
 
-    assert "DashboardChartView.ChartStyle.TIMELINE" in android_source
-    assert "R.color.cloud_chart_green" in android_source
-    assert "Green bars show ON, blue bars show OFF." in android_source
-    assert "ON spans are labeled with their run duration." in android_source
-    assert "section.pumpActivity.startLabel" in android_source
-    assert "section.pumpActivity.endLabel" in android_source
-    assert "enum class ChartStyle { LINE, BAR, STEP, TIMELINE }" in chart_view_source
-    assert "private fun drawTimelineChart" in chart_view_source
-    assert "private fun drawSinglePointChart" in chart_view_source
-    assert "formatDurationLabel" in chart_view_source
-    assert "drawStepChart(canvas, left, top, width, height, min, span)" in chart_view_source
-    assert "val onColor = ContextCompat.getColor(context, R.color.cloud_chart_green)" in chart_view_source
-    assert "val offColor = ContextCompat.getColor(context, R.color.cloud_chart_blue)" in chart_view_source
-    assert "fun barColor(state: Int): Int = if (state == 1) onColor else offColor" in chart_view_source
-    assert "val lanePaint = Paint(Paint.ANTI_ALIAS_FLAG)" in chart_view_source
-    assert "val barPaint = Paint(Paint.ANTI_ALIAS_FLAG)" in chart_view_source
-    assert "canvas.drawRoundRect(segmentRect, 9f * density, 9f * density, barPaint)" in chart_view_source
-    assert 'val badgeText = "ON ${formatDurationLabel(segment.endTime - segment.startTime)}"' in chart_view_source
+    assert "cloudPumpActivityChart" not in android_layout
+    assert "cloudPumpActivityScroll" not in android_layout
+    assert "cloudHourlyPatternChart" not in android_layout
+    assert "cloudHourlyPatternCard" not in android_layout
+    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue", "cloudPumpDutyValue"):
+        assert metric_id in android_layout
+    assert "binding.cloudPumpRuntimeValue" in android_source
+    assert "binding.cloudPumpStartsValue" in android_source
+    assert "binding.cloudPumpAverageValue" in android_source
+    assert "binding.cloudPumpDutyValue" in android_source
+    assert "binding.cloudPumpActivityChart.setChart" not in android_source
 
 
 def test_release_versions_use_year_train_increment_syntax():
@@ -803,6 +1308,13 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert ".searchControls button,.searchControls a,.searchInput{min-height:38px" in admin_template
     assert ".alert-table-shell{max-height:14rem}" in admin_template
     assert ".device-table-shell{max-height:35rem}" in admin_template
+    assert ".device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}" in admin_template
+    assert ".device-horizontal-scroll{display:none}" in admin_template
+    assert ".searchControls{grid-template-columns:minmax(320px,1fr) auto auto auto" in admin_template
+    assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left" in admin_template
+    assert ".device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link" in admin_template
+    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}" in admin_template
+    assert ".device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:left;vertical-align:middle}" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():
@@ -814,3 +1326,86 @@ def test_homepage_shows_active_identity_and_logout():
     assert "active_homepage_user = nav_auth.active_user|default(homepage_user)" in login_template
     assert "Logged in as - {{ active_homepage_user.display_name }}" in login_template
     assert '<form class="logout-form" method="post" action="/logout">' in login_template
+
+
+def test_landing_page_has_compact_conversion_and_mobile_contact_content():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert "Prevent overflow, protect your motor and control your pump from anywhere." in template
+    assert '>Buy Now</a>' in template
+    assert 'id="buyer-confidence"' in template
+    assert 'aria-label="Pricing preview"' in template
+    assert "From &#8377;3,999" in template
+    assert "From &#8377;9,999" in template
+    assert 'class="faq-list"' in template
+    assert "Does it work without Wi-Fi?" in template
+    assert 'class="mobile-contact-bar"' in template
+    assert 'aria-label="Call SaleWell"' in template
+    assert 'aria-label="Contact SaleWell on WhatsApp"' in template
+    assert 'class="contact-icon whatsapp-icon"' in template
+    assert 'aria-label="Book a free demo"' in template
+    assert 'aria-label="Open chat"' in template
+    assert 'body.chatbot-open .mobile-contact-bar{display:none}' in template
+    assert 'document.body.classList.toggle("chatbot-open", isOpen);' in template
+    assert '.mobile-contact-bar a span,.mobile-contact-bar button span' in template
+    assert 'height:38px;min-height:38px;max-height:38px' in template
+    assert 'class="contact-tab" href="#enquiry"' in template
+    assert 'class="button is-primary-cta" href="#enquiry" aria-label="Book a free demo"' not in template
+    assert '.mobile-contact-bar .contact-tab:visited' in template
+    assert '-webkit-text-fill-color:#fff' in template
+    assert 'Date.now() - chatbotOpenedAt < 700' in template
+    assert 'mobileChatbotButton.addEventListener("click", (event) =>' in template
+    assert 'event.stopPropagation();' in template
+    assert 'id="mobileChatbotButton"' in template
+    assert 'setChatbotOpen(true);' in template
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
+    assert ".enquiry-modal{z-index:120}" in template
+    assert ".enquiry-modal .form-actions{" in template
+    assert ".comparison-table th:last-child,.comparison-table td:last-child" in template
+    assert "&#10004; Yes" in template
+    assert "&#10006; No" in template
+
+
+def test_sales_content_uses_current_complete_wireless_architecture():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    assert "Wireless Tank Sensor Node" in homepage
+    assert "Complete Wireless Smart Tank Kit" in homepage
+    assert "Single Controller Kit" not in homepage
+    assert "Shielded Wire or Dual Node" not in homepage
+    assert "One wireless setup for every building height." in pricing
+    assert "No long sensor signal cable" in pricing
+    assert "Every base plan includes a complete wireless tank setup." in pricing
+    assert "Included Equipment" in pricing
+    assert "one-time wireless hardware price" in homepage
+    assert "Phone app and live screen not included" in pricing
+    assert "&#8377;4,999" in pricing
+    assert "Phone access at the property only. Remote access and AI are not included." in pricing
+    assert "Home Basic and Home Control connect directly" in pricing
+    assert "<th>Home Wi-Fi / Internet</th>" in pricing
+    assert "AI analytics and insights" in pricing
+    assert "Local mobile app and live monitoring" in pricing
+    assert "+ &#8377;1,000 one-time" in pricing
+    assert "Wireless range extension node" in pricing
+    assert pricing.count('class="addon-fit"') == 10
+    assert 'id="planWizard"' in pricing
+    assert 'id="wizardPlan"' in pricing
+    assert 'id="use-cases"' in pricing
+    assert 'id="installation"' in pricing
+    assert 'id="faqs"' in pricing
+    assert 'class="sticky-actions"' in pricing
+    assert "500+" in pricing
+    assert "10,000+ KL/day" in pricing
+    assert "Warranty coverage varies by kit and project scope." in pricing
+    assert "Single Controller Kit" not in pricing
+    assert "Shielded Wire or Dual Node" not in pricing
+
+
+def test_flask_pages_share_explanatory_term_tooltips():
+    tooltip_source = (PROJECT_ROOT / "flask_app" / "static" / "js" / "global-tooltips.js").read_text(encoding="utf-8")
+    pwa_head = (PROJECT_ROOT / "flask_app" / "templates" / "_pwa_head.html").read_text(encoding="utf-8")
+
+    for term in ("telemetry", "rssi", "signal", '"municipal sensor"', "health"):
+        assert term in tooltip_source
+    assert "global-tooltips.js" in pwa_head

@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-06-19`
+Last refreshed: `2026-07-26`
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. The devices still keep their local control loops on the ESP8266 when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
@@ -10,11 +10,10 @@ This backend is one part of the wider SaleWell IoT Solutions stack. The shared `
 
 Within the wider workspace:
 
-- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the ESP8266 controller that posts to `/status` and polls `/device/command`
+- [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md) documents the mixed ESP32-master / ESP8266-slave controller pair that posts to `/status` and polls `/device/command`
 - [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md) documents the Android client that consumes `/api/mobile/*` and local firmware pages
 - [`Flask_deployment_README.md`](Flask_deployment_README.md) covers cPanel / Passenger deployment for this backend
 - [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md) covers the separated API/UI/ML test suites and virtual-device tooling
-- [`../home_automation_firmware/README.md`](../home_automation_firmware/README.md) documents the home automation switch-board firmware that this Flask app can proxy/control
 
 ## What This Project Includes
 
@@ -24,36 +23,41 @@ Within the wider workspace:
 - Customer forgot-password and reset-password flow when SMTP is configured
 - Browser dashboard, customer dashboard, and per-device detail pages
 - PWA manifest, service worker, install prompt, mobile-friendly public pages, and customer-facing homepage
-- Pricing/comparison page for Starter Wi-Fi, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
+- Pricing/comparison page for Home Basic, Home Control, Home Cloud Pro, RWA Standard, Commercial AI Pro, Dealer / Installer Kit, and Enterprise Modular plans
 - Sales/demo enquiry form with backup logging, support email, customer confirmation email, and optional WhatsApp webhook delivery
 - Monitoring endpoints for health, alerts, audit events, relay state, and DB summary
-- Admin service controls for source tank monitoring, buzzer, LED, cloud-feed mode, and customer AI access
+- Admin service controls for source tank monitoring, optional municipal automation, optional upper/lower turbidity monitoring, buzzer, LED, cloud-feed mode, and customer AI access
+- Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
+- Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
-- Home automation dashboard and local/cloud proxy at `/home-automation`; the switch-board keeps its wired control behavior even if Wi-Fi is unavailable
 - MySQL/MariaDB schema initialization for local and hosted deployment
+- Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
+- The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
+- Master Configuration keeps the optional municipal-water sensor independent from the motorized inlet valve. Sensor-free installations use firmware level-rise detection instead of disabling valve routing.
+- The public homepage keeps the original rooftop preview image. Its **Dashboard Preview** link opens `static/marketing/water_flow_animation.html`; regenerate that deployed asset with `python ../scripts/sync_water_flow_animation.py` after changing the source animation.
+
+Simulator prerequisites, workflows, transitions, and troubleshooting are in [`../docs/SIMULATOR_GUIDE.md`](../docs/SIMULATOR_GUIDE.md).
 
 ## Customer and Sales Features
 
 - public marketing homepage with product explanations, plan guidance, Android download link, and enquiry entry points
 - guided product chatbot content for pricing, pump control, overflow, leakage, installation type, app access, and service coverage questions
 - customer dashboard for tank level, pump state, alert status, events, analytics, and local sync
-- admin dashboard for device registration, customer mapping, customer password reset, service flags, firmware artifacts, Android releases, reboot commands, and data-source mode
+- admin dashboard for device registration, customer mapping, customer password reset, service flags, peer channel, firmware artifacts, Android releases, reboot commands, delete/purge, and data-source mode
 - operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
 - optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
 
-The backend is the network and persistence layer, not the runtime safety layer. Smart Tank and Home Automation devices continue local control and protection on-device when the backend is offline.
 
 ## Repository Layout
 
 | Path | Purpose |
 | --- | --- |
-| `server.py` | Root entrypoint and WSGI compatibility wrapper |
+| `server.py` | Root entrypoint and WSGI compatibility wrapper; keep this in sync with `flask_app/server.py` for cPanel / Passenger deployments |
 | `flask_app/server.py` | Main Flask application, routes, DB init, auth, telemetry, command queue, relay logic |
-| `flask_app/home_automation_routes.py` | Home automation dashboard and proxy routes |
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
 | `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
@@ -132,16 +136,9 @@ Useful first URLs:
 - Admin login: `http://localhost:8000/login/admin`
 - Customer login: `http://localhost:8000/login/customer`
 - Health check: `http://localhost:8000/health`
-- Home automation: `http://localhost:8000/home-automation`
 
-If you only need the home automation dashboard and do not have MySQL running, use the dashboard-only runner:
-
-```powershell
-$env:HA_LOCAL_DEVICE_URL="http://192.168.1.50"
-python run_home_automation_local.py
 ```
 
-Open `http://localhost:5000/home-automation`.
 
 ## Configuration Loading
 
@@ -246,6 +243,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/admin/customers` | Customer account management and device/customer mapping | Admin |
 | `/admin/devices/register` | Register device credentials and optional customer account | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
+| `/admin/customers/<device_id>/delete` | Delete a device through the normal admin flow; purges device-scoped rows and keeps the deleted-device marker until re-registration | Admin |
 | `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/releases/android/prune` | Prune old uploaded Android APK releases | Admin |
@@ -254,30 +252,7 @@ Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired
 | `/devices/<device_id>` | Device detail page | Logged-in user |
 | `/static/version.json` | Android update manifest for the latest uploaded APK | Public |
 | `/downloads/android/latest.apk` | Download the latest uploaded Android APK | Public |
-| `/home-automation` | Home automation switch-board dashboard | Public |
 
-### Home Automation Cloud
-
-The home automation page can control a board directly on local Wi-Fi or through the same cloud command queue used by the Smart Water Tank relay. In cloud mode, the ESP8266 posts telemetry to `/status`, polls `/device/command`, and acknowledges with `/device/command/ack`, so the home router does not need port forwarding. Local switch and relay control stay active on the board even if Wi-Fi or Flask is unavailable.
-
-Environment variables:
-
-- `HA_LOCAL_DEVICE_URL`: local board URL, for example `http://192.168.1.50`
-- `HA_DEVICE_ID`: default home automation device id shown in the dashboard
-- `HA_REQUEST_TIMEOUT`: proxy timeout in seconds, default `6`
-- `HA_HOME_AUTOMATION_CLOUD_BASE_URL`: optional external home automation API origin; leave blank to use this Flask app and the SWT command queue
-- `HA_HOME_AUTOMATION_CLOUD_API_KEY`: optional bearer token for external home automation API calls
-
-Firmware should use the same `SWT_DEVICE_ID` and `SWT_DEVICE_API_KEY` identity variables as the water tank firmware, and point `SWT_CLOUD_BASE_URL` to this Flask deployment, for example `https://salewell.co.in`.
-
-Proxy routes:
-
-| Route | Method | Purpose |
-| --- | --- | --- |
-| `/api/home-automation/local/status` | `GET` | Read local board status |
-| `/api/home-automation/local/<switch|fan|all>` | `POST` | Send local board command |
-| `/api/home-automation/cloud/<device_id>/status` | `GET` | Read cloud device status |
-| `/api/home-automation/cloud/<device_id>/<switch|fan|all>` | `POST` | Send cloud command |
 
 ### Device-facing endpoints
 
@@ -301,7 +276,7 @@ Proxy routes:
 | `/monitoring/summary` | Monitoring summary | Session |
 | `/monitoring/alerts` | Alert list | Session |
 | `/monitoring/audit` | Audit trail | Session |
-| `/events` | Recent event feed | Session |
+| `/events` | Recent event feed, including live current-status snapshots generated from the latest device snapshot | Session |
 | `/relay/health` | Relay queue and relay connectivity summary | Admin |
 | `/admin/db-summary` | DB size/retention/row summary | Admin |
 | `/admin/device-source-mode` | Get or set the active backend `device_source_mode` | Admin |
@@ -370,7 +345,7 @@ Core dashboard and telemetry features do not depend on ML being ready.
 
 ## Testing
 
-This repo keeps a small backend-only pytest layer for local startup/env parsing checks and optional simulator-import coverage.
+This repo keeps a small backend-only pytest layer for local startup/env parsing checks, runtime event generation, dashboard status mapping, device purge behavior, and optional simulator-import coverage.
 
 Install the local unit-test tooling:
 
@@ -389,6 +364,8 @@ Useful focused runs:
 ```powershell
 pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
+pytest tests/test_activity_events_runtime.py
+pytest tests/test_device_purge.py
 ```
 
 Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.
@@ -433,6 +410,7 @@ Before deploying:
 - keep `SESSION_COOKIE_SECURE=true`
 - keep firmware and Android release artifact directories on persistent storage
 - decide whether relay URLs should be enabled in that environment
+- deploy both `server.py` and `flask_app/server.py` together on cPanel / Passenger so the root wrapper and the main app stay aligned
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
 ## Operational Docs
@@ -467,3 +445,26 @@ For rollout and support work, see:
 - Firmware project: [`../swt_firmware_project/README.md`](../swt_firmware_project/README.md)
 - Android project: [`../swt_android_app_project/README.md`](../swt_android_app_project/README.md)
 - Test harness: [`../swt_test_cases_project/README.md`](../swt_test_cases_project/README.md)
+
+## Complete Local Test Environment (WSL)
+
+The recommended isolated backend setup uses the test harness script:
+
+```bash
+cd ~/workspace/all_swt_project/swt_test_cases_project
+chmod +x ./scripts/setup_test_env.sh
+./scripts/setup_test_env.sh
+```
+
+It creates `.venv`, installs requirements, starts MySQL on host port `3307` and Flask on `http://127.0.0.1:8000`, waits for `/health`, and runs the focused virtual-device tests with the required `SWT_TEST_MYSQL_*` variables. Start the interactive device separately:
+
+```bash
+source .venv/bin/activate
+python ./scripts/run_virtual_devices.py \
+  --base-url=http://127.0.0.1:8000 \
+  --device-id=swt-test-001 \
+  --device-key='DockerDeviceKey2026!' \
+  --dashboard-port=8765
+```
+
+Open `http://127.0.0.1:8765`, `/health`, and `/admin/customers`; then validate normal operation, sensor faults, dry-run, pump failure, device/slave offline, municipal state, telemetry freshness, events/alerts, and command acknowledgements. Use `./scripts/setup_test_env.sh --skip-tests` for startup only or `--reset-database` when test data may be deleted. Full manual pytest commands and troubleshooting are in the [test harness README](../swt_test_cases_project/README.md) and [Word guide](../swt_test_cases_project/docs/SaleWell_Virtual_Device_Test_Setup_WSL.docx).
