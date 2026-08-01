@@ -10667,6 +10667,60 @@ def snapshot_is_fresh_enough_for_runtime_sync(snapshot):
         return True
 
 
+STATUS_CONTRACT_VERSION = 1
+
+
+def build_synchronized_status_payload(snapshot, device_id=None, service_config=None):
+    snapshot = snapshot or {}
+    normalized_device_id = normalize_device_id(device_id or snapshot.get("device_id"))
+    config = service_config or (
+        fetch_device_service_config(normalized_device_id, snapshot=snapshot)
+        if normalized_device_id
+        else {}
+    )
+    sensor_status = admin_relay_sensor_status_fields(snapshot, config)
+    fresh = snapshot_is_fresh_enough_for_runtime_sync(snapshot)
+    pump_running = str(snapshot.get("motor") or snapshot.get("pump_status") or "OFF").strip().upper() in {"ON", "RUNNING", "ACTIVE"}
+    ai_enabled = boolish_enabled(
+        config.get("effective_ai_analysis_enabled", config.get("ai_analysis_enabled")),
+        default=True,
+    )
+    return {
+        "contract_version": STATUS_CONTRACT_VERSION,
+        "firmware_contract_version": snapshot.get("status_contract_version"),
+        "device_id": normalized_device_id,
+        "observed_at": snapshot.get("last_sync_at") or snapshot.get("created_at"),
+        "telemetry_status": snapshot.get("telemetry_status") or "no-data",
+        "pump": {
+            "state": "ON" if pump_running else "OFF",
+            "mode": str(snapshot.get("mode") or "UNKNOWN").strip().upper(),
+            "health": sensor_status.get("relay_status_label") or "Unreachable",
+            "source": "firmware",
+        },
+        "sensors": {
+            "upper": sensor_status.get("upper_sensor_status_label") or "Unreachable",
+            "source": sensor_status.get("lower_sensor_status_label") or "Unreachable",
+            "municipal": sensor_status.get("municipal_sensor_status_label") or "Disabled",
+            "source_of_truth": "firmware",
+        },
+        "ai_ml": {
+            "state": "ON" if ai_enabled else "OFF",
+            "cloud_feed_mode": config.get("cloud_feed_mode") or "off",
+            "firmware_state": snapshot.get("ai_ml_status") or "SERVER_MANAGED",
+            "source": "flask",
+        },
+        "configuration": {
+            "state": "SYNCED" if fresh else ("STALE" if snapshot else "WAITING"),
+            "firmware_state": snapshot.get("configuration_status") or "UNKNOWN",
+            "auto_mode": "ON" if boolish_enabled(config.get("auto_mode_enabled"), default=False) else "OFF",
+            "source_tank": "ON" if boolish_enabled(config.get("source_tank_monitoring_enabled"), default=True) else "OFF",
+            "municipal": "ON" if boolish_enabled(config.get("municipal_sensor_enabled"), default=False) else "OFF",
+            "updated_at": config.get("updated_at"),
+            "source": "flask+firmware",
+        },
+    }
+
+
 def build_system_status_payload(snapshot, device_id=None, service_config=None):
     if snapshot_has_live_device_data(snapshot):
         evaluate_snapshot_alerts(snapshot)
@@ -10678,6 +10732,9 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         resolved_service_config = fetch_device_service_config(normalized_device_id, snapshot=snapshot)
     node_status = admin_node_status_fields(snapshot or {}, resolved_service_config or {})
 
+    synchronized_status = build_synchronized_status_payload(
+        snapshot, device_id=normalized_device_id, service_config=resolved_service_config
+    )
     return {
         "server": "online",
         "database": "online",
@@ -10715,6 +10772,7 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
+        "synchronized_status": synchronized_status,
     }
 
 
@@ -19371,6 +19429,27 @@ def admin_device_detail_simulator(device_id):
             "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
+    )
+
+    synchronized_status = system_status.get("synchronized_status") or build_synchronized_status_payload(
+        snapshot, device_id=normalized_device_id, service_config=service_config
+    )
+    pump_status = synchronized_status.get("pump") or {}
+    sensors_status = synchronized_status.get("sensors") or {}
+    ai_status = synchronized_status.get("ai_ml") or {}
+    configuration_status = synchronized_status.get("configuration") or {}
+    add_event(
+        "synchronized_status_current_status",
+        "success" if configuration_status.get("state") == "SYNCED" else "warning",
+        (
+            f"Synchronized status: pump {pump_status.get('state', 'UNKNOWN')}; "
+            f"upper sensor {sensors_status.get('upper', 'Unreachable')}; "
+            f"source sensor {sensors_status.get('source', 'Unreachable')}; "
+            f"municipal sensor {sensors_status.get('municipal', 'Disabled')}; "
+            f"AI/ML {ai_status.get('state', 'OFF')}; "
+            f"configuration {configuration_status.get('state', 'WAITING')}."
+        ),
+        {"status_contract": synchronized_status},
     )
     message = f"{target_label} simulator {'enable' if desired_enabled else 'disable'} command queued."
     return redirect(
