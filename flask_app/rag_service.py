@@ -207,10 +207,14 @@ def _output_text(payload):
 
 def concise_answer(text, question="", max_sentences=3):
     clean = re.sub(r"```.*?```", " ", str(text or ""), flags=re.DOTALL)
-    clean = re.sub(r"^\s{0,3}#{1,6}\s*", "", clean, flags=re.MULTILINE)
+    # Headings are retrieval metadata, not part of the customer-facing answer.
+    clean = re.sub(r"^\s{0,3}#{1,6}\s+.*$", "", clean, flags=re.MULTILINE)
     clean = re.sub(r"[`*_>|]", "", clean)
     clean = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", clean)
-    candidates = [item.strip(" -\t\r\n") for item in re.split(r"(?<=[.!?])\s+|\n+", clean) if item.strip(" -\t\r\n")]
+    # Markdown wraps prose across physical lines. Reflow each paragraph before
+    # selecting sentences so prices and answers are never cut mid-sentence.
+    paragraphs = [re.sub(r"\s+", " ", item).strip() for item in re.split(r"\n\s*\n", clean) if item.strip()]
+    candidates = [item.strip(" -\t\r\n") for paragraph in paragraphs for item in re.split(r"(?<=[.!?])\s+", paragraph) if item.strip(" -\t\r\n")]
     candidates = [item for item in candidates if len(item) <= 280 and not item.startswith(("RAG_", "PUBLIC_RAG_", "OPENAI_"))]
     query_words = set(re.findall(r"[a-z0-9]+", str(question).lower()))
     ranked = sorted(
@@ -231,14 +235,22 @@ def answer_question(question, limit=5, index=None):
     if not api_key:
         return {"answer": concise_answer(matches[0].text, question), "citations": citations, "generated": False}
     context = "\n\n".join(f"[{i+1}] {x.source}#chunk-{x.chunk}\n{x.text}" for i, x in enumerate(matches))
-    response = requests.post(
-        os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/responses",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": os.environ.get("RAG_OPENAI_MODEL", "gpt-5-mini"), "instructions": "Answer only from the context in 2 or 3 short lines and at most 70 words. Give only the directly relevant answer; never include setup, configuration, code, or unrelated details. If context is insufficient, say so briefly.", "input": f"Question: {question}\n\nContext:\n{context}"},
-        timeout=float(os.environ.get("RAG_LLM_TIMEOUT_SECONDS", "30")),
-    )
-    response.raise_for_status()
-    return {"answer": concise_answer(_output_text(response.json()), question), "citations": citations, "generated": True}
+    try:
+        response = requests.post(
+            os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/responses",
+            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+            json={"model": os.environ.get("RAG_OPENAI_MODEL", "gpt-5-mini"), "instructions": "Answer only from the context in 2 or 3 short lines and at most 70 words. Give only the directly relevant answer; never include setup, configuration, code, or unrelated details. If context is insufficient, say so briefly.", "input": f"Question: {question}\n\nContext:\n{context}"},
+            timeout=float(os.environ.get("RAG_LLM_TIMEOUT_SECONDS", "30")),
+        )
+        response.raise_for_status()
+        generated_answer = concise_answer(_output_text(response.json()), question)
+        if generated_answer:
+            return {"answer": generated_answer, "citations": citations, "generated": True}
+    except (requests.RequestException, ValueError, KeyError):
+        # Product help must remain useful when the provider key, model, quota,
+        # network, or response is temporarily unavailable.
+        pass
+    return {"answer": concise_answer(matches[0].text, question), "citations": citations, "generated": False}
 
 
 default_index = RagIndex()

@@ -159,6 +159,18 @@ def test_concise_answer_drops_oversized_markdown_fragments():
     assert "sensor measures" in answer
 
 
+def test_openai_failure_falls_back_to_grounded_local_answer(tmp_path, monkeypatch):
+    import requests
+    import flask_app.rag_service as service
+
+    (tmp_path / "faq.md").write_text("### What is the warranty?\n\nContact SaleWell for the written warranty.", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(service.requests, "post", lambda *args, **kwargs: (_ for _ in ()).throw(requests.ConnectionError("offline")))
+    result = service.answer_question("What is the warranty?", index=service.RagIndex([tmp_path]))
+    assert result["generated"] is False
+    assert result["answer"] == "Contact SaleWell for the written warranty."
+
+
 def test_chatbot_answers_company_identity_and_hides_ungrounded_actions():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     assert "wantsCompanyIdentity" in template
