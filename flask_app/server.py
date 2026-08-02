@@ -783,11 +783,46 @@ def logging_ist_converter(timestamp, *_args):
 
 
 logging.Formatter.converter = staticmethod(logging_ist_converter)
-logging.basicConfig(
-    level=APP_LOG_LEVEL,
-    format="%(asctime)s IST | %(levelname)s | %(message)s",
-    datefmt=TIMESTAMP_FORMAT,
-)
+
+
+class SwtColorFormatter(logging.Formatter):
+    RESET = "\033[0m"
+    TIMESTAMP_COLOR = "\033[36m"
+    LEVEL_COLORS = {
+        logging.DEBUG: "\033[34m",
+        logging.INFO: "\033[32m",
+        logging.WARNING: "\033[33m",
+        logging.ERROR: "\033[31m",
+        logging.CRITICAL: "\033[31;1m",
+    }
+
+    def __init__(self, color_enabled=True):
+        super().__init__(
+            fmt="[%(asctime)s+05:30] [%(levelname)s] %(message)s",
+            datefmt=TIMESTAMP_FORMAT,
+        )
+        self.color_enabled = color_enabled
+
+    def format(self, record):
+        rendered = super().format(record)
+        if not self.color_enabled:
+            return rendered
+        timestamp = self.formatTime(record, self.datefmt)
+        timestamp_token = f"[{timestamp}+05:30]"
+        level_token = f"[{record.levelname}]"
+        rendered = rendered.replace(
+            timestamp_token,
+            f"{self.TIMESTAMP_COLOR}{timestamp_token}{self.RESET}",
+            1,
+        )
+        level_color = self.LEVEL_COLORS.get(record.levelno, self.RESET)
+        return rendered.replace(level_token, f"{level_color}{level_token}{self.RESET}", 1)
+
+
+SWT_LOG_COLOR_ENABLED = os.environ.get("SWT_LOG_COLOR", "false").strip().lower() in {"1", "true", "yes", "on"}
+app_log_handler = logging.StreamHandler()
+app_log_handler.setFormatter(SwtColorFormatter(color_enabled=SWT_LOG_COLOR_ENABLED))
+logging.basicConfig(level=APP_LOG_LEVEL, handlers=[app_log_handler], force=True)
 
 logger = logging.getLogger("tank_server")
 relay_lock = threading.Lock()

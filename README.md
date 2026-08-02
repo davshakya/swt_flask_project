@@ -1,6 +1,20 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-01`
+Last refreshed: `2026-08-02`
+
+## Developer Setup
+
+On Ubuntu/WSL, prepare the complete workspace from its root:
+
+```bash
+cd ~/workspace/all_swt_project
+./getting_start.sh
+source swt_flask_project/.venv/bin/activate
+```
+
+The bootstrap installs both `requirements.txt` and `requirements-dev.txt` in
+this project's `.venv`. It does not create or overwrite `flask_app/.env` or
+`device.env`, start Flask, start Docker, or modify MySQL.
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. Devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master) when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
