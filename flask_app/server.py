@@ -404,7 +404,7 @@ def apply_security_headers(response):
 
 def route_should_not_store(path):
     normalized_path = str(path or request.path or "")
-    if normalized_path in {"/service-worker.js", "/static/version.json"}:
+    if normalized_path in {"/", "/homepage", "/service-worker.js", "/static/version.json"}:
         return True
     if normalized_path.startswith(NO_STORE_ROUTE_PREFIXES):
         return True
@@ -6028,14 +6028,25 @@ def save_device_local_web_password(device_id, password):
 
 def increment_homepage_visitor_count():
     with homepage_visitor_count_lock:
-        raw_count = get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO app_settings(key, value, updated_at)
+                VALUES (?, '1', CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=app_settings.value + 1,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            )
+            row = db.execute(
+                "SELECT value FROM app_settings WHERE key = ?",
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            ).fetchone()
         try:
-            current_count = int(str(raw_count or "0").strip())
-        except ValueError:
-            current_count = 0
-        next_count = max(0, current_count) + 1
-        set_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, str(next_count))
-        return next_count
+            return max(0, int(str(row["value"] if row else "0").strip()))
+        except (TypeError, ValueError):
+            return 0
 
 
 def format_count_label(value):

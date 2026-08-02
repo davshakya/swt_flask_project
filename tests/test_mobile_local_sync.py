@@ -332,8 +332,8 @@ def test_cloud_ingestion_accepts_firmware_device_ip_url():
     assert 'cleaned["level"] = cleaned.get("main_tank_level")' in server_source
     assert 'relay_state_label(cleaned.get("relay_on"))' in server_source
     assert 'relay_state_label(cleaned.get("relay"))' in server_source
-    assert 'cleaned["motor"] = relay_state' in server_source
-    assert 'cleaned["motor"] = cleaned.get("pump")' in server_source
+    assert 'cleaned["motor"] = pump_state' in server_source
+    assert 'pump_state = relay_state_label(cleaned.get("pump"))' in server_source
     assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
 
 
@@ -341,7 +341,7 @@ def test_registered_device_key_can_recover_from_stale_wildcard_key():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 
     assert "def registered_device_auth_rule_matches(device_id, device_key):" in server_source
-    assert 'if matched_rule.get("kind") == "wildcard":' in server_source
+    assert "Admin registration is the authoritative per-device credential" in server_source
     assert "registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)" in server_source
     assert "matched_rule = registered_rule" in server_source
 

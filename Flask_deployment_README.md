@@ -1,10 +1,10 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-06-19`
+Last refreshed: `2026-08-01`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
 
-The backend is only the remote dashboard and command layer. The field devices keep their local control loops on the ESP8266, so they continue working if this Flask deployment is offline.
+The backend is only the remote dashboard and command layer. Field devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master), so they continue working if this Flask deployment is offline.
 
 Use this file together with:
 
@@ -451,7 +451,7 @@ Check:
 - `SWT_DEVICE_API_KEY`
 - `SWT_CLOUD_BASE_URL=https://salewell.co.in/`
 - whether the device is posting to `/status`
-- whether the `swt_master` firmware has telemetry service enabled and the matching device key is registered in Flask
+- whether the `swt_esp32_master` firmware (or legacy `swt_master`) has telemetry service enabled and the matching device key is registered in Flask
 
 ## Related Workspace Docs
 

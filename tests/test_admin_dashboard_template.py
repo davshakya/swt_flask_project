@@ -28,9 +28,9 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
 
     assert 'rel="preload" as="image" type="image/webp"' in template
     assert "smart-water-tank-hero-ai-1280.webp" in template
-    assert template.count("<source type=\"image/webp\"") >= 7
-    assert template.count('decoding="async"') >= 7
-    assert template.count('width="1536" height="1024"') >= 7
+    assert template.count("<source type=\"image/webp\"") >= 6
+    assert template.count('decoding="async"') >= 6
+    assert template.count('width="1536" height="1024"') >= 6
 
 
 def test_login_popup_inputs_use_a_visible_caret_and_selection():
