@@ -88,3 +88,10 @@ def test_homepage_template_does_not_require_rag_route_during_render():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     assert 'fetch("/chatbot/ask"' in template
     assert "url_for('public_rag_chat.public_chat')" not in template
+
+
+def test_homepage_greeting_is_helpful_without_forcing_a_plan_sale():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert "Hi! Welcome to SaleWell." in template
+    assert "Hello again!" in template
+    assert "chatbotGreetingCount === 1" in template

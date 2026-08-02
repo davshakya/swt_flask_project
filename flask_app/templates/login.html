@@ -6188,6 +6188,7 @@ const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
 const showPricingLinks = {{ "true" if show_pricing_links|default(false) else "false" }};
 let chatbotSessionCount = 1;
+let chatbotGreetingCount = 0;
 let chatbotOpenedAt = 0;
 let whatsappDragSuppressClick = false;
 let chatbotDragSuppressClick = false;
@@ -6423,6 +6424,7 @@ function resetChatbotDiscussion(message) {
     chatBookingState = null;
     chatCompletedBooking = null;
     chatEnquirySubmitting = false;
+    chatbotGreetingCount = 0;
     chatbotSessionCount += 1;
     if (chatbotMessages) chatbotMessages.replaceChildren();
     appendChatMessage(
@@ -7107,9 +7109,23 @@ function getChatbotResponse(rawInput) {
         };
     }
 
-    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"]) || wantsGreeting) {
+    if (wantsGreeting) {
+        chatbotGreetingCount += 1;
         return {
-            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\nTell me tank count and city for a sharper quote.`,
+            text: chatbotGreetingCount === 1
+                ? "Hi! Welcome to SaleWell. What would you like help with—tank monitoring, pump control, overflow prevention, pricing, or installation?"
+                : "Hello again! Tell me what you would like to know, or choose one of the topics below.",
+            actions: [
+                { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },
+                { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
+                { label: "Installation help", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
+            ],
+        };
+    }
+
+    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"])) {
+        return {
+            text: `${expertRecommendationText(recommendedPlan, rawInput, count)}\nTell me tank count and city for a sharper quote.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
