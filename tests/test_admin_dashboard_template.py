@@ -1409,3 +1409,45 @@ def test_flask_pages_share_explanatory_term_tooltips():
     for term in ("telemetry", "rssi", "signal", '"municipal sensor"', "health"):
         assert term in tooltip_source
     assert "global-tooltips.js" in pwa_head
+
+
+def test_customer_remaining_time_uses_live_snapshot_while_analytics_loads():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "function estimatedRemainingHours(snapshot,analytics)" in customer_template
+    assert "return remaining/liveRate" in customer_template
+    assert "const remainingHours=estimatedRemainingHours(snapshot,analytics);" in customer_template
+
+
+def test_combined_fill_status_uses_firmware_active_fill_flags():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "const sourcePumpActive=flagEnabled(snapshot.source_pump_fill_active,false);" in customer_template
+    assert "const sourceGravityActive=flagEnabled(snapshot.source_gravity_fill_active,false);" in customer_template
+    assert "const filling=sourceGravityActive||pumpActive||valveFlowActive;" in customer_template
+
+
+def test_event_log_explains_motorized_valve_state_and_water_path():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'unknown:"Position not reported"' in customer_template
+    assert 'closed:"Closed (source-tank inlet selected)"' in customer_template
+    assert 'source:"Source Tank → Upper Tank"' in customer_template
+    assert "Water path: ${valveRoute}" in customer_template
+
+
+def test_today_savings_card_does_not_request_impossible_complete_days():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'if(analyticsRangeIsToday())return{' in customer_template
+    assert 'value:"Select 7 Days"' in customer_template
+    assert "Savings compares complete days." in customer_template
+
+
+def test_all_today_usage_cards_use_today_specific_readiness_text():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'if(analyticsRangeIsToday())return"Collecting today"' in customer_template
+    assert "Today is still in progress; daily averages appear in the 7 Days view." in customer_template
+    assert "Today is still in progress; use the 7 Days view for a complete-day forecast." in customer_template
+    assert "Waiting for complete days" not in customer_template

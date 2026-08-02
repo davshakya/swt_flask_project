@@ -8958,6 +8958,8 @@ def build_motor_activity_metrics(time_values, value_values):
 
         raw_value = safe_values[index]
         if raw_value is None or raw_value == "":
+            if run_active and current_run_seconds > 0:
+                runtime_seconds = max(0.0, runtime_seconds - current_run_seconds)
             run_active = False
             off_active = False
             current_run_seconds = 0.0
