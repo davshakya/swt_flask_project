@@ -1,4 +1,4 @@
-from flask_app.rag_service import RagIndex, chunk_text, concise_answer, project_root, public_configured_roots, read_document
+from flask_app.rag_service import RagIndex, chunk_text, concise_answer, normalize_search_query, project_root, public_configured_roots, read_document
 from flask_app import rag_routes
 
 
@@ -44,6 +44,7 @@ def test_public_chat_uses_rag_without_exposing_scores(monkeypatch):
         "answer": "Grounded: How does the pump work?",
         "citations": [{"source": "docs/guide.md", "chunk": 2}],
         "generated": False,
+        "answer_source": "local_rag",
     }
 
 
@@ -111,6 +112,8 @@ def test_chatbot_handles_price_extremes_and_questions_during_booking():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     assert "wantsMinimumPrice" in template
     assert "wantsMaximumPrice" in template
+    assert '"min plan"' in template
+    assert '"max plan"' in template
     assert "The lowest published plan price" in template
     assert "the highest published starting tier" in template
     assert "chatBookingState && chatLooksLikeQuestion" in template
@@ -136,6 +139,19 @@ def test_rag_and_browser_answers_are_limited_to_three_relevant_lines():
     assert 'return [lines[0], lines[1]' in template
 
 
+def test_markdown_faq_sections_are_separate_chunks():
+    chunks = chunk_text("## Plans\n\n### Minimum plan\n\nHome Basic is lowest.\n\n### Maximum plan\n\nEnterprise is highest.", "docs/faq.md")
+    minimum = next(chunk for chunk in chunks if "Minimum plan" in chunk.text)
+    maximum = next(chunk for chunk in chunks if "Maximum plan" in chunk.text)
+    assert "Enterprise" not in minimum.text
+    assert "Home Basic" not in maximum.text
+
+
+def test_short_price_queries_are_expanded():
+    assert "Home Basic" in normalize_search_query("min plan")
+    assert "Enterprise Modular" in normalize_search_query("max plan")
+
+
 def test_concise_answer_drops_oversized_markdown_fragments():
     oversized = "- " + "irrelevant setup data " * 40
     answer = concise_answer(f"The sensor measures tank level.\n{oversized}\nThe controller receives it wirelessly.", "how device works")
@@ -148,3 +164,12 @@ def test_chatbot_answers_company_identity_and_hides_ungrounded_actions():
     assert "wantsCompanyIdentity" in template
     assert "Our company is SaleWell IoT Solutions." in template
     assert "ragResponse.citations.length ? response.actions : []" in template
+
+
+def test_troubleshooting_intents_run_before_sales_recommendations():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    for signal in ("pumpDoesNotStart", "pumpDoesNotStop", "appCannotConnect", "remoteDataStale", "tankLevelIncorrect", "deviceOffline"):
+        assert signal in template
+        assert template.index(f"if ({signal})") < template.index("if (mentionedPlan && !wantsCompare)")
+    assert '"stale"' in template
+    assert '"cannot connect"' in template

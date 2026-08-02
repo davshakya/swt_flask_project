@@ -87,22 +87,53 @@ def discover_documents(roots=None):
     return sorted(set(files))
 
 
-def chunk_text(text, source, chunk_size=1200, overlap=180):
-    clean = re.sub(r"\r\n?", "\n", text).strip()
+def _plain_chunks(text, source, first_chunk, chunk_size=1200, overlap=180):
+    """Split a single logical section without starting on a partial line."""
     chunks, start = [], 0
-    while start < len(clean):
-        end = min(len(clean), start + chunk_size)
-        if end < len(clean):
-            boundary = max(clean.rfind("\n", start, end), clean.rfind(". ", start, end))
+    while start < len(text):
+        end = min(len(text), start + chunk_size)
+        if end < len(text):
+            boundary = max(text.rfind("\n", start, end), text.rfind(". ", start, end))
             if boundary > start + chunk_size // 2:
                 end = boundary + 1
-        value = clean[start:end].strip()
+        value = text[start:end].strip()
         if value:
-            chunks.append(RagChunk(value, source, len(chunks)))
-        if end >= len(clean):
+            chunks.append(RagChunk(value, source, first_chunk + len(chunks)))
+        if end >= len(text):
             break
-        start = max(start + 1, end - overlap)
+        next_start = max(start + 1, end - overlap)
+        line_start = text.find("\n", next_start, min(len(text), end + 120))
+        start = line_start + 1 if line_start >= 0 else next_start
     return chunks
+
+
+def chunk_text(text, source, chunk_size=1200, overlap=180):
+    """Keep Markdown question/heading sections intact for accurate retrieval."""
+    clean = re.sub(r"\r\n?", "\n", text).strip()
+    if not clean:
+        return []
+    # Each Markdown heading and its body is a retrieval unit. This prevents a
+    # price or troubleshooting answer from being mixed with adjacent sections.
+    sections = re.split(r"(?=^#{2,4}\s+\S)", clean, flags=re.MULTILINE) if Path(source).suffix.lower() == ".md" else [clean]
+    chunks = []
+    for section in sections:
+        section = section.strip()
+        if section:
+            chunks.extend(_plain_chunks(section, source, len(chunks), chunk_size, overlap))
+    return chunks
+
+
+def normalize_search_query(query):
+    value = str(query or "").strip()
+    lowered = value.lower()
+    expansions = []
+    if re.search(r"\b(min|minimum|lowest|cheapest)\b", lowered):
+        expansions.append("lowest price plan Home Basic")
+    if re.search(r"\b(max|maximum|highest|costliest|most expensive)\b", lowered):
+        expansions.append("highest price plan Enterprise Modular")
+    if "stale" in lowered:
+        expansions.append("remote data stale cloud last seen connectivity")
+    return " ".join([value] + expansions)
 
 
 def read_document(path):
@@ -156,13 +187,14 @@ class RagIndex:
         if not query:
             raise ValueError("query is required")
         self.refresh()
+        search_query = normalize_search_query(query)
         if not self._chunks:
             return []
         if self._matrix is None or self._vectorizer is None or cosine_similarity is None:
-            scored = [(self._lexical_score(query, chunk.text), chunk) for chunk in self._chunks]
+            scored = [(self._lexical_score(search_query, chunk.text), chunk) for chunk in self._chunks]
             scored.sort(key=lambda item: item[0], reverse=True)
             return [RagChunk(chunk.text, chunk.source, chunk.chunk, round(score, 6)) for score, chunk in scored[:max(1, min(int(limit), 10))] if score > 0]
-        scores = cosine_similarity(self._vectorizer.transform([query]), self._matrix)[0]
+        scores = cosine_similarity(self._vectorizer.transform([search_query]), self._matrix)[0]
         ranked = scores.argsort()[::-1][:max(1, min(int(limit), 10))]
         return [RagChunk(self._chunks[i].text, self._chunks[i].source, self._chunks[i].chunk, round(float(scores[i]), 6)) for i in ranked if scores[i] > 0]
 

@@ -6692,6 +6692,19 @@ function chatLooksLikeQuestion(input) {
             "which",
             "what",
             "when",
+            "stale",
+            "cannot connect",
+            "can't connect",
+            "does not start",
+            "not starting",
+            "does not stop",
+            "not stopping",
+            "incorrect",
+            "unreachable",
+            "offline",
+            "not working",
+            "problem",
+            "issue",
         ])
     );
 }
@@ -6985,8 +6998,8 @@ function getChatbotResponse(rawInput) {
     const recommendedPlan = recommendPlan(input);
     const wantsBooking = isChatBookingIntent(input);
     const wantsPrice = chatHasAny(input, ["price", "pricing", "cost", "rate", "fee", "monthly", "subscription", "package", "quote", "charges"]);
-    const wantsMinimumPrice = chatHasAny(input, ["min price", "minimum price", "lowest price", "low price", "cheapest", "least expensive"]);
-    const wantsMaximumPrice = chatHasAny(input, ["max price", "maximum price", "highest price", "highst price", "high price", "most expensive"]);
+    const wantsMinimumPrice = chatHasAny(input, ["min price", "min plan", "minimum price", "minimum plan", "lowest price", "lowest plan", "low price", "cheapest", "cheapest plan", "least expensive"]);
+    const wantsMaximumPrice = chatHasAny(input, ["max price", "max plan", "maximum price", "maximum plan", "highest price", "highest plan", "highst price", "high price", "most expensive", "costliest plan"]);
     const wantsCompare = chatHasAny(input, ["compare", "comparison", "difference", "all plans", "plans", "which plan", "best plan", "recommend", "suggest"]);
     const wantsInstall = chatHasAny(input, ["install", "installation", "sensor", "setup", "tank height", "underground", "source", "overhead", "plumber", "site visit", "hardware"]);
     const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"]);
@@ -7001,6 +7014,54 @@ function getChatbotResponse(rawInput) {
         /how\s+(?:does\s+)?(?:this\s+)?(?:device|system|product|salewell|it)\s+(?:work|works|working)/.test(input)
     );
     const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
+    const pumpDoesNotStart = chatHasAny(input, ["pump does not start", "pump not starting", "pump won't start", "pump wont start", "motor does not start", "motor not starting"]);
+    const pumpDoesNotStop = chatHasAny(input, ["pump does not stop", "pump not stopping", "pump won't stop", "pump wont stop", "motor does not stop", "motor not stopping"]);
+    const appCannotConnect = chatHasAny(input, ["app cannot connect", "app can't connect", "app cant connect", "cannot connect locally", "local app not working"]);
+    const remoteDataStale = chatHasAny(input, ["remote information is stale", "remote data is stale", "remote status is stale", "cloud data is stale", "last seen is stale"]);
+    const tankLevelIncorrect = chatHasAny(input, ["tank level incorrect", "incorrect tank level", "wrong tank level", "level reading incorrect", "level is wrong"]);
+    const deviceOffline = chatHasAny(input, ["device offline", "controller offline", "sensor offline", "device unreachable", "controller unreachable", "sensor unreachable"]);
+
+    if (pumpDoesNotStart) {
+        return {
+            text: "The pump may be blocked by a full destination tank, unavailable source water, missing sensor data, manual mode, or a safety lockout. Check the displayed alert and physical pump panel; do not bypass protection to force a start.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (pumpDoesNotStop) {
+        return {
+            text: "Use the physical OFF control or isolate power safely, then contact a qualified electrician. Check the level sensor, stop threshold, relay/contactor feedback, and wiring before restoring automatic operation.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (appCannotConnect) {
+        return {
+            text: "Confirm the controller is powered, the phone is using the intended local connection, local-network permissions are allowed, and the correct device is selected. Local controller access and cloud login are different connection modes.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (remoteDataStale) {
+        return {
+            text: "Check controller power, site internet, cloud connectivity, and the device's last-seen time. Local automation may continue, but remote updates require the controller to reconnect to the cloud.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (tankLevelIncorrect) {
+        return {
+            text: "Check sensor angle, obstruction, condensation, tank-height calibration, inlet flow, and whether the wireless reading is fresh. Do not change automation thresholds until the level is verified safely.",
+            actions: [{ label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
+        };
+    }
+
+    if (deviceOffline) {
+        return {
+            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
 
     if (mentionedPlan && !wantsCompare) {
         return {
