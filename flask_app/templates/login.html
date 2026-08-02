@@ -6190,6 +6190,7 @@ const showPricingLinks = {{ "true" if show_pricing_links|default(false) else "fa
 let chatbotSessionCount = 1;
 let chatbotGreetingCount = 0;
 let chatbotOpenedAt = 0;
+let chatbotSubmitGuardUntil = 0;
 let whatsappDragSuppressClick = false;
 let chatbotDragSuppressClick = false;
 
@@ -6978,6 +6979,8 @@ function getChatbotResponse(rawInput) {
     const recommendedPlan = recommendPlan(input);
     const wantsBooking = isChatBookingIntent(input);
     const wantsPrice = chatHasAny(input, ["price", "pricing", "cost", "rate", "fee", "monthly", "subscription", "package", "quote", "charges"]);
+    const wantsMinimumPrice = chatHasAny(input, ["min price", "minimum price", "lowest price", "low price", "cheapest", "least expensive"]);
+    const wantsMaximumPrice = chatHasAny(input, ["max price", "maximum price", "highest price", "highst price", "high price", "most expensive"]);
     const wantsCompare = chatHasAny(input, ["compare", "comparison", "difference", "all plans", "plans", "which plan", "best plan", "recommend", "suggest"]);
     const wantsInstall = chatHasAny(input, ["install", "installation", "sensor", "setup", "tank height", "underground", "source", "overhead", "plumber", "site visit", "hardware"]);
     const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"]);
@@ -7109,6 +7112,28 @@ function getChatbotResponse(rawInput) {
         };
     }
 
+    if (wantsMinimumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Home Basic");
+        return {
+            text: `The lowest published plan price is ${plan.name} at ${plan.price}. It includes the wireless tank sensor node and main controller, but not the phone app or cloud access. Installation is quoted separately after checking the site.`,
+            actions: [
+                { label: "View Home Basic", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsMaximumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Enterprise Modular");
+        return {
+            text: `${plan.name} is the highest published starting tier: ${plan.price}. It is custom-scoped for builders, townships, industrial customers, multi-site deployments, dashboards, integrations, and bulk devices. The final price depends on the rollout.`,
+            actions: [
+                { label: "View Enterprise", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
     if (wantsGreeting) {
         chatbotGreetingCount += 1;
         return {
@@ -7161,12 +7186,34 @@ async function askChatbotKnowledgeBase(question) {
 async function submitChatbotPrompt(prompt) {
     const trimmed = prompt.trim();
     if (!trimmed) return;
+    // Mobile keyboards and disappearing fixed footers can dispatch a delayed
+    // click over the launcher after Send. Ignore that click briefly.
+    chatbotSubmitGuardUntil = Date.now() + 1800;
     setChatbotOpen(true);
     if (trimmed.toLowerCase() === "skip") {
         resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
         return;
     }
     appendChatMessage(trimmed, "user");
+    if (chatBookingState && chatLooksLikeQuestion(trimmed.toLowerCase())) {
+        const pendingField = chatBookingNextField();
+        const response = getChatbotResponse(trimmed);
+        if (response.useRag) {
+            try {
+                const ragResponse = await askChatbotKnowledgeBase(trimmed);
+                appendChatMessage(ragResponse.answer || response.text, "bot", response.actions);
+            } catch (error) {
+                console.warn("Chatbot booking-question knowledge search failed", error);
+                appendChatMessage(response.text, "bot", response.actions);
+            }
+        } else {
+            appendChatMessage(response.text, "bot", response.actions);
+        }
+        if (pendingField) {
+            appendChatMessage(`Your booking is still saved. When ready, please answer: ${pendingField.question}`, "bot");
+        }
+        return;
+    }
     if (handleChatBookingAnswer(trimmed)) {
         if (chatbotInput) chatbotInput.value = "";
         return;
@@ -7202,9 +7249,14 @@ if (whatsappFloat) {
 }
 
 if (chatbotLauncher) {
-    chatbotLauncher.addEventListener("click", () => {
+    chatbotLauncher.addEventListener("click", (event) => {
         if (chatbotDragSuppressClick) {
             chatbotDragSuppressClick = false;
+            return;
+        }
+        if (chatbot?.classList.contains("is-open") && Date.now() < chatbotSubmitGuardUntil) {
+            event.preventDefault();
+            event.stopPropagation();
             return;
         }
         setChatbotOpen(!chatbot?.classList.contains("is-open"));
@@ -7233,6 +7285,7 @@ if (chatbotSkip) {
 if (chatbotForm) {
     chatbotForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        event.stopPropagation();
         submitChatbotPrompt(chatbotInput?.value || "");
         if (chatbotInput) chatbotInput.value = "";
     });

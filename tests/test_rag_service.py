@@ -95,3 +95,20 @@ def test_homepage_greeting_is_helpful_without_forcing_a_plan_sale():
     assert "Hi! Welcome to SaleWell." in template
     assert "Hello again!" in template
     assert "chatbotGreetingCount === 1" in template
+
+
+def test_mobile_chatbot_submit_has_ghost_click_guard():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert "chatbotSubmitGuardUntil = Date.now() + 1800" in template
+    assert "Date.now() < chatbotSubmitGuardUntil" in template
+    assert 'chatbotForm.addEventListener("submit", (event) =>' in template
+
+
+def test_chatbot_handles_price_extremes_and_questions_during_booking():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert "wantsMinimumPrice" in template
+    assert "wantsMaximumPrice" in template
+    assert "The lowest published plan price" in template
+    assert "the highest published starting tier" in template
+    assert "chatBookingState && chatLooksLikeQuestion" in template
+    assert "Your booking is still saved" in template
