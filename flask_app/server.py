@@ -68,6 +68,7 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.rag_routes import public_chat_blueprint, rag_blueprint
 from flask_app.runtime_utils import (
     env_float,
     env_int,
@@ -307,6 +308,8 @@ USING_MYSQL = DB_BACKEND == "mysql"
 APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key()
 
 app = Flask(__name__)
+app.register_blueprint(rag_blueprint)
+app.register_blueprint(public_chat_blueprint)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
 CORS(app, resources={
     r"/status": {"origins": "*"},

@@ -27,7 +27,7 @@ htmlcov/
 .vscode/*
 !.vscode/
 !.vscode/settings.json
-!.vscode/pytest.env
+.vscode/pytest.env
 .DS_Store
 Thumbs.db
 

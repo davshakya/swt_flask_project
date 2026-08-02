@@ -1,0 +1,180 @@
+"""Local-document retrieval and optional grounded answer generation."""
+from dataclasses import asdict, dataclass
+import hashlib
+import os
+from pathlib import Path
+import re
+import threading
+import zipfile
+from xml.etree import ElementTree
+
+import requests
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+SUPPORTED_SUFFIXES = {".md", ".txt", ".rst", ".docx"}
+DEFAULT_EXCLUDES = {".git", ".venv", "node_modules", "mysql-data", "data"}
+
+
+@dataclass(frozen=True)
+class RagChunk:
+    text: str
+    source: str
+    chunk: int
+    score: float = 0.0
+
+    def to_dict(self):
+        return asdict(self)
+
+
+def workspace_root():
+    return Path(__file__).resolve().parents[2]
+
+
+def project_root():
+    return Path(__file__).resolve().parents[1]
+
+
+def configured_roots():
+    raw = os.environ.get("RAG_DOCUMENT_PATHS", "").strip()
+    project = project_root()
+    workspace = workspace_root()
+    if not raw:
+        return [project / "docs", project / "README.md", workspace / "docs", workspace / "README.md"]
+    result = []
+    for value in raw.split(os.pathsep):
+        path = Path(value.strip()).expanduser()
+        result.append((project / path).resolve() if not path.is_absolute() else path.resolve())
+    return result
+
+
+def public_configured_roots():
+    """Return only documents approved for anonymous website answers."""
+    raw = os.environ.get("PUBLIC_RAG_DOCUMENT_PATHS", "").strip()
+    if raw:
+        project = project_root()
+        roots = []
+        for value in raw.split(os.pathsep):
+            path = Path(value.strip()).expanduser()
+            roots.append((project / path).resolve() if not path.is_absolute() else path.resolve())
+        return roots
+    project, workspace = project_root(), workspace_root()
+    return [
+        project / "README.md",
+        project / "docs" / "CHATBOT_KNOWLEDGE_BASE.md",
+        project / "docs" / "customer_sources",
+        workspace / "docs" / "SALEWELL_FEATURES_EN.md",
+        workspace / "docs" / "SALEWELL_FEATURES_HI.md",
+        workspace / "docs" / "INSTALLATION_RULE_BOOK_HI_EN.md",
+        workspace / "docs" / "COMPONENTS_AND_BOM.md",
+        workspace / "docs" / "MODULAR_PRODUCT_ARCHITECTURE.md",
+        workspace / "Smart_Water_Tank_100_Device_Estimation.docx",
+        workspace / "Smart_Water_Tank_Controller_BOM.docx",
+    ]
+
+
+def discover_documents(roots=None):
+    files = []
+    for root in roots or configured_roots():
+        if root.is_file() and root.suffix.lower() in SUPPORTED_SUFFIXES:
+            files.append(root)
+        elif root.is_dir():
+            files.extend(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in SUPPORTED_SUFFIXES and not DEFAULT_EXCLUDES.intersection(path.parts))
+    return sorted(set(files))
+
+
+def chunk_text(text, source, chunk_size=1200, overlap=180):
+    clean = re.sub(r"\r\n?", "\n", text).strip()
+    chunks, start = [], 0
+    while start < len(clean):
+        end = min(len(clean), start + chunk_size)
+        if end < len(clean):
+            boundary = max(clean.rfind("\n", start, end), clean.rfind(". ", start, end))
+            if boundary > start + chunk_size // 2:
+                end = boundary + 1
+        value = clean[start:end].strip()
+        if value:
+            chunks.append(RagChunk(value, source, len(chunks)))
+        if end >= len(clean):
+            break
+        start = max(start + 1, end - overlap)
+    return chunks
+
+
+def read_document(path):
+    if path.suffix.lower() != ".docx":
+        return path.read_text(encoding="utf-8", errors="replace")
+    with zipfile.ZipFile(path) as archive:
+        xml = archive.read("word/document.xml")
+    root = ElementTree.fromstring(xml)
+    paragraphs = []
+    for paragraph in root.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}p"):
+        text = "".join(node.text or "" for node in paragraph.iter("{http://schemas.openxmlformats.org/wordprocessingml/2006/main}t"))
+        if text.strip():
+            paragraphs.append(text.strip())
+    return "\n".join(paragraphs)
+
+
+class RagIndex:
+    def __init__(self, roots=None):
+        self.roots, self._lock = roots, threading.Lock()
+        self._fingerprint = self._chunks = self._matrix = self._vectorizer = None
+
+    def refresh(self, force=False):
+        files = discover_documents(self.roots)
+        state = "\n".join(f"{p}:{p.stat().st_mtime_ns}:{p.stat().st_size}" for p in files)
+        fingerprint = hashlib.sha256(state.encode()).hexdigest()
+        if not force and fingerprint == self._fingerprint:
+            return len(self._chunks)
+        with self._lock:
+            chunks, root = [], workspace_root().resolve()
+            for path in files:
+                try:
+                    source = str(path.resolve().relative_to(root)).replace("\\", "/")
+                except ValueError:
+                    source = str(path.resolve())
+                chunks.extend(chunk_text(read_document(path), source))
+            vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=30000)
+            self._matrix = vectorizer.fit_transform([c.text for c in chunks]) if chunks else None
+            self._chunks, self._vectorizer, self._fingerprint = chunks, vectorizer if chunks else None, fingerprint
+        return len(self._chunks)
+
+    def search(self, query, limit=5):
+        query = str(query or "").strip()
+        if not query:
+            raise ValueError("query is required")
+        self.refresh()
+        if self._matrix is None:
+            return []
+        scores = cosine_similarity(self._vectorizer.transform([query]), self._matrix)[0]
+        ranked = scores.argsort()[::-1][:max(1, min(int(limit), 10))]
+        return [RagChunk(self._chunks[i].text, self._chunks[i].source, self._chunks[i].chunk, round(float(scores[i]), 6)) for i in ranked if scores[i] > 0]
+
+
+def _output_text(payload):
+    if payload.get("output_text"):
+        return payload["output_text"]
+    return "\n".join(part.get("text", "") for item in payload.get("output", []) for part in item.get("content", []) if part.get("type") == "output_text").strip()
+
+
+def answer_question(question, limit=5, index=None):
+    matches = (index or default_index).search(question, limit)
+    citations = [{"source": x.source, "chunk": x.chunk, "score": x.score} for x in matches]
+    if not matches:
+        return {"answer": "I could not find relevant information in the configured knowledge base.", "citations": [], "generated": False}
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        return {"answer": matches[0].text, "citations": citations, "generated": False}
+    context = "\n\n".join(f"[{i+1}] {x.source}#chunk-{x.chunk}\n{x.text}" for i, x in enumerate(matches))
+    response = requests.post(
+        os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/responses",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": os.environ.get("RAG_OPENAI_MODEL", "gpt-5-mini"), "instructions": "Answer only from the context. If insufficient, say so. Cite claims with [1], [2], etc.", "input": f"Question: {question}\n\nContext:\n{context}"},
+        timeout=float(os.environ.get("RAG_LLM_TIMEOUT_SECONDS", "30")),
+    )
+    response.raise_for_status()
+    return {"answer": _output_text(response.json()), "citations": citations, "generated": True}
+
+
+default_index = RagIndex()
+public_index = RagIndex(public_configured_roots())

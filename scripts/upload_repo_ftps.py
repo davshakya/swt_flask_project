@@ -17,6 +17,16 @@ DEFAULT_USERNAME = "swt_flask@salewell.co.in"
 DEFAULT_REMOTE_ROOT = ""
 DEFAULT_PASSWORD_ENV_VAR = "SWT_FTP_PASSWORD"
 DEFAULT_LOCAL_ROOT = Path(__file__).resolve().parent.parent
+WORKSPACE_ROOT = DEFAULT_LOCAL_ROOT.parent
+CUSTOMER_RAG_UPLOADS = {
+    WORKSPACE_ROOT / "docs" / "SALEWELL_FEATURES_EN.md": "docs/customer_sources/SALEWELL_FEATURES_EN.md",
+    WORKSPACE_ROOT / "docs" / "SALEWELL_FEATURES_HI.md": "docs/customer_sources/SALEWELL_FEATURES_HI.md",
+    WORKSPACE_ROOT / "docs" / "INSTALLATION_RULE_BOOK_HI_EN.md": "docs/customer_sources/INSTALLATION_RULE_BOOK_HI_EN.md",
+    WORKSPACE_ROOT / "docs" / "COMPONENTS_AND_BOM.md": "docs/customer_sources/COMPONENTS_AND_BOM.md",
+    WORKSPACE_ROOT / "docs" / "MODULAR_PRODUCT_ARCHITECTURE.md": "docs/customer_sources/MODULAR_PRODUCT_ARCHITECTURE.md",
+    WORKSPACE_ROOT / "Smart_Water_Tank_100_Device_Estimation.docx": "docs/customer_sources/Smart_Water_Tank_100_Device_Estimation.docx",
+    WORKSPACE_ROOT / "Smart_Water_Tank_Controller_BOM.docx": "docs/customer_sources/Smart_Water_Tank_Controller_BOM.docx",
+}
 DEFAULT_INSECURE_FTPS = True
 PROTECTED_RUNTIME_HINT = (
     "Runtime config and data are protected by default: .env files, "
@@ -153,6 +163,10 @@ def iter_upload_items(local_root: Path) -> Iterable[UploadItem]:
                 continue
             if should_include(relative_path):
                 yield UploadItem(local_path=full_path, relative_path=relative_path)
+    if local_root.resolve() == DEFAULT_LOCAL_ROOT.resolve():
+        for source, relative_path in CUSTOMER_RAG_UPLOADS.items():
+            if source.is_file():
+                yield UploadItem(local_path=source, relative_path=relative_path)
 
 
 def get_password_text(password_arg: str | None, password_env_var: str, username: str, dry_run: bool) -> str:

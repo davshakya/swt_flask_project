@@ -7119,6 +7119,7 @@ function getChatbotResponse(rawInput) {
 
     return {
         text: "I can help with complete product information, plans, price, pump control, overflow, leakage, installation type, app access, and NCR availability.\nTry: 'home 1 tank', 'RWA 10 tanks', or 'price of Home Control'.",
+        useRag: true,
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
@@ -7127,7 +7128,18 @@ function getChatbotResponse(rawInput) {
     };
 }
 
-function submitChatbotPrompt(prompt) {
+async function askChatbotKnowledgeBase(question) {
+    const response = await fetch("{{ url_for('public_rag_chat.public_chat') }}", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({question}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Knowledge search failed");
+    return payload;
+}
+
+async function submitChatbotPrompt(prompt) {
     const trimmed = prompt.trim();
     if (!trimmed) return;
     setChatbotOpen(true);
@@ -7148,6 +7160,16 @@ function submitChatbotPrompt(prompt) {
         return;
     }
     const response = getChatbotResponse(trimmed);
+    if (response.useRag) {
+        try {
+            const ragResponse = await askChatbotKnowledgeBase(trimmed);
+            appendChatMessage(ragResponse.answer || response.text, "bot", response.actions);
+        } catch (error) {
+            console.warn("Chatbot knowledge search failed", error);
+            appendChatMessage(response.text, "bot", response.actions);
+        }
+        return;
+    }
     window.setTimeout(() => appendChatMessage(response.text, "bot", response.actions), 180);
 }
 

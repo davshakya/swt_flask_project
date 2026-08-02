@@ -94,6 +94,73 @@ Simulator prerequisites, workflows, transitions, and troubleshooting are in [`..
 5. Browser or mobile control actions queue commands in `device_command_queue`; optional integrations can relay selected payloads when configured.
 6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
 
+## MCP Server and RAG
+
+The backend now includes local-document RAG and a stdio MCP server. It indexes
+this project's `README.md` and `docs/` first, plus workspace-level `../docs`
+and `../README.md` when they exist. Set
+`RAG_DOCUMENT_PATHS` to an OS-path-separator-delimited list of other Markdown,
+text, reStructuredText, or DOCX files/directories. Relative paths start from
+`swt_flask_project`, so `RAG_DOCUMENT_PATHS=README.md:docs` works on Linux.
+
+Anonymous homepage answers use a separate customer-safe allowlist. By default
+it includes the public product README, chatbot knowledge base, English/Hindi
+feature guides, installation rule book, components/BOM, modular architecture,
+and customer BOM/estimation DOCX files. Internal production, Jenkins, pytest,
+and maintenance documents are excluded. Override this list only with
+visitor-safe paths using `PUBLIC_RAG_DOCUMENT_PATHS`.
+
+The FTPS uploader packages workspace-level customer sources into
+`docs/customer_sources/` on the hosted Flask application, so the curated
+corpus remains available on cPanel even when only `swt_flask_project` is
+uploaded. Runtime configuration files and internal workspace documents remain
+excluded.
+
+For HTTP access, set `RAG_ENABLED=true` and a strong `RAG_API_KEY`, then send
+the key as `Authorization: Bearer <RAG_API_KEY>` (an authenticated dashboard
+session also works):
+
+```bash
+curl -X POST http://localhost:8000/api/rag/ask \
+  -H "Authorization: Bearer $RAG_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How does overflow protection work?"}'
+```
+
+The routes are `POST /api/rag/search`, `POST /api/rag/ask`, and
+`POST /api/rag/refresh`. Retrieval uses the existing scikit-learn dependency
+and works without a cloud key. With `OPENAI_API_KEY` configured, `/ask`
+generates a grounded answer with source citations; without it, the endpoint
+returns the strongest matching source passage.
+
+The existing homepage chatbot keeps its deterministic pricing, plan, booking,
+and contact flows. Questions that do not match those flows fall back to the
+chatbot-specific `POST /chatbot/ask` handler, which searches the same RAG index without exposing
+`RAG_API_KEY` to the browser. This public route limits question length and
+requests per client; tune `PUBLIC_RAG_RATE_LIMIT`,
+`PUBLIC_RAG_RATE_WINDOW_SECONDS`, and `PUBLIC_RAG_MAX_QUESTION_LENGTH` for the
+production traffic profile. Only place visitor-safe content in configured RAG
+document paths.
+
+Install its optional dependency with `pip install -r requirements-mcp.txt`,
+then start the MCP server from `swt_flask_project` with `python mcp_server.py`. A
+typical MCP client configuration is:
+
+```json
+{
+  "mcpServers": {
+    "salewell-smart-tank": {
+      "command": "python",
+      "args": ["D:/all_swt_project/swt_flask_project/mcp_server.py"]
+    }
+  }
+}
+```
+
+The MCP tools are `search_knowledge_base`, `ask_knowledge_base`, and
+`refresh_knowledge_base`. The stdio server is intended to be launched by a
+trusted local MCP client; it does not expose a network listener.
+
 Pump `Start` and `Stop` commands are logical commands. On current default
 firmware they become short relay pulses for the physical green Start and red
 Stop/open circuits. Old maintained-relay firmware can still interpret them as
