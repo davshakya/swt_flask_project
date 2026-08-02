@@ -77,7 +77,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260731-1'" in login_template
+    assert "water_flow_animation.html', v='20260802-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
@@ -90,6 +90,10 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     assert 'class="preview-dashboard-frame"' in login_template
     assert 'title="Interactive Smart Water Tank Flow dashboard"' in login_template
     assert 'id="dashboardPreviewFrame"' in login_template
+    assert 'src="about:blank"' in login_template
+    assert 'data-dashboard-src="{{ url_for(' in login_template
+    assert 'fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})' in login_template
+    assert "frame.srcdoc = documentSource" in login_template
     assert 'new ResizeObserver(fitDashboardPreview).observe(viewport)' in login_template
     assert 'id="waterPlanSlider"' not in login_template
     assert "data-plan-slide" not in login_template

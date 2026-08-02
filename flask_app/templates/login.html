@@ -4567,7 +4567,7 @@ caret-color:#67e8f9;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual" aria-label="Animated smart water tank dashboard">
-                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager"></iframe>
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="about:blank" data-dashboard-src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260802-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager" sandbox="allow-scripts"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -7660,6 +7660,18 @@ if (demoStoryboard && demoScenes.length) {
     const frame = document.getElementById("dashboardPreviewFrame");
     const viewport = frame?.parentElement;
     if (!frame || !viewport) return;
+    const dashboardSource = frame.dataset.dashboardSrc;
+    if (dashboardSource) {
+        fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})
+            .then((response) => {
+                if (!response.ok) throw new Error(`Dashboard preview returned ${response.status}`);
+                return response.text();
+            })
+            .then((documentSource) => { frame.srcdoc = documentSource; })
+            .catch(() => {
+                frame.srcdoc = "<style>body{margin:0;background:#071a34;color:#d7efff;font:700 28px system-ui;display:grid;place-items:center;text-align:center;height:100vh}a{color:#72e7ff}</style><a href='" + dashboardSource + "' target='_blank'>Open dashboard preview</a>";
+            });
+    }
     const fitDashboardPreview = () => {
         const scale = Math.min(viewport.clientWidth / 1400, viewport.clientHeight / 1050);
         frame.style.setProperty("--dashboard-preview-scale", String(scale));
