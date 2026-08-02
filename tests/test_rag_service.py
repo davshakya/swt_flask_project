@@ -1,4 +1,4 @@
-from flask_app.rag_service import RagIndex, chunk_text, project_root, public_configured_roots, read_document
+from flask_app.rag_service import RagIndex, chunk_text, concise_answer, project_root, public_configured_roots, read_document
 from flask_app import rag_routes
 
 
@@ -66,6 +66,7 @@ def test_public_corpus_excludes_internal_operations_documents():
     names = {path.name for path in public_configured_roots()}
     assert "CHATBOT_KNOWLEDGE_BASE.md" in names
     assert "SALEWELL_FEATURES_EN.md" in names
+    assert "README.md" not in names
     assert "PRODUCTION_READINESS.md" not in names
     assert "JENKINS_WSL_PIPELINES.md" not in names
 
@@ -112,3 +113,21 @@ def test_chatbot_handles_price_extremes_and_questions_during_booking():
     assert "the highest published starting tier" in template
     assert "chatBookingState && chatLooksLikeQuestion" in template
     assert "Your booking is still saved" in template
+    assert template.index("if (wantsMinimumPrice)") < template.index("if (wantsCompare || wantsPrice)")
+    assert template.index("if (wantsMaximumPrice)") < template.index("if (wantsCompare || wantsPrice)")
+
+
+def test_chatbot_explains_how_the_product_works_without_raw_rag_docs():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert "wantsHowItWorks" in template
+    assert "SaleWell uses a sensor node near the water tank" in template
+    assert template.index("if (wantsHowItWorks)") < template.index("if (wantsCompare || wantsPrice)")
+
+
+def test_rag_and_browser_answers_are_limited_to_three_relevant_lines():
+    answer = concise_answer("Setup details are unrelated.\nPump safety uses a contactor. It protects the controller. Verify manual stop. Extra sentence.", "pump safety contactor")
+    assert 1 <= len(answer.splitlines()) <= 3
+    assert "Pump safety" in answer
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert 'lines.slice(2).join(" ")' in template
+    assert 'return [lines[0], lines[1]' in template

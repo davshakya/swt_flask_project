@@ -64,7 +64,6 @@ def public_configured_roots():
         return roots
     project, workspace = project_root(), workspace_root()
     return [
-        project / "README.md",
         project / "docs" / "CHATBOT_KNOWLEDGE_BASE.md",
         project / "docs" / "customer_sources",
         workspace / "docs" / "SALEWELL_FEATURES_EN.md",
@@ -173,6 +172,22 @@ def _output_text(payload):
     return "\n".join(part.get("text", "") for item in payload.get("output", []) for part in item.get("content", []) if part.get("type") == "output_text").strip()
 
 
+def concise_answer(text, question="", max_sentences=3):
+    clean = re.sub(r"```.*?```", " ", str(text or ""), flags=re.DOTALL)
+    clean = re.sub(r"^\s{0,3}#{1,6}\s*", "", clean, flags=re.MULTILINE)
+    clean = re.sub(r"[`*_>|]", "", clean)
+    clean = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", clean)
+    candidates = [item.strip(" -\t\r\n") for item in re.split(r"(?<=[.!?])\s+|\n+", clean) if item.strip(" -\t\r\n")]
+    query_words = set(re.findall(r"[a-z0-9]+", str(question).lower()))
+    ranked = sorted(
+        enumerate(candidates),
+        key=lambda item: (-len(query_words.intersection(re.findall(r"[a-z0-9]+", item[1].lower()))), item[0]),
+    )
+    selected_indexes = sorted(index for index, _ in ranked[:max_sentences])
+    selected = [candidates[index] for index in selected_indexes]
+    return "\n".join(selected)[:700].strip()
+
+
 def answer_question(question, limit=5, index=None):
     matches = (index or default_index).search(question, limit)
     citations = [{"source": x.source, "chunk": x.chunk, "score": x.score} for x in matches]
@@ -180,16 +195,16 @@ def answer_question(question, limit=5, index=None):
         return {"answer": "I could not find relevant information in the configured knowledge base.", "citations": [], "generated": False}
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return {"answer": matches[0].text, "citations": citations, "generated": False}
+        return {"answer": concise_answer(matches[0].text, question), "citations": citations, "generated": False}
     context = "\n\n".join(f"[{i+1}] {x.source}#chunk-{x.chunk}\n{x.text}" for i, x in enumerate(matches))
     response = requests.post(
         os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/") + "/responses",
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json={"model": os.environ.get("RAG_OPENAI_MODEL", "gpt-5-mini"), "instructions": "Answer only from the context. If insufficient, say so. Cite claims with [1], [2], etc.", "input": f"Question: {question}\n\nContext:\n{context}"},
+        json={"model": os.environ.get("RAG_OPENAI_MODEL", "gpt-5-mini"), "instructions": "Answer only from the context in 2 or 3 short lines and at most 70 words. Give only the directly relevant answer; never include setup, configuration, code, or unrelated details. If context is insufficient, say so briefly.", "input": f"Question: {question}\n\nContext:\n{context}"},
         timeout=float(os.environ.get("RAG_LLM_TIMEOUT_SECONDS", "30")),
     )
     response.raise_for_status()
-    return {"answer": _output_text(response.json()), "citations": citations, "generated": True}
+    return {"answer": concise_answer(_output_text(response.json()), question), "citations": citations, "generated": True}
 
 
 default_index = RagIndex()

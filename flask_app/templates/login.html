@@ -6387,11 +6387,17 @@ function scrollChatToBottom() {
     });
 }
 
+function conciseChatbotText(text) {
+    const lines = String(text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length <= 3) return lines.join("\n");
+    return [lines[0], lines[1], lines.slice(2).join(" ")].join("\n");
+}
+
 function appendChatMessage(text, sender = "bot", actions = []) {
     if (!chatbotMessages) return;
     const message = document.createElement("div");
     message.className = `chatbot-message is-${sender === "user" ? "user" : "bot"}`;
-    message.textContent = text;
+    message.textContent = sender === "user" ? text : conciseChatbotText(text);
 
     const visibleActions = actions.filter((action) => {
         if (showPricingLinks) return true;
@@ -6989,6 +6995,7 @@ function getChatbotResponse(rawInput) {
     const wantsCoverage = chatHasAny(input, ["delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "area", "available", "location"]);
     const wantsDashboard = chatHasAny(input, ["app", "dashboard", "login", "mobile", "notification", "alert"]);
     const wantsProductInfo = chatHasAny(input, ["product", "complete information", "full information", "details", "features", "included", "include", "add-on", "addon", "module", "hardware", "kit"]);
+    const wantsHowItWorks = chatHasAny(input, ["how it works", "how does it work", "how this works", "working process", "explain working"]);
     const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
 
     if (mentionedPlan && !wantsCompare) {
@@ -7006,6 +7013,38 @@ function getChatbotResponse(rawInput) {
             text: `Sure. I can book a demo.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
+            ],
+        };
+    }
+
+    if (wantsMinimumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Home Basic");
+        return {
+            text: `The lowest published plan price is ${plan.name} at ${plan.price}. It includes the wireless tank sensor node and main controller, but not the phone app or cloud access. Installation is quoted separately after checking the site.`,
+            actions: [
+                { label: "View Home Basic", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsMaximumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Enterprise Modular");
+        return {
+            text: `${plan.name} is the highest published starting tier: ${plan.price}. It is custom-scoped for builders, townships, industrial customers, multi-site deployments, dashboards, integrations, and bulk devices. The final price depends on the rollout.`,
+            actions: [
+                { label: "View Enterprise", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsHowItWorks) {
+        return {
+            text: "SaleWell uses a sensor node near the water tank to measure the level and send it wirelessly to the main controller near the pump panel. The controller shows the level and, when pump automation is installed, applies configured start, stop, overflow, and source-water safety rules. Local control continues without cloud access. Eligible app and cloud plans add phone monitoring, remote access, history, alerts, reports, and analytics.",
+            actions: [
+                { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
+                { label: "Installation details", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
             ],
         };
     }
@@ -7108,28 +7147,6 @@ function getChatbotResponse(rawInput) {
             actions: [
                 { label: "Book dashboard demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
                 { label: "Download app", href: "{{ url_for('android_app_download') }}" },
-            ],
-        };
-    }
-
-    if (wantsMinimumPrice) {
-        const plan = chatPlanCatalog.find((item) => item.name === "Home Basic");
-        return {
-            text: `The lowest published plan price is ${plan.name} at ${plan.price}. It includes the wireless tank sensor node and main controller, but not the phone app or cloud access. Installation is quoted separately after checking the site.`,
-            actions: [
-                { label: "View Home Basic", href: selectedPlanUrl(plan.name, plan.segment) },
-                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
-            ],
-        };
-    }
-
-    if (wantsMaximumPrice) {
-        const plan = chatPlanCatalog.find((item) => item.name === "Enterprise Modular");
-        return {
-            text: `${plan.name} is the highest published starting tier: ${plan.price}. It is custom-scoped for builders, townships, industrial customers, multi-site deployments, dashboards, integrations, and bulk devices. The final price depends on the rollout.`,
-            actions: [
-                { label: "View Enterprise", href: selectedPlanUrl(plan.name, plan.segment) },
-                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
             ],
         };
     }
