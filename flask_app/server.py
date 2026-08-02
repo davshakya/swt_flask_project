@@ -310,12 +310,20 @@ APP_SECRET_KEY, APP_SECRET_KEY_SOURCE = resolve_app_secret_key()
 app = Flask(__name__)
 app.register_blueprint(rag_blueprint)
 app.register_blueprint(public_chat_blueprint)
-app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
-CORS(app, resources={
-    r"/status": {"origins": "*"},
-    r"/device/command": {"origins": "*"},
-    r"/health": {"origins": "*"},
-})
+if os.environ.get("TRUST_PROXY_HEADERS", "false").strip().lower() in {"1", "true", "yes", "on"}:
+    # Enable only when the app is reachable exclusively through one trusted proxy.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+cors_allowed_origins = [
+    origin.strip()
+    for origin in os.environ.get("SWT_CORS_ALLOWED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if cors_allowed_origins:
+    CORS(app, resources={
+        r"/status": {"origins": cors_allowed_origins},
+        r"/device/command": {"origins": cors_allowed_origins},
+        r"/health": {"origins": cors_allowed_origins},
+    })
 app.config["JSON_SORT_KEYS"] = False
 app.secret_key = APP_SECRET_KEY
 app.config["SESSION_COOKIE_HTTPONLY"] = True
