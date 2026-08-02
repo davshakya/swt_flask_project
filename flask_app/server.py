@@ -385,7 +385,12 @@ def service_worker():
     return response
 @app.after_request
 def apply_security_headers(response):
-    response.headers.setdefault("X-Frame-Options", "DENY")
+    if request.path == "/static/marketing/water_flow_animation.html":
+        # The public homepage embeds this first-party dashboard preview. Keep it
+        # protected from cross-site framing while allowing the same origin iframe.
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    else:
+        response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("Referrer-Policy", "same-origin")
     response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")

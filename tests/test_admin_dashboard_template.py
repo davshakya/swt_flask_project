@@ -95,6 +95,14 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     assert "data-plan-slide" not in login_template
 
 
+def test_embedded_dashboard_allows_only_same_origin_framing():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'request.path == "/static/marketing/water_flow_animation.html"' in server_source
+    assert 'response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")' in server_source
+    assert 'response.headers.setdefault("X-Frame-Options", "DENY")' in server_source
+
+
 def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 
