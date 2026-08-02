@@ -84,6 +84,17 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
+def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'class="preview-dashboard-frame"' in login_template
+    assert 'title="Interactive Smart Water Tank Flow dashboard"' in login_template
+    assert 'id="dashboardPreviewFrame"' in login_template
+    assert 'new ResizeObserver(fitDashboardPreview).observe(viewport)' in login_template
+    assert 'id="waterPlanSlider"' not in login_template
+    assert "data-plan-slide" not in login_template
+
+
 def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 
@@ -183,15 +194,15 @@ def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_
     assert "Direct municipal setup requires a healthy water-availability input" in animation
 
 
-def test_homepage_uses_fading_water_plan_preview_slider():
+def test_homepage_replaces_picture_slider_with_animated_dashboard():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
-    assert 'id="waterPlanSlider"' in template
-    assert template.count("marketing/water-plan-slides/") == 8
-    assert template.count('<figure class="preview-slide') == 8
-    assert template.count('<button class="preview-slider-dot') == 8
-    assert "transition:opacity 1s ease,visibility 1s ease" in template
-    assert "smart-water-tank-hero-ai.png') }}\" alt=\"AI-generated rooftop smart water tank" not in template
+    assert 'class="preview-dashboard-frame"' in template
+    assert "marketing/water_flow_animation.html" in template
+    assert 'id="waterPlanSlider"' not in template
+    assert "marketing/water-plan-slides/" not in template
+    assert '<figure class="preview-slide' not in template
+    assert '<button class="preview-slider-dot' not in template
 
 
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
@@ -1451,3 +1462,12 @@ def test_all_today_usage_cards_use_today_specific_readiness_text():
     assert "Today is still in progress; daily averages appear in the 7 Days view." in customer_template
     assert "Today is still in progress; use the 7 Days view for a complete-day forecast." in customer_template
     assert "Waiting for complete days" not in customer_template
+
+
+def test_login_modal_has_scoped_high_contrast_theme():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'id="swt-login-modal-contrast-fix"' in login_template
+    assert "#loginModal .modal-panel" in login_template
+    assert "background:#102f39!important" in login_template
+    assert "-webkit-text-fill-color:#f4fcfd!important" in login_template

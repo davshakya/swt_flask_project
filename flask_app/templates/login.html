@@ -965,62 +965,17 @@ background:#0d2b34;
 border:1px solid var(--line);
 box-shadow:0 20px 48px rgba(6,40,49,.2);
 }
-.preview-slider{
+.preview-dashboard-frame{
 position:absolute;
-inset:0;
-}
-.preview-slide{
-position:absolute;
-inset:0;
-width:100%;
-height:100%;
-margin:0;
-opacity:0;
-visibility:hidden;
-transition:opacity 1s ease,visibility 1s ease;
-}
-.preview-slide.is-active{
-opacity:1;
-visibility:visible;
-z-index:1;
-}
-.preview-slide img{
-width:100%;
-height:100%;
-object-fit:cover;
-object-position:center;
-}
-.preview-slider-nav{
-position:absolute;
-z-index:3;
-left:50%;
-bottom:12px;
-display:flex;
-gap:7px;
-padding:7px 9px;
-border:1px solid rgba(255,255,255,.16);
-border-radius:999px;
-background:rgba(5,23,45,.76);
-backdrop-filter:blur(10px);
-transform:translateX(-50%);
-}
-.preview-slider-dot{
-width:9px;
-height:9px;
-padding:0;
+inset:0 auto auto 0;
+display:block;
+width:1400px;
+height:1050px;
 border:0;
-border-radius:50%;
-background:#8298b5;
-cursor:pointer;
-transition:width .3s ease,background .3s ease;
+background:#071f3f;
+transform:scale(var(--dashboard-preview-scale,.4));
+transform-origin:top left;
 }
-.preview-slider-dot.is-active{
-width:25px;
-border-radius:999px;
-background:#35dcbd;
-}
-.preview-slider-dot:focus-visible{outline:2px solid #fff;outline-offset:3px}
-@media (prefers-reduced-motion:reduce){.preview-slide{transition:none}}
 .preview-overlay{
 position:absolute;
 padding:10px 12px;
@@ -4489,6 +4444,35 @@ min-width:0;
 @media(max-width:760px){body{padding-bottom:54px}.confidence-grid{grid-template-columns:1fr}.trust-grid,.price-preview-grid{grid-template-columns:1fr}.conversion-strip{align-items:stretch;flex-direction:column}.conversion-actions>*{flex:1}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;left:10px;right:10px;bottom:6px;z-index:90;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(244,252,252,.96);box-shadow:0 6px 20px rgba(9,47,58,.18);backdrop-filter:blur(14px)}body.chatbot-open .mobile-contact-bar{display:none}.mobile-contact-bar a,.mobile-contact-bar button{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;height:38px;min-height:38px;max-height:38px;margin:0;padding:4px 2px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:linear-gradient(135deg,#159eb4,#137d90);color:#fff;font-family:inherit;font-size:9px;font-weight:800;line-height:1;text-align:center;text-decoration:none;white-space:nowrap;overflow:hidden;box-shadow:none;cursor:pointer}.mobile-contact-bar .contact-tab,.mobile-contact-bar .contact-tab:link,.mobile-contact-bar .contact-tab:visited,.mobile-contact-bar .contact-tab:hover,.mobile-contact-bar .contact-tab:focus,.mobile-contact-bar .contact-tab:active{background:linear-gradient(135deg,#159eb4,#137d90);color:#fff!important;-webkit-text-fill-color:#fff;text-decoration:none;transform:none}.mobile-contact-bar a span,.mobile-contact-bar button span{display:block;min-width:0;margin:0;color:inherit;font:inherit;line-height:1;letter-spacing:0;white-space:nowrap}.mobile-contact-bar .contact-icon{display:block;flex:0 0 13px;width:13px;height:13px;fill:currentColor;color:inherit}.mobile-contact-bar .whatsapp-icon{color:inherit}.whatsapp-float{display:none}.site-chatbot:not(.is-open) .chatbot-launcher{display:none}.enquiry-modal{z-index:120}.comparison-table th:first-child,.comparison-table td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}.comparison-table th:first-child{z-index:2}.hero-actions>*{flex:1;min-width:140px}}
 </style>
 {% include '_theme_overrides.html' %}
+<style id="swt-login-modal-contrast-fix">
+#loginModal .modal-panel{
+background:linear-gradient(180deg,#0d2b35 0%,#071f28 100%);
+border-color:rgba(157,220,232,.28);
+color:#f1fbfd;
+}
+#loginModal .modal-header h2,
+#loginModal .login-pane h3{color:#f1fbfd;}
+#loginModal .modal-header p,
+#loginModal .login-pane p{color:#c3dce1;}
+#loginModal .eyebrow{color:#64d9ea;background:rgba(36,181,205,.13);}
+#loginModal .toggle-button{background:#153640;color:#dff6f9;border-color:rgba(157,220,232,.2);}
+#loginModal .toggle-button.is-active{background:#176477;color:#fff;border-color:#39bfd4;box-shadow:0 0 0 3px rgba(57,191,212,.15);}
+#loginModal .login-help{background:#13333d;color:#d8edf1;border-color:rgba(157,220,232,.16);}
+#loginModal .login-help a{color:#72c7ff;}
+#loginModal .group label{color:#cce6eb;}
+#loginModal .portal-form input:not([type="hidden"]){
+color-scheme:dark;
+background:#102f39!important;
+border-color:rgba(157,220,232,.28)!important;
+color:#f4fcfd!important;
+caret-color:#67e8f9;
+-webkit-text-fill-color:#f4fcfd!important;
+}
+#loginModal .portal-form input:not([type="hidden"])::placeholder{color:#9fc2c9!important;-webkit-text-fill-color:#9fc2c9!important;}
+#loginModal .portal-form input:not([type="hidden"]):focus{border-color:#42c7dc!important;box-shadow:0 0 0 4px rgba(66,199,220,.18);outline:none;}
+#loginModal .password-toggle{color:#aee5ee;}
+#loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
+</style>
 </head>
 <body data-default-login-mode="{{ login_mode }}">
 <div class="page">
@@ -4582,27 +4566,8 @@ min-width:0;
         </div>
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
-            <div class="preview-visual" id="waterPlanSlider" aria-label="Animated water-supply plan previews" aria-roledescription="carousel">
-                <div class="preview-slider" aria-live="off">
-                    <figure class="preview-slide is-active" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-source.jpg') }}" alt="Municipal water gravity-filling the source tank plan." width="1280" height="960" loading="eager" decoding="async" fetchpriority="high"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-upper.jpg') }}" alt="Municipal water pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-pump-fill.jpg') }}" alt="Municipal water pumping to the source tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-upper.jpg') }}" alt="Source tank pumping to the upper tank while municipal water gravity-fills the source plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-only.jpg') }}" alt="Source-only tank pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/borewell.jpg') }}" alt="Borewell submersible pump filling the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/idle.jpg') }}" alt="Water-supply plan idle with tanks satisfied." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/failsafe.jpg') }}" alt="Water-supply sensor fault fail-safe plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                </div>
-                <div class="preview-slider-nav" aria-label="Choose a water-supply plan preview">
-                    <button class="preview-slider-dot is-active" type="button" data-plan-dot aria-label="Show municipal gravity plan" aria-current="true"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-upper plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-source pump plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-to-upper plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-only plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show borewell plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show idle plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show fail-safe plan"></button>
-                </div>
+            <div class="preview-visual" aria-label="Animated smart water tank dashboard">
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -7689,56 +7654,20 @@ if (demoStoryboard && demoScenes.length) {
 
 })();
 </script>
+{% include '_pwa_install.html' %}
 <script>
 (() => {
-    const slider = document.getElementById("waterPlanSlider");
-    if (!slider) return;
-    const slides = [...slider.querySelectorAll("[data-plan-slide]")];
-    const dots = [...slider.querySelectorAll("[data-plan-dot]")];
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let activeIndex = 0;
-    let rotationTimer = null;
-
-    const showSlide = (index) => {
-        activeIndex = (index + slides.length) % slides.length;
-        slides.forEach((slide, slideIndex) => {
-            const active = slideIndex === activeIndex;
-            slide.classList.toggle("is-active", active);
-            slide.setAttribute("aria-hidden", String(!active));
-        });
-        dots.forEach((dot, dotIndex) => {
-            const active = dotIndex === activeIndex;
-            dot.classList.toggle("is-active", active);
-            if (active) dot.setAttribute("aria-current", "true");
-            else dot.removeAttribute("aria-current");
-        });
+    const frame = document.getElementById("dashboardPreviewFrame");
+    const viewport = frame?.parentElement;
+    if (!frame || !viewport) return;
+    const fitDashboardPreview = () => {
+        const scale = Math.min(viewport.clientWidth / 1400, viewport.clientHeight / 1050);
+        frame.style.setProperty("--dashboard-preview-scale", String(scale));
     };
-    const stopRotation = () => {
-        window.clearInterval(rotationTimer);
-        rotationTimer = null;
-    };
-    const startRotation = () => {
-        stopRotation();
-        if (reducedMotion.matches || document.hidden) return;
-        rotationTimer = window.setInterval(() => showSlide(activeIndex + 1), 5000);
-    };
-
-    dots.forEach((dot, index) => dot.addEventListener("click", () => {
-        showSlide(index);
-        startRotation();
-    }));
-    slider.addEventListener("pointerenter", stopRotation);
-    slider.addEventListener("pointerleave", startRotation);
-    slider.addEventListener("focusin", stopRotation);
-    slider.addEventListener("focusout", (event) => {
-        if (!slider.contains(event.relatedTarget)) startRotation();
-    });
-    document.addEventListener("visibilitychange", startRotation);
-    if (typeof reducedMotion.addEventListener === "function") reducedMotion.addEventListener("change", startRotation);
-    showSlide(0);
-    startRotation();
+    if (typeof ResizeObserver === "function") new ResizeObserver(fitDashboardPreview).observe(viewport);
+    window.addEventListener("resize", fitDashboardPreview, {passive:true});
+    fitDashboardPreview();
 })();
 </script>
-{% include '_pwa_install.html' %}
 </body>
 </html>
