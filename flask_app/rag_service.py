@@ -9,8 +9,12 @@ import zipfile
 from xml.etree import ElementTree
 
 import requests
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+except Exception:  # Keep Passenger online when optional ML wheels are unavailable.
+    TfidfVectorizer = None
+    cosine_similarity = None
 
 SUPPORTED_SUFFIXES = {".md", ".txt", ".rst", ".docx"}
 DEFAULT_EXCLUDES = {".git", ".venv", "node_modules", "mysql-data", "data"}
@@ -134,18 +138,30 @@ class RagIndex:
                 except ValueError:
                     source = str(path.resolve())
                 chunks.extend(chunk_text(read_document(path), source))
-            vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=30000)
-            self._matrix = vectorizer.fit_transform([c.text for c in chunks]) if chunks else None
-            self._chunks, self._vectorizer, self._fingerprint = chunks, vectorizer if chunks else None, fingerprint
+            vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=30000) if TfidfVectorizer else None
+            self._matrix = vectorizer.fit_transform([c.text for c in chunks]) if chunks and vectorizer else None
+            self._chunks, self._vectorizer, self._fingerprint = chunks, vectorizer, fingerprint
         return len(self._chunks)
+
+    @staticmethod
+    def _lexical_score(query, text):
+        query_words = set(re.findall(r"[a-z0-9]+", query.lower()))
+        text_words = set(re.findall(r"[a-z0-9]+", text.lower()))
+        if not query_words:
+            return 0.0
+        return len(query_words.intersection(text_words)) / len(query_words)
 
     def search(self, query, limit=5):
         query = str(query or "").strip()
         if not query:
             raise ValueError("query is required")
         self.refresh()
-        if self._matrix is None:
+        if not self._chunks:
             return []
+        if self._matrix is None or self._vectorizer is None or cosine_similarity is None:
+            scored = [(self._lexical_score(query, chunk.text), chunk) for chunk in self._chunks]
+            scored.sort(key=lambda item: item[0], reverse=True)
+            return [RagChunk(chunk.text, chunk.source, chunk.chunk, round(score, 6)) for score, chunk in scored[:max(1, min(int(limit), 10))] if score > 0]
         scores = cosine_similarity(self._vectorizer.transform([query]), self._matrix)[0]
         ranked = scores.argsort()[::-1][:max(1, min(int(limit), 10))]
         return [RagChunk(self._chunks[i].text, self._chunks[i].source, self._chunks[i].chunk, round(float(scores[i]), 6)) for i in ranked if scores[i] > 0]

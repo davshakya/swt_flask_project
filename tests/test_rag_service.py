@@ -16,6 +16,16 @@ def test_index_returns_grounded_results(tmp_path):
     assert results[0].score > 0
 
 
+def test_index_has_lexical_fallback_without_sklearn(tmp_path, monkeypatch):
+    import flask_app.rag_service as service
+
+    (tmp_path / "support.md").write_text("Pump contactor safety and manual stop guidance.", encoding="utf-8")
+    monkeypatch.setattr(service, "TfidfVectorizer", None)
+    monkeypatch.setattr(service, "cosine_similarity", None)
+    results = service.RagIndex([tmp_path]).search("pump safety", limit=1)
+    assert results and results[0].source.endswith("support.md")
+
+
 def test_public_chat_uses_rag_without_exposing_scores(monkeypatch):
     from flask import Flask
 

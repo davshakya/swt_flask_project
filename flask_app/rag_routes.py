@@ -16,12 +16,13 @@ def require_rag_auth():
     if os.environ.get("RAG_ENABLED", "false").lower() not in {"1", "true", "yes", "on"}:
         return jsonify({"error": "RAG is disabled"}), 404
     configured = os.environ.get("RAG_API_KEY", "").strip()
-    supplied = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    authorization = request.headers.get("Authorization", "").strip()
+    supplied = authorization[7:].strip() if authorization.startswith("Bearer ") else ""
     if not session.get("logged_in") and not (configured and supplied and secrets.compare_digest(configured, supplied)):
         return jsonify({"error": "authentication required"}), 401
 
 
-@rag_blueprint.post("/search")
+@rag_blueprint.route("/search", methods=["POST"])
 def search():
     payload = request.get_json(silent=True) or {}
     try:
@@ -30,7 +31,7 @@ def search():
         return jsonify({"error": str(exc)}), 400
 
 
-@rag_blueprint.post("/ask")
+@rag_blueprint.route("/ask", methods=["POST"])
 def ask():
     payload = request.get_json(silent=True) or {}
     try:
@@ -41,7 +42,7 @@ def ask():
         return jsonify({"error": "answer generation failed"}), 502
 
 
-@rag_blueprint.post("/refresh")
+@rag_blueprint.route("/refresh", methods=["POST"])
 def refresh():
     return jsonify({"chunks": default_index.refresh(force=True)})
 
@@ -65,7 +66,7 @@ def _public_chat_rate_allowed(client_id):
         return True
 
 
-@public_chat_blueprint.post("/chatbot/ask")
+@public_chat_blueprint.route("/chatbot/ask", methods=["POST"])
 def public_chat():
     if os.environ.get("RAG_ENABLED", "false").lower() not in {"1", "true", "yes", "on"}:
         return jsonify({"error": "The knowledge assistant is currently unavailable."}), 503
