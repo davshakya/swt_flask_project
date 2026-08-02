@@ -7129,7 +7129,10 @@ function getChatbotResponse(rawInput) {
 }
 
 async function askChatbotKnowledgeBase(question) {
-    const response = await fetch("{{ url_for('public_rag_chat.public_chat') }}", {
+    // Keep homepage rendering independent of optional RAG route registration.
+    // A missing/disabled handler returns an HTTP error and the existing
+    // deterministic chatbot response is used by the caller.
+    const response = await fetch("/chatbot/ask", {
         method: "POST",
         headers: {"Content-Type": "application/json", "Accept": "application/json"},
         body: JSON.stringify({question}),

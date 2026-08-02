@@ -1,4 +1,4 @@
-from flask_app.rag_service import RagIndex, chunk_text, public_configured_roots, read_document
+from flask_app.rag_service import RagIndex, chunk_text, project_root, public_configured_roots, read_document
 from flask_app import rag_routes
 
 
@@ -82,3 +82,9 @@ def test_ftps_uploader_packages_customer_rag_sources():
     expected = set(CUSTOMER_RAG_UPLOADS.values())
     uploaded = {item.relative_path for item in iter_upload_items(DEFAULT_LOCAL_ROOT)}
     assert expected <= uploaded
+
+
+def test_homepage_template_does_not_require_rag_route_during_render():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert 'fetch("/chatbot/ask"' in template
+    assert "url_for('public_rag_chat.public_chat')" not in template
