@@ -86,4 +86,4 @@ def public_chat():
         return jsonify({"error": "I could not search the product information just now."}), 502
     # Public clients receive useful source names, but not internal similarity data.
     citations = [{"source": item["source"], "chunk": item["chunk"]} for item in result.get("citations", [])]
-    return jsonify({"answer": result.get("answer", ""), "citations": citations})
+    return jsonify({"answer": result.get("answer", ""), "citations": citations, "generated": bool(result.get("generated"))})

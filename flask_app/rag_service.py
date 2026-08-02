@@ -65,6 +65,7 @@ def public_configured_roots():
     project, workspace = project_root(), workspace_root()
     return [
         project / "docs" / "CHATBOT_KNOWLEDGE_BASE.md",
+        project / "docs" / "CUSTOMER_FAQ.md",
         project / "docs" / "customer_sources",
         workspace / "docs" / "SALEWELL_FEATURES_EN.md",
         workspace / "docs" / "SALEWELL_FEATURES_HI.md",
@@ -178,6 +179,7 @@ def concise_answer(text, question="", max_sentences=3):
     clean = re.sub(r"[`*_>|]", "", clean)
     clean = re.sub(r"\[([^]]+)\]\([^)]+\)", r"\1", clean)
     candidates = [item.strip(" -\t\r\n") for item in re.split(r"(?<=[.!?])\s+|\n+", clean) if item.strip(" -\t\r\n")]
+    candidates = [item for item in candidates if len(item) <= 280 and not item.startswith(("RAG_", "PUBLIC_RAG_", "OPENAI_"))]
     query_words = set(re.findall(r"[a-z0-9]+", str(question).lower()))
     ranked = sorted(
         enumerate(candidates),
@@ -185,14 +187,14 @@ def concise_answer(text, question="", max_sentences=3):
     )
     selected_indexes = sorted(index for index, _ in ranked[:max_sentences])
     selected = [candidates[index] for index in selected_indexes]
-    return "\n".join(selected)[:700].strip()
+    return "\n".join(selected)[:600].strip()
 
 
 def answer_question(question, limit=5, index=None):
     matches = (index or default_index).search(question, limit)
     citations = [{"source": x.source, "chunk": x.chunk, "score": x.score} for x in matches]
     if not matches:
-        return {"answer": "I could not find relevant information in the configured knowledge base.", "citations": [], "generated": False}
+        return {"answer": "I do not have enough verified SaleWell information to answer that. Please ask about our products, plans, installation, pump control, or support.", "citations": [], "generated": False}
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
         return {"answer": concise_answer(matches[0].text, question), "citations": citations, "generated": False}

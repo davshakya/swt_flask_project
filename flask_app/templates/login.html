@@ -6995,7 +6995,11 @@ function getChatbotResponse(rawInput) {
     const wantsCoverage = chatHasAny(input, ["delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "area", "available", "location"]);
     const wantsDashboard = chatHasAny(input, ["app", "dashboard", "login", "mobile", "notification", "alert"]);
     const wantsProductInfo = chatHasAny(input, ["product", "complete information", "full information", "details", "features", "included", "include", "add-on", "addon", "module", "hardware", "kit"]);
-    const wantsHowItWorks = chatHasAny(input, ["how it works", "how does it work", "how this works", "working process", "explain working"]);
+    const wantsCompanyIdentity = chatHasAny(input, ["company name", "your company", "business name", "brand name", "who are you", "who made you"]);
+    const wantsHowItWorks = (
+        chatHasAny(input, ["how it works", "how does it work", "how this works", "working process", "explain working"]) ||
+        /how\s+(?:does\s+)?(?:this\s+)?(?:device|system|product|salewell|it)\s+(?:work|works|working)/.test(input)
+    );
     const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
 
     if (mentionedPlan && !wantsCompare) {
@@ -7045,6 +7049,16 @@ function getChatbotResponse(rawInput) {
             actions: [
                 { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
                 { label: "Installation details", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
+            ],
+        };
+    }
+
+    if (wantsCompanyIdentity) {
+        return {
+            text: "Our company is SaleWell IoT Solutions. We provide smart water-tank monitoring, pump-control, automation, app, and cloud solutions for homes and managed properties.",
+            actions: [
+                { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },
+                { label: "Contact SaleWell", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } },
             ],
         };
     }
@@ -7218,7 +7232,8 @@ async function submitChatbotPrompt(prompt) {
         if (response.useRag) {
             try {
                 const ragResponse = await askChatbotKnowledgeBase(trimmed);
-                appendChatMessage(ragResponse.answer || response.text, "bot", response.actions);
+                const groundedActions = Array.isArray(ragResponse.citations) && ragResponse.citations.length ? response.actions : [];
+                appendChatMessage(ragResponse.answer || response.text, "bot", groundedActions);
             } catch (error) {
                 console.warn("Chatbot booking-question knowledge search failed", error);
                 appendChatMessage(response.text, "bot", response.actions);
@@ -7246,7 +7261,8 @@ async function submitChatbotPrompt(prompt) {
     if (response.useRag) {
         try {
             const ragResponse = await askChatbotKnowledgeBase(trimmed);
-            appendChatMessage(ragResponse.answer || response.text, "bot", response.actions);
+            const groundedActions = Array.isArray(ragResponse.citations) && ragResponse.citations.length ? response.actions : [];
+            appendChatMessage(ragResponse.answer || response.text, "bot", groundedActions);
         } catch (error) {
             console.warn("Chatbot knowledge search failed", error);
             appendChatMessage(response.text, "bot", response.actions);

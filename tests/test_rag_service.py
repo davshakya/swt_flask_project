@@ -43,6 +43,7 @@ def test_public_chat_uses_rag_without_exposing_scores(monkeypatch):
     assert response.get_json() == {
         "answer": "Grounded: How does the pump work?",
         "citations": [{"source": "docs/guide.md", "chunk": 2}],
+        "generated": False,
     }
 
 
@@ -65,6 +66,7 @@ def test_deployable_chatbot_knowledge_document_is_discovered():
 def test_public_corpus_excludes_internal_operations_documents():
     names = {path.name for path in public_configured_roots()}
     assert "CHATBOT_KNOWLEDGE_BASE.md" in names
+    assert "CUSTOMER_FAQ.md" in names
     assert "SALEWELL_FEATURES_EN.md" in names
     assert "README.md" not in names
     assert "PRODUCTION_READINESS.md" not in names
@@ -121,6 +123,7 @@ def test_chatbot_explains_how_the_product_works_without_raw_rag_docs():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     assert "wantsHowItWorks" in template
     assert "SaleWell uses a sensor node near the water tank" in template
+    assert "(?:device|system|product|salewell|it)" in template
     assert template.index("if (wantsHowItWorks)") < template.index("if (wantsCompare || wantsPrice)")
 
 
@@ -131,3 +134,17 @@ def test_rag_and_browser_answers_are_limited_to_three_relevant_lines():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     assert 'lines.slice(2).join(" ")' in template
     assert 'return [lines[0], lines[1]' in template
+
+
+def test_concise_answer_drops_oversized_markdown_fragments():
+    oversized = "- " + "irrelevant setup data " * 40
+    answer = concise_answer(f"The sensor measures tank level.\n{oversized}\nThe controller receives it wirelessly.", "how device works")
+    assert "irrelevant setup" not in answer
+    assert "sensor measures" in answer
+
+
+def test_chatbot_answers_company_identity_and_hides_ungrounded_actions():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    assert "wantsCompanyIdentity" in template
+    assert "Our company is SaleWell IoT Solutions." in template
+    assert "ragResponse.citations.length ? response.actions : []" in template

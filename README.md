@@ -104,7 +104,7 @@ text, reStructuredText, or DOCX files/directories. Relative paths start from
 `swt_flask_project`, so `RAG_DOCUMENT_PATHS=README.md:docs` works on Linux.
 
 Anonymous homepage answers use a separate customer-safe allowlist. By default
-it includes the chatbot knowledge base, English/Hindi
+it includes the chatbot knowledge base, customer FAQ, English/Hindi
 feature guides, installation rule book, components/BOM, modular architecture,
 and customer BOM/estimation DOCX files. Internal production, Jenkins, pytest,
 and maintenance documents are excluded. Override this list only with
