@@ -10,6 +10,7 @@ from pathlib import Path
 import sys
 
 
+PASSENGER_ENTRYPOINT_REVISION = "2026-08-03.0941-performance-recovery"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
 
@@ -33,5 +34,6 @@ for module_name, module in list(sys.modules.items()):
     sys.modules.pop(module_name, None)
 
 importlib.invalidate_caches()
+sys.stderr.write(f"[SaleWell] Loading Passenger entrypoint {PASSENGER_ENTRYPOINT_REVISION}\n")
+sys.stderr.flush()
 from server import app as application
-
