@@ -715,6 +715,7 @@ dashboard_snapshot_cache = {}
 dashboard_summary_cache = {}
 dashboard_summary_refresh_pending = set()
 dashboard_summary_refresh_lock = threading.Lock()
+dashboard_summary_last_refresh_at = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
 DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
@@ -723,6 +724,12 @@ DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
 )
 DASHBOARD_SUMMARY_RECONCILIATION_ENABLED = env_flag(
     "DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=True
+)
+DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS = max(
+    5, min(300, env_int("DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS", 30))
+)
+DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE = max(
+    1, min(50, env_int("DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE", 10))
 )
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
@@ -4583,7 +4590,7 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             evaluate_snapshot_alerts(alert_snapshot)
             # Materialize all dashboard flash-card values while telemetry is
             # already being processed, never while a customer opens the page.
-            refresh_dashboard_summary(cleaned.get("device_id"))
+            schedule_dashboard_summary_refresh(cleaned.get("device_id"))
             if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
                 relay_status_async(cleaned)
     except Exception as exc:
@@ -10912,6 +10919,8 @@ def persist_dashboard_summary(device_id, payload=None):
         )
     cache_key = f"{active_mode}:{normalized_device_id}"
     dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
+    with dashboard_summary_refresh_lock:
+        dashboard_summary_last_refresh_at[normalized_device_id] = time.monotonic()
     return copy.deepcopy(summary)
 
 
@@ -10985,6 +10994,9 @@ def schedule_dashboard_summary_refresh(device_id):
         return
     with dashboard_summary_refresh_lock:
         if normalized_device_id in dashboard_summary_refresh_pending:
+            return
+        last_refresh_at = dashboard_summary_last_refresh_at.get(normalized_device_id, 0.0)
+        if last_refresh_at and time.monotonic() - last_refresh_at < DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS:
             return
         dashboard_summary_refresh_pending.add(normalized_device_id)
 
@@ -20618,25 +20630,41 @@ dashboard_summary_reconciler_stop = threading.Event()
 
 def reconcile_dashboard_summaries():
     active_mode = get_device_source_mode()
+    stale_before = (now_utc() - timedelta(seconds=DASHBOARD_SUMMARY_RECONCILE_SECONDS)).strftime(TIMESTAMP_FORMAT)
     with get_db() as db:
         rows = db.execute(
             """
-            SELECT DISTINCT device_id FROM tank_data
-            WHERE device_id IS NOT NULL AND device_id <> '' AND device_source = ?
+            SELECT tank_data.device_id, MAX(dashboard_summaries.updated_at) AS summary_updated_at
+            FROM tank_data
+            LEFT JOIN dashboard_summaries
+              ON dashboard_summaries.device_id = tank_data.device_id
+             AND dashboard_summaries.device_source = tank_data.device_source
+            WHERE tank_data.device_id IS NOT NULL
+              AND tank_data.device_id <> ''
+              AND tank_data.device_source = ?
+            GROUP BY tank_data.device_id
+            HAVING MAX(dashboard_summaries.updated_at) IS NULL
+                OR MAX(dashboard_summaries.updated_at) < ?
+            ORDER BY summary_updated_at ASC
+            LIMIT ?
             """,
-            (active_mode,),
+            (active_mode, stale_before, DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE),
         ).fetchall()
     refreshed = 0
     for row in rows:
         if refresh_dashboard_summary(row.get("device_id")) is not None:
             refreshed += 1
+        if dashboard_summary_reconciler_stop.wait(0.1):
+            break
     logger.info("Dashboard summary reconciliation refreshed %s device(s)", refreshed)
     return refreshed
 
 
 def dashboard_summary_reconciler_loop():
-    # Seed summaries after deployment without making the first customer request
-    # pay for historical calculations, then reconcile every 10-15 minutes.
+    # Let normal telemetry seed summaries first. Reconciliation is a bounded
+    # stale-summary safety net and must never create a startup/database burst.
+    if dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS):
+        return
     while not dashboard_summary_reconciler_stop.is_set():
         try:
             reconcile_dashboard_summaries()

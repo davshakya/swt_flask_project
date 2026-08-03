@@ -10,9 +10,13 @@ def test_dashboard_summary_is_persisted_and_reconciled():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
 
     assert "CREATE TABLE IF NOT EXISTS dashboard_summaries" in source
-    assert "refresh_dashboard_summary(cleaned.get(\"device_id\"))" in source
+    assert "schedule_dashboard_summary_refresh(cleaned.get(\"device_id\"))" in source
     assert "schedule_dashboard_summary_refresh(affected_device_id)" in source
     assert "DASHBOARD_SUMMARY_RECONCILE_SECONDS" in source
+    assert "DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS" in source
+    assert "DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE" in source
+    assert "MAX(dashboard_summaries.updated_at) < ?" in source
+    assert "dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS)" in source
     assert "start_dashboard_summary_reconciler()" in source
 
 
@@ -35,4 +39,3 @@ def test_dashboard_displays_persisted_summary_last_updated_time():
 
     assert "payload.last_updated" in template
     assert '"Last updated"' in template
-
