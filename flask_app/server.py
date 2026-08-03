@@ -5128,10 +5128,18 @@ class MySqlConnectionAdapter:
         return False
 
 
+_MYSQL_RESOLVED_LOCAL_PORT = None
+
+
 def connect_mysql():
+    global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
     config = mysql_connection_config()
+    local_mysql_host = str(config.get("host") or "").strip().lower() in {"localhost", "127.0.0.1", "::1"}
+    if local_mysql_host and _MYSQL_RESOLVED_LOCAL_PORT is not None:
+        config = dict(config)
+        config["port"] = _MYSQL_RESOLVED_LOCAL_PORT
     if not config["user"] or not config["database"]:
         raise RuntimeError("MySQL requires MYSQL_USER plus MYSQL_DATABASE, or a DATABASE_URL.")
     ssl_ca = os.environ.get("MYSQL_SSL_CA", "").strip()
@@ -5150,28 +5158,48 @@ def connect_mysql():
         conn = pymysql.connect(**connect_kwargs)
     except Exception as exc:
         error_code = getattr(exc, "args", [None])[0]
-        if error_code != 1049:
+        configured_port = int(config["port"])
+        if error_code == 2003 and local_mysql_host and configured_port != 3306:
+            fallback_kwargs = dict(connect_kwargs)
+            fallback_kwargs["port"] = 3306
+            logger.warning(
+                "MySQL refused localhost port %s; retrying standard port 3306.",
+                configured_port,
+            )
+            try:
+                conn = pymysql.connect(**fallback_kwargs)
+            except Exception as fallback_exc:
+                exc = fallback_exc
+                error_code = getattr(fallback_exc, "args", [None])[0]
+            else:
+                _MYSQL_RESOLVED_LOCAL_PORT = 3306
+                connect_kwargs = fallback_kwargs
+                error_code = None
+        if error_code is None:
+            pass
+        elif error_code != 1049:
             raise RuntimeError(
                 "MySQL is required but the server is not reachable or credentials are invalid. "
                 f"Check MYSQL_HOST={config['host']!r}, MYSQL_PORT={config['port']}, "
                 f"MYSQL_USER={config['user']!r}, and make sure the MySQL service is running."
             ) from exc
-        logger.info("MySQL database %s does not exist; attempting to create it.", config["database"])
-        try:
-            ensure_mysql_database_exists(config)
-        except Exception as create_exc:
-            raise RuntimeError(
-                "MySQL database could not be created automatically. In cPanel, create "
-                f"database {config['database']!r}, assign user {config['user']!r} to it, "
-                "then restart the app."
-            ) from create_exc
-        try:
-            conn = pymysql.connect(**connect_kwargs)
-        except Exception as reconnect_exc:
-            raise RuntimeError(
-                "MySQL database was created or already exists, but Flask still could not connect. "
-                "Check MYSQL_* credentials and database-user permissions."
-            ) from reconnect_exc
+        else:
+            logger.info("MySQL database %s does not exist; attempting to create it.", config["database"])
+            try:
+                ensure_mysql_database_exists(config)
+            except Exception as create_exc:
+                raise RuntimeError(
+                    "MySQL database could not be created automatically. In cPanel, create "
+                    f"database {config['database']!r}, assign user {config['user']!r} to it, "
+                    "then restart the app."
+                ) from create_exc
+            try:
+                conn = pymysql.connect(**connect_kwargs)
+            except Exception as reconnect_exc:
+                raise RuntimeError(
+                    "MySQL database was created or already exists, but Flask still could not connect. "
+                    "Check MYSQL_* credentials and database-user permissions."
+                ) from reconnect_exc
     with conn.cursor() as cursor:
         cursor.execute("SET time_zone = '+00:00'")
     return MySqlConnectionAdapter(conn)

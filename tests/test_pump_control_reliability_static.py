@@ -1,4 +1,5 @@
 from pathlib import Path
+import sys
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -48,3 +49,43 @@ def test_device_detail_shows_optional_pump_confirmation_sensors():
     assert '{label:"Motor Current Sensor"' in DEVICE_DETAIL_TEMPLATE
     assert '{label:"Water Flow Sensor"' in DEVICE_DETAIL_TEMPLATE
     assert '{label:"Water Pressure Sensor"' in DEVICE_DETAIL_TEMPLATE
+
+
+def test_mysql_local_port_refusal_falls_back_to_standard_port(monkeypatch):
+    flask_app_path = str(ROOT / "swt_flask_project/flask_app")
+    if flask_app_path not in sys.path:
+        sys.path.insert(0, flask_app_path)
+    import server
+
+    class FakeCursor:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def execute(self, *_args, **_kwargs):
+            return self
+
+    class FakeConnection:
+        def cursor(self):
+            return FakeCursor()
+
+    attempted_ports = []
+
+    def fake_connect(**kwargs):
+        attempted_ports.append(kwargs["port"])
+        if kwargs["port"] == 3307:
+            raise server.pymysql.err.OperationalError(2003, "connection refused")
+        return FakeConnection()
+
+    monkeypatch.setattr(server, "mysql_connection_config", lambda: {
+        "host": "localhost", "port": 3307, "user": "test", "password": "test", "database": "test"
+    })
+    monkeypatch.setattr(server.pymysql, "connect", fake_connect)
+    monkeypatch.setattr(server, "_MYSQL_RESOLVED_LOCAL_PORT", None)
+
+    server.connect_mysql()
+    server.connect_mysql()
+
+    assert attempted_ports == [3307, 3306, 3306]
