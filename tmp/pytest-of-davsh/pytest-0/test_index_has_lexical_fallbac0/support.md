@@ -1,0 +1,1 @@
+Pump contactor safety and manual stop guidance.

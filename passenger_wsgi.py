@@ -10,9 +10,15 @@ from pathlib import Path
 import sys
 
 
-PASSENGER_ENTRYPOINT_REVISION = "2026-08-03.0941-performance-recovery"
+PASSENGER_ENTRYPOINT_REVISION = "2026-08-03.2257-openblas-thread-limit"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
+
+# Shared cPanel accounts can have a high reported CPU count but a low process
+# limit.  Keep optional NumPy/scikit-learn imports from exhausting it during
+# Passenger application startup.
+for thread_env in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ[thread_env] = "1"
 
 # Put this application ahead of globally installed/shared-host packages.
 sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.curdir) != project_path]
