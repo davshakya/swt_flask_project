@@ -2606,11 +2606,10 @@ def render_login_page(
             "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
         )
     sales_form = sales_form or sales_form_from_pricing_query()
-    homepage_visitor_count = (
-        increment_homepage_visitor_count()
-        if is_landing_page
-        else get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
-    )
+    # Landing and login pages must remain available even when MariaDB is
+    # locked or at its connection limit. Visitor persistence is non-critical;
+    # never create a database thread from a public page request.
+    homepage_visitor_count = homepage_visitor_count_cached or 0
     return render_template(
         "login.html",
         error=error,
