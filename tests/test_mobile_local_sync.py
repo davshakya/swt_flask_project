@@ -223,8 +223,11 @@ def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     route_body = server_source[route_start : server_source.index('\n\n@app.route("/api/mobile/analytics")', route_start)]
 
     assert 'include_analytics = str(request.args.get("include_analytics", "0"))' in route_body
-    assert '"monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id)' in route_body
-    assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
+    assert "load_persisted_dashboard_summary(scoped_device_id)" in route_body
+    assert '"events": list(summary.get("events") or [])[:event_limit]' in route_body
+    assert '"audit": list(summary.get("audit") or [])[:audit_limit]' in route_body
+    assert "build_monitoring_summary_payload(" not in route_body
+    assert "fetch_audit_events(" not in route_body
     assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
     assert 'payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
     assert 'payload["analytics"] = build_analytics_fallback_payload(' in route_body

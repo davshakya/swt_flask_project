@@ -712,8 +712,18 @@ MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOK
 analytics_cache = {}
 fixed_ai_dashboard_cache = {}
 dashboard_snapshot_cache = {}
+dashboard_summary_cache = {}
+dashboard_summary_refresh_pending = set()
+dashboard_summary_refresh_lock = threading.Lock()
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
+DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
+    600,
+    min(900, env_int("DASHBOARD_SUMMARY_RECONCILE_SECONDS", 600)),
+)
+DASHBOARD_SUMMARY_RECONCILIATION_ENABLED = env_flag(
+    "DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=True
+)
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
@@ -2012,6 +2022,16 @@ def clear_runtime_caches(device_id=None):
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
     forget_alert_touches_for_device(normalized_device_id)
+
+
+def invalidate_dashboard_summary_memory(device_id=None):
+    """Drop only the disposable in-process copy; the database remains the fallback."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        dashboard_summary_cache.clear()
+        return
+    for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
+        dashboard_summary_cache.pop(f"{mode}:{normalized_device_id}", None)
 
 
 def dashboard_identity_prefix(role):
@@ -4561,6 +4581,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             alert_snapshot = dict(cleaned)
             alert_snapshot["telemetry_status"] = "fresh"
             evaluate_snapshot_alerts(alert_snapshot)
+            # Materialize all dashboard flash-card values while telemetry is
+            # already being processed, never while a customer opens the page.
+            refresh_dashboard_summary(cleaned.get("device_id"))
             if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
                 relay_status_async(cleaned)
     except Exception as exc:
@@ -4722,6 +4745,18 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("last_ping_age_s"),
         cleaned.get("last_ping_nonce"),
         cleaned.get("telemetry_fingerprint"),
+        1 if boolish_enabled(cleaned.get("starter_contactor_sensor_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("starter_contactor_active"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("motor_current_sensor_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("motor_current_detected"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("water_flow_sensor_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("water_flow_detected"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("water_pressure_sensor_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("water_pressure_detected"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("physical_pump_running"), default=False) else 0,
+        cleaned.get("pump_confirmation_source"), cleaned.get("pump_total_runtime_s"),
+        cleaned.get("pump_last_run_runtime_s"), cleaned.get("pump_cycle_count"),
+        cleaned.get("pump_run_started_uptime_s"), cleaned.get("pump_runtime_boot_id"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -4765,6 +4800,13 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 direct_peer_sync_last_ok_age_s,
                 last_ping_target, last_ping_status, last_ping_response_ms,
                 last_ping_age_s, last_ping_nonce, telemetry_fingerprint,
+                starter_contactor_sensor_enabled, starter_contactor_active,
+                motor_current_sensor_enabled, motor_current_detected,
+                water_flow_sensor_enabled, water_flow_detected,
+                water_pressure_sensor_enabled, water_pressure_detected,
+                physical_pump_running, pump_confirmation_source,
+                pump_total_runtime_s, pump_last_run_runtime_s, pump_cycle_count,
+                pump_run_started_uptime_s, pump_runtime_boot_id,
                 created_at
             )
             VALUES ({placeholders})
@@ -5211,6 +5253,21 @@ def ensure_tank_data_columns(cursor):
         "last_ping_age_s": "INTEGER",
         "last_ping_nonce": "INTEGER",
         "telemetry_fingerprint": "VARCHAR(64)",
+        "starter_contactor_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "starter_contactor_active": "INTEGER NOT NULL DEFAULT 0",
+        "motor_current_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "motor_current_detected": "INTEGER NOT NULL DEFAULT 0",
+        "water_flow_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "water_flow_detected": "INTEGER NOT NULL DEFAULT 0",
+        "water_pressure_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "water_pressure_detected": "INTEGER NOT NULL DEFAULT 0",
+        "physical_pump_running": "INTEGER NOT NULL DEFAULT 0",
+        "pump_confirmation_source": "VARCHAR(32)",
+        "pump_total_runtime_s": "BIGINT",
+        "pump_last_run_runtime_s": "BIGINT",
+        "pump_cycle_count": "BIGINT",
+        "pump_run_started_uptime_s": "BIGINT",
+        "pump_runtime_boot_id": "VARCHAR(64)",
     }
 
     for column, definition in required.items():
@@ -5377,8 +5434,45 @@ def ensure_device_command_queue_table(cursor):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_device TEXT NOT NULL,
             command TEXT NOT NULL,
+            request_id VARCHAR(64),
+            desired_state VARCHAR(16),
+            status VARCHAR(24) NOT NULL DEFAULT 'queued',
+            priority INTEGER NOT NULL DEFAULT 0,
+            expires_at TEXT,
+            accepted_at TEXT,
+            completed_at TEXT,
+            result_reason TEXT,
+            result_json LONGTEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             delivered_at TEXT
+        )
+        """
+    )
+
+
+def ensure_device_command_queue_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_command_queue)").fetchall()}
+    required = {
+        "request_id": "VARCHAR(64)", "desired_state": "VARCHAR(16)",
+        "status": "VARCHAR(24) NOT NULL DEFAULT 'queued'", "priority": "INTEGER NOT NULL DEFAULT 0",
+        "expires_at": "TEXT", "accepted_at": "TEXT", "completed_at": "TEXT",
+        "result_reason": "TEXT", "result_json": "LONGTEXT",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE device_command_queue ADD COLUMN {column} {definition}")
+
+
+def ensure_dashboard_summary_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS dashboard_summaries(
+            device_id VARCHAR(255) NOT NULL,
+            device_source VARCHAR(32) NOT NULL,
+            summary_json LONGTEXT NOT NULL,
+            source_updated_at TEXT,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY(device_id, device_source)
         )
         """
     )
@@ -5992,6 +6086,8 @@ def init_db():
         remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
+        ensure_device_command_queue_columns(cursor)
+        ensure_dashboard_summary_table(cursor)
         ensure_device_mobile_action_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_firmware_artifacts_columns(cursor)
@@ -8670,7 +8766,8 @@ def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_s
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
-               ai_usage_rate, tomorrow_prediction, tank_capacity_liters, created_at
+               ai_usage_rate, tomorrow_prediction, tank_capacity_liters,
+               pump_total_runtime_s, pump_cycle_count, pump_runtime_boot_id, created_at
         FROM tank_data
         WHERE """
     params = []
@@ -9022,6 +9119,35 @@ def build_motor_activity_metrics(time_values, value_values):
         "avg_run_seconds": int(round(avg_run_seconds)),
         "short_cycle_count": short_cycle_count,
         "avg_off_seconds": int(round(avg_off_seconds)),
+    }
+
+
+def build_authoritative_pump_metrics(rows):
+    samples = []
+    for row in rows or []:
+        total = safe_float((row or {}).get("pump_total_runtime_s"), None)
+        created_at = parse_timestamp((row or {}).get("created_at"))
+        if total is not None and total >= 0 and created_at is not None:
+            samples.append((created_at, total, safe_float((row or {}).get("pump_cycle_count"), 0), str((row or {}).get("pump_runtime_boot_id") or "")))
+    if len(samples) < 2:
+        return None
+    runtime_seconds = 0.0
+    started_runs = 0
+    for previous, current in zip(samples, samples[1:]):
+        _prev_at, prev_total, prev_cycles, _prev_boot = previous
+        _at, total, cycles, _boot = current
+        if total >= prev_total:
+            runtime_seconds += total - prev_total
+        if cycles >= prev_cycles:
+            started_runs += int(cycles - prev_cycles)
+    observed_seconds = max(0.0, (samples[-1][0] - samples[0][0]).total_seconds())
+    return {
+        "runtime_seconds": int(round(runtime_seconds)), "runtime_hours": round(runtime_seconds / 3600.0, 3),
+        "observed_hours": round(observed_seconds / 3600.0, 3),
+        "duty_cycle_pct": round((runtime_seconds / observed_seconds) * 100.0, 2) if observed_seconds else 0,
+        "started_runs": started_runs, "completed_runs": started_runs,
+        "avg_run_seconds": int(round(runtime_seconds / started_runs)) if started_runs else 0,
+        "short_cycle_count": 0, "avg_off_seconds": 0,
     }
 
 
@@ -10716,6 +10842,139 @@ def load_dashboard_snapshot(device_id=None):
     return dict(payload)
 
 
+def build_dashboard_summary_payload(device_id, event_limit=30, audit_limit=30):
+    """Compute a device summary off the request path (ingestion/reconciliation only)."""
+    normalized_device_id = normalize_device_id(device_id)
+    snapshot = load_dashboard_snapshot(normalized_device_id)
+    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    updated_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    return {
+        "snapshot": public_snapshot,
+        "system_status": build_system_status_payload(snapshot, device_id=normalized_device_id),
+        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=normalized_device_id),
+        "events": build_events(event_limit, device_id=normalized_device_id, sync=False),
+        "audit": fetch_audit_events(limit=audit_limit, device_id=normalized_device_id),
+        "guidance": build_shared_guidance_payload(snapshot, None),
+        "last_updated": updated_at,
+        "generated_at": updated_at,
+    }
+
+
+def persist_dashboard_summary(device_id, payload=None):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    active_mode = get_device_source_mode()
+    summary = payload or build_dashboard_summary_payload(normalized_device_id)
+    updated_at = str(summary.get("last_updated") or now_utc().strftime(TIMESTAMP_FORMAT))
+    source_updated_at = (summary.get("snapshot") or {}).get("created_at")
+    encoded = json.dumps(summary, separators=(",", ":"), default=str)
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO dashboard_summaries(
+                device_id, device_source, summary_json, source_updated_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(device_id, device_source) DO UPDATE SET
+                summary_json=excluded.summary_json,
+                source_updated_at=excluded.source_updated_at,
+                updated_at=excluded.updated_at
+            """,
+            (normalized_device_id, active_mode, encoded, source_updated_at, updated_at),
+        )
+    cache_key = f"{active_mode}:{normalized_device_id}"
+    dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
+    return copy.deepcopy(summary)
+
+
+def load_persisted_dashboard_summary(device_id):
+    """Read the fast memory copy, falling back to the last durable summary."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    active_mode = get_device_source_mode()
+    cache_key = f"{active_mode}:{normalized_device_id}"
+    cached = dashboard_summary_cache.get(cache_key)
+    if cached is not None:
+        return copy.deepcopy(cached)
+    try:
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT summary_json, updated_at
+                FROM dashboard_summaries
+                WHERE device_id = ? AND device_source = ?
+                """,
+                (normalized_device_id, active_mode),
+            ).fetchone()
+    except Exception as exc:
+        logger.warning("Dashboard summary store unavailable for %s: %s", normalized_device_id, exc)
+        return None
+    if not row:
+        return None
+    try:
+        summary = json.loads(row.get("summary_json") or "{}")
+    except (TypeError, ValueError):
+        logger.warning("Discarding invalid dashboard summary for %s", normalized_device_id)
+        return None
+    summary.setdefault("last_updated", row.get("updated_at"))
+    dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
+    return copy.deepcopy(summary)
+
+
+def empty_dashboard_summary(device_id):
+    snapshot = build_empty_snapshot_payload(normalize_device_id(device_id))
+    return {
+        "snapshot": snapshot,
+        "system_status": build_system_status_payload(snapshot, device_id=device_id),
+        "monitoring_summary": {"alerts": [], "devices": [], "registered_devices": []},
+        "events": [],
+        "audit": [],
+        "guidance": build_shared_guidance_payload(snapshot, None),
+        "last_updated": None,
+        "generated_at": None,
+        "summary_pending": True,
+    }
+
+
+def refresh_dashboard_summary(device_id):
+    """Best-effort summary refresh used by telemetry and event ingestion."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    try:
+        invalidate_dashboard_summary_memory(normalized_device_id)
+        return persist_dashboard_summary(normalized_device_id)
+    except Exception as exc:
+        logger.warning("Dashboard summary refresh failed for %s: %s", normalized_device_id, exc)
+        return None
+
+
+def schedule_dashboard_summary_refresh(device_id):
+    """Coalesce bursts of event writes into one per-device summary update."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    with dashboard_summary_refresh_lock:
+        if normalized_device_id in dashboard_summary_refresh_pending:
+            return
+        dashboard_summary_refresh_pending.add(normalized_device_id)
+
+    def refresh_after_event_burst():
+        try:
+            time.sleep(0.2)
+            refresh_dashboard_summary(normalized_device_id)
+        finally:
+            with dashboard_summary_refresh_lock:
+                dashboard_summary_refresh_pending.discard(normalized_device_id)
+
+    threading.Thread(
+        target=refresh_after_event_burst,
+        name=f"dashboard-summary-{normalized_device_id}",
+        daemon=True,
+    ).start()
+
+
 def snapshot_has_live_device_data(snapshot):
     if not snapshot:
         return False
@@ -11193,6 +11452,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         activity_window_end,
     )
     observed_motor_metrics = build_motor_activity_metrics(observed_motor_times, observed_motor_values)
+    authoritative_pump_metrics = build_authoritative_pump_metrics(raw_tank_rows)
     observed_motor_has_on_state = any(value == 1 for value in observed_motor_values)
     inferred_motor_metrics = build_motor_activity_metrics(inferred_motor_times, inferred_motor_values)
     if observed_motor_has_on_state:
@@ -11265,17 +11525,20 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
-    pump_activity_metrics = observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics
+    pump_activity_metrics = authoritative_pump_metrics or (observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics)
+    if authoritative_pump_metrics:
+        motor_cycles = authoritative_pump_metrics["started_runs"]
+        refill_events = motor_cycles
     pump_activity_metrics.update(
         {
-            "source": "telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history",
-            "relay_state_used": observed_motor_has_on_state,
+            "source": "firmware_runtime_counter" if authoritative_pump_metrics else ("telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history"),
+            "relay_state_used": bool(observed_motor_has_on_state and not authoritative_pump_metrics),
             "inference_status": (
                 "observed_relay_transitions"
                 if observed_motor_has_on_state
                 else "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles"
             ),
-            "runtime_basis": "reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold",
+            "runtime_basis": "persistent_physical_feedback_counter" if authoritative_pump_metrics else ("reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold"),
             "stop_threshold_pct": round(stop_threshold_pct, 1),
             "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
             "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,
@@ -13224,6 +13487,7 @@ def persist_device_events(events, default_device_id=None):
         return 0
 
     persisted = 0
+    affected_device_ids = set()
     with get_db() as db:
         for event in events:
             if not isinstance(event, dict):
@@ -13234,6 +13498,8 @@ def persist_device_events(events, default_device_id=None):
             severity = str(event.get("severity") or "info").strip().lower() or "info"
             message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
             device_id = normalize_device_id(details.get("device_id") or default_device_id)
+            if device_id:
+                affected_device_ids.add(device_id)
             duration_seconds = details.get("duration_seconds")
             try:
                 duration_seconds = int(duration_seconds) if duration_seconds is not None else None
@@ -13292,6 +13558,8 @@ def persist_device_events(events, default_device_id=None):
                 ),
             )
             persisted += 1
+    for affected_device_id in affected_device_ids:
+        schedule_dashboard_summary_refresh(affected_device_id)
     return persisted
 
 
@@ -15270,10 +15538,27 @@ def device_command_family(command):
     return f"command:{compact}"
 
 
-def queue_device_command(command, target_device):
+def queue_device_command(command, target_device, request_id=None, expires_in_seconds=None):
     normalized_command = str(command or "").strip().upper()
     normalized_family = device_command_family(normalized_command)
+    desired_state = "ON" if normalized_command == "ON" or normalized_command.startswith("ON_FOR:") else ("OFF" if normalized_command == "OFF" else None)
+    request_id = str(request_id or secrets.token_hex(16))
+    if expires_in_seconds is None:
+        expires_in_seconds = 60 if desired_state == "ON" else (600 if desired_state == "OFF" else 300)
+    expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
+    priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
     with get_db() as db:
+        existing_request = db.execute(
+            "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",
+            (target_device, request_id),
+        ).fetchone()
+        if existing_request:
+            return existing_request["id"]
+        if desired_state == "OFF":
+            db.execute(
+                "DELETE FROM device_command_queue WHERE target_device = ? AND delivered_at IS NULL AND UPPER(command) = 'ON'",
+                (target_device,),
+            )
         pending_rows = db.execute(
             """
             SELECT id, command
@@ -15299,10 +15584,11 @@ def queue_device_command(command, target_device):
             )
         cursor = db.execute(
             """
-            INSERT INTO device_command_queue (target_device, command)
-            VALUES (?, ?)
+            INSERT INTO device_command_queue (
+                target_device, command, request_id, desired_state, status, priority, expires_at
+            ) VALUES (?, ?, ?, ?, 'queued', ?, ?)
             """,
-            (target_device, normalized_command),
+            (target_device, normalized_command, request_id, desired_state, priority, expires_at),
         )
         db.execute(
             """
@@ -15371,16 +15657,21 @@ def peek_queued_command(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT id, command
+            SELECT id, command, request_id, desired_state, expires_at
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-            ORDER BY id ASC
+              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+            ORDER BY priority DESC, id ASC
             LIMIT 1
             """,
             (normalized_device_id,),
         ).fetchone()
         if row:
-            return {"id": row["id"], "command": row["command"]}
+            db.execute(
+                "UPDATE device_command_queue SET status='delivered' WHERE id=?",
+                (row["id"],),
+            )
+            return dict(row)
 
     with get_db() as db:
         if not runtime_sync_command_allowed(db, normalized_device_id):
@@ -15412,7 +15703,7 @@ def peek_queued_command(device_id):
     return None
 
 
-def acknowledge_queued_command_id(device_id, command_id):
+def acknowledge_queued_command_id(device_id, command_id, result=None):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return False
@@ -15430,20 +15721,29 @@ def acknowledge_queued_command_id(device_id, command_id):
             """
             SELECT id
             FROM device_command_queue
-            WHERE target_device = ? AND delivered_at IS NULL AND id = ?
+            WHERE target_device = ? AND id = ?
             LIMIT 1
             """,
             (normalized_device_id, normalized_command_id),
         ).fetchone()
         if not row:
             return False
+        result = result if isinstance(result, dict) else {}
+        device_status = str(result.get("status") or "accepted").strip().lower()
+        final_status = "rejected" if device_status == "rejected" else "accepted"
+        motor_state = str(result.get("motor_state") or "").strip().upper()
+        if final_status == "accepted" and motor_state in {"RUNNING", "ON", "OFF", "STOPPED"}:
+            final_status = "running" if motor_state in {"RUNNING", "ON"} else "stopped"
         db.execute(
             """
             UPDATE device_command_queue
-            SET delivered_at = CURRENT_TIMESTAMP
+            SET delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP),
+                accepted_at = CASE WHEN ? <> 'rejected' THEN CURRENT_TIMESTAMP ELSE accepted_at END,
+                completed_at = CASE WHEN ? IN ('rejected','running','stopped') THEN CURRENT_TIMESTAMP ELSE completed_at END,
+                status = ?, result_reason = ?, result_json = ?
             WHERE id = ?
             """,
-            (row["id"],),
+            (final_status, final_status, final_status, result.get("reason"), json.dumps(result, default=str), row["id"]),
         )
     persist_command_activity_events(normalized_device_id)
     return True
@@ -15500,7 +15800,7 @@ def clear_mqtt_command(target_device):
     publish_mqtt_command("", target_device, clear=True)
 
 
-def queue_command(command, target_device=None):
+def queue_command(command, target_device=None, request_id=None):
     device_command_target = resolve_command_target(target_device)
     if not device_command_target:
         return {
@@ -15511,13 +15811,16 @@ def queue_command(command, target_device=None):
         }, 400
 
     normalized_command = str(command or "").strip().upper()
-    command_id = queue_device_command(normalized_command, device_command_target)
+    request_id = str(request_id or secrets.token_hex(16))
+    command_id = queue_device_command(normalized_command, device_command_target, request_id=request_id)
     persist_command_activity_events(device_command_target)
     mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
         "command": normalized_command,
         "command_id": command_id,
+        "request_id": request_id,
+        "command_status": "queued",
         "target_device": device_command_target,
         "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "control_policy": CONTROL_POLICY,
@@ -16062,7 +16365,33 @@ def motor_on():
     response = customer_cloud_feed_block_response()
     if response:
         return response
-    return queue_command("ON", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
+    target_device = current_scope_device_id(request.args.get("device_id", type=str))
+    summary = load_persisted_dashboard_summary(target_device) or {}
+    snapshot = summary.get("snapshot") or {}
+    telemetry = str(snapshot.get("telemetry_status") or "no-data").lower()
+    if telemetry not in {"live", "recent", "fresh"}:
+        return jsonify({"error": "Pump start rejected: device telemetry is not fresh.", "reason": "telemetry_stale"}), 409
+    if str(snapshot.get("relay_service") or "ON").upper() not in {"ON", "ENABLED", "ACTIVE"}:
+        return jsonify({"error": "Pump start rejected: relay service is disabled.", "reason": "relay_service_disabled"}), 409
+    lower_service = str(snapshot.get("lower_tank_service") or "OFF").upper() == "ON"
+    if lower_service:
+        if str(snapshot.get("lower_sensor") or "").upper() != "OK":
+            return jsonify({"error": "Pump start rejected: source sensor is unavailable.", "reason": "source_sensor_stale"}), 409
+        if safe_float(snapshot.get("lower_tank_level"), -1) < 20:
+            return jsonify({"error": "Pump start rejected: source tank is below 20%.", "reason": "source_tank_below_safe_level"}), 409
+    stop_pct = safe_float(snapshot.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
+    if safe_float(snapshot.get("level"), 0) >= stop_pct:
+        return jsonify({"error": "Pump start rejected: upper tank is already full.", "reason": "upper_tank_full"}), 409
+    request_payload = request.get_json(silent=True) or {}
+    duration_minutes = request_payload.get("duration_minutes", request.values.get("duration_minutes", 0))
+    try:
+        duration_minutes = int(duration_minutes or 0)
+    except (TypeError, ValueError):
+        duration_minutes = -1
+    if duration_minutes not in {0, 15, 30}:
+        return jsonify({"error": "Run duration must be until full, 15 minutes, or 30 minutes."}), 400
+    command = "ON" if duration_minutes == 0 else f"ON_FOR:{duration_minutes * 60}"
+    return queue_command(command, target_device=target_device, request_id=request_payload.get("request_id"))
 
 
 @app.route("/motor/off", methods=["POST"])
@@ -16073,6 +16402,34 @@ def motor_off():
     if response:
         return response
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
+
+
+@app.route("/motor/command-status/<request_id>")
+@login_required
+def motor_command_status(request_id):
+    target_device = current_scope_device_id(request.args.get("device_id", type=str))
+    with get_db() as db:
+        row = db.execute(
+            """
+            SELECT request_id, command, status, created_at AS queued_at, delivered_at,
+                   accepted_at, completed_at, result_reason, result_json, expires_at
+            FROM device_command_queue
+            WHERE target_device = ? AND request_id = ?
+            LIMIT 1
+            """,
+            (target_device, str(request_id)),
+        ).fetchone()
+        if not row:
+            return jsonify({"error": "command not found"}), 404
+        result = dict(row)
+        if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
+            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE request_id=?", (str(request_id),))
+            result["status"] = "timed_out"
+        try:
+            result["device_result"] = json.loads(result.pop("result_json") or "{}")
+        except (TypeError, ValueError):
+            result["device_result"] = {}
+    return jsonify(result)
 
 
 @app.route("/sensor/calibrate", methods=["POST"])
@@ -16268,24 +16625,20 @@ def mobile_bootstrap():
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
-    snapshot = load_dashboard_snapshot(scoped_device_id)
-    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    public_snapshot = summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id)
+    snapshot = public_snapshot
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
-    payload = {
-        "snapshot": public_snapshot,
-        "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
-        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
-        "events": build_events(event_limit, device_id=scoped_device_id),
-        "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
-        "guidance": build_shared_guidance_payload(snapshot, None),
-        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    payload = dict(summary)
+    payload.update({
+        "events": list(summary.get("events") or [])[:event_limit],
+        "audit": list(summary.get("audit") or [])[:audit_limit],
         "viewer": viewer,
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
         "mobile_action": pop_device_mobile_action(scoped_device_id),
-    }
+    })
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
     if include_analytics and current_customer_ai_analysis_enabled():
@@ -16875,6 +17228,9 @@ def get_command():
         return {
             "command": queued["command"],
             "command_id": queued["id"],
+            "request_id": queued.get("request_id"),
+            "desired_state": queued.get("desired_state"),
+            "expires_at": queued.get("expires_at"),
             "command_source": "queue",
             "control_policy": CONTROL_POLICY,
             "device_id": device_id,
@@ -16913,7 +17269,7 @@ def acknowledge_device_command():
     if command_source == "relay":
         acknowledged = acknowledge_relay_command(device_id, command_id, device_source=request_source)
     else:
-        acknowledged = acknowledge_queued_command_id(device_id, command_id)
+        acknowledged = acknowledge_queued_command_id(device_id, command_id, result=payload)
         if acknowledged:
             clear_mqtt_command(device_id)
 
@@ -18489,6 +18845,15 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
+        ("Physical Pump State", "Running" if boolish_enabled(snapshot.get("physical_pump_running"), default=False) else "Stopped"),
+        ("Pump Confirmation", device_detail_card_title(snapshot.get("pump_confirmation_source"), "Relay command fallback")),
+        ("Starter Contactor Sensor", "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else ("Ready" if boolish_enabled(snapshot.get("starter_contactor_sensor_enabled"), default=False) else "Not installed")),
+        ("Motor Current Sensor", "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("motor_current_sensor_enabled"), default=False) else "Not installed")),
+        ("Water Flow Sensor", "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_flow_sensor_enabled"), default=False) else "Not installed")),
+        ("Water Pressure Sensor", "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_pressure_sensor_enabled"), default=False) else "Not installed")),
+        ("Authoritative Pump Runtime", device_detail_card_duration_seconds(snapshot.get("pump_total_runtime_s"), "Not reported")),
+        ("Last Pump Run", device_detail_card_duration_seconds(snapshot.get("pump_last_run_runtime_s"), "Not reported")),
+        ("Pump Cycle Counter", device_detail_card_display(snapshot.get("pump_cycle_count"), "Not reported")),
         ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
         ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
         ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
@@ -19835,9 +20200,8 @@ def last():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
-    return jsonify(strip_ip_address_fields(snapshot, keep_device_local_url=True))
+    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    return jsonify(summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id))
 
 
 @app.route("/history")
@@ -19945,9 +20309,8 @@ def system_status():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
-    return build_system_status_payload(snapshot, device_id=scoped_device_id)
+    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    return jsonify(summary.get("system_status") or {})
 
 
 @app.route("/relay/health")
@@ -20051,52 +20414,11 @@ def dashboard_bootstrap():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
-    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
-    bootstrap_warnings = {}
-
-    def safe_bootstrap_section(section_name, fallback, builder):
-        try:
-            return builder()
-        except Exception as exc:
-            logger.exception("Dashboard bootstrap %s error for %s: %s", section_name, scoped_device_id, exc)
-            bootstrap_warnings[section_name] = str(exc)
-            return fallback
-
-    safe_bootstrap_section(
-        "operational_alerts",
-        None,
-        lambda: refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None),
-    )
-
-    payload = {
-        "snapshot": public_snapshot,
-        "system_status": safe_bootstrap_section(
-            "system_status",
-            build_system_status_payload(public_snapshot, device_id=scoped_device_id),
-            lambda: build_system_status_payload(snapshot, device_id=scoped_device_id),
-        ),
-        "monitoring_summary": safe_bootstrap_section(
-            "monitoring_summary",
-            {"alerts": [], "devices": [], "registered_devices": []},
-            lambda: build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
-        ),
-        "events": safe_bootstrap_section(
-            "events",
-            [],
-            lambda: build_events(event_limit, device_id=scoped_device_id),
-        ),
-        "audit": safe_bootstrap_section(
-            "audit",
-            [],
-            lambda: fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
-        ),
-        "guidance": safe_bootstrap_section(
-            "guidance",
-            build_shared_guidance_payload(public_snapshot, None),
-            lambda: build_shared_guidance_payload(snapshot, None),
-        ),
-        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
+    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    payload = dict(summary)
+    payload.update({
+        "events": list(summary.get("events") or [])[:event_limit],
+        "audit": list(summary.get("audit") or [])[:audit_limit],
         "viewer": {
             "role": current_user_role(),
             "device_id": scoped_device_id,
@@ -20109,9 +20431,7 @@ def dashboard_bootstrap():
             ),
             "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
         },
-    }
-    if bootstrap_warnings:
-        payload["warnings"] = bootstrap_warnings
+    })
 
     return jsonify(payload)
 
@@ -20265,6 +20585,51 @@ def ml_predict():
     return jsonify(payload)
 
 
+dashboard_summary_reconciler_stop = threading.Event()
+
+
+def reconcile_dashboard_summaries():
+    active_mode = get_device_source_mode()
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT DISTINCT device_id FROM tank_data
+            WHERE device_id IS NOT NULL AND device_id <> '' AND device_source = ?
+            """,
+            (active_mode,),
+        ).fetchall()
+    refreshed = 0
+    for row in rows:
+        if refresh_dashboard_summary(row.get("device_id")) is not None:
+            refreshed += 1
+    logger.info("Dashboard summary reconciliation refreshed %s device(s)", refreshed)
+    return refreshed
+
+
+def dashboard_summary_reconciler_loop():
+    # Seed summaries after deployment without making the first customer request
+    # pay for historical calculations, then reconcile every 10-15 minutes.
+    while not dashboard_summary_reconciler_stop.is_set():
+        try:
+            reconcile_dashboard_summaries()
+        except Exception as exc:
+            logger.warning("Dashboard summary reconciliation failed: %s", exc)
+        if dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS):
+            break
+
+
+def start_dashboard_summary_reconciler():
+    if not DASHBOARD_SUMMARY_RECONCILIATION_ENABLED:
+        return None
+    worker = threading.Thread(
+        target=dashboard_summary_reconciler_loop,
+        name="dashboard-summary-reconciler",
+        daemon=True,
+    )
+    worker.start()
+    return worker
+
+
 logger.info("Initializing database")
 _mysql_config_for_log = mysql_connection_config()
 logger.info(
@@ -20309,7 +20674,9 @@ if device_keys_look_default():
     logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
 start_relay_drain_worker()
 start_mqtt_bridge()
+start_dashboard_summary_reconciler()
 atexit.register(stop_mqtt_bridge)
+atexit.register(dashboard_summary_reconciler_stop.set)
 
 
 if __name__ == "__main__":
