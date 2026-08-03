@@ -1483,3 +1483,5 @@ def test_login_modal_has_scoped_high_contrast_theme():
     assert "#loginModal .modal-panel" in login_template
     assert "background:#102f39!important" in login_template
     assert "-webkit-text-fill-color:#f4fcfd!important" in login_template
+    assert '#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill' in login_template
+    assert "-webkit-box-shadow:0 0 0 1000px #102f39 inset!important" in login_template

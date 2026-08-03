@@ -5,6 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SERVER = (ROOT / "swt_flask_project/flask_app/server.py").read_text(encoding="utf-8")
 FIRMWARE = (ROOT / "swt_firmware_project/src/two_node_udp.cpp").read_text(encoding="utf-8")
 TEMPLATE = (ROOT / "swt_flask_project/flask_app/templates/index.html").read_text(encoding="utf-8")
+DEVICE_DETAIL_TEMPLATE = (ROOT / "swt_flask_project/flask_app/templates/device_detail.html").read_text(encoding="utf-8")
 
 
 def test_optional_physical_feedback_and_runtime_contract_is_end_to_end():
@@ -35,3 +36,15 @@ def test_supervised_manual_run_choices_are_available():
     assert "Run 15 minutes" in TEMPLATE
     assert "Run 30 minutes" in TEMPLATE
     assert 'normalized.startsWith("on_for:")' in FIRMWARE
+
+
+def test_device_detail_shows_optional_pump_confirmation_sensors():
+    assert 'id="pumpConfirmationSensors"' in DEVICE_DETAIL_TEMPLATE
+    assert "Starter-contactor auxiliary sensor" in DEVICE_DETAIL_TEMPLATE
+    assert "Motor-current sensor" in DEVICE_DETAIL_TEMPLATE
+    assert "Water-flow sensor" in DEVICE_DETAIL_TEMPLATE
+    assert "Water-pressure sensor" in DEVICE_DETAIL_TEMPLATE
+    assert '{label:"Starter Contactor Sensor"' in DEVICE_DETAIL_TEMPLATE
+    assert '{label:"Motor Current Sensor"' in DEVICE_DETAIL_TEMPLATE
+    assert '{label:"Water Flow Sensor"' in DEVICE_DETAIL_TEMPLATE
+    assert '{label:"Water Pressure Sensor"' in DEVICE_DETAIL_TEMPLATE
