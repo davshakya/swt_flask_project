@@ -35,6 +35,16 @@ def test_custom_log_formatter_does_not_replace_global_converter():
     assert "converter = staticmethod(logging_ist_converter)" in body
 
 
+def test_telemetry_hot_path_never_runs_retention_deletes():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    start = source.index("def postprocess_telemetry_payload(")
+    body = source[start : source.index("def process_telemetry_payload(", start)]
+
+    assert "maybe_prune_retained_rows(" not in body
+    assert "telemetry_postprocess_pending[normalized_device_id] = work_item" in body
+    assert "telemetry_postprocess_running" in body
+
+
 def test_database_maintenance_runs_real_table_optimization():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     start = source.index('def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):')

@@ -865,6 +865,10 @@ relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
 db_prune_lock = threading.Lock()
+telemetry_postprocess_lock = threading.Lock()
+telemetry_postprocess_pending = {}
+telemetry_postprocess_running = set()
+telemetry_postprocess_last_run_at = {}
 homepage_visitor_count_lock = threading.Lock()
 homepage_visitor_count_cached = None
 homepage_visitor_count_pending = 0
@@ -4508,11 +4512,10 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 
 def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
     try:
-        maybe_prune_retained_rows(
-            device_id=cleaned.get("device_id"),
-            latest_row_id=latest_row_id,
-            force=False,
-        )
+        # Retention performs multi-row DELETE operations and must never run in
+        # a telemetry/page worker. On shared MariaDB it can hold locks until the
+        # web-server timeout and starve every LSAPI child. Cleanup remains
+        # available through the explicit admin/cron endpoint.
         try:
             saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
             reported_peer_channel = (
@@ -4625,9 +4628,47 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
 
 
 def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
+    normalized_device_id = normalize_device_id((cleaned or {}).get("device_id"))
+    if not normalized_device_id:
+        return
+    work_item = (dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id)
+    with telemetry_postprocess_lock:
+        # Keep only the newest payload for a device. A five-second telemetry
+        # interval must not create an unbounded number of database threads.
+        telemetry_postprocess_pending[normalized_device_id] = work_item
+        if normalized_device_id in telemetry_postprocess_running:
+            return
+        telemetry_postprocess_running.add(normalized_device_id)
+
+    def worker():
+        completed_normally = False
+        try:
+            while True:
+                with telemetry_postprocess_lock:
+                    pending = telemetry_postprocess_pending.pop(normalized_device_id, None)
+                    last_run = telemetry_postprocess_last_run_at.get(normalized_device_id, 0.0)
+                    if pending is None:
+                        telemetry_postprocess_running.discard(normalized_device_id)
+                        completed_normally = True
+                        return
+                remaining = 30.0 - (time.monotonic() - last_run)
+                if remaining > 0:
+                    time.sleep(remaining)
+                    with telemetry_postprocess_lock:
+                        pending = telemetry_postprocess_pending.pop(normalized_device_id, pending)
+                postprocess_telemetry_payload(*pending)
+                with telemetry_postprocess_lock:
+                    telemetry_postprocess_last_run_at[normalized_device_id] = time.monotonic()
+                    if normalized_device_id not in telemetry_postprocess_pending:
+                        return
+        finally:
+            if not completed_normally:
+                with telemetry_postprocess_lock:
+                    telemetry_postprocess_running.discard(normalized_device_id)
+
     threading.Thread(
-        target=postprocess_telemetry_payload,
-        args=(dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id),
+        target=worker,
+        name=f"telemetry-postprocess-{normalized_device_id}",
         daemon=True,
     ).start()
 
@@ -5181,6 +5222,9 @@ def connect_mysql():
         "charset": "utf8mb4",
         "cursorclass": MySqlDictCursor,
         "autocommit": False,
+        "connect_timeout": max(1, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 3)),
+        "read_timeout": max(2, env_int("MYSQL_READ_TIMEOUT_SECONDS", 8)),
+        "write_timeout": max(2, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 8)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
     try:
@@ -5231,6 +5275,7 @@ def connect_mysql():
                 ) from reconnect_exc
     with conn.cursor() as cursor:
         cursor.execute("SET time_zone = '+00:00'")
+        cursor.execute("SET SESSION innodb_lock_wait_timeout = 3")
     return MySqlConnectionAdapter(conn)
 
 
@@ -14933,7 +14978,7 @@ def fetch_device_inventory(limit=20, device_ids=None):
     return inventory
 
 
-def fetch_device_snapshot(device_id):
+def fetch_device_snapshot(device_id, include_transition_counts=True):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
@@ -14952,8 +14997,10 @@ def fetch_device_snapshot(device_id):
         ).fetchone()
         if not row:
             return None
-        counts = db.execute(
-            f"""
+        counts = None
+        if include_transition_counts:
+            counts = db.execute(
+                f"""
             SELECT
                 COALESCE(SUM(CASE WHEN motor='ON' AND COALESCE(prev_motor,'OFF')!='ON' THEN 1 ELSE 0 END), 0) AS motor_cycles,
                 COALESCE(SUM(CASE WHEN pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES' THEN 1 ELSE 0 END), 0) AS leak_events
@@ -14972,10 +15019,14 @@ def fetch_device_snapshot(device_id):
                 ) recent_rows
                 ORDER BY id
             ) transitions
-            """,
-            (normalized_device_id, *source_params),
-        ).fetchone()
-    return enrich_snapshot(dict(row), int(counts["motor_cycles"] or 0), int(counts["leak_events"] or 0))
+                """,
+                (normalized_device_id, *source_params),
+            ).fetchone()
+    return enrich_snapshot(
+        dict(row),
+        int((counts or {}).get("motor_cycles") or 0),
+        int((counts or {}).get("leak_events") or 0),
+    )
 
 
 def fetch_device_history(device_id, limit=48):
@@ -20207,7 +20258,7 @@ def admin_device_detail_customer_password(device_id):
 @admin_required
 def device_detail_status(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    snapshot = fetch_device_snapshot(scoped_device_id)
+    snapshot = fetch_device_snapshot(scoped_device_id, include_transition_counts=False)
     if not snapshot:
         # Newly registered devices can have saved configuration before the first
         # telemetry packet arrives, so return an empty snapshot shell instead of
@@ -20217,6 +20268,7 @@ def device_detail_status(device_id):
     include_events = request.args.get("events", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_alerts = request.args.get("alerts", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_audit = request.args.get("audit", "1").strip().lower() not in {"0", "false", "no", "off"}
+    include_details = request.args.get("details", "1").strip().lower() not in {"0", "false", "no", "off"}
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     snapshot_payload = strip_ip_address_fields(snapshot, keep_device_local_url=True)
     snapshot_has_live_simulator_status = (
@@ -20227,7 +20279,10 @@ def device_detail_status(device_id):
     snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
     if simulator_enabled and not snapshot_has_live_simulator_status:
         snapshot_payload["simulator"] = "ON"
-    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
+    # Frequent browser polling needs only the latest telemetry snapshot. Saved
+    # configuration is already embedded in the page and is fetched again only
+    # for an explicit/full refresh.
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot) if include_details else {}
     payload = {
         "device_id": scoped_device_id,
         "system_status": build_system_status_payload(
@@ -20237,10 +20292,11 @@ def device_detail_status(device_id):
         ),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
-        "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),
-        "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
-        "current_saved_config": build_current_saved_config(scoped_device_id),
     }
+    if include_details:
+        payload["service_config"] = service_config
+        payload["automation_settings"] = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)
+        payload["current_saved_config"] = build_current_saved_config(scoped_device_id)
     if include_alerts:
         payload["alerts"] = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
     if include_audit:

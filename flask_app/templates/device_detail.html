@@ -705,6 +705,7 @@ const INITIAL_SNAPSHOT={{ (live_snapshot|default({}, true))|tojson }};
 const INITIAL_SYSTEM_STATUS={{ (system_status|default({}, true))|tojson }};
 const INITIAL_SERVICE_CONFIG={{ (service_config|default({}, true))|tojson }};
 const INITIAL_AUTOMATION_SETTINGS={{ (automation_settings|default({}, true))|tojson }};
+const INITIAL_SAVED_CONFIG={{ (current_saved_config|default({}, true))|tojson }};
 const localeTools=window.swtLocale||{};
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 let deviceRefreshInFlight=false;
@@ -1918,6 +1919,7 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   }
   statusUrl.searchParams.set("alerts","0");
   statusUrl.searchParams.set("audit","0");
+  statusUrl.searchParams.set("details",silent?"0":"1");
   if(shouldIncludeHistory){
     statusUrl.searchParams.set("history","1");
   }
@@ -1930,9 +1932,9 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   const snapshot=data.snapshot||{};
   const systemStatus=data.system_status||{};
   const monitoringSummary=data.monitoring_summary||{};
-  const serviceConfig=data.service_config||{};
-  const automationSettings=data.automation_settings||{};
-  const currentSavedConfig=data.current_saved_config||{};
+  const serviceConfig=data.service_config||INITIAL_SERVICE_CONFIG||{};
+  const automationSettings=data.automation_settings||INITIAL_AUTOMATION_SETTINGS||{};
+  const currentSavedConfig=data.current_saved_config||INITIAL_SAVED_CONFIG||{};
   const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
   const noTelemetry=String(telemetry).trim().toLowerCase()==="no-data";
   const lastSync=snapshot.last_sync_at;

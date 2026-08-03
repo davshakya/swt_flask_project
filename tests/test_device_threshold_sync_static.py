@@ -71,9 +71,11 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     route_start = source.index('@app.route("/devices/<device_id>/status")')
     route_source = source[route_start : source.index('\n\n@app.route("/status", methods=["GET", "POST"])', route_start)]
 
-    assert '"service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot)' in route_source
-    assert '"automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)' in route_source
-    assert '"current_saved_config": build_current_saved_config(scoped_device_id)' in route_source
+    assert 'include_details = request.args.get("details", "1")' in route_source
+    assert 'if include_details:' in route_source
+    assert 'payload["service_config"] = service_config' in route_source
+    assert 'payload["automation_settings"] = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)' in route_source
+    assert 'payload["current_saved_config"] = build_current_saved_config(scoped_device_id)' in route_source
     assert 'snapshot = build_empty_snapshot_payload(scoped_device_id)' in route_source
     assert 'return jsonify({"error": "device not found"}), 404' not in route_source
 
@@ -89,6 +91,8 @@ def test_device_detail_status_and_template_include_live_configuration_grid():
     assert "Activity log is ready and waiting for the latest event refresh." not in template_source
     assert "if(latestEvents.length)renderActivityTable();" in template_source
     assert "const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);" in template_source
+    assert 'statusUrl.searchParams.set("details",silent?"0":"1");' in template_source
+    assert "data.service_config||INITIAL_SERVICE_CONFIG||{}" in template_source
     assert "const ACTIVITY_INITIAL_FETCH_LIMIT=20;" in template_source
     assert "const ACTIVITY_FETCH_LIMIT=50;" in template_source
     assert "loadDevice({silent:true,includeHistory:false,includeEvents:false});" in template_source
