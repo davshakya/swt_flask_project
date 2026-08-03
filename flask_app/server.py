@@ -723,7 +723,7 @@ DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
     min(900, env_int("DASHBOARD_SUMMARY_RECONCILE_SECONDS", 600)),
 )
 DASHBOARD_SUMMARY_RECONCILIATION_ENABLED = env_flag(
-    "DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=True
+    "DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=False
 )
 DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS = max(
     5, min(300, env_int("DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS", 30))
@@ -748,6 +748,7 @@ ANALYTICS_MAX_DAILY_TANK_TURNOVERS = max(
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
+ANALYTICS_SYNC_EVENTS_ON_REQUEST = env_flag("ANALYTICS_SYNC_EVENTS_ON_REQUEST", default=False)
 FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
@@ -11437,7 +11438,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
         return cached_payload
-    if normalized_device_id:
+    if normalized_device_id and ANALYTICS_SYNC_EVENTS_ON_REQUEST:
         sync_device_events(device_id=normalized_device_id)
 
     if not TELEMETRY_HISTORY_ENABLED:

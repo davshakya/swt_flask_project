@@ -18,6 +18,16 @@ def test_dashboard_summary_is_persisted_and_reconciled():
     assert "MAX(dashboard_summaries.updated_at) < ?" in source
     assert "dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS)" in source
     assert "start_dashboard_summary_reconciler()" in source
+    assert '"DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=False' in source
+
+
+def test_analytics_requests_do_not_write_device_events_by_default():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    build_start = source.index("def build_analytics(")
+    build_body = source[build_start : source.index("\n\ndef build_cached_fixed_ai_analytics", build_start)]
+
+    assert 'ANALYTICS_SYNC_EVENTS_ON_REQUEST = env_flag("ANALYTICS_SYNC_EVENTS_ON_REQUEST", default=False)' in source
+    assert "if normalized_device_id and ANALYTICS_SYNC_EVENTS_ON_REQUEST:" in build_body
 
 
 def test_customer_and_mobile_bootstrap_only_read_materialized_summary():
