@@ -815,10 +815,13 @@ def logging_ist_converter(timestamp, *_args):
     return datetime.fromtimestamp(timestamp, IST_TIMEZONE).timetuple()
 
 
-logging.Formatter.converter = staticmethod(logging_ist_converter)
-
-
 class SwtColorFormatter(logging.Formatter):
+    # Keep the timezone converter on this formatter only. Assigning it to
+    # logging.Formatter globally turns a plain function into a bound method on
+    # some Python deployments, which passes ``self`` plus the timestamp and
+    # makes logging fail while handling another exception.
+    converter = staticmethod(logging_ist_converter)
+
     RESET = "\033[0m"
     TIMESTAMP_COLOR = "\033[36m"
     LEVEL_COLORS = {
@@ -863,6 +866,9 @@ level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
 db_prune_lock = threading.Lock()
 homepage_visitor_count_lock = threading.Lock()
+homepage_visitor_count_cached = None
+homepage_visitor_count_pending = 0
+homepage_visitor_count_worker_running = False
 relay_state = {
     "last_success_at": None,
     "last_error_at": None,
@@ -2483,15 +2489,16 @@ def auth_persistence_warnings():
 
 
 def homepage_login_status():
-    if not is_logged_in():
+    # The public homepage must never wait for database-backed session validation.
+    # Protected destinations validate the identity when the user follows a link.
+    if not bool(session.get("logged_in")):
         return None
-    role = current_user_role()
+    role = str(session.get("role") or "admin").strip().lower()
     if role == "admin":
         return {"role": "admin", "display_name": "Admin"}
-    account = current_customer_account() or {}
     return {
         "role": "customer",
-        "display_name": account.get("display_name") or session.get("username") or "Customer",
+        "display_name": session.get("display_name") or session.get("username") or "Customer",
     }
 
 
@@ -2521,15 +2528,12 @@ def stored_dashboard_identity_is_valid(role):
 def homepage_auth_status():
     active_user = homepage_login_status()
     active_role = (active_user or {}).get("role")
-    customer_device_id = normalize_device_id(session.get("customer_device_id"))
-    customer_account = fetch_customer_account(customer_device_id) if customer_device_id else None
     return {
         "active_user": active_user,
-        "admin_logged_in": active_role == "admin" or stored_dashboard_identity_is_valid("admin"),
-        "customer_logged_in": active_role == "customer" or stored_dashboard_identity_is_valid("customer"),
+        "admin_logged_in": active_role == "admin" or bool(session.get("admin_logged_in")),
+        "customer_logged_in": active_role == "customer" or bool(session.get("customer_logged_in")),
         "customer_display_name": (
-            (customer_account or {}).get("display_name")
-            or session.get("customer_username")
+            session.get("customer_display_name") or session.get("customer_username")
             or "Customer"
         ),
     }
@@ -4261,22 +4265,31 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None, force=False)
             cursor.execute("DELETE FROM tank_data WHERE id != ?", (latest_row_id,))
         pruned["tank_data_snapshot_only"] = max(0, int(cursor.rowcount or 0))
     elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:
+        # Avoid DELETE ... IN (SELECT ... LIMIT/OFFSET), which is rejected by
+        # some MariaDB releases used by shared hosts. Select a bounded batch of
+        # old IDs first, then delete those exact rows with a portable query.
         cursor.execute(
             """
-            DELETE FROM tank_data
-            WHERE id IN (
-                SELECT capped_rows.id FROM (
-                    SELECT id
-                    FROM tank_data
-                    WHERE COALESCE(device_id, '') = ?
-                    ORDER BY created_at DESC, id DESC
-                    LIMIT -1 OFFSET ?
-                ) AS capped_rows
-            )
+            SELECT id
+            FROM tank_data
+            WHERE COALESCE(device_id, '') = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ? OFFSET ?
             """,
-            (normalized_device_id, MAX_TELEMETRY_ROWS_PER_DEVICE),
+            (
+                normalized_device_id,
+                DB_RETENTION_DELETE_BATCH_ROWS,
+                MAX_TELEMETRY_ROWS_PER_DEVICE,
+            ),
         )
-        pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0))
+        capped_row_ids = [int(row["id"]) for row in cursor.fetchall()]
+        if capped_row_ids:
+            placeholders = ", ".join("?" for _ in capped_row_ids)
+            cursor.execute(
+                f"DELETE FROM tank_data WHERE id IN ({placeholders})",
+                tuple(capped_row_ids),
+            )
+        pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0)) if capped_row_ids else 0
 
     pruned["device_command_queue_retention"] = prune_delete_batches(
         cursor,
@@ -4379,7 +4392,16 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
         maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows, force=force)
         return pruned
     except Exception as exc:
-        db_prune_state["last_error"] = str(exc)
+        # A failed prune must still observe the normal cooldown. Without this,
+        # every telemetry request retries the same bad query and can exhaust
+        # web workers through an exception/logging storm.
+        db_prune_state.update(
+            {
+                "last_run_at": time.time(),
+                "last_error_at": time.time(),
+                "last_error": str(exc),
+            }
+        )
         logger.warning("Retention prune failed: %s", exc)
         return {}
     finally:
@@ -6209,26 +6231,63 @@ def save_device_local_web_password(device_id, password):
 
 
 def increment_homepage_visitor_count():
+    global homepage_visitor_count_cached
+    global homepage_visitor_count_pending
+    global homepage_visitor_count_worker_running
+
     with homepage_visitor_count_lock:
-        with get_db() as db:
-            db.execute(
-                """
-                INSERT INTO app_settings(key, value, updated_at)
-                VALUES (?, '1', CURRENT_TIMESTAMP)
-                ON CONFLICT(key) DO UPDATE SET
-                    value=app_settings.value + 1,
-                    updated_at=CURRENT_TIMESTAMP
-                """,
-                (HOMEPAGE_VISITOR_COUNT_SETTING,),
-            )
-            row = db.execute(
-                "SELECT value FROM app_settings WHERE key = ?",
-                (HOMEPAGE_VISITOR_COUNT_SETTING,),
-            ).fetchone()
-        try:
-            return max(0, int(str(row["value"] if row else "0").strip()))
-        except (TypeError, ValueError):
-            return 0
+        homepage_visitor_count_pending += 1
+        if homepage_visitor_count_cached is not None:
+            homepage_visitor_count_cached += 1
+        display_count = homepage_visitor_count_cached or homepage_visitor_count_pending
+        if homepage_visitor_count_worker_running:
+            return display_count
+        homepage_visitor_count_worker_running = True
+
+    def persist_pending_visits():
+        global homepage_visitor_count_cached
+        global homepage_visitor_count_pending
+        global homepage_visitor_count_worker_running
+        while True:
+            with homepage_visitor_count_lock:
+                increment_by = homepage_visitor_count_pending
+                homepage_visitor_count_pending = 0
+            if increment_by <= 0:
+                with homepage_visitor_count_lock:
+                    homepage_visitor_count_worker_running = False
+                return
+            try:
+                with get_db() as db:
+                    db.execute(
+                        """
+                        INSERT INTO app_settings(key, value, updated_at)
+                        VALUES (?, ?, CURRENT_TIMESTAMP)
+                        ON CONFLICT(key) DO UPDATE SET
+                            value=app_settings.value + excluded.value,
+                            updated_at=CURRENT_TIMESTAMP
+                        """,
+                        (HOMEPAGE_VISITOR_COUNT_SETTING, str(increment_by)),
+                    )
+                    row = db.execute(
+                        "SELECT value FROM app_settings WHERE key = ?",
+                        (HOMEPAGE_VISITOR_COUNT_SETTING,),
+                    ).fetchone()
+                persisted_count = max(0, int(str(row["value"] if row else "0").strip()))
+                with homepage_visitor_count_lock:
+                    homepage_visitor_count_cached = persisted_count + homepage_visitor_count_pending
+            except Exception as exc:
+                logger.warning("Homepage visitor counter update deferred: %s", exc)
+                with homepage_visitor_count_lock:
+                    homepage_visitor_count_pending += increment_by
+                    homepage_visitor_count_worker_running = False
+                return
+
+    threading.Thread(
+        target=persist_pending_visits,
+        name="homepage-visitor-counter",
+        daemon=True,
+    ).start()
+    return display_count
 
 
 def format_count_label(value):
