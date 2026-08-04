@@ -15819,7 +15819,12 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
     desired_state = "ON" if normalized_command == "ON" or normalized_command.startswith("ON_FOR:") else ("OFF" if normalized_command == "OFF" else None)
     request_id = str(request_id or secrets.token_hex(16))
     if expires_in_seconds is None:
-        expires_in_seconds = 60 if desired_state == "ON" else (600 if desired_state == "OFF" else 300)
+        # A controller can be rebooting or temporarily backing off after a
+        # failed HTTPS request.  A one-minute start-command lifetime made the
+        # dashboard report "queued" while the device never had another chance
+        # to receive it.  OFF remains high priority; starts remain valid long
+        # enough for the normal reconnect/poll recovery path.
+        expires_in_seconds = 600 if desired_state in {"ON", "OFF"} else 300
     expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
     priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
     with get_db() as db:

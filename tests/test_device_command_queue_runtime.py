@@ -1,4 +1,5 @@
 from flask_app import server
+from datetime import timedelta
 
 
 def test_named_test_device_credentials_are_included_in_registry(monkeypatch):
@@ -181,6 +182,29 @@ def test_simulator_commands_dedupe_only_their_own_target():
     assert server.device_command_family("MUNICIPAL_VALVE_SIMULATOR_ON") == "simulator:municipal_valve_simulator"
     assert server.device_command_family("LOWER_TURBIDITY_SIMULATOR_ON") == "simulator:lower_turbidity_simulator"
     assert server.device_command_family("UPPER_TURBIDITY_SIMULATOR_ON") == "simulator:upper_turbidity_simulator"
+
+
+def test_pump_start_commands_remain_available_during_controller_reconnect():
+    device_id = "swt-pump-start-queue-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+    try:
+        before_queue = server.now_utc()
+        server.queue_device_command("ON", device_id)
+        with server.get_db() as db:
+            row = db.execute(
+                "SELECT expires_at FROM device_command_queue WHERE target_device = ?",
+                (device_id,),
+            ).fetchone()
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+    assert row is not None
+    expires_at = server.parse_timestamp(row["expires_at"])
+    assert expires_at is not None
+    assert before_queue + timedelta(minutes=9) <= expires_at <= before_queue + timedelta(minutes=11)
 
 
 def test_runtime_sync_does_not_spam_or_use_stale_snapshots():
