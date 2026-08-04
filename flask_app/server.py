@@ -2546,9 +2546,9 @@ def render_login_page(
     sales_success=None,
     sales_form=None,
     show_login_modal=None,
+    count_homepage_visit=False,
 ):
     is_admin_mode = mode == "admin"
-    is_landing_page = request.endpoint in {"dashboard", "homepage"}
     login_action = url_for("admin_login" if is_admin_mode else "customer_login")
     switch_href = url_for("customer_login" if is_admin_mode else "admin_login")
     switch_label = "Customer Login" if is_admin_mode else "Admin Login"
@@ -2565,7 +2565,7 @@ def render_login_page(
     sales_form = sales_form or sales_form_from_pricing_query()
     homepage_visitor_count = (
         increment_homepage_visitor_count()
-        if is_landing_page
+        if count_homepage_visit
         else get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
     )
     return render_template(
@@ -2590,8 +2590,8 @@ def render_login_page(
         homepage_auth=homepage_auth_status(),
         homepage_visitor_count=format_count_label(homepage_visitor_count),
         show_pricing_links=SHOW_PRICING_LINKS,
-        on_dedicated_login_route=not is_landing_page,
-        show_login_modal=(bool(error) or not is_landing_page) if show_login_modal is None else bool(show_login_modal),
+        on_dedicated_login_route=not count_homepage_visit,
+        show_login_modal=(bool(error) or not count_homepage_visit) if show_login_modal is None else bool(show_login_modal),
     )
 
 
@@ -6070,6 +6070,7 @@ def save_device_local_web_password(device_id, password):
 
 
 def increment_homepage_visitor_count():
+    """Atomically record a public homepage request and return the new total."""
     with homepage_visitor_count_lock:
         with get_db() as db:
             db.execute(
@@ -6077,7 +6078,11 @@ def increment_homepage_visitor_count():
                 INSERT INTO app_settings(key, value, updated_at)
                 VALUES (?, '1', CURRENT_TIMESTAMP)
                 ON CONFLICT(key) DO UPDATE SET
-                    value=app_settings.value + 1,
+                    value=CASE
+                        WHEN TRIM(app_settings.value) REGEXP '^[0-9]+$'
+                            THEN CAST(app_settings.value AS UNSIGNED) + 1
+                        ELSE 1
+                    END,
                     updated_at=CURRENT_TIMESTAMP
                 """,
                 (HOMEPAGE_VISITOR_COUNT_SETTING,),
@@ -18167,6 +18172,7 @@ def dashboard():
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
+        count_homepage_visit=True,
     )
 
 
@@ -18175,6 +18181,7 @@ def homepage():
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
+        count_homepage_visit=True,
     )
 
 

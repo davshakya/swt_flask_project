@@ -19,3 +19,16 @@ def test_homepage_visits_increment_atomically_and_are_not_cached():
         assert server.get_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING) == "2526"
     finally:
         server.set_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING, original_value)
+
+
+def test_homepage_visit_recovers_from_an_invalid_saved_value():
+    original_value = server.get_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+    try:
+        server.set_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING, "not-a-number")
+
+        response = server.app.test_client().get("/")
+
+        assert response.status_code == 200
+        assert server.get_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING) == "1"
+    finally:
+        server.set_app_setting(server.HOMEPAGE_VISITOR_COUNT_SETTING, original_value)
