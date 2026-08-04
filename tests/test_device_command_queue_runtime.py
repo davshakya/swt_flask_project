@@ -207,6 +207,34 @@ def test_pump_start_commands_remain_available_during_controller_reconnect():
     assert before_queue + timedelta(minutes=9) <= expires_at <= before_queue + timedelta(minutes=11)
 
 
+def test_stop_cancels_timed_pump_start_and_normalizes_target_device():
+    device_id = "  swt-pump-stop-queue-001  "
+    normalized_device_id = device_id.strip()
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,))
+
+    try:
+        server.queue_device_command("ON_FOR:900", device_id)
+        server.queue_device_command("OFF", device_id)
+        with server.get_db() as db:
+            pending_rows = db.execute(
+                """
+                SELECT target_device, command
+                FROM device_command_queue
+                WHERE target_device = ? AND delivered_at IS NULL
+                ORDER BY id ASC
+                """,
+                (normalized_device_id,),
+            ).fetchall()
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (normalized_device_id,))
+
+    assert [(row["target_device"], row["command"]) for row in pending_rows] == [
+        (normalized_device_id, "OFF"),
+    ]
+
+
 def test_runtime_sync_does_not_spam_or_use_stale_snapshots():
     device_id = "swt-999-999-999-995"
 

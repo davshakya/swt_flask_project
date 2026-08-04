@@ -1089,10 +1089,9 @@ function updateUpperTankTrend(snapshot){
 }
 function pumpDisplayState(motorState,levelIncreasing=false){
     const motor=String(motorState||"").toUpperCase();
-    if(levelIncreasing&&!isPumpRunning(motor))return"START";
     return motor||"--";
 }
-function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");if(!logo)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const startInferred=levelIncreasing&&!running;const spinning=running||pendingActive||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pendingActive||startInferred)&&!running);}
+function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");if(!logo)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const spinning=running||pendingActive;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pendingActive&&!running);}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;

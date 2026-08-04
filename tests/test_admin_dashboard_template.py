@@ -590,7 +590,8 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "const PUMP_START_GRACE_MS=60000;" in customer_template
     assert "pendingPumpStartUntil:0" in customer_template
     assert "const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil" in customer_template
-    assert "const spinning=running||pendingActive||startInferred" in customer_template
+    assert "const spinning=running||pendingActive" in customer_template
+    assert "if(levelIncreasing&&!isPumpRunning(motor))return\"START\";" not in customer_template
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
 
 

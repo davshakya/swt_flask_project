@@ -15814,6 +15814,9 @@ def device_command_family(command):
 
 
 def queue_device_command(command, target_device, request_id=None, expires_in_seconds=None):
+    normalized_target_device = normalize_device_id(target_device)
+    if not normalized_target_device:
+        raise ValueError("A target device is required for a queued command.")
     normalized_command = str(command or "").strip().upper()
     normalized_family = device_command_family(normalized_command)
     desired_state = "ON" if normalized_command == "ON" or normalized_command.startswith("ON_FOR:") else ("OFF" if normalized_command == "OFF" else None)
@@ -15830,15 +15833,29 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
     with get_db() as db:
         existing_request = db.execute(
             "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",
-            (target_device, request_id),
+            (normalized_target_device, request_id),
         ).fetchone()
         if existing_request:
+            logger.info(
+                "Reusing queued command id=%s for device=%s command=%s request_id=%s",
+                existing_request["id"], normalized_target_device, normalized_command, request_id,
+            )
             return existing_request["id"]
         if desired_state == "OFF":
-            db.execute(
-                "DELETE FROM device_command_queue WHERE target_device = ? AND delivered_at IS NULL AND UPPER(command) = 'ON'",
-                (target_device,),
+            cancelled = db.execute(
+                """
+                DELETE FROM device_command_queue
+                WHERE target_device = ?
+                  AND delivered_at IS NULL
+                  AND (UPPER(command) = 'ON' OR SUBSTR(UPPER(command), 1, 7) = 'ON_FOR:')
+                """,
+                (normalized_target_device,),
             )
+            if cancelled.rowcount:
+                logger.info(
+                    "Cancelled %s pending pump-start command(s) for device=%s because OFF was queued",
+                    cancelled.rowcount, normalized_target_device,
+                )
         pending_rows = db.execute(
             """
             SELECT id, command
@@ -15846,7 +15863,7 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
             WHERE target_device = ? AND delivered_at IS NULL
             ORDER BY id ASC
             """,
-            (target_device,),
+            (normalized_target_device,),
         ).fetchall()
         duplicate_ids = [
             row["id"]
@@ -15860,7 +15877,7 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
                 DELETE FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL AND id IN ({placeholders})
                 """,
-                (target_device, *duplicate_ids),
+                (normalized_target_device, *duplicate_ids),
             )
         cursor = db.execute(
             """
@@ -15868,7 +15885,7 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
                 target_device, command, request_id, desired_state, status, priority, expires_at
             ) VALUES (?, ?, ?, ?, 'queued', ?, ?)
             """,
-            (target_device, normalized_command, request_id, desired_state, priority, expires_at),
+            (normalized_target_device, normalized_command, request_id, desired_state, priority, expires_at),
         )
         db.execute(
             """
@@ -15876,6 +15893,10 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
             WHERE delivered_at IS NOT NULL
               AND delivered_at < datetime('now', '-7 day')
             """
+        )
+        logger.info(
+            "Queued device command id=%s device=%s command=%s priority=%s expires_at=%s request_id=%s",
+            cursor.lastrowid, normalized_target_device, normalized_command, priority, expires_at, request_id,
         )
         return cursor.lastrowid
 
