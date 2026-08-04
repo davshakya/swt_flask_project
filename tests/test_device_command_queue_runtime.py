@@ -174,6 +174,15 @@ def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupe
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
 
 
+def test_simulator_commands_dedupe_only_their_own_target():
+    assert server.device_command_family("SIMULATOR_ON") == "simulator:tank"
+    assert server.device_command_family("SIMULATOR_OFF") == "simulator:tank"
+    assert server.device_command_family("MUNICIPAL_SIMULATOR_ON") == "simulator:municipal_simulator"
+    assert server.device_command_family("MUNICIPAL_VALVE_SIMULATOR_ON") == "simulator:municipal_valve_simulator"
+    assert server.device_command_family("LOWER_TURBIDITY_SIMULATOR_ON") == "simulator:lower_turbidity_simulator"
+    assert server.device_command_family("UPPER_TURBIDITY_SIMULATOR_ON") == "simulator:upper_turbidity_simulator"
+
+
 def test_runtime_sync_does_not_spam_or_use_stale_snapshots():
     device_id = "swt-999-999-999-995"
 

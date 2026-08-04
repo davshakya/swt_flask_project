@@ -15773,8 +15773,14 @@ def device_command_family(command):
         or compact.startswith("PEER_PING")
     ):
         return "ping_slave"
-    if compact.startswith("SIMULATOR") or compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
-        return "simulator"
+    # Simulator controls are independent.  Do not coalesce them into one
+    # queue family: doing so makes a later municipal/valve/turbidity request
+    # delete a pending tank-simulator request (and vice versa) before the
+    # device has had a chance to poll it.
+    if compact in {"SIMULATOR_ON", "SIMULATOR_OFF"}:
+        return "simulator:tank"
+    if compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
+        return f"simulator:{compact.rsplit('_', 1)[0].lower()}"
     return f"command:{compact}"
 
 
@@ -20113,26 +20119,6 @@ def admin_device_detail_simulator(device_id):
         },
     )
 
-    synchronized_status = system_status.get("synchronized_status") or build_synchronized_status_payload(
-        snapshot, device_id=normalized_device_id, service_config=service_config
-    )
-    pump_status = synchronized_status.get("pump") or {}
-    sensors_status = synchronized_status.get("sensors") or {}
-    ai_status = synchronized_status.get("ai_ml") or {}
-    configuration_status = synchronized_status.get("configuration") or {}
-    add_event(
-        "synchronized_status_current_status",
-        "success" if configuration_status.get("state") == "SYNCED" else "warning",
-        (
-            f"Synchronized status: pump {pump_status.get('state', 'UNKNOWN')}; "
-            f"upper sensor {sensors_status.get('upper', 'Unreachable')}; "
-            f"source sensor {sensors_status.get('source', 'Unreachable')}; "
-            f"municipal sensor {sensors_status.get('municipal', 'Disabled')}; "
-            f"AI/ML {ai_status.get('state', 'OFF')}; "
-            f"configuration {configuration_status.get('state', 'WAITING')}."
-        ),
-        {"status_contract": synchronized_status},
-    )
     message = f"{target_label} simulator {'enable' if desired_enabled else 'disable'} command queued."
     return redirect(
         url_for(
