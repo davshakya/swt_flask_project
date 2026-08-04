@@ -1,1 +1,0 @@
-The upper tank sensor prevents overflow.

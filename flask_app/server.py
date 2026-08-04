@@ -4357,14 +4357,22 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
         ):
             return {}
 
-        with get_db() as db:
-            cursor = db.cursor()
-            pruned = prune_retained_rows(
-                cursor,
-                device_id=device_id,
-                latest_row_id=latest_row_id,
-                force=force,
-            )
+        def prune_operation():
+            with get_db() as db:
+                cursor = db.cursor()
+                return prune_retained_rows(
+                    cursor,
+                    device_id=device_id,
+                    latest_row_id=latest_row_id,
+                    force=force,
+                )
+
+        pruned = run_with_database_lock_retries(
+            prune_operation,
+            operation_name="prune retained rows",
+            attempts=3,
+            initial_delay_s=0.5,
+        )
 
         size_cap_result = maybe_prune_telemetry_size_cap(force=force)
         size_cap_rows = int(size_cap_result.get("rows") or 0)
@@ -5101,6 +5109,39 @@ def translate_mysql_query(sql, params=None):
     return sql, tuple(params or ())
 
 
+def mysql_exception_number(exc):
+    return getattr(exc, "args", [None])[0] if isinstance(getattr(exc, "args", None), (list, tuple)) else None
+
+
+def mysql_exception_message(exc):
+    return str(exc or "").strip().lower()
+
+
+def mysql_is_connection_recoverable_error(exc):
+    code = mysql_exception_number(exc)
+    message = mysql_exception_message(exc)
+    return (
+        code in {2006, 2013, 2055}
+        or "gone away" in message
+        or "lost connection" in message
+        or "connection reset by peer" in message
+    )
+
+
+def mysql_is_lock_error(exc):
+    code = mysql_exception_number(exc)
+    message = mysql_exception_message(exc)
+    return (
+        code in {1205, 1213}
+        or "lock wait timeout" in message
+        or "deadlock found" in message
+    )
+
+
+def mysql_is_retryable_error(exc):
+    return mysql_is_lock_error(exc) or mysql_is_connection_recoverable_error(exc)
+
+
 class DbRow(dict):
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -5115,7 +5156,8 @@ def adapt_mysql_row(row):
 
 
 class MySqlCursorAdapter:
-    def __init__(self, cursor):
+    def __init__(self, connection_adapter, cursor):
+        self.connection_adapter = connection_adapter
         self.cursor = cursor
         self.lastrowid = None
         self.rowcount = -1
@@ -5142,9 +5184,37 @@ class MySqlCursorAdapter:
             return self
         self._buffered_rows = None
         translated_sql, translated_params = translate_mysql_query(sql, params)
-        self.cursor.execute(translated_sql, translated_params)
-        self.lastrowid = self.cursor.lastrowid
-        self.rowcount = self.cursor.rowcount
+        max_attempts = 4
+        attempt = 0
+        while attempt < max_attempts:
+            try:
+                self.cursor.execute(translated_sql, translated_params)
+                self.lastrowid = self.cursor.lastrowid
+                self.rowcount = self.cursor.rowcount
+                return self
+            except Exception as exc:
+                attempt += 1
+                if mysql_is_lock_error(exc):
+                    raise
+                if not mysql_is_connection_recoverable_error(exc) or attempt >= max_attempts:
+                    raise
+                logger.warning(
+                    "Retrying MySQL execute after recoverable connection error (%s/%s): %s",
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                try:
+                    self.connection_adapter.connection.rollback()
+                except Exception:
+                    pass
+                try:
+                    self.connection_adapter.reconnect()
+                except Exception:
+                    raise
+                self.cursor = self.connection_adapter.connection.cursor()
+                self._buffered_rows = None
+                time.sleep(0.2 * attempt)
         return self
 
     def fetchone(self):
@@ -5170,12 +5240,21 @@ class MySqlConnectionAdapter:
         self.connection = connection
 
     def cursor(self):
-        return MySqlCursorAdapter(self.connection.cursor())
+        return MySqlCursorAdapter(self, self.connection.cursor())
 
     def execute(self, sql, params=None):
         cursor = self.cursor()
         cursor.execute(sql, params)
         return cursor
+
+    def reconnect(self):
+        try:
+            if self.connection is not None:
+                self.connection.close()
+        except Exception:
+            pass
+        adapter = connect_mysql()
+        self.connection = adapter.connection
 
     def commit(self):
         return self.connection.commit()
@@ -5275,7 +5354,7 @@ def connect_mysql():
                 ) from reconnect_exc
     with conn.cursor() as cursor:
         cursor.execute("SET time_zone = '+00:00'")
-        cursor.execute("SET SESSION innodb_lock_wait_timeout = 3")
+        cursor.execute("SET SESSION innodb_lock_wait_timeout = 10")
     return MySqlConnectionAdapter(conn)
 
 
@@ -13630,80 +13709,91 @@ def persist_device_events(events, default_device_id=None):
     if not events:
         return 0
 
-    persisted = 0
-    affected_device_ids = set()
-    with get_db() as db:
-        for event in events:
-            if not isinstance(event, dict):
-                continue
-            details = event.get("details") if isinstance(event.get("details"), dict) else {}
-            event_at = normalize_device_event_time(event.get("time"))
-            event_kind = str(event.get("kind") or "event").strip().lower() or "event"
-            severity = str(event.get("severity") or "info").strip().lower() or "info"
-            message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
-            device_id = normalize_device_id(details.get("device_id") or default_device_id)
-            if device_id:
-                affected_device_ids.add(device_id)
-            duration_seconds = details.get("duration_seconds")
-            try:
-                duration_seconds = int(duration_seconds) if duration_seconds is not None else None
-            except (TypeError, ValueError):
-                duration_seconds = None
-            event_key = device_event_key(event, default_device_id=device_id)
-            source_table = str(details.get("source_table") or "").strip() or None
-            source_row_id = str(details.get("source_row_id") or "").strip() or None
-            if source_table and source_row_id:
+    def persist():
+        persisted = 0
+        affected_device_ids = set()
+        with get_db() as db:
+            for event in events:
+                if not isinstance(event, dict):
+                    continue
+                details = event.get("details") if isinstance(event.get("details"), dict) else {}
+                event_at = normalize_device_event_time(event.get("time"))
+                event_kind = str(event.get("kind") or "event").strip().lower() or "event"
+                severity = str(event.get("severity") or "info").strip().lower() or "info"
+                message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
+                device_id = normalize_device_id(details.get("device_id") or default_device_id)
+                if device_id:
+                    affected_device_ids.add(device_id)
+                duration_seconds = details.get("duration_seconds")
+                try:
+                    duration_seconds = int(duration_seconds) if duration_seconds is not None else None
+                except (TypeError, ValueError):
+                    duration_seconds = None
+                event_key = device_event_key(event, default_device_id=device_id)
+                source_table = str(details.get("source_table") or "").strip() or None
+                source_row_id = str(details.get("source_row_id") or "").strip() or None
+                if source_table and source_row_id:
+                    db.execute(
+                        """
+                        DELETE FROM device_events
+                        WHERE device_id = ?
+                          AND event_kind = ?
+                          AND source_table = ?
+                          AND source_row_id = ?
+                          AND event_key <> ?
+                        """,
+                        (device_id, event_kind, source_table, source_row_id, event_key),
+                    )
                 db.execute(
                     """
-                    DELETE FROM device_events
-                    WHERE device_id = ?
-                      AND event_kind = ?
-                      AND source_table = ?
-                      AND source_row_id = ?
-                      AND event_key <> ?
+                    INSERT INTO device_events(
+                        event_key, device_id, event_kind, severity, message, details_json,
+                        source_table, source_row_id, started_at, ended_at, duration_seconds,
+                        event_at, updated_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(event_key) DO UPDATE SET
+                        device_id=excluded.device_id,
+                        event_kind=excluded.event_kind,
+                        severity=excluded.severity,
+                        message=excluded.message,
+                        details_json=excluded.details_json,
+                        source_table=excluded.source_table,
+                        source_row_id=excluded.source_row_id,
+                        started_at=excluded.started_at,
+                        ended_at=excluded.ended_at,
+                        duration_seconds=excluded.duration_seconds,
+                        event_at=excluded.event_at,
+                        updated_at=CURRENT_TIMESTAMP
                     """,
-                    (device_id, event_kind, source_table, source_row_id, event_key),
+                    (
+                        event_key,
+                        device_id,
+                        event_kind,
+                        severity,
+                        message,
+                        json.dumps(details, separators=(",", ":"), sort_keys=True),
+                        source_table,
+                        source_row_id,
+                        normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
+                        normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
+                        duration_seconds,
+                        event_at,
+                    ),
                 )
-            db.execute(
-                """
-                INSERT INTO device_events(
-                    event_key, device_id, event_kind, severity, message, details_json,
-                    source_table, source_row_id, started_at, ended_at, duration_seconds,
-                    event_at, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(event_key) DO UPDATE SET
-                    device_id=excluded.device_id,
-                    event_kind=excluded.event_kind,
-                    severity=excluded.severity,
-                    message=excluded.message,
-                    details_json=excluded.details_json,
-                    source_table=excluded.source_table,
-                    source_row_id=excluded.source_row_id,
-                    started_at=excluded.started_at,
-                    ended_at=excluded.ended_at,
-                    duration_seconds=excluded.duration_seconds,
-                    event_at=excluded.event_at,
-                    updated_at=CURRENT_TIMESTAMP
-                """,
-                (
-                    event_key,
-                    device_id,
-                    event_kind,
-                    severity,
-                    message,
-                    json.dumps(details, separators=(",", ":"), sort_keys=True),
-                    source_table,
-                    source_row_id,
-                    normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
-                    normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
-                    duration_seconds,
-                    event_at,
-                ),
-            )
-            persisted += 1
+                persisted += 1
+        return persisted, affected_device_ids
+
+    persisted, affected_device_ids = run_with_database_lock_retries(
+        persist,
+        operation_name="persist device events",
+        attempts=4,
+        initial_delay_s=0.25,
+    )
+
     for affected_device_id in affected_device_ids:
         schedule_dashboard_summary_refresh(affected_device_id)
+
     return persisted
 
 

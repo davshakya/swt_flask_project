@@ -1,4 +1,0 @@
-SaleWell Passenger restart trigger - 2026-08-03 09:41 IST - revision 2
-
-Deploying or touching this file asks cPanel Passenger to replace cached workers
-so performance fixes in the application are loaded.
