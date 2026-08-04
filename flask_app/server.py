@@ -251,6 +251,11 @@ def resolve_app_secret_key():
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
+
+    persisted_secret = str(get_app_setting(APP_SECRET_KEY_SETTING, "") or "").strip()
+    if persisted_secret:
+        return persisted_secret, "persistent"
+
     raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL backend.")
 
 
@@ -2618,7 +2623,10 @@ def render_login_page(
     # Landing and login pages must remain available even when MariaDB is
     # locked or at its connection limit. Visitor persistence is non-critical;
     # never create a database thread from a public page request.
-    homepage_visitor_count = homepage_visitor_count_cached or 0
+    if is_landing_page and request.method == "GET":
+        homepage_visitor_count = increment_homepage_visitor_count()
+    else:
+        homepage_visitor_count = homepage_visitor_count_cached or 0
     return render_template(
         "login.html",
         error=error,
@@ -4179,7 +4187,7 @@ def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
                 )
                 ORDER BY created_at ASC, id ASC
                 LIMIT ?
-            )
+            ) AS old_rows
         )
         """,
         (max(1, int(batch_rows or TEMP_HARD_DB_CAP_BATCH_ROWS)),),
