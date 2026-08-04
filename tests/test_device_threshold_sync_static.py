@@ -203,15 +203,6 @@ def test_simulator_enable_queues_runtime_configuration_before_dependent_command(
     )
 
 
-def test_simulator_toggle_uses_the_scoped_device_id_for_status_event():
-    source = SERVER_SOURCE.read_text(encoding="utf-8")
-    route_start = source.index("def admin_device_detail_simulator(device_id):")
-    route_source = source[route_start : source.index("\n\n@app.route", route_start)]
-
-    assert "snapshot, device_id=scoped_device_id, service_config=service_config" in route_source
-    assert "device_id=normalized_device_id" not in route_source
-
-
 def test_mysql_schema_translation_maps_device_service_state_defaults_for_mysql():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
 

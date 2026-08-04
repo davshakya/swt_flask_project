@@ -7489,9 +7489,9 @@ def build_device_service_command(service_config):
     slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG10:{master_upper}:{slave_device}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}".format(
+    return "SERVICECFG10:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
-        slave_device=1 if slave_device_enabled else 0,
+        slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
         relay=1 if relay_enabled else 0,
         buzzer=1 if bool(config.get("buzzer_enabled")) else 0,
@@ -19508,7 +19508,7 @@ def admin_device_detail_simulator(device_id):
     )
 
     synchronized_status = system_status.get("synchronized_status") or build_synchronized_status_payload(
-        snapshot, device_id=scoped_device_id, service_config=service_config
+        snapshot, device_id=normalized_device_id, service_config=service_config
     )
     pump_status = synchronized_status.get("pump") or {}
     sensors_status = synchronized_status.get("sensors") or {}
