@@ -139,6 +139,41 @@ def test_simulator_flags_survive_telemetry_snapshot_refresh():
     assert bool(snapshot["upper_turbidity_simulated"])
 
 
+def test_snapshot_uses_saved_source_capacity_when_history_has_no_capacity_column():
+    device_id = "swt-source-capacity-snapshot-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+    try:
+        server.upsert_device_service_config(
+            device_id,
+            lower_tank_capacity_liters=1000.0,
+        )
+        server.process_telemetry_payload(
+            {
+                "device_id": device_id,
+                "device_source": server.DEVICE_SOURCE_REAL,
+                "level": 50.0,
+                "lower_tank_level": 100.0,
+                "motor": "OFF",
+                "mode": "AUTO",
+                "sensor": "OK",
+            },
+            source_ip="test",
+            transport="http",
+        )
+        snapshot = server.fetch_device_snapshot(device_id)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+    assert snapshot is not None
+    assert snapshot["source_tank_capacity_liters"] == 1000.0
+    assert snapshot["lower_water_available_label"] == "1000.0 L / 1000.0 L"
+
+
 def test_mobile_simulator_route_queues_firmware_simulator_commands():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 

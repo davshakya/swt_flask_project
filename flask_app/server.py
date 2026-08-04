@@ -4526,6 +4526,21 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
         # available through the explicit admin/cron endpoint.
         try:
             saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
+            # Debug: record reported capacity and simulator flags to help diagnose
+            # cases where firmware reports config changes but Flask does not reflect them.
+            try:
+                logger.debug(
+                    "Telemetry postprocess capacities for %s: tank=%s upper=%s source=%s upper_sim=%s lower_sim=%s simulator=%s",
+                    cleaned.get("device_id") or "unknown",
+                    cleaned.get("tank_capacity_liters"),
+                    cleaned.get("upper_tank_capacity_liters"),
+                    cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
+                    cleaned.get("upper_tank_simulator"),
+                    cleaned.get("lower_tank_simulator") or cleaned.get("source_tank_simulator"),
+                    cleaned.get("simulator"),
+                )
+            except Exception:
+                pass
             reported_peer_channel = (
                 cleaned.get("direct_peer_config_channel")
                 if cleaned.get("direct_peer_config_channel") not in (None, "")
@@ -8771,10 +8786,24 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     else:
         data["lower_water_depth_cm"] = None
         data["lower_water_depth_label"] = "--"
-    lower_capacity_liters = safe_float(
-        data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters"),
-        2000.0,
+    lower_capacity_value = (
+        data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters")
     )
+    # tank_data stores level telemetry, while source capacity is persisted in
+    # device_service_configs.  Without this fallback every fetched dashboard
+    # snapshot falls back to 2000 L after CONFIG_LOWER, even though firmware
+    # correctly reports and persists the new capacity.
+    if lower_capacity_value in (None, "", "null"):
+        try:
+            saved_tank_config = fetch_device_service_config(data.get("device_id"), snapshot=None) or {}
+            lower_capacity_value = saved_tank_config.get("lower_tank_capacity_liters")
+        except Exception as exc:
+            logger.debug(
+                "Could not load saved source capacity for %s: %s",
+                normalize_device_id(data.get("device_id")),
+                exc,
+            )
+    lower_capacity_liters = safe_float(lower_capacity_value, 2000.0)
     if lower_capacity_liters <= 0:
         lower_capacity_liters = capacity_liters
     data["source_tank_capacity_liters"] = round(lower_capacity_liters, 1)
