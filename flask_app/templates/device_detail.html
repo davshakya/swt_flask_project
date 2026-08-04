@@ -332,14 +332,6 @@ body{font-size:16px}
                         <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached.</div>
                         <div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div>
                     </div>
-                    <div class="config-section" id="pumpConfirmationSensors">
-                        <h4>Pump Confirmation Sensors</h4>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('water_pressure_sensor_enabled') %}checked{% endif %}> Water-pressure sensor</label>
-                        <div class="helper-text">These are optional hardware/build settings. Checked means the installed firmware reports that sensor as enabled. Configure its firmware flag and GPIO/ADC pin, rebuild, and flash the controller to change it.</div>
-                    </div>
                 </div>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
@@ -705,7 +697,6 @@ const INITIAL_SNAPSHOT={{ (live_snapshot|default({}, true))|tojson }};
 const INITIAL_SYSTEM_STATUS={{ (system_status|default({}, true))|tojson }};
 const INITIAL_SERVICE_CONFIG={{ (service_config|default({}, true))|tojson }};
 const INITIAL_AUTOMATION_SETTINGS={{ (automation_settings|default({}, true))|tojson }};
-const INITIAL_SAVED_CONFIG={{ (current_saved_config|default({}, true))|tojson }};
 const localeTools=window.swtLocale||{};
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 let deviceRefreshInFlight=false;
@@ -1713,15 +1704,6 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Cloud Feed Mode",value:infoValue(titleCase(savedServiceConfig?.cloud_feed_mode||""),"Not reported")},
     {label:"AI Analysis",value:Boolean(savedServiceConfig?.effective_ai_analysis_enabled)?"Enabled":"Disabled"},
     {label:"Relay Control",value:Boolean(savedServiceConfig?.relay_enabled)?"Enabled":"Disabled"},
-    {label:"Physical Pump State",value:clientTruthy(snapshot?.physical_pump_running,false)?"Running":"Stopped",category:"sensors",show:true},
-    {label:"Pump Confirmation",value:infoValue(titleCase(snapshot?.pump_confirmation_source||""),"Relay command fallback"),category:"sensors",show:true},
-    {label:"Starter Contactor Sensor",value:clientTruthy(snapshot?.starter_contactor_active,false)?"Active":(clientTruthy(snapshot?.starter_contactor_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Motor Current Sensor",value:clientTruthy(snapshot?.motor_current_detected,false)?"Current detected":(clientTruthy(snapshot?.motor_current_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Flow Sensor",value:clientTruthy(snapshot?.water_flow_detected,false)?"Flow detected":(clientTruthy(snapshot?.water_flow_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Pressure Sensor",value:clientTruthy(snapshot?.water_pressure_detected,false)?"Pressure detected":(clientTruthy(snapshot?.water_pressure_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Authoritative Pump Runtime",value:formatDurationSeconds(snapshot?.pump_total_runtime_s),category:"sensors",show:true},
-    {label:"Last Pump Run",value:formatDurationSeconds(snapshot?.pump_last_run_runtime_s),category:"sensors",show:true},
-    {label:"Pump Cycle Counter",value:isReportedInfoValue(snapshot?.pump_cycle_count)?`${snapshot.pump_cycle_count}`:"Not reported",category:"sensors",show:true},
     {label:"Source Tank Monitoring",value:Boolean(savedServiceConfig?.source_tank_monitoring_enabled)?"Enabled":"Disabled"},
     {label:"Buzzer Service",value:Boolean(savedServiceConfig?.buzzer_enabled)?"Enabled":"Disabled"},
     {label:"LED Display Service",value:Boolean(savedServiceConfig?.led_display_enabled)?"Enabled":"Disabled"},
@@ -1919,7 +1901,6 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   }
   statusUrl.searchParams.set("alerts","0");
   statusUrl.searchParams.set("audit","0");
-  statusUrl.searchParams.set("details",silent?"0":"1");
   if(shouldIncludeHistory){
     statusUrl.searchParams.set("history","1");
   }
@@ -1932,9 +1913,9 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   const snapshot=data.snapshot||{};
   const systemStatus=data.system_status||{};
   const monitoringSummary=data.monitoring_summary||{};
-  const serviceConfig=data.service_config||INITIAL_SERVICE_CONFIG||{};
-  const automationSettings=data.automation_settings||INITIAL_AUTOMATION_SETTINGS||{};
-  const currentSavedConfig=data.current_saved_config||INITIAL_SAVED_CONFIG||{};
+  const serviceConfig=data.service_config||{};
+  const automationSettings=data.automation_settings||{};
+  const currentSavedConfig=data.current_saved_config||{};
   const telemetry=snapshot.telemetry_status||systemStatus.telemetry_status||"no-data";
   const noTelemetry=String(telemetry).trim().toLowerCase()==="no-data";
   const lastSync=snapshot.last_sync_at;

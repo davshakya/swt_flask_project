@@ -590,8 +590,7 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "const PUMP_START_GRACE_MS=60000;" in customer_template
     assert "pendingPumpStartUntil:0" in customer_template
     assert "const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil" in customer_template
-    assert "const spinning=running||pendingActive" in customer_template
-    assert "if(levelIncreasing&&!isPumpRunning(motor))return\"START\";" not in customer_template
+    assert "const spinning=running||pendingActive||startInferred" in customer_template
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
 
 
@@ -1484,5 +1483,3 @@ def test_login_modal_has_scoped_high_contrast_theme():
     assert "#loginModal .modal-panel" in login_template
     assert "background:#102f39!important" in login_template
     assert "-webkit-text-fill-color:#f4fcfd!important" in login_template
-    assert '#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill' in login_template
-    assert "-webkit-box-shadow:0 0 0 1000px #102f39 inset!important" in login_template

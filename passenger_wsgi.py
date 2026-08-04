@@ -10,15 +10,8 @@ from pathlib import Path
 import sys
 
 
-PASSENGER_ENTRYPOINT_REVISION = "2026-08-03.2257-openblas-thread-limit"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
-
-# Shared cPanel accounts can have a high reported CPU count but a low process
-# limit.  Keep optional NumPy/scikit-learn imports from exhausting it during
-# Passenger application startup.
-for thread_env in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
-    os.environ[thread_env] = "1"
 
 # Put this application ahead of globally installed/shared-host packages.
 sys.path[:] = [entry for entry in sys.path if os.path.abspath(entry or os.curdir) != project_path]
@@ -40,6 +33,5 @@ for module_name, module in list(sys.modules.items()):
     sys.modules.pop(module_name, None)
 
 importlib.invalidate_caches()
-sys.stderr.write(f"[SaleWell] Loading Passenger entrypoint {PASSENGER_ENTRYPOINT_REVISION}\n")
-sys.stderr.flush()
 from server import app as application
+

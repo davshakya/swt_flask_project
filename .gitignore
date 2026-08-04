@@ -14,9 +14,7 @@ env/
 .pytest-tmp/
 .tmp/
 sandbox-tmp/
-# Passenger watches this tracked file for zero-touch production reloads.
-!tmp/
-!tmp/restart.txt
+tmp/restart.txt
 pytest-cache-files-*/
 .coverage
 .coverage.*

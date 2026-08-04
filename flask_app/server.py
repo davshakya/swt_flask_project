@@ -3,7 +3,6 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 import base64
 import copy
-import random
 import csv
 import gzip
 import hashlib
@@ -251,11 +250,6 @@ def resolve_app_secret_key():
     configured_secret = os.environ.get("APP_SECRET_KEY", "").strip()
     if configured_secret:
         return configured_secret, "env"
-
-    persisted_secret = str(get_app_setting(APP_SECRET_KEY_SETTING, "") or "").strip()
-    if persisted_secret:
-        return persisted_secret, "persistent"
-
     raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL backend.")
 
 
@@ -718,25 +712,8 @@ MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOK
 analytics_cache = {}
 fixed_ai_dashboard_cache = {}
 dashboard_snapshot_cache = {}
-dashboard_summary_cache = {}
-dashboard_summary_refresh_pending = set()
-dashboard_summary_refresh_lock = threading.Lock()
-dashboard_summary_last_refresh_at = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
-DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
-    600,
-    min(900, env_int("DASHBOARD_SUMMARY_RECONCILE_SECONDS", 600)),
-)
-DASHBOARD_SUMMARY_RECONCILIATION_ENABLED = env_flag(
-    "DASHBOARD_SUMMARY_RECONCILIATION_ENABLED", default=False
-)
-DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS = max(
-    5, min(300, env_int("DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS", 30))
-)
-DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE = max(
-    1, min(50, env_int("DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE", 10))
-)
 ANALYTICS_MAX_GAP_MINUTES = env_int("ANALYTICS_MAX_GAP_MINUTES", 20)
 ANALYTICS_MAX_LEVEL_DELTA_PCT = env_float("ANALYTICS_MAX_LEVEL_DELTA_PCT", 25.0)
 ANALYTICS_MIN_USAGE_DELTA_PCT = max(0.05, env_float("ANALYTICS_MIN_USAGE_DELTA_PCT", 0.15))
@@ -754,7 +731,6 @@ ANALYTICS_MAX_DAILY_TANK_TURNOVERS = max(
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
 ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
-ANALYTICS_SYNC_EVENTS_ON_REQUEST = env_flag("ANALYTICS_SYNC_EVENTS_ON_REQUEST", default=False)
 FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
 ANALYTICS_LAST_VALID_SETTING_PREFIX = "analytics:last-valid:"
@@ -822,13 +798,10 @@ def logging_ist_converter(timestamp, *_args):
     return datetime.fromtimestamp(timestamp, IST_TIMEZONE).timetuple()
 
 
-class SwtColorFormatter(logging.Formatter):
-    # Keep the timezone converter on this formatter only. Assigning it to
-    # logging.Formatter globally turns a plain function into a bound method on
-    # some Python deployments, which passes ``self`` plus the timestamp and
-    # makes logging fail while handling another exception.
-    converter = staticmethod(logging_ist_converter)
+logging.Formatter.converter = staticmethod(logging_ist_converter)
 
+
+class SwtColorFormatter(logging.Formatter):
     RESET = "\033[0m"
     TIMESTAMP_COLOR = "\033[36m"
     LEVEL_COLORS = {
@@ -872,14 +845,7 @@ relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
 db_prune_lock = threading.Lock()
-telemetry_postprocess_lock = threading.Lock()
-telemetry_postprocess_pending = {}
-telemetry_postprocess_running = set()
-telemetry_postprocess_last_run_at = {}
 homepage_visitor_count_lock = threading.Lock()
-homepage_visitor_count_cached = None
-homepage_visitor_count_pending = 0
-homepage_visitor_count_worker_running = False
 relay_state = {
     "last_success_at": None,
     "last_error_at": None,
@@ -1378,8 +1344,6 @@ def forget_registered_device_touch(device_id):
 
 
 def database_is_locked_error(exc):
-    if mysql_is_lock_error(exc):
-        return True
     message = str(exc or "").strip().lower()
     return (
         "database is locked" in message
@@ -1405,12 +1369,7 @@ def run_with_database_lock_retries(
             if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
                 raise
             last_exc = exc
-            # Back off with jitter so simultaneous web workers do not retry the
-            # same conflicting write in lockstep.
-            base_delay_s = max(0.0, float(initial_delay_s or 0.0))
-            delay_s = base_delay_s * (2 ** attempt)
-            if delay_s > 0:
-                delay_s += random.uniform(0.0, min(0.25, delay_s * 0.25))
+            delay_s = max(0.0, float(initial_delay_s or 0.0)) * (attempt + 1)
             logger.warning(
                 "Retrying %s after database lock/deadlock (%s/%s): %s",
                 operation_name,
@@ -2055,16 +2014,6 @@ def clear_runtime_caches(device_id=None):
     forget_alert_touches_for_device(normalized_device_id)
 
 
-def invalidate_dashboard_summary_memory(device_id=None):
-    """Drop only the disposable in-process copy; the database remains the fallback."""
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        dashboard_summary_cache.clear()
-        return
-    for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
-        dashboard_summary_cache.pop(f"{mode}:{normalized_device_id}", None)
-
-
 def dashboard_identity_prefix(role):
     return "admin" if role == "admin" else "customer"
 
@@ -2507,16 +2456,15 @@ def auth_persistence_warnings():
 
 
 def homepage_login_status():
-    # The public homepage must never wait for database-backed session validation.
-    # Protected destinations validate the identity when the user follows a link.
-    if not bool(session.get("logged_in")):
+    if not is_logged_in():
         return None
-    role = str(session.get("role") or "admin").strip().lower()
+    role = current_user_role()
     if role == "admin":
         return {"role": "admin", "display_name": "Admin"}
+    account = current_customer_account() or {}
     return {
         "role": "customer",
-        "display_name": session.get("display_name") or session.get("username") or "Customer",
+        "display_name": account.get("display_name") or session.get("username") or "Customer",
     }
 
 
@@ -2546,12 +2494,15 @@ def stored_dashboard_identity_is_valid(role):
 def homepage_auth_status():
     active_user = homepage_login_status()
     active_role = (active_user or {}).get("role")
+    customer_device_id = normalize_device_id(session.get("customer_device_id"))
+    customer_account = fetch_customer_account(customer_device_id) if customer_device_id else None
     return {
         "active_user": active_user,
-        "admin_logged_in": active_role == "admin" or bool(session.get("admin_logged_in")),
-        "customer_logged_in": active_role == "customer" or bool(session.get("customer_logged_in")),
+        "admin_logged_in": active_role == "admin" or stored_dashboard_identity_is_valid("admin"),
+        "customer_logged_in": active_role == "customer" or stored_dashboard_identity_is_valid("customer"),
         "customer_display_name": (
-            session.get("customer_display_name") or session.get("customer_username")
+            (customer_account or {}).get("display_name")
+            or session.get("customer_username")
             or "Customer"
         ),
     }
@@ -2620,13 +2571,11 @@ def render_login_page(
             "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
         )
     sales_form = sales_form or sales_form_from_pricing_query()
-    # Landing and login pages must remain available even when MariaDB is
-    # locked or at its connection limit. Visitor persistence is non-critical;
-    # never create a database thread from a public page request.
-    if is_landing_page and request.method == "GET":
-        homepage_visitor_count = increment_homepage_visitor_count()
-    else:
-        homepage_visitor_count = homepage_visitor_count_cached or 0
+    homepage_visitor_count = (
+        increment_homepage_visitor_count()
+        if is_landing_page
+        else get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+    )
     return render_template(
         "login.html",
         error=error,
@@ -4187,7 +4136,7 @@ def prune_telemetry_batch_for_size_cap(cursor, batch_rows=None):
                 )
                 ORDER BY created_at ASC, id ASC
                 LIMIT ?
-            ) AS old_rows
+            )
         )
         """,
         (max(1, int(batch_rows or TEMP_HARD_DB_CAP_BATCH_ROWS)),),
@@ -4285,31 +4234,22 @@ def prune_retained_rows(cursor, device_id=None, latest_row_id=None, force=False)
             cursor.execute("DELETE FROM tank_data WHERE id != ?", (latest_row_id,))
         pruned["tank_data_snapshot_only"] = max(0, int(cursor.rowcount or 0))
     elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:
-        # Avoid DELETE ... IN (SELECT ... LIMIT/OFFSET), which is rejected by
-        # some MariaDB releases used by shared hosts. Select a bounded batch of
-        # old IDs first, then delete those exact rows with a portable query.
         cursor.execute(
             """
-            SELECT id
-            FROM tank_data
-            WHERE COALESCE(device_id, '') = ?
-            ORDER BY created_at DESC, id DESC
-            LIMIT ? OFFSET ?
-            """,
-            (
-                normalized_device_id,
-                DB_RETENTION_DELETE_BATCH_ROWS,
-                MAX_TELEMETRY_ROWS_PER_DEVICE,
-            ),
-        )
-        capped_row_ids = [int(row["id"]) for row in cursor.fetchall()]
-        if capped_row_ids:
-            placeholders = ", ".join("?" for _ in capped_row_ids)
-            cursor.execute(
-                f"DELETE FROM tank_data WHERE id IN ({placeholders})",
-                tuple(capped_row_ids),
+            DELETE FROM tank_data
+            WHERE id IN (
+                SELECT capped_rows.id FROM (
+                    SELECT id
+                    FROM tank_data
+                    WHERE COALESCE(device_id, '') = ?
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT -1 OFFSET ?
+                ) AS capped_rows
             )
-        pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0)) if capped_row_ids else 0
+            """,
+            (normalized_device_id, MAX_TELEMETRY_ROWS_PER_DEVICE),
+        )
+        pruned["tank_data_device_cap"] = max(0, int(cursor.rowcount or 0))
 
     pruned["device_command_queue_retention"] = prune_delete_batches(
         cursor,
@@ -4373,22 +4313,14 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
         ):
             return {}
 
-        def prune_operation():
-            with get_db() as db:
-                cursor = db.cursor()
-                return prune_retained_rows(
-                    cursor,
-                    device_id=device_id,
-                    latest_row_id=latest_row_id,
-                    force=force,
-                )
-
-        pruned = run_with_database_lock_retries(
-            prune_operation,
-            operation_name="prune retained rows",
-            attempts=3,
-            initial_delay_s=0.5,
-        )
+        with get_db() as db:
+            cursor = db.cursor()
+            pruned = prune_retained_rows(
+                cursor,
+                device_id=device_id,
+                latest_row_id=latest_row_id,
+                force=force,
+            )
 
         size_cap_result = maybe_prune_telemetry_size_cap(force=force)
         size_cap_rows = int(size_cap_result.get("rows") or 0)
@@ -4420,16 +4352,7 @@ def maybe_prune_retained_rows(device_id=None, latest_row_id=None, force=False):
         maybe_maintain_database(reason="telemetry-retention", pruned_rows=pruned_rows, force=force)
         return pruned
     except Exception as exc:
-        # A failed prune must still observe the normal cooldown. Without this,
-        # every telemetry request retries the same bad query and can exhaust
-        # web workers through an exception/logging storm.
-        db_prune_state.update(
-            {
-                "last_run_at": time.time(),
-                "last_error_at": time.time(),
-                "last_error": str(exc),
-            }
-        )
+        db_prune_state["last_error"] = str(exc)
         logger.warning("Retention prune failed: %s", exc)
         return {}
     finally:
@@ -4536,27 +4459,13 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
 
 def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
     try:
-        # Retention performs multi-row DELETE operations and must never run in
-        # a telemetry/page worker. On shared MariaDB it can hold locks until the
-        # web-server timeout and starve every LSAPI child. Cleanup remains
-        # available through the explicit admin/cron endpoint.
+        maybe_prune_retained_rows(
+            device_id=cleaned.get("device_id"),
+            latest_row_id=latest_row_id,
+            force=False,
+        )
         try:
             saved_telemetry_config = fetch_device_service_config(cleaned.get("device_id"), snapshot=None)
-            # Debug: record reported capacity and simulator flags to help diagnose
-            # cases where firmware reports config changes but Flask does not reflect them.
-            try:
-                logger.debug(
-                    "Telemetry postprocess capacities for %s: tank=%s upper=%s source=%s upper_sim=%s lower_sim=%s simulator=%s",
-                    cleaned.get("device_id") or "unknown",
-                    cleaned.get("tank_capacity_liters"),
-                    cleaned.get("upper_tank_capacity_liters"),
-                    cleaned.get("source_tank_capacity_liters") or cleaned.get("lower_tank_capacity_liters"),
-                    cleaned.get("upper_tank_simulator"),
-                    cleaned.get("lower_tank_simulator") or cleaned.get("source_tank_simulator"),
-                    cleaned.get("simulator"),
-                )
-            except Exception:
-                pass
             reported_peer_channel = (
                 cleaned.get("direct_peer_config_channel")
                 if cleaned.get("direct_peer_config_channel") not in (None, "")
@@ -4652,9 +4561,6 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             alert_snapshot = dict(cleaned)
             alert_snapshot["telemetry_status"] = "fresh"
             evaluate_snapshot_alerts(alert_snapshot)
-            # Materialize all dashboard flash-card values while telemetry is
-            # already being processed, never while a customer opens the page.
-            schedule_dashboard_summary_refresh(cleaned.get("device_id"))
             if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
                 relay_status_async(cleaned)
     except Exception as exc:
@@ -4667,47 +4573,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
 
 
 def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
-    normalized_device_id = normalize_device_id((cleaned or {}).get("device_id"))
-    if not normalized_device_id:
-        return
-    work_item = (dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id)
-    with telemetry_postprocess_lock:
-        # Keep only the newest payload for a device. A five-second telemetry
-        # interval must not create an unbounded number of database threads.
-        telemetry_postprocess_pending[normalized_device_id] = work_item
-        if normalized_device_id in telemetry_postprocess_running:
-            return
-        telemetry_postprocess_running.add(normalized_device_id)
-
-    def worker():
-        completed_normally = False
-        try:
-            while True:
-                with telemetry_postprocess_lock:
-                    pending = telemetry_postprocess_pending.pop(normalized_device_id, None)
-                    last_run = telemetry_postprocess_last_run_at.get(normalized_device_id, 0.0)
-                    if pending is None:
-                        telemetry_postprocess_running.discard(normalized_device_id)
-                        completed_normally = True
-                        return
-                remaining = 30.0 - (time.monotonic() - last_run)
-                if remaining > 0:
-                    time.sleep(remaining)
-                    with telemetry_postprocess_lock:
-                        pending = telemetry_postprocess_pending.pop(normalized_device_id, pending)
-                postprocess_telemetry_payload(*pending)
-                with telemetry_postprocess_lock:
-                    telemetry_postprocess_last_run_at[normalized_device_id] = time.monotonic()
-                    if normalized_device_id not in telemetry_postprocess_pending:
-                        return
-        finally:
-            if not completed_normally:
-                with telemetry_postprocess_lock:
-                    telemetry_postprocess_running.discard(normalized_device_id)
-
     threading.Thread(
-        target=worker,
-        name=f"telemetry-postprocess-{normalized_device_id}",
+        target=postprocess_telemetry_payload,
+        args=(dict(cleaned), raw_firmware_logs, source_ip, transport, latest_row_id),
         daemon=True,
     ).start()
 
@@ -4854,18 +4722,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("last_ping_age_s"),
         cleaned.get("last_ping_nonce"),
         cleaned.get("telemetry_fingerprint"),
-        1 if boolish_enabled(cleaned.get("starter_contactor_sensor_enabled"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("starter_contactor_active"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("motor_current_sensor_enabled"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("motor_current_detected"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("water_flow_sensor_enabled"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("water_flow_detected"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("water_pressure_sensor_enabled"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("water_pressure_detected"), default=False) else 0,
-        1 if boolish_enabled(cleaned.get("physical_pump_running"), default=False) else 0,
-        cleaned.get("pump_confirmation_source"), cleaned.get("pump_total_runtime_s"),
-        cleaned.get("pump_last_run_runtime_s"), cleaned.get("pump_cycle_count"),
-        cleaned.get("pump_run_started_uptime_s"), cleaned.get("pump_runtime_boot_id"),
         received_at,
     )
     placeholders = ",".join("?" for _ in insert_values)
@@ -4909,13 +4765,6 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 direct_peer_sync_last_ok_age_s,
                 last_ping_target, last_ping_status, last_ping_response_ms,
                 last_ping_age_s, last_ping_nonce, telemetry_fingerprint,
-                starter_contactor_sensor_enabled, starter_contactor_active,
-                motor_current_sensor_enabled, motor_current_detected,
-                water_flow_sensor_enabled, water_flow_detected,
-                water_pressure_sensor_enabled, water_pressure_detected,
-                physical_pump_running, pump_confirmation_source,
-                pump_total_runtime_s, pump_last_run_runtime_s, pump_cycle_count,
-                pump_run_started_uptime_s, pump_runtime_boot_id,
                 created_at
             )
             VALUES ({placeholders})
@@ -5140,39 +4989,6 @@ def translate_mysql_query(sql, params=None):
     return sql, tuple(params or ())
 
 
-def mysql_exception_number(exc):
-    return getattr(exc, "args", [None])[0] if isinstance(getattr(exc, "args", None), (list, tuple)) else None
-
-
-def mysql_exception_message(exc):
-    return str(exc or "").strip().lower()
-
-
-def mysql_is_connection_recoverable_error(exc):
-    code = mysql_exception_number(exc)
-    message = mysql_exception_message(exc)
-    return (
-        code in {2006, 2013, 2055}
-        or "gone away" in message
-        or "lost connection" in message
-        or "connection reset by peer" in message
-    )
-
-
-def mysql_is_lock_error(exc):
-    code = mysql_exception_number(exc)
-    message = mysql_exception_message(exc)
-    return (
-        code in {1205, 1213}
-        or "lock wait timeout" in message
-        or "deadlock found" in message
-    )
-
-
-def mysql_is_retryable_error(exc):
-    return mysql_is_lock_error(exc) or mysql_is_connection_recoverable_error(exc)
-
-
 class DbRow(dict):
     def __getitem__(self, key):
         if isinstance(key, int):
@@ -5187,8 +5003,7 @@ def adapt_mysql_row(row):
 
 
 class MySqlCursorAdapter:
-    def __init__(self, connection_adapter, cursor):
-        self.connection_adapter = connection_adapter
+    def __init__(self, cursor):
         self.cursor = cursor
         self.lastrowid = None
         self.rowcount = -1
@@ -5215,37 +5030,9 @@ class MySqlCursorAdapter:
             return self
         self._buffered_rows = None
         translated_sql, translated_params = translate_mysql_query(sql, params)
-        max_attempts = 4
-        attempt = 0
-        while attempt < max_attempts:
-            try:
-                self.cursor.execute(translated_sql, translated_params)
-                self.lastrowid = self.cursor.lastrowid
-                self.rowcount = self.cursor.rowcount
-                return self
-            except Exception as exc:
-                attempt += 1
-                if mysql_is_lock_error(exc):
-                    raise
-                if not mysql_is_connection_recoverable_error(exc) or attempt >= max_attempts:
-                    raise
-                logger.warning(
-                    "Retrying MySQL execute after recoverable connection error (%s/%s): %s",
-                    attempt,
-                    max_attempts,
-                    exc,
-                )
-                try:
-                    self.connection_adapter.connection.rollback()
-                except Exception:
-                    pass
-                try:
-                    self.connection_adapter.reconnect()
-                except Exception:
-                    raise
-                self.cursor = self.connection_adapter.connection.cursor()
-                self._buffered_rows = None
-                time.sleep(0.2 * attempt)
+        self.cursor.execute(translated_sql, translated_params)
+        self.lastrowid = self.cursor.lastrowid
+        self.rowcount = self.cursor.rowcount
         return self
 
     def fetchone(self):
@@ -5271,21 +5058,12 @@ class MySqlConnectionAdapter:
         self.connection = connection
 
     def cursor(self):
-        return MySqlCursorAdapter(self, self.connection.cursor())
+        return MySqlCursorAdapter(self.connection.cursor())
 
     def execute(self, sql, params=None):
         cursor = self.cursor()
         cursor.execute(sql, params)
         return cursor
-
-    def reconnect(self):
-        try:
-            if self.connection is not None:
-                self.connection.close()
-        except Exception:
-            pass
-        adapter = connect_mysql()
-        self.connection = adapter.connection
 
     def commit(self):
         return self.connection.commit()
@@ -5308,18 +5086,10 @@ class MySqlConnectionAdapter:
         return False
 
 
-_MYSQL_RESOLVED_LOCAL_PORT = None
-
-
 def connect_mysql():
-    global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
     config = mysql_connection_config()
-    local_mysql_host = str(config.get("host") or "").strip().lower() in {"localhost", "127.0.0.1", "::1"}
-    if local_mysql_host and _MYSQL_RESOLVED_LOCAL_PORT is not None:
-        config = dict(config)
-        config["port"] = _MYSQL_RESOLVED_LOCAL_PORT
     if not config["user"] or not config["database"]:
         raise RuntimeError("MySQL requires MYSQL_USER plus MYSQL_DATABASE, or a DATABASE_URL.")
     ssl_ca = os.environ.get("MYSQL_SSL_CA", "").strip()
@@ -5332,60 +5102,36 @@ def connect_mysql():
         "charset": "utf8mb4",
         "cursorclass": MySqlDictCursor,
         "autocommit": False,
-        "connect_timeout": max(1, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 3)),
-        "read_timeout": max(2, env_int("MYSQL_READ_TIMEOUT_SECONDS", 8)),
-        "write_timeout": max(2, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 8)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
     try:
         conn = pymysql.connect(**connect_kwargs)
     except Exception as exc:
         error_code = getattr(exc, "args", [None])[0]
-        configured_port = int(config["port"])
-        if error_code == 2003 and local_mysql_host and configured_port != 3306:
-            fallback_kwargs = dict(connect_kwargs)
-            fallback_kwargs["port"] = 3306
-            logger.warning(
-                "MySQL refused localhost port %s; retrying standard port 3306.",
-                configured_port,
-            )
-            try:
-                conn = pymysql.connect(**fallback_kwargs)
-            except Exception as fallback_exc:
-                exc = fallback_exc
-                error_code = getattr(fallback_exc, "args", [None])[0]
-            else:
-                _MYSQL_RESOLVED_LOCAL_PORT = 3306
-                connect_kwargs = fallback_kwargs
-                error_code = None
-        if error_code is None:
-            pass
-        elif error_code != 1049:
+        if error_code != 1049:
             raise RuntimeError(
                 "MySQL is required but the server is not reachable or credentials are invalid. "
                 f"Check MYSQL_HOST={config['host']!r}, MYSQL_PORT={config['port']}, "
                 f"MYSQL_USER={config['user']!r}, and make sure the MySQL service is running."
             ) from exc
-        else:
-            logger.info("MySQL database %s does not exist; attempting to create it.", config["database"])
-            try:
-                ensure_mysql_database_exists(config)
-            except Exception as create_exc:
-                raise RuntimeError(
-                    "MySQL database could not be created automatically. In cPanel, create "
-                    f"database {config['database']!r}, assign user {config['user']!r} to it, "
-                    "then restart the app."
-                ) from create_exc
-            try:
-                conn = pymysql.connect(**connect_kwargs)
-            except Exception as reconnect_exc:
-                raise RuntimeError(
-                    "MySQL database was created or already exists, but Flask still could not connect. "
-                    "Check MYSQL_* credentials and database-user permissions."
-                ) from reconnect_exc
+        logger.info("MySQL database %s does not exist; attempting to create it.", config["database"])
+        try:
+            ensure_mysql_database_exists(config)
+        except Exception as create_exc:
+            raise RuntimeError(
+                "MySQL database could not be created automatically. In cPanel, create "
+                f"database {config['database']!r}, assign user {config['user']!r} to it, "
+                "then restart the app."
+            ) from create_exc
+        try:
+            conn = pymysql.connect(**connect_kwargs)
+        except Exception as reconnect_exc:
+            raise RuntimeError(
+                "MySQL database was created or already exists, but Flask still could not connect. "
+                "Check MYSQL_* credentials and database-user permissions."
+            ) from reconnect_exc
     with conn.cursor() as cursor:
         cursor.execute("SET time_zone = '+00:00'")
-        cursor.execute("SET SESSION innodb_lock_wait_timeout = 10")
     return MySqlConnectionAdapter(conn)
 
 
@@ -5465,21 +5211,6 @@ def ensure_tank_data_columns(cursor):
         "last_ping_age_s": "INTEGER",
         "last_ping_nonce": "INTEGER",
         "telemetry_fingerprint": "VARCHAR(64)",
-        "starter_contactor_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
-        "starter_contactor_active": "INTEGER NOT NULL DEFAULT 0",
-        "motor_current_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
-        "motor_current_detected": "INTEGER NOT NULL DEFAULT 0",
-        "water_flow_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
-        "water_flow_detected": "INTEGER NOT NULL DEFAULT 0",
-        "water_pressure_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
-        "water_pressure_detected": "INTEGER NOT NULL DEFAULT 0",
-        "physical_pump_running": "INTEGER NOT NULL DEFAULT 0",
-        "pump_confirmation_source": "VARCHAR(32)",
-        "pump_total_runtime_s": "BIGINT",
-        "pump_last_run_runtime_s": "BIGINT",
-        "pump_cycle_count": "BIGINT",
-        "pump_run_started_uptime_s": "BIGINT",
-        "pump_runtime_boot_id": "VARCHAR(64)",
     }
 
     for column, definition in required.items():
@@ -5646,45 +5377,8 @@ def ensure_device_command_queue_table(cursor):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_device TEXT NOT NULL,
             command TEXT NOT NULL,
-            request_id VARCHAR(64),
-            desired_state VARCHAR(16),
-            status VARCHAR(24) NOT NULL DEFAULT 'queued',
-            priority INTEGER NOT NULL DEFAULT 0,
-            expires_at TEXT,
-            accepted_at TEXT,
-            completed_at TEXT,
-            result_reason TEXT,
-            result_json LONGTEXT,
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             delivered_at TEXT
-        )
-        """
-    )
-
-
-def ensure_device_command_queue_columns(cursor):
-    existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_command_queue)").fetchall()}
-    required = {
-        "request_id": "VARCHAR(64)", "desired_state": "VARCHAR(16)",
-        "status": "VARCHAR(24) NOT NULL DEFAULT 'queued'", "priority": "INTEGER NOT NULL DEFAULT 0",
-        "expires_at": "TEXT", "accepted_at": "TEXT", "completed_at": "TEXT",
-        "result_reason": "TEXT", "result_json": "LONGTEXT",
-    }
-    for column, definition in required.items():
-        if column not in existing:
-            cursor.execute(f"ALTER TABLE device_command_queue ADD COLUMN {column} {definition}")
-
-
-def ensure_dashboard_summary_table(cursor):
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS dashboard_summaries(
-            device_id VARCHAR(255) NOT NULL,
-            device_source VARCHAR(32) NOT NULL,
-            summary_json LONGTEXT NOT NULL,
-            source_updated_at TEXT,
-            updated_at TEXT NOT NULL,
-            PRIMARY KEY(device_id, device_source)
         )
         """
     )
@@ -6298,8 +5992,6 @@ def init_db():
         remove_obsolete_schema_columns(cursor)
         ensure_relay_queue_table(cursor)
         ensure_device_command_queue_table(cursor)
-        ensure_device_command_queue_columns(cursor)
-        ensure_dashboard_summary_table(cursor)
         ensure_device_mobile_action_queue_table(cursor)
         ensure_firmware_artifacts_table(cursor)
         ensure_firmware_artifacts_columns(cursor)
@@ -6386,63 +6078,26 @@ def save_device_local_web_password(device_id, password):
 
 
 def increment_homepage_visitor_count():
-    global homepage_visitor_count_cached
-    global homepage_visitor_count_pending
-    global homepage_visitor_count_worker_running
-
     with homepage_visitor_count_lock:
-        homepage_visitor_count_pending += 1
-        if homepage_visitor_count_cached is not None:
-            homepage_visitor_count_cached += 1
-        display_count = homepage_visitor_count_cached or homepage_visitor_count_pending
-        if homepage_visitor_count_worker_running:
-            return display_count
-        homepage_visitor_count_worker_running = True
-
-    def persist_pending_visits():
-        global homepage_visitor_count_cached
-        global homepage_visitor_count_pending
-        global homepage_visitor_count_worker_running
-        while True:
-            with homepage_visitor_count_lock:
-                increment_by = homepage_visitor_count_pending
-                homepage_visitor_count_pending = 0
-            if increment_by <= 0:
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_worker_running = False
-                return
-            try:
-                with get_db() as db:
-                    db.execute(
-                        """
-                        INSERT INTO app_settings(key, value, updated_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                        ON CONFLICT(key) DO UPDATE SET
-                            value=app_settings.value + excluded.value,
-                            updated_at=CURRENT_TIMESTAMP
-                        """,
-                        (HOMEPAGE_VISITOR_COUNT_SETTING, str(increment_by)),
-                    )
-                    row = db.execute(
-                        "SELECT value FROM app_settings WHERE key = ?",
-                        (HOMEPAGE_VISITOR_COUNT_SETTING,),
-                    ).fetchone()
-                persisted_count = max(0, int(str(row["value"] if row else "0").strip()))
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_cached = persisted_count + homepage_visitor_count_pending
-            except Exception as exc:
-                logger.warning("Homepage visitor counter update deferred: %s", exc)
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_pending += increment_by
-                    homepage_visitor_count_worker_running = False
-                return
-
-    threading.Thread(
-        target=persist_pending_visits,
-        name="homepage-visitor-counter",
-        daemon=True,
-    ).start()
-    return display_count
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO app_settings(key, value, updated_at)
+                VALUES (?, '1', CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=app_settings.value + 1,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            )
+            row = db.execute(
+                "SELECT value FROM app_settings WHERE key = ?",
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            ).fetchone()
+        try:
+            return max(0, int(str(row["value"] if row else "0").strip()))
+        except (TypeError, ValueError):
+            return 0
 
 
 def format_count_label(value):
@@ -8802,24 +8457,10 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     else:
         data["lower_water_depth_cm"] = None
         data["lower_water_depth_label"] = "--"
-    lower_capacity_value = (
-        data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters")
+    lower_capacity_liters = safe_float(
+        data.get("source_tank_capacity_liters") or data.get("lower_tank_capacity_liters"),
+        2000.0,
     )
-    # tank_data stores level telemetry, while source capacity is persisted in
-    # device_service_configs.  Without this fallback every fetched dashboard
-    # snapshot falls back to 2000 L after CONFIG_LOWER, even though firmware
-    # correctly reports and persists the new capacity.
-    if lower_capacity_value in (None, "", "null"):
-        try:
-            saved_tank_config = fetch_device_service_config(data.get("device_id"), snapshot=None) or {}
-            lower_capacity_value = saved_tank_config.get("lower_tank_capacity_liters")
-        except Exception as exc:
-            logger.debug(
-                "Could not load saved source capacity for %s: %s",
-                normalize_device_id(data.get("device_id")),
-                exc,
-            )
-    lower_capacity_liters = safe_float(lower_capacity_value, 2000.0)
     if lower_capacity_liters <= 0:
         lower_capacity_liters = capacity_liters
     data["source_tank_capacity_liters"] = round(lower_capacity_liters, 1)
@@ -9029,8 +8670,7 @@ def build_analytics_query(start_dt, end_exclusive, device_id=None, include_all_s
     query = """
         SELECT id, level, motor, mode, pipe_leak, slow_leak, drip, abnormal,
                pump_failure, dry_run, wifi, wifi_rssi, sensor, lower_tank_level,
-               ai_usage_rate, tomorrow_prediction, tank_capacity_liters,
-               pump_total_runtime_s, pump_cycle_count, pump_runtime_boot_id, created_at
+               ai_usage_rate, tomorrow_prediction, tank_capacity_liters, created_at
         FROM tank_data
         WHERE """
     params = []
@@ -9382,35 +9022,6 @@ def build_motor_activity_metrics(time_values, value_values):
         "avg_run_seconds": int(round(avg_run_seconds)),
         "short_cycle_count": short_cycle_count,
         "avg_off_seconds": int(round(avg_off_seconds)),
-    }
-
-
-def build_authoritative_pump_metrics(rows):
-    samples = []
-    for row in rows or []:
-        total = safe_float((row or {}).get("pump_total_runtime_s"), None)
-        created_at = parse_timestamp((row or {}).get("created_at"))
-        if total is not None and total >= 0 and created_at is not None:
-            samples.append((created_at, total, safe_float((row or {}).get("pump_cycle_count"), 0), str((row or {}).get("pump_runtime_boot_id") or "")))
-    if len(samples) < 2:
-        return None
-    runtime_seconds = 0.0
-    started_runs = 0
-    for previous, current in zip(samples, samples[1:]):
-        _prev_at, prev_total, prev_cycles, _prev_boot = previous
-        _at, total, cycles, _boot = current
-        if total >= prev_total:
-            runtime_seconds += total - prev_total
-        if cycles >= prev_cycles:
-            started_runs += int(cycles - prev_cycles)
-    observed_seconds = max(0.0, (samples[-1][0] - samples[0][0]).total_seconds())
-    return {
-        "runtime_seconds": int(round(runtime_seconds)), "runtime_hours": round(runtime_seconds / 3600.0, 3),
-        "observed_hours": round(observed_seconds / 3600.0, 3),
-        "duty_cycle_pct": round((runtime_seconds / observed_seconds) * 100.0, 2) if observed_seconds else 0,
-        "started_runs": started_runs, "completed_runs": started_runs,
-        "avg_run_seconds": int(round(runtime_seconds / started_runs)) if started_runs else 0,
-        "short_cycle_count": 0, "avg_off_seconds": 0,
     }
 
 
@@ -11105,154 +10716,6 @@ def load_dashboard_snapshot(device_id=None):
     return dict(payload)
 
 
-def build_dashboard_summary_payload(device_id, event_limit=30, audit_limit=30):
-    """Compute a device summary off the request path (ingestion/reconciliation only)."""
-    normalized_device_id = normalize_device_id(device_id)
-    snapshot = load_dashboard_snapshot(normalized_device_id)
-    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
-    updated_at = now_utc().strftime(TIMESTAMP_FORMAT)
-    return {
-        "snapshot": public_snapshot,
-        "system_status": build_system_status_payload(snapshot, device_id=normalized_device_id),
-        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=normalized_device_id),
-        "events": build_events(event_limit, device_id=normalized_device_id, sync=False),
-        "audit": fetch_audit_events(limit=audit_limit, device_id=normalized_device_id),
-        "guidance": build_shared_guidance_payload(snapshot, None),
-        "last_updated": updated_at,
-        "generated_at": updated_at,
-    }
-
-
-def persist_dashboard_summary(device_id, payload=None):
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return None
-    active_mode = get_device_source_mode()
-    summary = payload or build_dashboard_summary_payload(normalized_device_id)
-    updated_at = str(summary.get("last_updated") or now_utc().strftime(TIMESTAMP_FORMAT))
-    source_updated_at = (summary.get("snapshot") or {}).get("created_at")
-    encoded = json.dumps(summary, separators=(",", ":"), default=str)
-
-    def persist_summary():
-        with get_db() as db:
-            db.execute(
-                """
-                INSERT INTO dashboard_summaries(
-                    device_id, device_source, summary_json, source_updated_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(device_id, device_source) DO UPDATE SET
-                    summary_json=excluded.summary_json,
-                    source_updated_at=excluded.source_updated_at,
-                    updated_at=excluded.updated_at
-                """,
-                (normalized_device_id, active_mode, encoded, source_updated_at, updated_at),
-            )
-
-    run_with_database_lock_retries(
-        persist_summary,
-        operation_name="persist dashboard summary",
-        attempts=4,
-        initial_delay_s=0.25,
-    )
-
-    cache_key = f"{active_mode}:{normalized_device_id}"
-    dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
-    with dashboard_summary_refresh_lock:
-        dashboard_summary_last_refresh_at[normalized_device_id] = time.monotonic()
-    return copy.deepcopy(summary)
-
-
-def load_persisted_dashboard_summary(device_id):
-    """Read the fast memory copy, falling back to the last durable summary."""
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return None
-    active_mode = get_device_source_mode()
-    cache_key = f"{active_mode}:{normalized_device_id}"
-    cached = dashboard_summary_cache.get(cache_key)
-    if cached is not None:
-        return copy.deepcopy(cached)
-    try:
-        with get_db() as db:
-            row = db.execute(
-                """
-                SELECT summary_json, updated_at
-                FROM dashboard_summaries
-                WHERE device_id = ? AND device_source = ?
-                """,
-                (normalized_device_id, active_mode),
-            ).fetchone()
-    except Exception as exc:
-        logger.warning("Dashboard summary store unavailable for %s: %s", normalized_device_id, exc)
-        return None
-    if not row:
-        return None
-    try:
-        summary = json.loads(row.get("summary_json") or "{}")
-    except (TypeError, ValueError):
-        logger.warning("Discarding invalid dashboard summary for %s", normalized_device_id)
-        return None
-    summary.setdefault("last_updated", row.get("updated_at"))
-    dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
-    return copy.deepcopy(summary)
-
-
-def empty_dashboard_summary(device_id):
-    snapshot = build_empty_snapshot_payload(normalize_device_id(device_id))
-    return {
-        "snapshot": snapshot,
-        "system_status": build_system_status_payload(snapshot, device_id=device_id),
-        "monitoring_summary": {"alerts": [], "devices": [], "registered_devices": []},
-        "events": [],
-        "audit": [],
-        "guidance": build_shared_guidance_payload(snapshot, None),
-        "last_updated": None,
-        "generated_at": None,
-        "summary_pending": True,
-    }
-
-
-def refresh_dashboard_summary(device_id):
-    """Best-effort summary refresh used by telemetry and event ingestion."""
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return None
-    try:
-        invalidate_dashboard_summary_memory(normalized_device_id)
-        return persist_dashboard_summary(normalized_device_id)
-    except Exception as exc:
-        logger.warning("Dashboard summary refresh failed for %s: %s", normalized_device_id, exc)
-        return None
-
-
-def schedule_dashboard_summary_refresh(device_id):
-    """Coalesce bursts of event writes into one per-device summary update."""
-    normalized_device_id = normalize_device_id(device_id)
-    if not normalized_device_id:
-        return
-    with dashboard_summary_refresh_lock:
-        if normalized_device_id in dashboard_summary_refresh_pending:
-            return
-        last_refresh_at = dashboard_summary_last_refresh_at.get(normalized_device_id, 0.0)
-        if last_refresh_at and time.monotonic() - last_refresh_at < DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS:
-            return
-        dashboard_summary_refresh_pending.add(normalized_device_id)
-
-    def refresh_after_event_burst():
-        try:
-            time.sleep(0.2)
-            refresh_dashboard_summary(normalized_device_id)
-        finally:
-            with dashboard_summary_refresh_lock:
-                dashboard_summary_refresh_pending.discard(normalized_device_id)
-
-    threading.Thread(
-        target=refresh_after_event_burst,
-        name=f"dashboard-summary-{normalized_device_id}",
-        daemon=True,
-    ).start()
-
-
 def snapshot_has_live_device_data(snapshot):
     if not snapshot:
         return False
@@ -11387,10 +10850,6 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
         "synchronized_status": synchronized_status,
-        # Backward-compatible aliases for clients that adopted the initial
-        # cross-project status contract before the nested field was finalized.
-        "synchronized_status_current_status": synchronized_status,
-        "status_contract": synchronized_status,
     }
 
 
@@ -11576,9 +11035,8 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
         return cached_payload
-    # Analytics requests are read-only.  Event generation/persistence runs on
-    # telemetry ingestion or the summary worker, never in a dashboard request,
-    # where it could contend with device and retention writers.
+    if normalized_device_id:
+        sync_device_events(device_id=normalized_device_id)
 
     if not TELEMETRY_HISTORY_ENABLED:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -11735,7 +11193,6 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         activity_window_end,
     )
     observed_motor_metrics = build_motor_activity_metrics(observed_motor_times, observed_motor_values)
-    authoritative_pump_metrics = build_authoritative_pump_metrics(raw_tank_rows)
     observed_motor_has_on_state = any(value == 1 for value in observed_motor_values)
     inferred_motor_metrics = build_motor_activity_metrics(inferred_motor_times, inferred_motor_values)
     if observed_motor_has_on_state:
@@ -11808,20 +11265,17 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct = None
 
     latest_row["seconds_since_sync"] = max(0, int((now_utc() - latest_row["created_at"]).total_seconds()))
-    pump_activity_metrics = authoritative_pump_metrics or (observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics)
-    if authoritative_pump_metrics:
-        motor_cycles = authoritative_pump_metrics["started_runs"]
-        refill_events = motor_cycles
+    pump_activity_metrics = observed_motor_metrics if observed_motor_has_on_state else inferred_motor_metrics
     pump_activity_metrics.update(
         {
-            "source": "firmware_runtime_counter" if authoritative_pump_metrics else ("telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history"),
-            "relay_state_used": bool(observed_motor_has_on_state and not authoritative_pump_metrics),
+            "source": "telemetry_relay_state" if observed_motor_has_on_state else "tank_level_history",
+            "relay_state_used": observed_motor_has_on_state,
             "inference_status": (
                 "observed_relay_transitions"
                 if observed_motor_has_on_state
                 else "validated_threshold_cycles" if inferred_fill_runs else "no_threshold_reaching_fill_cycles"
             ),
-            "runtime_basis": "persistent_physical_feedback_counter" if authoritative_pump_metrics else ("reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold"),
+            "runtime_basis": "reported_motor_on_intervals" if observed_motor_has_on_state else "local_minimum_to_90_pct_threshold",
             "stop_threshold_pct": round(stop_threshold_pct, 1),
             "last_started_at": inferred_fill_runs[-1]["started_at"] if inferred_fill_runs else None,
             "last_stopped_at": inferred_fill_runs[-1]["stopped_at"] if inferred_fill_runs else None,
@@ -13769,94 +13223,75 @@ def persist_device_events(events, default_device_id=None):
     if not events:
         return 0
 
-    normalized_events = []
-    for event in events:
-        if not isinstance(event, dict):
-            continue
-        details = event.get("details") if isinstance(event.get("details"), dict) else {}
-        event_kind = str(event.get("kind") or "event").strip().lower() or "event"
-        source_table = str(details.get("source_table") or "").strip() or None
-        source_row_id = str(details.get("source_row_id") or "").strip() or None
-        device_id = normalize_device_id(details.get("device_id") or default_device_id)
-        event_key = device_event_key(event, default_device_id=device_id)
-        normalized_events.append((
-            device_id,
-            event_kind,
-            source_table or "",
-            source_row_id or "",
-            event_key,
-            event,
-        ))
-
-    # Ensure the same deterministic row order for every batch.
-    normalized_events.sort(key=lambda item: (item[0] or "", item[1], item[2], item[3], item[4]))
-
-    def persist():
-        persisted = 0
-        affected_device_ids = set()
-        with get_db() as db:
-            for device_id, event_kind, source_table, source_row_id, event_key, event in normalized_events:
-                details = event.get("details") if isinstance(event.get("details"), dict) else {}
-                event_at = normalize_device_event_time(event.get("time"))
-                severity = str(event.get("severity") or "info").strip().lower() or "info"
-                message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
-                if device_id:
-                    affected_device_ids.add(device_id)
-                duration_seconds = details.get("duration_seconds")
-                try:
-                    duration_seconds = int(duration_seconds) if duration_seconds is not None else None
-                except (TypeError, ValueError):
-                    duration_seconds = None
+    persisted = 0
+    with get_db() as db:
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            details = event.get("details") if isinstance(event.get("details"), dict) else {}
+            event_at = normalize_device_event_time(event.get("time"))
+            event_kind = str(event.get("kind") or "event").strip().lower() or "event"
+            severity = str(event.get("severity") or "info").strip().lower() or "info"
+            message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
+            device_id = normalize_device_id(details.get("device_id") or default_device_id)
+            duration_seconds = details.get("duration_seconds")
+            try:
+                duration_seconds = int(duration_seconds) if duration_seconds is not None else None
+            except (TypeError, ValueError):
+                duration_seconds = None
+            event_key = device_event_key(event, default_device_id=device_id)
+            source_table = str(details.get("source_table") or "").strip() or None
+            source_row_id = str(details.get("source_row_id") or "").strip() or None
+            if source_table and source_row_id:
                 db.execute(
                     """
-                    INSERT INTO device_events(
-                        event_key, device_id, event_kind, severity, message, details_json,
-                        source_table, source_row_id, started_at, ended_at, duration_seconds,
-                        event_at, updated_at
-                    )
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    ON CONFLICT(event_key) DO UPDATE SET
-                        device_id=excluded.device_id,
-                        event_kind=excluded.event_kind,
-                        severity=excluded.severity,
-                        message=excluded.message,
-                        details_json=excluded.details_json,
-                        source_table=excluded.source_table,
-                        source_row_id=excluded.source_row_id,
-                        started_at=excluded.started_at,
-                        ended_at=excluded.ended_at,
-                        duration_seconds=excluded.duration_seconds,
-                        event_at=excluded.event_at,
-                        updated_at=CURRENT_TIMESTAMP
+                    DELETE FROM device_events
+                    WHERE device_id = ?
+                      AND event_kind = ?
+                      AND source_table = ?
+                      AND source_row_id = ?
+                      AND event_key <> ?
                     """,
-                    (
-                        event_key,
-                        device_id,
-                        event_kind,
-                        severity,
-                        message,
-                        json.dumps(details, separators=(",", ":"), sort_keys=True),
-                        source_table,
-                        source_row_id,
-                        normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
-                        normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
-                        duration_seconds,
-                        event_at,
-                    ),
+                    (device_id, event_kind, source_table, source_row_id, event_key),
                 )
-                persisted += 1
-        return persisted, affected_device_ids
-
-    persisted, affected_device_ids = run_with_database_lock_retries(
-        persist,
-        operation_name="persist device events",
-        attempts=4,
-        initial_delay_s=0.25,
-    )
-
-    for affected_device_id in affected_device_ids:
-        schedule_dashboard_summary_refresh(affected_device_id)
-
+            db.execute(
+                """
+                INSERT INTO device_events(
+                    event_key, device_id, event_kind, severity, message, details_json,
+                    source_table, source_row_id, started_at, ended_at, duration_seconds,
+                    event_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(event_key) DO UPDATE SET
+                    device_id=excluded.device_id,
+                    event_kind=excluded.event_kind,
+                    severity=excluded.severity,
+                    message=excluded.message,
+                    details_json=excluded.details_json,
+                    source_table=excluded.source_table,
+                    source_row_id=excluded.source_row_id,
+                    started_at=excluded.started_at,
+                    ended_at=excluded.ended_at,
+                    duration_seconds=excluded.duration_seconds,
+                    event_at=excluded.event_at,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (
+                    event_key,
+                    device_id,
+                    event_kind,
+                    severity,
+                    message,
+                    json.dumps(details, separators=(",", ":"), sort_keys=True),
+                    source_table,
+                    source_row_id,
+                    normalize_device_event_time(details.get("started_at")) if details.get("started_at") else None,
+                    normalize_device_event_time(details.get("ended_at")) if details.get("ended_at") else None,
+                    duration_seconds,
+                    event_at,
+                ),
+            )
+            persisted += 1
     return persisted
 
 
@@ -15131,7 +14566,7 @@ def fetch_device_inventory(limit=20, device_ids=None):
     return inventory
 
 
-def fetch_device_snapshot(device_id, include_transition_counts=True):
+def fetch_device_snapshot(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
@@ -15150,10 +14585,8 @@ def fetch_device_snapshot(device_id, include_transition_counts=True):
         ).fetchone()
         if not row:
             return None
-        counts = None
-        if include_transition_counts:
-            counts = db.execute(
-                f"""
+        counts = db.execute(
+            f"""
             SELECT
                 COALESCE(SUM(CASE WHEN motor='ON' AND COALESCE(prev_motor,'OFF')!='ON' THEN 1 ELSE 0 END), 0) AS motor_cycles,
                 COALESCE(SUM(CASE WHEN pipe_leak='YES' AND COALESCE(prev_pipe_leak,'NO')!='YES' THEN 1 ELSE 0 END), 0) AS leak_events
@@ -15172,14 +14605,10 @@ def fetch_device_snapshot(device_id, include_transition_counts=True):
                 ) recent_rows
                 ORDER BY id
             ) transitions
-                """,
-                (normalized_device_id, *source_params),
-            ).fetchone()
-    return enrich_snapshot(
-        dict(row),
-        int((counts or {}).get("motor_cycles") or 0),
-        int((counts or {}).get("leak_events") or 0),
-    )
+            """,
+            (normalized_device_id, *source_params),
+        ).fetchone()
+    return enrich_snapshot(dict(row), int(counts["motor_cycles"] or 0), int(counts["leak_events"] or 0))
 
 
 def fetch_device_history(device_id, limit=48):
@@ -15836,60 +15265,15 @@ def device_command_family(command):
         or compact.startswith("PEER_PING")
     ):
         return "ping_slave"
-    # Simulator controls are independent.  Do not coalesce them into one
-    # queue family: doing so makes a later municipal/valve/turbidity request
-    # delete a pending tank-simulator request (and vice versa) before the
-    # device has had a chance to poll it.
-    if compact in {"SIMULATOR_ON", "SIMULATOR_OFF"}:
-        return "simulator:tank"
-    if compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
-        return f"simulator:{compact.rsplit('_', 1)[0].lower()}"
+    if compact.startswith("SIMULATOR") or compact.endswith("_SIMULATOR_ON") or compact.endswith("_SIMULATOR_OFF"):
+        return "simulator"
     return f"command:{compact}"
 
 
-def queue_device_command(command, target_device, request_id=None, expires_in_seconds=None):
-    normalized_target_device = normalize_device_id(target_device)
-    if not normalized_target_device:
-        raise ValueError("A target device is required for a queued command.")
+def queue_device_command(command, target_device):
     normalized_command = str(command or "").strip().upper()
     normalized_family = device_command_family(normalized_command)
-    desired_state = "ON" if normalized_command == "ON" or normalized_command.startswith("ON_FOR:") else ("OFF" if normalized_command == "OFF" else None)
-    request_id = str(request_id or secrets.token_hex(16))
-    if expires_in_seconds is None:
-        # A controller can be rebooting or temporarily backing off after a
-        # failed HTTPS request.  A one-minute start-command lifetime made the
-        # dashboard report "queued" while the device never had another chance
-        # to receive it.  OFF remains high priority; starts remain valid long
-        # enough for the normal reconnect/poll recovery path.
-        expires_in_seconds = 600 if desired_state in {"ON", "OFF"} else 300
-    expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
-    priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
     with get_db() as db:
-        existing_request = db.execute(
-            "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",
-            (normalized_target_device, request_id),
-        ).fetchone()
-        if existing_request:
-            logger.info(
-                "Reusing queued command id=%s for device=%s command=%s request_id=%s",
-                existing_request["id"], normalized_target_device, normalized_command, request_id,
-            )
-            return existing_request["id"]
-        if desired_state == "OFF":
-            cancelled = db.execute(
-                """
-                DELETE FROM device_command_queue
-                WHERE target_device = ?
-                  AND delivered_at IS NULL
-                  AND (UPPER(command) = 'ON' OR SUBSTR(UPPER(command), 1, 7) = 'ON_FOR:')
-                """,
-                (normalized_target_device,),
-            )
-            if cancelled.rowcount:
-                logger.info(
-                    "Cancelled %s pending pump-start command(s) for device=%s because OFF was queued",
-                    cancelled.rowcount, normalized_target_device,
-                )
         pending_rows = db.execute(
             """
             SELECT id, command
@@ -15897,7 +15281,7 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
             WHERE target_device = ? AND delivered_at IS NULL
             ORDER BY id ASC
             """,
-            (normalized_target_device,),
+            (target_device,),
         ).fetchall()
         duplicate_ids = [
             row["id"]
@@ -15911,15 +15295,14 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
                 DELETE FROM device_command_queue
                 WHERE target_device = ? AND delivered_at IS NULL AND id IN ({placeholders})
                 """,
-                (normalized_target_device, *duplicate_ids),
+                (target_device, *duplicate_ids),
             )
         cursor = db.execute(
             """
-            INSERT INTO device_command_queue (
-                target_device, command, request_id, desired_state, status, priority, expires_at
-            ) VALUES (?, ?, ?, ?, 'queued', ?, ?)
+            INSERT INTO device_command_queue (target_device, command)
+            VALUES (?, ?)
             """,
-            (normalized_target_device, normalized_command, request_id, desired_state, priority, expires_at),
+            (target_device, normalized_command),
         )
         db.execute(
             """
@@ -15927,10 +15310,6 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
             WHERE delivered_at IS NOT NULL
               AND delivered_at < datetime('now', '-7 day')
             """
-        )
-        logger.info(
-            "Queued device command id=%s device=%s command=%s priority=%s expires_at=%s request_id=%s",
-            cursor.lastrowid, normalized_target_device, normalized_command, priority, expires_at, request_id,
         )
         return cursor.lastrowid
 
@@ -15992,21 +15371,16 @@ def peek_queued_command(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT id, command, request_id, desired_state, expires_at
+            SELECT id, command
             FROM device_command_queue
             WHERE target_device = ? AND delivered_at IS NULL
-              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-            ORDER BY priority DESC, id ASC
+            ORDER BY id ASC
             LIMIT 1
             """,
             (normalized_device_id,),
         ).fetchone()
         if row:
-            db.execute(
-                "UPDATE device_command_queue SET status='delivered' WHERE id=?",
-                (row["id"],),
-            )
-            return dict(row)
+            return {"id": row["id"], "command": row["command"]}
 
     with get_db() as db:
         if not runtime_sync_command_allowed(db, normalized_device_id):
@@ -16038,7 +15412,7 @@ def peek_queued_command(device_id):
     return None
 
 
-def acknowledge_queued_command_id(device_id, command_id, result=None):
+def acknowledge_queued_command_id(device_id, command_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return False
@@ -16056,29 +15430,20 @@ def acknowledge_queued_command_id(device_id, command_id, result=None):
             """
             SELECT id
             FROM device_command_queue
-            WHERE target_device = ? AND id = ?
+            WHERE target_device = ? AND delivered_at IS NULL AND id = ?
             LIMIT 1
             """,
             (normalized_device_id, normalized_command_id),
         ).fetchone()
         if not row:
             return False
-        result = result if isinstance(result, dict) else {}
-        device_status = str(result.get("status") or "accepted").strip().lower()
-        final_status = "rejected" if device_status == "rejected" else "accepted"
-        motor_state = str(result.get("motor_state") or "").strip().upper()
-        if final_status == "accepted" and motor_state in {"RUNNING", "ON", "OFF", "STOPPED"}:
-            final_status = "running" if motor_state in {"RUNNING", "ON"} else "stopped"
         db.execute(
             """
             UPDATE device_command_queue
-            SET delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP),
-                accepted_at = CASE WHEN ? <> 'rejected' THEN CURRENT_TIMESTAMP ELSE accepted_at END,
-                completed_at = CASE WHEN ? IN ('rejected','running','stopped') THEN CURRENT_TIMESTAMP ELSE completed_at END,
-                status = ?, result_reason = ?, result_json = ?
+            SET delivered_at = CURRENT_TIMESTAMP
             WHERE id = ?
             """,
-            (final_status, final_status, final_status, result.get("reason"), json.dumps(result, default=str), row["id"]),
+            (row["id"],),
         )
     persist_command_activity_events(normalized_device_id)
     return True
@@ -16135,7 +15500,7 @@ def clear_mqtt_command(target_device):
     publish_mqtt_command("", target_device, clear=True)
 
 
-def queue_command(command, target_device=None, request_id=None):
+def queue_command(command, target_device=None):
     device_command_target = resolve_command_target(target_device)
     if not device_command_target:
         return {
@@ -16146,16 +15511,13 @@ def queue_command(command, target_device=None, request_id=None):
         }, 400
 
     normalized_command = str(command or "").strip().upper()
-    request_id = str(request_id or secrets.token_hex(16))
-    command_id = queue_device_command(normalized_command, device_command_target, request_id=request_id)
+    command_id = queue_device_command(normalized_command, device_command_target)
     persist_command_activity_events(device_command_target)
     mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
         "command": normalized_command,
         "command_id": command_id,
-        "request_id": request_id,
-        "command_status": "queued",
         "target_device": device_command_target,
         "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "control_policy": CONTROL_POLICY,
@@ -16700,33 +16062,7 @@ def motor_on():
     response = customer_cloud_feed_block_response()
     if response:
         return response
-    target_device = current_scope_device_id(request.args.get("device_id", type=str))
-    summary = load_persisted_dashboard_summary(target_device) or {}
-    snapshot = summary.get("snapshot") or {}
-    telemetry = str(snapshot.get("telemetry_status") or "no-data").lower()
-    if telemetry not in {"live", "recent", "fresh"}:
-        return jsonify({"error": "Pump start rejected: device telemetry is not fresh.", "reason": "telemetry_stale"}), 409
-    if str(snapshot.get("relay_service") or "ON").upper() not in {"ON", "ENABLED", "ACTIVE"}:
-        return jsonify({"error": "Pump start rejected: relay service is disabled.", "reason": "relay_service_disabled"}), 409
-    lower_service = str(snapshot.get("lower_tank_service") or "OFF").upper() == "ON"
-    if lower_service:
-        if str(snapshot.get("lower_sensor") or "").upper() != "OK":
-            return jsonify({"error": "Pump start rejected: source sensor is unavailable.", "reason": "source_sensor_stale"}), 409
-        if safe_float(snapshot.get("lower_tank_level"), -1) < 20:
-            return jsonify({"error": "Pump start rejected: source tank is below 20%.", "reason": "source_tank_below_safe_level"}), 409
-    stop_pct = safe_float(snapshot.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
-    if safe_float(snapshot.get("level"), 0) >= stop_pct:
-        return jsonify({"error": "Pump start rejected: upper tank is already full.", "reason": "upper_tank_full"}), 409
-    request_payload = request.get_json(silent=True) or {}
-    duration_minutes = request_payload.get("duration_minutes", request.values.get("duration_minutes", 0))
-    try:
-        duration_minutes = int(duration_minutes or 0)
-    except (TypeError, ValueError):
-        duration_minutes = -1
-    if duration_minutes not in {0, 15, 30}:
-        return jsonify({"error": "Run duration must be until full, 15 minutes, or 30 minutes."}), 400
-    command = "ON" if duration_minutes == 0 else f"ON_FOR:{duration_minutes * 60}"
-    return queue_command(command, target_device=target_device, request_id=request_payload.get("request_id"))
+    return queue_command("ON", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
 
 
 @app.route("/motor/off", methods=["POST"])
@@ -16737,34 +16073,6 @@ def motor_off():
     if response:
         return response
     return queue_command("OFF", target_device=current_scope_device_id(request.args.get("device_id", type=str)))
-
-
-@app.route("/motor/command-status/<request_id>")
-@login_required
-def motor_command_status(request_id):
-    target_device = current_scope_device_id(request.args.get("device_id", type=str))
-    with get_db() as db:
-        row = db.execute(
-            """
-            SELECT request_id, command, status, created_at AS queued_at, delivered_at,
-                   accepted_at, completed_at, result_reason, result_json, expires_at
-            FROM device_command_queue
-            WHERE target_device = ? AND request_id = ?
-            LIMIT 1
-            """,
-            (target_device, str(request_id)),
-        ).fetchone()
-        if not row:
-            return jsonify({"error": "command not found"}), 404
-        result = dict(row)
-        if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
-            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE request_id=?", (str(request_id),))
-            result["status"] = "timed_out"
-        try:
-            result["device_result"] = json.loads(result.pop("result_json") or "{}")
-        except (TypeError, ValueError):
-            result["device_result"] = {}
-    return jsonify(result)
 
 
 @app.route("/sensor/calibrate", methods=["POST"])
@@ -16960,20 +16268,24 @@ def mobile_bootstrap():
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
-    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
-    public_snapshot = summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id)
-    snapshot = public_snapshot
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
-    payload = dict(summary)
-    payload.update({
-        "events": list(summary.get("events") or [])[:event_limit],
-        "audit": list(summary.get("audit") or [])[:audit_limit],
+    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    payload = {
+        "snapshot": public_snapshot,
+        "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
+        "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
+        "events": build_events(event_limit, device_id=scoped_device_id),
+        "audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
+        "guidance": build_shared_guidance_payload(snapshot, None),
+        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": viewer,
         "service_config": service_config,
         "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
         "current_saved_config": build_current_saved_config(scoped_device_id),
         "mobile_action": pop_device_mobile_action(scoped_device_id),
-    })
+    }
     if viewer.get("role") == "admin":
         payload["ops"] = build_ops_dashboard_payload(snapshot, device_id=scoped_device_id, audit_limit=audit_limit)
     if include_analytics and current_customer_ai_analysis_enabled():
@@ -17563,9 +16875,6 @@ def get_command():
         return {
             "command": queued["command"],
             "command_id": queued["id"],
-            "request_id": queued.get("request_id"),
-            "desired_state": queued.get("desired_state"),
-            "expires_at": queued.get("expires_at"),
             "command_source": "queue",
             "control_policy": CONTROL_POLICY,
             "device_id": device_id,
@@ -17604,7 +16913,7 @@ def acknowledge_device_command():
     if command_source == "relay":
         acknowledged = acknowledge_relay_command(device_id, command_id, device_source=request_source)
     else:
-        acknowledged = acknowledge_queued_command_id(device_id, command_id, result=payload)
+        acknowledged = acknowledge_queued_command_id(device_id, command_id)
         if acknowledged:
             clear_mqtt_command(device_id)
 
@@ -19180,15 +18489,6 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
-        ("Physical Pump State", "Running" if boolish_enabled(snapshot.get("physical_pump_running"), default=False) else "Stopped"),
-        ("Pump Confirmation", device_detail_card_title(snapshot.get("pump_confirmation_source"), "Relay command fallback")),
-        ("Starter Contactor Sensor", "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else ("Ready" if boolish_enabled(snapshot.get("starter_contactor_sensor_enabled"), default=False) else "Not installed")),
-        ("Motor Current Sensor", "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("motor_current_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Flow Sensor", "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_flow_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Pressure Sensor", "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_pressure_sensor_enabled"), default=False) else "Not installed")),
-        ("Authoritative Pump Runtime", device_detail_card_duration_seconds(snapshot.get("pump_total_runtime_s"), "Not reported")),
-        ("Last Pump Run", device_detail_card_duration_seconds(snapshot.get("pump_last_run_runtime_s"), "Not reported")),
-        ("Pump Cycle Counter", device_detail_card_display(snapshot.get("pump_cycle_count"), "Not reported")),
         ("Source Tank Monitoring", device_detail_card_bool(saved_service_config.get("source_tank_monitoring_enabled"), default=True)),
         ("Buzzer Service", device_detail_card_bool(saved_service_config.get("buzzer_enabled"), default=True)),
         ("LED Display Service", device_detail_card_bool(saved_service_config.get("led_display_enabled"), default=True)),
@@ -20208,6 +19508,26 @@ def admin_device_detail_simulator(device_id):
         },
     )
 
+    synchronized_status = system_status.get("synchronized_status") or build_synchronized_status_payload(
+        snapshot, device_id=normalized_device_id, service_config=service_config
+    )
+    pump_status = synchronized_status.get("pump") or {}
+    sensors_status = synchronized_status.get("sensors") or {}
+    ai_status = synchronized_status.get("ai_ml") or {}
+    configuration_status = synchronized_status.get("configuration") or {}
+    add_event(
+        "synchronized_status_current_status",
+        "success" if configuration_status.get("state") == "SYNCED" else "warning",
+        (
+            f"Synchronized status: pump {pump_status.get('state', 'UNKNOWN')}; "
+            f"upper sensor {sensors_status.get('upper', 'Unreachable')}; "
+            f"source sensor {sensors_status.get('source', 'Unreachable')}; "
+            f"municipal sensor {sensors_status.get('municipal', 'Disabled')}; "
+            f"AI/ML {ai_status.get('state', 'OFF')}; "
+            f"configuration {configuration_status.get('state', 'WAITING')}."
+        ),
+        {"status_contract": synchronized_status},
+    )
     message = f"{target_label} simulator {'enable' if desired_enabled else 'disable'} command queued."
     return redirect(
         url_for(
@@ -20423,7 +19743,7 @@ def admin_device_detail_customer_password(device_id):
 @admin_required
 def device_detail_status(device_id):
     scoped_device_id = current_scope_device_id(device_id)
-    snapshot = fetch_device_snapshot(scoped_device_id, include_transition_counts=False)
+    snapshot = fetch_device_snapshot(scoped_device_id)
     if not snapshot:
         # Newly registered devices can have saved configuration before the first
         # telemetry packet arrives, so return an empty snapshot shell instead of
@@ -20433,7 +19753,6 @@ def device_detail_status(device_id):
     include_events = request.args.get("events", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_alerts = request.args.get("alerts", "1").strip().lower() not in {"0", "false", "no", "off"}
     include_audit = request.args.get("audit", "1").strip().lower() not in {"0", "false", "no", "off"}
-    include_details = request.args.get("details", "1").strip().lower() not in {"0", "false", "no", "off"}
     simulator_enabled = device_simulator_enabled(scoped_device_id, snapshot=snapshot)
     snapshot_payload = strip_ip_address_fields(snapshot, keep_device_local_url=True)
     snapshot_has_live_simulator_status = (
@@ -20444,10 +19763,7 @@ def device_detail_status(device_id):
     snapshot_payload["simulator_status"] = "ON" if simulator_enabled else "OFF"
     if simulator_enabled and not snapshot_has_live_simulator_status:
         snapshot_payload["simulator"] = "ON"
-    # Frequent browser polling needs only the latest telemetry snapshot. Saved
-    # configuration is already embedded in the page and is fetched again only
-    # for an explicit/full refresh.
-    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot) if include_details else {}
+    service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     payload = {
         "device_id": scoped_device_id,
         "system_status": build_system_status_payload(
@@ -20457,11 +19773,10 @@ def device_detail_status(device_id):
         ),
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
+        "service_config": resolve_device_service_config(scoped_device_id, snapshot=snapshot),
+        "automation_settings": fetch_device_automation_settings(scoped_device_id, snapshot=snapshot),
+        "current_saved_config": build_current_saved_config(scoped_device_id),
     }
-    if include_details:
-        payload["service_config"] = service_config
-        payload["automation_settings"] = fetch_device_automation_settings(scoped_device_id, snapshot=snapshot)
-        payload["current_saved_config"] = build_current_saved_config(scoped_device_id)
     if include_alerts:
         payload["alerts"] = fetch_filtered_alerts(limit=10, device_id=scoped_device_id)
     if include_audit:
@@ -20520,8 +19835,9 @@ def last():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
-    return jsonify(summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id))
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    return jsonify(strip_ip_address_fields(snapshot, keep_device_local_url=True))
 
 
 @app.route("/history")
@@ -20629,8 +19945,9 @@ def system_status():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
-    return jsonify(summary.get("system_status") or {})
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
+    return build_system_status_payload(snapshot, device_id=scoped_device_id)
 
 
 @app.route("/relay/health")
@@ -20734,11 +20051,52 @@ def dashboard_bootstrap():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
-    payload = dict(summary)
-    payload.update({
-        "events": list(summary.get("events") or [])[:event_limit],
-        "audit": list(summary.get("audit") or [])[:audit_limit],
+    snapshot = load_dashboard_snapshot(scoped_device_id)
+    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    bootstrap_warnings = {}
+
+    def safe_bootstrap_section(section_name, fallback, builder):
+        try:
+            return builder()
+        except Exception as exc:
+            logger.exception("Dashboard bootstrap %s error for %s: %s", section_name, scoped_device_id, exc)
+            bootstrap_warnings[section_name] = str(exc)
+            return fallback
+
+    safe_bootstrap_section(
+        "operational_alerts",
+        None,
+        lambda: refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None),
+    )
+
+    payload = {
+        "snapshot": public_snapshot,
+        "system_status": safe_bootstrap_section(
+            "system_status",
+            build_system_status_payload(public_snapshot, device_id=scoped_device_id),
+            lambda: build_system_status_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "monitoring_summary": safe_bootstrap_section(
+            "monitoring_summary",
+            {"alerts": [], "devices": [], "registered_devices": []},
+            lambda: build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
+        ),
+        "events": safe_bootstrap_section(
+            "events",
+            [],
+            lambda: build_events(event_limit, device_id=scoped_device_id),
+        ),
+        "audit": safe_bootstrap_section(
+            "audit",
+            [],
+            lambda: fetch_audit_events(limit=audit_limit, device_id=scoped_device_id),
+        ),
+        "guidance": safe_bootstrap_section(
+            "guidance",
+            build_shared_guidance_payload(public_snapshot, None),
+            lambda: build_shared_guidance_payload(snapshot, None),
+        ),
+        "generated_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "viewer": {
             "role": current_user_role(),
             "device_id": scoped_device_id,
@@ -20751,7 +20109,9 @@ def dashboard_bootstrap():
             ),
             "ai_analysis_enabled": current_customer_ai_analysis_enabled(),
         },
-    })
+    }
+    if bootstrap_warnings:
+        payload["warnings"] = bootstrap_warnings
 
     return jsonify(payload)
 
@@ -20905,67 +20265,6 @@ def ml_predict():
     return jsonify(payload)
 
 
-dashboard_summary_reconciler_stop = threading.Event()
-
-
-def reconcile_dashboard_summaries():
-    active_mode = get_device_source_mode()
-    stale_before = (now_utc() - timedelta(seconds=DASHBOARD_SUMMARY_RECONCILE_SECONDS)).strftime(TIMESTAMP_FORMAT)
-    with get_db() as db:
-        rows = db.execute(
-            """
-            SELECT tank_data.device_id, MAX(dashboard_summaries.updated_at) AS summary_updated_at
-            FROM tank_data
-            LEFT JOIN dashboard_summaries
-              ON dashboard_summaries.device_id = tank_data.device_id
-             AND dashboard_summaries.device_source = tank_data.device_source
-            WHERE tank_data.device_id IS NOT NULL
-              AND tank_data.device_id <> ''
-              AND tank_data.device_source = ?
-            GROUP BY tank_data.device_id
-            HAVING MAX(dashboard_summaries.updated_at) IS NULL
-                OR MAX(dashboard_summaries.updated_at) < ?
-            ORDER BY summary_updated_at ASC
-            LIMIT ?
-            """,
-            (active_mode, stale_before, DASHBOARD_SUMMARY_RECONCILE_BATCH_SIZE),
-        ).fetchall()
-    refreshed = 0
-    for row in rows:
-        if refresh_dashboard_summary(row.get("device_id")) is not None:
-            refreshed += 1
-        if dashboard_summary_reconciler_stop.wait(0.1):
-            break
-    logger.info("Dashboard summary reconciliation refreshed %s device(s)", refreshed)
-    return refreshed
-
-
-def dashboard_summary_reconciler_loop():
-    # Let normal telemetry seed summaries first. Reconciliation is a bounded
-    # stale-summary safety net and must never create a startup/database burst.
-    if dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS):
-        return
-    while not dashboard_summary_reconciler_stop.is_set():
-        try:
-            reconcile_dashboard_summaries()
-        except Exception as exc:
-            logger.warning("Dashboard summary reconciliation failed: %s", exc)
-        if dashboard_summary_reconciler_stop.wait(DASHBOARD_SUMMARY_RECONCILE_SECONDS):
-            break
-
-
-def start_dashboard_summary_reconciler():
-    if not DASHBOARD_SUMMARY_RECONCILIATION_ENABLED:
-        return None
-    worker = threading.Thread(
-        target=dashboard_summary_reconciler_loop,
-        name="dashboard-summary-reconciler",
-        daemon=True,
-    )
-    worker.start()
-    return worker
-
-
 logger.info("Initializing database")
 _mysql_config_for_log = mysql_connection_config()
 logger.info(
@@ -21010,9 +20309,7 @@ if device_keys_look_default():
     logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
 start_relay_drain_worker()
 start_mqtt_bridge()
-start_dashboard_summary_reconciler()
 atexit.register(stop_mqtt_bridge)
-atexit.register(dashboard_summary_reconciler_stop.set)
 
 
 if __name__ == "__main__":
