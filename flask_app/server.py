@@ -3,6 +3,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 import base64
 import copy
+import random
 import csv
 import gzip
 import hashlib
@@ -1372,6 +1373,8 @@ def forget_registered_device_touch(device_id):
 
 
 def database_is_locked_error(exc):
+    if mysql_is_lock_error(exc):
+        return True
     message = str(exc or "").strip().lower()
     return (
         "database is locked" in message
@@ -1397,7 +1400,12 @@ def run_with_database_lock_retries(
             if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
                 raise
             last_exc = exc
-            delay_s = max(0.0, float(initial_delay_s or 0.0)) * (attempt + 1)
+            # Back off with jitter so simultaneous web workers do not retry the
+            # same conflicting write in lockstep.
+            base_delay_s = max(0.0, float(initial_delay_s or 0.0))
+            delay_s = base_delay_s * (2 ** attempt)
+            if delay_s > 0:
+                delay_s += random.uniform(0.0, min(0.25, delay_s * 0.25))
             logger.warning(
                 "Retrying %s after database lock/deadlock (%s/%s): %s",
                 operation_name,
@@ -11116,19 +11124,29 @@ def persist_dashboard_summary(device_id, payload=None):
     updated_at = str(summary.get("last_updated") or now_utc().strftime(TIMESTAMP_FORMAT))
     source_updated_at = (summary.get("snapshot") or {}).get("created_at")
     encoded = json.dumps(summary, separators=(",", ":"), default=str)
-    with get_db() as db:
-        db.execute(
-            """
-            INSERT INTO dashboard_summaries(
-                device_id, device_source, summary_json, source_updated_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(device_id, device_source) DO UPDATE SET
-                summary_json=excluded.summary_json,
-                source_updated_at=excluded.source_updated_at,
-                updated_at=excluded.updated_at
-            """,
-            (normalized_device_id, active_mode, encoded, source_updated_at, updated_at),
-        )
+
+    def persist_summary():
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO dashboard_summaries(
+                    device_id, device_source, summary_json, source_updated_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(device_id, device_source) DO UPDATE SET
+                    summary_json=excluded.summary_json,
+                    source_updated_at=excluded.source_updated_at,
+                    updated_at=excluded.updated_at
+                """,
+                (normalized_device_id, active_mode, encoded, source_updated_at, updated_at),
+            )
+
+    run_with_database_lock_retries(
+        persist_summary,
+        operation_name="persist dashboard summary",
+        attempts=4,
+        initial_delay_s=0.25,
+    )
+
     cache_key = f"{active_mode}:{normalized_device_id}"
     dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
     with dashboard_summary_refresh_lock:
@@ -11361,6 +11379,10 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
         "synchronized_status": synchronized_status,
+        # Backward-compatible aliases for clients that adopted the initial
+        # cross-project status contract before the nested field was finalized.
+        "synchronized_status_current_status": synchronized_status,
+        "status_contract": synchronized_status,
     }
 
 
@@ -11546,8 +11568,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
         return cached_payload
-    if normalized_device_id and ANALYTICS_SYNC_EVENTS_ON_REQUEST:
-        sync_device_events(device_id=normalized_device_id)
+    # Analytics requests are read-only.  Event generation/persistence runs on
+    # telemetry ingestion or the summary worker, never in a dashboard request,
+    # where it could contend with device and retention writers.
 
     if not TELEMETRY_HISTORY_ENABLED:
         payload = build_empty_analytics(start_dt, end_exclusive, label, normalized_device_id)
@@ -13738,19 +13761,37 @@ def persist_device_events(events, default_device_id=None):
     if not events:
         return 0
 
+    normalized_events = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        event_kind = str(event.get("kind") or "event").strip().lower() or "event"
+        source_table = str(details.get("source_table") or "").strip() or None
+        source_row_id = str(details.get("source_row_id") or "").strip() or None
+        device_id = normalize_device_id(details.get("device_id") or default_device_id)
+        event_key = device_event_key(event, default_device_id=device_id)
+        normalized_events.append((
+            device_id,
+            event_kind,
+            source_table or "",
+            source_row_id or "",
+            event_key,
+            event,
+        ))
+
+    # Ensure the same deterministic row order for every batch.
+    normalized_events.sort(key=lambda item: (item[0] or "", item[1], item[2], item[3], item[4]))
+
     def persist():
         persisted = 0
         affected_device_ids = set()
         with get_db() as db:
-            for event in events:
-                if not isinstance(event, dict):
-                    continue
+            for device_id, event_kind, source_table, source_row_id, event_key, event in normalized_events:
                 details = event.get("details") if isinstance(event.get("details"), dict) else {}
                 event_at = normalize_device_event_time(event.get("time"))
-                event_kind = str(event.get("kind") or "event").strip().lower() or "event"
                 severity = str(event.get("severity") or "info").strip().lower() or "info"
                 message = str(event.get("message") or event_kind.replace("_", " ").title()).strip()
-                device_id = normalize_device_id(details.get("device_id") or default_device_id)
                 if device_id:
                     affected_device_ids.add(device_id)
                 duration_seconds = details.get("duration_seconds")
@@ -13758,21 +13799,6 @@ def persist_device_events(events, default_device_id=None):
                     duration_seconds = int(duration_seconds) if duration_seconds is not None else None
                 except (TypeError, ValueError):
                     duration_seconds = None
-                event_key = device_event_key(event, default_device_id=device_id)
-                source_table = str(details.get("source_table") or "").strip() or None
-                source_row_id = str(details.get("source_row_id") or "").strip() or None
-                if source_table and source_row_id:
-                    db.execute(
-                        """
-                        DELETE FROM device_events
-                        WHERE device_id = ?
-                          AND event_kind = ?
-                          AND source_table = ?
-                          AND source_row_id = ?
-                          AND event_key <> ?
-                        """,
-                        (device_id, event_kind, source_table, source_row_id, event_key),
-                    )
                 db.execute(
                     """
                     INSERT INTO device_events(

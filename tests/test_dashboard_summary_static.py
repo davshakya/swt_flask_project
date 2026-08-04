@@ -27,7 +27,7 @@ def test_analytics_requests_do_not_write_device_events_by_default():
     build_body = source[build_start : source.index("\n\ndef build_cached_fixed_ai_analytics", build_start)]
 
     assert 'ANALYTICS_SYNC_EVENTS_ON_REQUEST = env_flag("ANALYTICS_SYNC_EVENTS_ON_REQUEST", default=False)' in source
-    assert "if normalized_device_id and ANALYTICS_SYNC_EVENTS_ON_REQUEST:" in build_body
+    assert "sync_device_events(device_id=normalized_device_id)" not in build_body
 
 
 def test_customer_and_mobile_bootstrap_only_read_materialized_summary():
