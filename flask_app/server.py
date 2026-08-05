@@ -6356,6 +6356,25 @@ def set_app_setting(key, value):
         )
 
 
+def load_homepage_visitor_count_from_db():
+    try:
+        raw_value = get_app_setting(HOMEPAGE_VISITOR_COUNT_SETTING, "0")
+        return max(0, int(str(raw_value or "0").strip()))
+    except Exception as exc:
+        logger.warning("Unable to load persisted homepage visitor count: %s", exc)
+        return 0
+
+
+def ensure_homepage_visitor_count_loaded():
+    global homepage_visitor_count_cached
+    if homepage_visitor_count_cached is None:
+        loaded_count = load_homepage_visitor_count_from_db()
+        with homepage_visitor_count_lock:
+            if homepage_visitor_count_cached is None:
+                homepage_visitor_count_cached = loaded_count
+    return homepage_visitor_count_cached or 0
+
+
 def default_local_web_auth_password():
     return os.environ.get("SWT_LOCAL_WEB_AUTH_PASSWORD", "").strip() or "lOpbDRMeXBokNcQ4Y7lfgWDzPretehDY"
 
@@ -6390,11 +6409,13 @@ def increment_homepage_visitor_count():
     global homepage_visitor_count_pending
     global homepage_visitor_count_worker_running
 
+    if homepage_visitor_count_cached is None:
+        ensure_homepage_visitor_count_loaded()
+
     with homepage_visitor_count_lock:
         homepage_visitor_count_pending += 1
-        if homepage_visitor_count_cached is not None:
-            homepage_visitor_count_cached += 1
-        display_count = homepage_visitor_count_cached or homepage_visitor_count_pending
+        homepage_visitor_count_cached += 1
+        display_count = homepage_visitor_count_cached
         if homepage_visitor_count_worker_running:
             return display_count
         homepage_visitor_count_worker_running = True
