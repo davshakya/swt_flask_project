@@ -2,6 +2,11 @@ from flask_app.rag_service import RagIndex, chunk_text, concise_answer, normaliz
 from flask_app import rag_routes
 
 
+def test_rag_service_limits_numerical_library_threads_before_sklearn_import():
+    source = (project_root() / "flask_app" / "rag_service.py").read_text(encoding="utf-8")
+    assert source.index('"OPENBLAS_NUM_THREADS"') < source.index("from sklearn.feature_extraction.text import TfidfVectorizer")
+
+
 def test_chunk_text_preserves_source():
     chunks = chunk_text("Pump safety guidance. " * 100, "guide.md", chunk_size=200, overlap=30)
     assert len(chunks) > 1

@@ -9,6 +9,12 @@ import zipfile
 from xml.etree import ElementTree
 
 import requests
+
+# Also protect direct Flask/Gunicorn starts that do not go through
+# passenger_wsgi.py.  The values are set before NumPy is loaded by scikit-learn.
+for _thread_env in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_thread_env, "1")
+
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
