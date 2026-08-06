@@ -80,6 +80,13 @@ from flask_app.runtime_utils import (
     parse_simple_dotenv,
 )
 
+TELEMETRY_BACKGROUND_MAX_WORKERS = max(
+    1,
+    env_int("BACKGROUND_DB_MAX_WORKERS", 1),
+)
+telemetry_background_semaphore = threading.BoundedSemaphore(
+    TELEMETRY_BACKGROUND_MAX_WORKERS
+)
 
 PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
     "change-me",
@@ -4654,7 +4661,22 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             evaluate_snapshot_alerts(alert_snapshot)
             # Materialize all dashboard flash-card values while telemetry is
             # already being processed, never while a customer opens the page.
-            schedule_dashboard_summary_refresh(cleaned.get("device_id"))
+            # Avoid starting another background thread on low-resource hosting.
+            device_id = cleaned.get("device_id")
+            last_refresh = dashboard_summary_last_refresh_at.get(device_id, 0.0)
+            current_time = time.monotonic()
+
+            if current_time - last_refresh >= DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS:
+                dashboard_summary_last_refresh_at[device_id] = current_time
+
+                try:
+                    refresh_dashboard_summary(device_id)
+                except Exception as exc:
+                    logger.warning(
+                        "Dashboard summary refresh failed for %s: %s",
+                        device_id,
+                        exc,
+                    )
             if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
                 relay_status_async(cleaned)
     except Exception as exc:
@@ -4680,30 +4702,68 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
         telemetry_postprocess_running.add(normalized_device_id)
 
     def worker():
-        completed_normally = False
+        acquired = telemetry_background_semaphore.acquire(
+            blocking=False
+        )
+
+        if not acquired:
+            with telemetry_postprocess_lock:
+                telemetry_postprocess_running.discard(
+                    normalized_device_id
+                )
+
+            logger.warning(
+                "Telemetry postprocess skipped for %s because the "
+                "background worker is busy.",
+                normalized_device_id,
+            )
+            return
+
         try:
             while True:
                 with telemetry_postprocess_lock:
-                    pending = telemetry_postprocess_pending.pop(normalized_device_id, None)
-                    last_run = telemetry_postprocess_last_run_at.get(normalized_device_id, 0.0)
+                    pending = telemetry_postprocess_pending.pop(
+                        normalized_device_id,
+                        None,
+                    )
+
+                    last_run = telemetry_postprocess_last_run_at.get(
+                        normalized_device_id,
+                        0.0,
+                    )
+
                     if pending is None:
-                        telemetry_postprocess_running.discard(normalized_device_id)
-                        completed_normally = True
                         return
-                remaining = 30.0 - (time.monotonic() - last_run)
+
+                remaining = 30.0 - (
+                    time.monotonic() - last_run
+                )
+
                 if remaining > 0:
                     time.sleep(remaining)
+
                     with telemetry_postprocess_lock:
-                        pending = telemetry_postprocess_pending.pop(normalized_device_id, pending)
+                        pending = telemetry_postprocess_pending.pop(
+                            normalized_device_id,
+                            pending,
+                        )
+
                 postprocess_telemetry_payload(*pending)
+
                 with telemetry_postprocess_lock:
-                    telemetry_postprocess_last_run_at[normalized_device_id] = time.monotonic()
+                    telemetry_postprocess_last_run_at[
+                        normalized_device_id
+                    ] = time.monotonic()
+
                     if normalized_device_id not in telemetry_postprocess_pending:
                         return
         finally:
-            if not completed_normally:
-                with telemetry_postprocess_lock:
-                    telemetry_postprocess_running.discard(normalized_device_id)
+            with telemetry_postprocess_lock:
+                telemetry_postprocess_running.discard(
+                    normalized_device_id
+                )
+
+            telemetry_background_semaphore.release()
 
     threading.Thread(
         target=worker,
@@ -5215,7 +5275,7 @@ class MySqlCursorAdapter:
             return self
         self._buffered_rows = None
         translated_sql, translated_params = translate_mysql_query(sql, params)
-        max_attempts = 4
+        max_attempts = 2
         attempt = 0
         while attempt < max_attempts:
             try:
@@ -5245,7 +5305,7 @@ class MySqlCursorAdapter:
                     raise
                 self.cursor = self.connection_adapter.connection.cursor()
                 self._buffered_rows = None
-                time.sleep(0.2 * attempt)
+                time.sleep(0.5 * attempt)
         return self
 
     def fetchone(self):
@@ -5332,9 +5392,9 @@ def connect_mysql():
         "charset": "utf8mb4",
         "cursorclass": MySqlDictCursor,
         "autocommit": False,
-        "connect_timeout": max(1, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 3)),
-        "read_timeout": max(2, env_int("MYSQL_READ_TIMEOUT_SECONDS", 8)),
-        "write_timeout": max(2, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 8)),
+        "connect_timeout": max(5, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 10)),
+        "read_timeout": max(10, env_int("MYSQL_READ_TIMEOUT_SECONDS", 25)),
+        "write_timeout": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
     try:
@@ -6458,11 +6518,13 @@ def increment_homepage_visitor_count():
                     homepage_visitor_count_worker_running = False
                 return
 
-    threading.Thread(
-        target=persist_pending_visits,
-        name="homepage-visitor-counter",
-        daemon=True,
-    ).start()
+    try:
+        persist_pending_visits()
+    except Exception as exc:
+        logger.warning(
+            "Homepage visitor counter update failed: %s",
+            exc,
+        )
     return display_count
 
 
