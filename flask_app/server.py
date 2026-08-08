@@ -1192,33 +1192,44 @@ def remember_authenticated_device_key(device_id, device_key):
         if authenticated_device_key_cache.get(normalized_device_id) == normalized_device_key:
             return
         authenticated_device_key_cache[normalized_device_id] = normalized_device_key
-    encrypted_key = encrypt_device_key(normalized_device_key, APP_SECRET_KEY)
-    with get_db() as db:
-        db.execute(
-            """
-            INSERT INTO device_auth_keys(
-                device_id, device_key_hash, device_key_ciphertext, registration_source,
-                first_seen_at, last_seen_at, updated_at
+    try:
+        encrypted_key = encrypt_device_key(normalized_device_key, APP_SECRET_KEY)
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO device_auth_keys(
+                    device_id, device_key_hash, device_key_ciphertext, registration_source,
+                    first_seen_at, last_seen_at, updated_at
+                )
+                VALUES (?, ?, ?, 'authenticated_checkin', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    device_key_ciphertext=excluded.device_key_ciphertext,
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, hash_device_api_key(normalized_device_key), encrypted_key),
             )
-            VALUES (?, ?, ?, 'authenticated_checkin', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT(device_id) DO UPDATE SET
-                device_key_ciphertext=excluded.device_key_ciphertext,
-                last_seen_at=CURRENT_TIMESTAMP,
-                updated_at=CURRENT_TIMESTAMP
-            """,
-            (normalized_device_id, hash_device_api_key(normalized_device_key), encrypted_key),
-        )
+    except Exception:
+        # Credential persistence augments an already successful device login.
+        # A pending schema migration or transient DB failure must never turn
+        # telemetry/command authentication into HTTP 500. The in-memory key
+        # remains usable for OTA in this worker and a later check-in retries.
+        logger.exception("Could not persist the OTA signing key for %s", normalized_device_id)
 
 
 def fetch_persisted_device_key(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
-    with get_db() as db:
-        row = db.execute(
-            "SELECT device_key_ciphertext FROM device_auth_keys WHERE device_id = ? LIMIT 1",
-            (normalized_device_id,),
-        ).fetchone()
+    try:
+        with get_db() as db:
+            row = db.execute(
+                "SELECT device_key_ciphertext FROM device_auth_keys WHERE device_id = ? LIMIT 1",
+                (normalized_device_id,),
+            ).fetchone()
+    except Exception:
+        logger.exception("Could not load the OTA signing key for %s", normalized_device_id)
+        return None
     raw_key = decrypt_device_key(row["device_key_ciphertext"], APP_SECRET_KEY) if row else ""
     if raw_key:
         with authenticated_device_key_lock:
