@@ -2626,9 +2626,8 @@ def render_login_page(
             "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
         )
     sales_form = sales_form or sales_form_from_pricing_query()
-    # Landing and login pages must remain available even when MariaDB is
-    # locked or at its connection limit. Visitor persistence is non-critical;
-    # never create a database thread from a public page request.
+    # The persisted value is loaded during startup. Public page rendering only
+    # reads the cache; visit persistence runs asynchronously.
     homepage_visitor_count = homepage_visitor_count_cached or 0
     return render_template(
         "login.html",
@@ -19012,6 +19011,7 @@ def admin_delete_known_device(device_id):
 
 @app.route("/")
 def dashboard():
+    increment_homepage_visitor_count()
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
@@ -19020,6 +19020,7 @@ def dashboard():
 
 @app.route("/homepage")
 def homepage():
+    increment_homepage_visitor_count()
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
@@ -21223,6 +21224,7 @@ logger.info(
 logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
 init_db()
+ensure_homepage_visitor_count_loaded()
 resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()
 maybe_reset_admin_password_on_boot()

@@ -39,6 +39,11 @@ def test_supervised_manual_run_choices_are_available():
     assert 'normalized.startsWith("on_for:")' in FIRMWARE
 
 
+def test_scoped_pump_start_preserves_existing_duration_query():
+    assert 'const separator=String(path).includes("?")?"&":"?"' in TEMPLATE
+    assert 'path=`${path}?duration_minutes=${duration}`' in TEMPLATE
+
+
 def test_device_detail_shows_optional_pump_confirmation_sensors():
     assert 'id="pumpConfirmationSensors"' in DEVICE_DETAIL_TEMPLATE
     assert "Starter-contactor auxiliary sensor" in DEVICE_DETAIL_TEMPLATE

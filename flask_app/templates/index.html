@@ -1895,7 +1895,7 @@ function setQuickRange(days){state.quickRange=days===1?1:7;state.customRange=fal
 function applyCustomRange(){setQuickRange(7);}
 function resetFilters(){setQuickRange(DEFAULT_ANALYTICS_RANGE_DAYS);banner("commandBanner","Analytics range reset to the last 7 days.","info");}
 function scopedParams(extraParams){const params=new URLSearchParams(extraParams||"");if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);return params;}
-function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();return queryString?`${path}?${queryString}`:path;}
+function scopedUrl(path, extraParams){const params=scopedParams(extraParams);const queryString=params.toString();if(!queryString)return path;const separator=String(path).includes("?")?"&":"?";return `${path}${separator}${queryString}`;}
 function query(){const p=scopedParams();if(state.customRange){p.set("start_date",document.getElementById("startDate").value);p.set("end_date",document.getElementById("endDate").value);}else{p.set("days",state.quickRange);}return p.toString();}
 function quickRangeQuery(days){const p=scopedParams();p.set("days",String(days));return p.toString();}
 function toChartNumberArray(values,{allowNull=false}={}){return(Array.isArray(values)?values:[]).map((value)=>{if(value===null||value===undefined||value==="")return allowNull?null:0;const numeric=Number(value);return Number.isFinite(numeric)?numeric:(allowNull?null:0);});}
