@@ -11,6 +11,16 @@ from flask_app.firmware_artifacts import normalize_firmware_artifact_role
 OTA_AUTH_TTL_SECONDS = 60 * 60
 
 
+def firmware_role_device_id(device_id, role):
+    normalized_device_id = str(device_id or "").strip().lower()
+    if role == "slave":
+        if normalized_device_id.startswith("swt-test-000-"):
+            return "swt-test-100-" + normalized_device_id[len("swt-test-000-") :]
+        if normalized_device_id.startswith("swt-000-"):
+            return "swt-100-" + normalized_device_id[len("swt-000-") :]
+    return normalized_device_id
+
+
 def build_ota_authorization(device_id, artifact, device_key, now=None):
     normalized_device_id = str(device_id or "").strip().lower()
     secret = str(device_key or "").strip()
@@ -55,12 +65,6 @@ def register_mobile_firmware_routes(
     build_firmware_artifact_file_response,
     logger,
 ):
-    def firmware_role_device_id(device_id, role):
-        normalized_device_id = str(device_id or "").strip().lower()
-        if role == "slave" and normalized_device_id.startswith("swt-000-"):
-            return "swt-100-" + normalized_device_id[len("swt-000-") :]
-        return normalized_device_id
-
     def firmware_service_disabled_response(service_name, field_name):
         return jsonify(
             {
@@ -114,8 +118,8 @@ def register_mobile_firmware_routes(
                 {
                     "error": (
                         f"OTA authorization is not configured for {local_upload_device_id}. "
-                        "Configure the matching raw key in SWT_DEVICE_KEYS, or set SWT_DEVICE_API_KEY "
-                        "when all SWT devices intentionally share that key, then restart Flask."
+                        "Let the device complete one authenticated cloud check-in so Flask can securely retain "
+                        "its unique OTA signing key, then retry."
                     )
                 }
             ), 503

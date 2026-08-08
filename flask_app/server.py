@@ -69,6 +69,7 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.device_key_vault import decrypt_device_key, encrypt_device_key
 from flask_app.rag_routes import public_chat_blueprint, rag_blueprint
 from flask_app.runtime_utils import (
     env_float,
@@ -105,6 +106,13 @@ DEVICE_ENV_OVERRIDE_KEYS = {
     "SMTP_TIMEOUT_SECONDS",
     "SALES_ENQUIRY_TO_EMAILS",
     "SALES_ENQUIRY_BACKUP_PATH",
+    # The deployed project device.env is the explicit source of device/OTA
+    # credentials. cPanel can retain stale application variables across code
+    # deploys and otherwise silently sign firmware tickets with an old key.
+    "SWT_DEVICE_KEYS",
+    "SWT_DEVICE_API_KEY",
+    "SWT_TEST_DEVICE_API_KEY",
+    "SWT_DEVICE_KEYS_OVERRIDE_VAULT",
 }
 
 
@@ -897,6 +905,8 @@ mqtt_client = None
 mqtt_started = False
 registered_device_touch_lock = threading.Lock()
 registered_device_touch_cache = {}
+authenticated_device_key_lock = threading.Lock()
+authenticated_device_key_cache = {}
 alert_touch_lock = threading.Lock()
 alert_touch_cache = {}
 mqtt_state = {
@@ -1155,11 +1165,26 @@ def find_matching_device_key_rule(device_id):
 
 
 def configured_device_key_for_id(device_id):
+    normalized_device_id = normalize_device_id(device_id)
     matched_rule = find_matching_device_key_rule(device_id)
+    configured_registry_overrides_vault = env_flag("SWT_DEVICE_KEYS_OVERRIDE_VAULT", default=False)
+    if configured_registry_overrides_vault and matched_rule:
+        return matched_rule.get("key")
+
+    with authenticated_device_key_lock:
+        cached_key = authenticated_device_key_cache.get(normalized_device_id)
+    if cached_key:
+        return cached_key
+    persisted_key = fetch_persisted_device_key(normalized_device_id)
+    if persisted_key:
+        return persisted_key
+
+    # Environment rules are bootstrap/fallback credentials. A key observed in
+    # a successful device check-in is authoritative after rotation and must be
+    # preferred for OTA signing.
     if matched_rule:
         return matched_rule.get("key")
 
-    normalized_device_id = normalize_device_id(device_id)
     shared_swt_key = os.environ.get("SWT_DEVICE_API_KEY", "").strip()
     if (
         normalized_device_id.startswith("swt-")
@@ -1168,6 +1193,66 @@ def configured_device_key_for_id(device_id):
     ):
         return shared_swt_key
     return None
+
+
+def remember_authenticated_device_key(device_id, device_key):
+    """Keep a successfully verified raw key available for short-lived OTA signing.
+
+    Persisted device credentials intentionally contain only a SHA-256 hash.  The
+    running process still needs the raw key to sign an artifact-scoped MCU OTA
+    ticket, so retain it only in memory after normal device authentication.
+    """
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_device_key = str(device_key or "").strip()
+    if not normalized_device_id or not normalized_device_key:
+        return
+    with authenticated_device_key_lock:
+        if authenticated_device_key_cache.get(normalized_device_id) == normalized_device_key:
+            return
+        authenticated_device_key_cache[normalized_device_id] = normalized_device_key
+    try:
+        encrypted_key = encrypt_device_key(normalized_device_key, APP_SECRET_KEY)
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO device_auth_keys(
+                    device_id, device_key_hash, device_key_ciphertext, registration_source,
+                    first_seen_at, last_seen_at, updated_at
+                )
+                VALUES (?, ?, ?, 'authenticated_checkin', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id) DO UPDATE SET
+                    device_key_ciphertext=excluded.device_key_ciphertext,
+                    last_seen_at=CURRENT_TIMESTAMP,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (normalized_device_id, hash_device_api_key(normalized_device_key), encrypted_key),
+            )
+    except Exception:
+        # Credential persistence augments an already successful device login.
+        # A pending schema migration or transient DB failure must never turn
+        # telemetry/command authentication into HTTP 500. The in-memory key
+        # remains usable for OTA in this worker and a later check-in retries.
+        logger.exception("Could not persist the OTA signing key for %s", normalized_device_id)
+
+
+def fetch_persisted_device_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    try:
+        with get_db() as db:
+            row = db.execute(
+                "SELECT device_key_ciphertext FROM device_auth_keys WHERE device_id = ? LIMIT 1",
+                (normalized_device_id,),
+            ).fetchone()
+    except Exception:
+        logger.exception("Could not load the OTA signing key for %s", normalized_device_id)
+        return None
+    raw_key = decrypt_device_key(row["device_key_ciphertext"], APP_SECRET_KEY) if row else ""
+    if raw_key:
+        with authenticated_device_key_lock:
+            authenticated_device_key_cache[normalized_device_id] = raw_key
+    return raw_key or None
 
 
 def hash_device_api_key(device_key):
@@ -1239,15 +1324,16 @@ def remember_auto_registered_device_key(device_id, device_key, remote_addr=None,
     with get_db() as db:
         db.execute(
             """
-            INSERT INTO device_auth_keys(device_id, device_key_hash, registration_source, first_seen_at, last_seen_at, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO device_auth_keys(device_id, device_key_hash, device_key_ciphertext, registration_source, first_seen_at, last_seen_at, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 device_key_hash=excluded.device_key_hash,
+                device_key_ciphertext=excluded.device_key_ciphertext,
                 registration_source=excluded.registration_source,
                 last_seen_at=CURRENT_TIMESTAMP,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, device_key_hash, registration_source),
+            (normalized_device_id, device_key_hash, encrypt_device_key(device_key, APP_SECRET_KEY), registration_source),
         )
     logger.info("Registered device credentials for %s from %s", normalized_device_id, remote_addr or "unknown")
     return {
@@ -1279,6 +1365,7 @@ def register_device_credentials(device_id, device_key, registration_source="admi
         key_rule=rule.get("pattern") if rule else normalized_device_id,
         best_effort=True,
     )
+    remember_authenticated_device_key(normalized_device_id, device_key)
     return normalized_device_id
 
 
@@ -3900,6 +3987,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         key_rule=matched_rule.get("pattern"),
         best_effort=True,
     )
+    remember_authenticated_device_key(normalized_device_id, device_key)
     return True, normalized_device_id, None, None
 
 
@@ -6117,6 +6205,7 @@ def ensure_device_auth_keys_table(cursor):
         CREATE TABLE IF NOT EXISTS device_auth_keys(
             device_id TEXT PRIMARY KEY,
             device_key_hash TEXT NOT NULL,
+            device_key_ciphertext LONGTEXT,
             registration_source TEXT NOT NULL,
             first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -6124,6 +6213,9 @@ def ensure_device_auth_keys_table(cursor):
         )
         """
     )
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_auth_keys)").fetchall()}
+    if "device_key_ciphertext" not in existing:
+        cursor.execute("ALTER TABLE device_auth_keys ADD COLUMN device_key_ciphertext LONGTEXT")
 
 
 def ensure_ignored_devices_table(cursor):
@@ -16841,6 +16933,21 @@ def stop_mqtt_bridge():
         pass
 
 
+def parse_pump_run_duration(value):
+    raw_value = str(value or "0").strip()
+    if "?" in raw_value:
+        # Compatibility for dashboard pages cached before scopedUrl learned to
+        # append '&' to paths that already contained duration_minutes.
+        raw_value, embedded_query = raw_value.split("?", 1)
+        if not embedded_query.startswith("device_id="):
+            return -1
+    try:
+        duration_minutes = int(raw_value or 0)
+    except (TypeError, ValueError):
+        return -1
+    return duration_minutes if duration_minutes in {0, 15, 30} else -1
+
+
 @app.route("/motor/on", methods=["POST"])
 @login_required
 @csrf_protect
@@ -16867,11 +16974,8 @@ def motor_on():
         return jsonify({"error": "Pump start rejected: upper tank is already full.", "reason": "upper_tank_full"}), 409
     request_payload = request.get_json(silent=True) or {}
     duration_minutes = request_payload.get("duration_minutes", request.values.get("duration_minutes", 0))
-    try:
-        duration_minutes = int(duration_minutes or 0)
-    except (TypeError, ValueError):
-        duration_minutes = -1
-    if duration_minutes not in {0, 15, 30}:
+    duration_minutes = parse_pump_run_duration(duration_minutes)
+    if duration_minutes < 0:
         return jsonify({"error": "Run duration must be until full, 15 minutes, or 30 minutes."}), 400
     command = "ON" if duration_minutes == 0 else f"ON_FOR:{duration_minutes * 60}"
     return queue_command(command, target_device=target_device, request_id=request_payload.get("request_id"))

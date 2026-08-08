@@ -2,7 +2,7 @@ import hashlib
 import hmac
 from pathlib import Path
 
-from flask_app.mobile_firmware_routes import build_ota_authorization
+from flask_app.mobile_firmware_routes import build_ota_authorization, firmware_role_device_id
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -54,6 +54,9 @@ def test_ota_key_resolution_can_use_shared_swt_key_when_registry_is_absent():
     assert 'normalized_device_id.startswith("swt-")' in function_body
     assert "not device_config_value_is_placeholder(shared_swt_key)" in function_body
     assert "return shared_swt_key" in function_body
+    assert 'env_flag("SWT_DEVICE_KEYS_OVERRIDE_VAULT", default=False)' in function_body
+    assert "if configured_registry_overrides_vault and matched_rule:" in function_body
+    assert function_body.index("if configured_registry_overrides_vault and matched_rule:") < function_body.index("authenticated_device_key_cache.get")
 
 
 def test_health_exposes_signed_ota_contract_version():
@@ -100,3 +103,9 @@ def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
         message.encode("utf-8"),
         hashlib.sha256,
     ).hexdigest()
+
+
+def test_test_device_slave_role_uses_the_slave_mcu_identity():
+    assert firmware_role_device_id("swt-test-000-000-001", "master") == "swt-test-000-000-001"
+    assert firmware_role_device_id("swt-test-000-000-001", "slave") == "swt-test-100-000-001"
+    assert firmware_role_device_id("swt-000-000-000-001", "slave") == "swt-100-000-000-001"
