@@ -652,7 +652,7 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert 'id="systemHealthScore"' in customer_template
     assert 'id="motorConfirmDialog"' in customer_template
     assert "function closeMotorConfirmation(confirmed)" in customer_template
-    assert "executeMotorCommand(request.path,request.label)" in customer_template
+    assert "executeMotorCommand(request.path,request.label,request.durationMinutes)" in customer_template
     assert 'id="dashboardSettings"' in customer_template
     assert '<details id="dashboardSettings"' not in customer_template
     assert '<div id="dashboardSettings" class="customer-settings-pane">' in customer_template

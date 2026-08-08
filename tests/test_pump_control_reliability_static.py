@@ -44,9 +44,23 @@ def test_supervised_manual_run_choices_are_available():
     assert 'normalized.startsWith("on_for:")' in FIRMWARE
 
 
-def test_scoped_pump_start_preserves_existing_duration_query():
+def test_scoped_pump_start_posts_duration_as_json():
     assert 'const separator=String(path).includes("?")?"&":"?"' in TEMPLATE
-    assert 'path=`${path}?duration_minutes=${duration}`' in TEMPLATE
+    assert 'JSON.stringify({duration_minutes:durationMinutes})' in TEMPLATE
+    assert 'state.pendingMotorConfirmation={path,label:action,durationMinutes}' in TEMPLATE
+    assert 'path=`${path}?duration_minutes=${duration}`' not in TEMPLATE
+
+
+def test_server_accepts_legacy_cached_pump_duration_query_format():
+    assert "def parse_pump_run_duration(value):" in SERVER
+    assert 'embedded_query.startswith("device_id=")' in SERVER
+
+    from flask_app import server
+
+    assert server.parse_pump_run_duration("0?device_id=swt-test-000-000-001") == 0
+    assert server.parse_pump_run_duration("15?device_id=swt-test-000-000-001") == 15
+    assert server.parse_pump_run_duration("30") == 30
+    assert server.parse_pump_run_duration("0?unexpected=value") == -1
 
 
 def test_device_detail_shows_optional_pump_confirmation_sensors():

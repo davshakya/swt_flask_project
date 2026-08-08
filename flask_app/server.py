@@ -897,6 +897,8 @@ mqtt_client = None
 mqtt_started = False
 registered_device_touch_lock = threading.Lock()
 registered_device_touch_cache = {}
+authenticated_device_key_lock = threading.Lock()
+authenticated_device_key_cache = {}
 alert_touch_lock = threading.Lock()
 alert_touch_cache = {}
 mqtt_state = {
@@ -1167,7 +1169,23 @@ def configured_device_key_for_id(device_id):
         and not device_config_value_is_placeholder(shared_swt_key)
     ):
         return shared_swt_key
-    return None
+    with authenticated_device_key_lock:
+        return authenticated_device_key_cache.get(normalized_device_id)
+
+
+def remember_authenticated_device_key(device_id, device_key):
+    """Keep a successfully verified raw key available for short-lived OTA signing.
+
+    Persisted device credentials intentionally contain only a SHA-256 hash.  The
+    running process still needs the raw key to sign an artifact-scoped MCU OTA
+    ticket, so retain it only in memory after normal device authentication.
+    """
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_device_key = str(device_key or "").strip()
+    if not normalized_device_id or not normalized_device_key:
+        return
+    with authenticated_device_key_lock:
+        authenticated_device_key_cache[normalized_device_id] = normalized_device_key
 
 
 def hash_device_api_key(device_key):
@@ -1279,6 +1297,7 @@ def register_device_credentials(device_id, device_key, registration_source="admi
         key_rule=rule.get("pattern") if rule else normalized_device_id,
         best_effort=True,
     )
+    remember_authenticated_device_key(normalized_device_id, device_key)
     return normalized_device_id
 
 
@@ -3900,6 +3919,7 @@ def authenticate_device_identity(device_id, device_key=None, remote_addr=None, r
         key_rule=matched_rule.get("pattern"),
         best_effort=True,
     )
+    remember_authenticated_device_key(normalized_device_id, device_key)
     return True, normalized_device_id, None, None
 
 
@@ -16841,6 +16861,21 @@ def stop_mqtt_bridge():
         pass
 
 
+def parse_pump_run_duration(value):
+    raw_value = str(value or "0").strip()
+    if "?" in raw_value:
+        # Compatibility for dashboard pages cached before scopedUrl learned to
+        # append '&' to paths that already contained duration_minutes.
+        raw_value, embedded_query = raw_value.split("?", 1)
+        if not embedded_query.startswith("device_id="):
+            return -1
+    try:
+        duration_minutes = int(raw_value or 0)
+    except (TypeError, ValueError):
+        return -1
+    return duration_minutes if duration_minutes in {0, 15, 30} else -1
+
+
 @app.route("/motor/on", methods=["POST"])
 @login_required
 @csrf_protect
@@ -16867,11 +16902,8 @@ def motor_on():
         return jsonify({"error": "Pump start rejected: upper tank is already full.", "reason": "upper_tank_full"}), 409
     request_payload = request.get_json(silent=True) or {}
     duration_minutes = request_payload.get("duration_minutes", request.values.get("duration_minutes", 0))
-    try:
-        duration_minutes = int(duration_minutes or 0)
-    except (TypeError, ValueError):
-        duration_minutes = -1
-    if duration_minutes not in {0, 15, 30}:
+    duration_minutes = parse_pump_run_duration(duration_minutes)
+    if duration_minutes < 0:
         return jsonify({"error": "Run duration must be until full, 15 minutes, or 30 minutes."}), 400
     command = "ON" if duration_minutes == 0 else f"ON_FOR:{duration_minutes * 60}"
     return queue_command(command, target_device=target_device, request_id=request_payload.get("request_id"))
