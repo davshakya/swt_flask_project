@@ -59,6 +59,3 @@ artifacts/
 build/
 dist/
 *.egg-info/
-
-# Local production configuration (contains credentials)
-device.env
