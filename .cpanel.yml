@@ -1,0 +1,8 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/salewellco/apps/swt_flask_project/
+    - /bin/mkdir -p "$DEPLOYPATH"
+    - /usr/bin/rsync -a --exclude='.git/' --exclude='device.env' --exclude='data/' --exclude='artifacts/' --exclude='tmp/' ./ "$DEPLOYPATH"
+    - /bin/mkdir -p "$DEPLOYPATH/tmp"
+    - /usr/bin/touch "$DEPLOYPATH/tmp/restart.txt"
