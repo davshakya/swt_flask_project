@@ -106,6 +106,13 @@ DEVICE_ENV_OVERRIDE_KEYS = {
     "SMTP_TIMEOUT_SECONDS",
     "SALES_ENQUIRY_TO_EMAILS",
     "SALES_ENQUIRY_BACKUP_PATH",
+    # The deployed project device.env is the explicit source of device/OTA
+    # credentials. cPanel can retain stale application variables across code
+    # deploys and otherwise silently sign firmware tickets with an old key.
+    "SWT_DEVICE_KEYS",
+    "SWT_DEVICE_API_KEY",
+    "SWT_TEST_DEVICE_API_KEY",
+    "SWT_DEVICE_KEYS_OVERRIDE_VAULT",
 }
 
 
