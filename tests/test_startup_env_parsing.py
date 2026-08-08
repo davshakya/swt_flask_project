@@ -37,6 +37,16 @@ def test_flask_uses_device_env_as_its_only_local_config_file():
     )
 
 
+def test_ftps_deploy_keeps_production_device_env_on_host():
+    uploader_source = (PROJECT_ROOT / "scripts" / "upload_repo_ftps.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'if normalized == "device.env"' not in uploader_source
+    assert '"device.env",' in uploader_source
+    assert '"*.env",' in uploader_source
+
+
 def test_root_gunicorn_config_falls_back_when_numeric_env_values_are_invalid(monkeypatch):
     monkeypatch.setenv("PORT", "")
     monkeypatch.setenv("WEB_CONCURRENCY", "oops")

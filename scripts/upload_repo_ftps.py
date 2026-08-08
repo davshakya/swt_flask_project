@@ -30,8 +30,8 @@ CUSTOMER_RAG_UPLOADS = {
 DEFAULT_INSECURE_FTPS = True
 PROTECTED_RUNTIME_HINT = (
     "Runtime config and data are protected by default: .env files, "
-    "database files, data directories, MySQL data, logs, and local artifacts are skipped."
-    " device.env is uploaded so firmware and Flask stay in sync."
+    "including device.env, database files, data directories, MySQL data, logs, "
+    "and local artifacts are skipped. Maintain production device.env directly on the host."
 )
 
 EXCLUDED_DIRECTORY_NAMES = {
@@ -102,9 +102,6 @@ def join_remote_path(base_path: str, child_path: str) -> str:
 
 def should_include(relative_path: str) -> bool:
     normalized = relative_path.replace("\\", "/").strip("/")
-
-    if normalized == "device.env":
-        return True
 
     if normalized in EXCLUDED_RELATIVE_PATHS:
         return False
