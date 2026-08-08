@@ -3,7 +3,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SERVER_SOURCE = PROJECT_ROOT / "flask_app" / "server.py"
-ENV_EXAMPLE = PROJECT_ROOT / "flask_app" / ".env.example"
+ENV_EXAMPLE = PROJECT_ROOT / "device.env.example"
 
 
 def test_customer_forgot_password_requires_smtp_before_claiming_email_sent():

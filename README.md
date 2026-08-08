@@ -13,8 +13,8 @@ source swt_flask_project/.venv/bin/activate
 ```
 
 The bootstrap installs both `requirements.txt` and `requirements-dev.txt` in
-this project's `.venv`. It does not create or overwrite `flask_app/.env` or
-`device.env`, start Flask, start Docker, or modify MySQL.
+this project's `.venv`. It does not create or overwrite `device.env`, start
+Flask, start Docker, or modify MySQL.
 
 This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. Devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master) when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
@@ -77,8 +77,7 @@ Simulator prerequisites, workflows, transitions, and troubleshooting are in [`..
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
 | `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
-| `flask_app/.env.example` | Example backend environment file |
-| `device.env.example` | Example shared device identity/settings file |
+| `device.env.example` | Canonical example for Flask backend settings and shared device identity/settings |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
 | `gunicorn.conf.py` | Root wrapper that loads `flask_app/gunicorn.conf.py` |
 | `Procfile` | Procfile for gunicorn-based platforms |
@@ -171,16 +170,15 @@ panel safety wiring.
 
 ## Local Setup
 
-### 1. Copy the example config files
+### 1. Copy the example config file
 
 PowerShell:
 
 ```powershell
-Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
 ```
 
-### 2. Edit the copied files before first run
+### 2. Edit the copied file before first run
 
 At minimum, update these values:
 
@@ -225,19 +223,20 @@ Useful first URLs:
 
 ## Configuration Loading
 
-The app automatically reads configuration from:
+The app reads local configuration from one canonical file:
 
-1. `./.env`
-2. `./flask_app/.env`
-3. `./device.env`
+1. `./device.env`
 
-Values already present in the real process environment are preserved. Among the dotenv-style files, later files override earlier ones. In practice:
+Values already present in the real process environment are preserved. In practice:
 
 - system environment variables win
-- `device.env` can override values loaded from `.env` files
+- `device.env` supplies Flask, database, notification, and shared device settings
 - the sibling test repo can layer per-device virtual-device env files on top of the shared settings for its emulator tooling
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_test_cases_project` repo.
+Legacy `./.env` and `./flask_app/.env` files are no longer loaded. Keep every
+local Flask/backend and shared device setting in `device.env`; virtual-device
+overrides remain in the sibling `swt_test_cases_project` repo. Hosted process
+environment variables may still be used when the platform injects them.
 
 ## Important Environment Variables
 
@@ -309,7 +308,7 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `LEVEL_FORECAST_MODEL_PATH`: Optional custom path to the forecast artifact.
 - `MOBILE_TOKEN_MAX_AGE_HOURS`: Lifetime for mobile API tokens.
 
-Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired backend defaults.
+Check [`device.env.example`](device.env.example) for the currently wired backend defaults.
 
 ## Main Routes and APIs
 
@@ -517,7 +516,7 @@ For rollout and support work, see:
 
 ## Recommended First-Run Checklist
 
-1. Copy `flask_app/.env.example` and `device.env.example`.
+1. Copy `device.env.example` to `device.env`.
 2. Replace every `change-me` value.
 3. Set `SESSION_COOKIE_SECURE=false` for local HTTP.
 4. Decide whether relay URLs should be blank for local testing.

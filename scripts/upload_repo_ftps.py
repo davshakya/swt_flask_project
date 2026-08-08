@@ -54,15 +54,12 @@ EXCLUDED_DIRECTORY_NAMES = {
 
 EXCLUDED_FILE_NAMES = {
     ".DS_Store",
-    ".env",
     "Thumbs.db",
     "run_local.py"
 }
 
 EXCLUDED_RELATIVE_PATHS = {
-    ".env",
     "conftest.py",
-    "flask_app/.env",
     "pytest.ini",
 }
 
@@ -134,8 +131,7 @@ def should_include(relative_path: str) -> bool:
 
 def iter_protected_runtime_candidates(local_root: Path) -> Iterable[str]:
     candidates = (
-        ".env",
-        "flask_app/.env",
+        "device.env",
         "data",
         "mysql-data",
         "artifacts",

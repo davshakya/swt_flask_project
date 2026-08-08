@@ -74,20 +74,11 @@ from flask_app.runtime_utils import (
     env_float,
     env_int,
     env_flag as runtime_env_flag,
-    load_dotenv_values,
     normalize_db_path as runtime_normalize_db_path,
     normalize_http_base_url as runtime_normalize_http_base_url,
     parse_simple_dotenv,
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
-
-TELEMETRY_BACKGROUND_MAX_WORKERS = max(
-    1,
-    env_int("BACKGROUND_DB_MAX_WORKERS", 1),
-)
-telemetry_background_semaphore = threading.BoundedSemaphore(
-    TELEMETRY_BACKGROUND_MAX_WORKERS
-)
 
 PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
     "change-me",
@@ -172,15 +163,21 @@ def load_workspace_device_env_files(project_root, environ):
 def load_local_env_files():
     module_root = Path(__file__).resolve().parent
     project_root = module_root.parent
-    load_dotenv_values(
-        (project_root / ".env", module_root / ".env"),
-        environ=os.environ,
-        preserve_existing=True,
-    )
+    # device.env is the single local configuration source for Flask. Real
+    # process variables still take precedence except for the explicitly
+    # documented project-device overrides handled by the loader below.
     load_workspace_device_env_files(project_root, environ=os.environ)
 
 
 load_local_env_files()
+
+TELEMETRY_BACKGROUND_MAX_WORKERS = max(
+    1,
+    env_int("BACKGROUND_DB_MAX_WORKERS", 1),
+)
+telemetry_background_semaphore = threading.BoundedSemaphore(
+    TELEMETRY_BACKGROUND_MAX_WORKERS
+)
 
 DEFAULT_APP_SECRET_KEY = "change-me-before-production"
 DEFAULT_ADMIN_USERNAME = "admin"

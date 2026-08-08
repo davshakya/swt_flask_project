@@ -35,8 +35,8 @@ How it works:
 - `server.py` exposes the Flask app as `app`
 - `passenger_wsgi.py` exposes that app to Passenger as `application`
 - `requirements.txt` is the single dependency file for the whole project
-- `flask_app/.env` holds backend settings
-- `device.env` holds shared device/cloud settings
+- `device.env` is the single local file for backend, database, notification,
+  shared device, and cloud settings
 
 On the first restart after this release, startup schema maintenance adds the
 persisted `device_service_configs.device_setup_type` column when it is missing.
@@ -162,17 +162,10 @@ Why:
 
 ## Required Configuration Files
 
-Create these two files before first production boot:
+Create `device.env` before first production boot, starting from
+`device.env.example`. Legacy `.env` and `flask_app/.env` files are not loaded.
 
-1. `flask_app/.env`
-2. `device.env`
-
-Start from:
-
-- `flask_app/.env.example`
-- `device.env.example`
-
-### Recommended `flask_app/.env` values
+### Recommended `device.env` values
 
 Use real secrets, not the placeholder values:
 
@@ -359,7 +352,7 @@ Important:
 For this repository, the cleanest setup is:
 
 - leave the cPanel `Environment variables` section empty
-- create `flask_app/.env` and `device.env` in the app folder instead
+- create `device.env` in the app folder instead
 
 This project already loads those files automatically on startup.
 
@@ -421,7 +414,7 @@ After the basic smoke test, also verify:
 2. Upload the repo into the same folder you configured as the cPanel `Application root`.
 3. Recommended path: `/home/<cpanel-user>/apps/swt_flask_project/`.
 4. Create `/home/<cpanel-user>/swt_data/`.
-5. Add `flask_app/.env`.
+5. Add `device.env` from `device.env.example`.
 6. Add `device.env`.
 7. Install dependencies with `pip install -r requirements.txt`.
 8. Restart the app.
@@ -485,6 +478,6 @@ Check:
 ## Deployment Summary
 
 ```text
-Upload repo -> create Passenger app -> set flask_app/.env and device.env ->
+Upload repo -> create Passenger app -> set device.env ->
 install requirements -> restart app -> test /health and /login/admin
 ```
