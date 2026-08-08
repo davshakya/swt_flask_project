@@ -32,11 +32,21 @@ def test_command_lifecycle_supports_expiry_priority_results_and_status_ui():
     assert 'doc["status"] = applied ? "accepted" : "rejected";' in FIRMWARE
 
 
+def test_dashboard_finishes_ack_wait_when_firmware_accepts_command():
+    assert '["accepted","running","stopped","rejected","timed_out"].includes(phase)' in TEMPLATE
+    assert 'accepted:"Accepted by firmware"' in TEMPLATE
+
+
 def test_supervised_manual_run_choices_are_available():
     assert "Run until full" in TEMPLATE
     assert "Run 15 minutes" in TEMPLATE
     assert "Run 30 minutes" in TEMPLATE
     assert 'normalized.startsWith("on_for:")' in FIRMWARE
+
+
+def test_scoped_pump_start_preserves_existing_duration_query():
+    assert 'const separator=String(path).includes("?")?"&":"?"' in TEMPLATE
+    assert 'path=`${path}?duration_minutes=${duration}`' in TEMPLATE
 
 
 def test_device_detail_shows_optional_pump_confirmation_sensors():
