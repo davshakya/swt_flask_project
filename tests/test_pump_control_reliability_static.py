@@ -32,6 +32,11 @@ def test_command_lifecycle_supports_expiry_priority_results_and_status_ui():
     assert 'doc["status"] = applied ? "accepted" : "rejected";' in FIRMWARE
 
 
+def test_dashboard_finishes_ack_wait_when_firmware_accepts_command():
+    assert '["accepted","running","stopped","rejected","timed_out"].includes(phase)' in TEMPLATE
+    assert 'accepted:"Accepted by firmware"' in TEMPLATE
+
+
 def test_supervised_manual_run_choices_are_available():
     assert "Run until full" in TEMPLATE
     assert "Run 15 minutes" in TEMPLATE
