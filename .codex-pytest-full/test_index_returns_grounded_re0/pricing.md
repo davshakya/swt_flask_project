@@ -1,0 +1,1 @@
+The commercial plan supports multiple sites.

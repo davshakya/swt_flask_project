@@ -41,7 +41,7 @@ from flask import Flask, abort, g, has_request_context, jsonify, redirect, rende
 from flask import Response
 from flask_cors import CORS
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_app.android_releases import (
@@ -79,6 +79,7 @@ from flask_app.runtime_utils import (
     normalize_http_base_url as runtime_normalize_http_base_url,
     parse_simple_dotenv,
 )
+from flask_app.mysql_retry import statement_allows_connection_retry
 
 TELEMETRY_BACKGROUND_MAX_WORKERS = max(
     1,
@@ -689,6 +690,7 @@ RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
+MYSQL_OPTIMIZE_ENABLED = env_flag("MYSQL_OPTIMIZE_ENABLED", default=True)
 DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
@@ -2630,10 +2632,7 @@ def render_login_page(
     # Landing and login pages must remain available even when MariaDB is
     # locked or at its connection limit. Visitor persistence is non-critical;
     # never create a database thread from a public page request.
-    if is_landing_page and request.method == "GET":
-        homepage_visitor_count = increment_homepage_visitor_count()
-    else:
-        homepage_visitor_count = homepage_visitor_count_cached or 0
+    homepage_visitor_count = homepage_visitor_count_cached or 0
     return render_template(
         "login.html",
         error=error,
@@ -3526,6 +3525,10 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
+        "direct_peer_last_sequence": payload.get("direct_peer_last_sequence"),
+        "direct_peer_duplicate_packets": payload.get("direct_peer_duplicate_packets"),
+        "direct_peer_out_of_order_packets": payload.get("direct_peer_out_of_order_packets"),
+        "direct_peer_estimated_lost_packets": payload.get("direct_peer_estimated_lost_packets"),
         "direct_peer_last_pong_age_s": payload.get("direct_peer_last_pong_age_s"),
         "direct_peer_last_pong_nonce": payload.get("direct_peer_last_pong_nonce"),
         "direct_peer_sync_pending": payload.get("direct_peer_sync_pending"),
@@ -3536,6 +3539,11 @@ def build_admin_device_entry(device_id, snapshot=None):
         "last_ping_response_ms": payload.get("last_ping_response_ms"),
         "last_ping_age_s": payload.get("last_ping_age_s"),
         "last_ping_nonce": payload.get("last_ping_nonce"),
+        "controller_state": payload.get("controller_state"),
+        "upper_high_float_enabled": payload.get("upper_high_float_enabled"),
+        "upper_high_float_active": payload.get("upper_high_float_active"),
+        "source_low_float_enabled": payload.get("source_low_float_enabled"),
+        "source_low_float_active": payload.get("source_low_float_active"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
         "sensor": payload.get("sensor"),
@@ -4454,6 +4462,15 @@ def maybe_maintain_database(reason="periodic", pruned_rows=0, force=False):
         )
         return False
 
+    if USING_MYSQL and not MYSQL_OPTIMIZE_ENABLED:
+        db_maintenance_state.update(
+            {
+                "last_skip_at": now,
+                "last_skip_reason": "mysql-optimize-disabled",
+            }
+        )
+        return False
+
     if (
         not force
         and DB_MAINTENANCE_MIN_INTERVAL_SECONDS > 0
@@ -4659,24 +4676,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             alert_snapshot = dict(cleaned)
             alert_snapshot["telemetry_status"] = "fresh"
             evaluate_snapshot_alerts(alert_snapshot)
-            # Materialize all dashboard flash-card values while telemetry is
-            # already being processed, never while a customer opens the page.
-            # Avoid starting another background thread on low-resource hosting.
-            device_id = cleaned.get("device_id")
-            last_refresh = dashboard_summary_last_refresh_at.get(device_id, 0.0)
-            current_time = time.monotonic()
-
-            if current_time - last_refresh >= DASHBOARD_SUMMARY_MIN_REFRESH_SECONDS:
-                dashboard_summary_last_refresh_at[device_id] = current_time
-
-                try:
-                    refresh_dashboard_summary(device_id)
-                except Exception as exc:
-                    logger.warning(
-                        "Dashboard summary refresh failed for %s: %s",
-                        device_id,
-                        exc,
-                    )
+            # Coalesce telemetry bursts and materialize the dashboard outside
+            # the ingestion path, never while a customer opens the page.
+            schedule_dashboard_summary_refresh(cleaned.get("device_id"))
             if cleaned.get("device_source") == DEVICE_SOURCE_REAL:
                 relay_status_async(cleaned)
     except Exception as exc:
@@ -4903,6 +4905,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
+        cleaned.get("direct_peer_last_sequence"),
+        cleaned.get("direct_peer_duplicate_packets"),
+        cleaned.get("direct_peer_out_of_order_packets"),
+        cleaned.get("direct_peer_estimated_lost_packets"),
         cleaned.get("direct_peer_last_pong_age_s"),
         cleaned.get("direct_peer_last_pong_nonce"),
         cleaned.get("direct_peer_sync_pending"),
@@ -4914,6 +4920,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("last_ping_age_s"),
         cleaned.get("last_ping_nonce"),
         cleaned.get("telemetry_fingerprint"),
+        cleaned.get("controller_state"),
+        1 if boolish_enabled(cleaned.get("upper_high_float_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("upper_high_float_active"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_low_float_enabled"), default=False) else 0,
+        1 if boolish_enabled(cleaned.get("source_low_float_active"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("starter_contactor_sensor_enabled"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("starter_contactor_active"), default=False) else 0,
         1 if boolish_enabled(cleaned.get("motor_current_sensor_enabled"), default=False) else 0,
@@ -4964,11 +4975,15 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
                 direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_last_sequence, direct_peer_duplicate_packets,
+                direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                 direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                 direct_peer_sync_pending, direct_peer_sync_channel,
                 direct_peer_sync_last_ok_age_s,
                 last_ping_target, last_ping_status, last_ping_response_ms,
                 last_ping_age_s, last_ping_nonce, telemetry_fingerprint,
+                controller_state, upper_high_float_enabled, upper_high_float_active,
+                source_low_float_enabled, source_low_float_active,
                 starter_contactor_sensor_enabled, starter_contactor_active,
                 motor_current_sensor_enabled, motor_current_detected,
                 water_flow_sensor_enabled, water_flow_detected,
@@ -5010,8 +5025,8 @@ def mysql_connection_config():
         return {
             "host": parsed.hostname or "127.0.0.1",
             "port": parsed.port or 3306,
-            "user": parsed.username or "",
-            "password": parsed.password or "",
+            "user": unquote(parsed.username or ""),
+            "password": unquote(parsed.password or ""),
             "database": resolve_mysql_database_name((parsed.path or "").lstrip("/") or configured_database),
         }
     return {
@@ -5050,11 +5065,15 @@ def quote_mysql_identifier(identifier):
     return f"`{identifier.replace('`', '``')}`"
 
 
+def mysql_auto_create_database_enabled():
+    return env_flag("MYSQL_AUTO_CREATE_DATABASE", default=True)
+
+
 def ensure_mysql_database_exists(config):
     database_name = config["database"]
     if not database_name:
         return
-    if os.environ.get("MYSQL_AUTO_CREATE_DATABASE", "true").strip().lower() in {"0", "false", "no", "off"}:
+    if not mysql_auto_create_database_enabled():
         return
     server_conn = pymysql.connect(
         host=config["host"],
@@ -5275,7 +5294,9 @@ class MySqlCursorAdapter:
             return self
         self._buffered_rows = None
         translated_sql, translated_params = translate_mysql_query(sql, params)
-        max_attempts = 2
+        # Connection loss does not prove that MySQL did not apply a write.
+        # Replay only plain reads; writes and DDL fail back to the caller.
+        max_attempts = 2 if statement_allows_connection_retry(translated_sql) else 1
         attempt = 0
         while attempt < max_attempts:
             try:
@@ -5445,7 +5466,10 @@ def connect_mysql():
                 ) from reconnect_exc
     with conn.cursor() as cursor:
         cursor.execute("SET time_zone = '+00:00'")
-        cursor.execute("SET SESSION innodb_lock_wait_timeout = 10")
+        cursor.execute(
+            "SET SESSION innodb_lock_wait_timeout = %s",
+            (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
+        )
     return MySqlConnectionAdapter(conn)
 
 
@@ -5514,6 +5538,10 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
+        "direct_peer_last_sequence": "BIGINT",
+        "direct_peer_duplicate_packets": "BIGINT",
+        "direct_peer_out_of_order_packets": "BIGINT",
+        "direct_peer_estimated_lost_packets": "BIGINT",
         "direct_peer_last_pong_age_s": "INTEGER",
         "direct_peer_last_pong_nonce": "INTEGER",
         "direct_peer_sync_pending": "INTEGER",
@@ -5525,6 +5553,11 @@ def ensure_tank_data_columns(cursor):
         "last_ping_age_s": "INTEGER",
         "last_ping_nonce": "INTEGER",
         "telemetry_fingerprint": "VARCHAR(64)",
+        "controller_state": "VARCHAR(32)",
+        "upper_high_float_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "upper_high_float_active": "INTEGER NOT NULL DEFAULT 0",
+        "source_low_float_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "source_low_float_active": "INTEGER NOT NULL DEFAULT 0",
         "starter_contactor_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
         "starter_contactor_active": "INTEGER NOT NULL DEFAULT 0",
         "motor_current_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -5960,6 +5993,7 @@ def ensure_device_service_configs_table(cursor):
         f"""
         CREATE TABLE IF NOT EXISTS device_service_configs(
             device_id TEXT PRIMARY KEY,
+            device_setup_type VARCHAR(32) NOT NULL DEFAULT 'custom',
             main_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             master_upper_sensor_enabled INTEGER NOT NULL DEFAULT 1,
             slave_device_enabled INTEGER NOT NULL DEFAULT 1,
@@ -6009,6 +6043,7 @@ def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
     added_auto_mode_enabled = False
     required = {
+        "device_setup_type": "VARCHAR(32) NOT NULL DEFAULT 'custom'",
         "main_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "master_upper_sensor_enabled": "INTEGER NOT NULL DEFAULT 1",
         "slave_device_enabled": "INTEGER NOT NULL DEFAULT 1",
@@ -6519,7 +6554,11 @@ def increment_homepage_visitor_count():
                 return
 
     try:
-        persist_pending_visits()
+        threading.Thread(
+            target=persist_pending_visits,
+            name="homepage-visitor-counter",
+            daemon=True,
+        ).start()
     except Exception as exc:
         logger.warning(
             "Homepage visitor counter update failed: %s",
@@ -7132,6 +7171,7 @@ def normalize_optional_service_state(value, default="UNKNOWN"):
 
 def serialize_device_service_config(device_id, payload=None, account=None):
     payload = payload or {}
+    device_setup_type = str(payload.get("device_setup_type") or "custom").strip().lower()
     normalized_device_id = normalize_device_id(device_id or payload.get("device_id"))
     account_cloud_feed_enabled = True
     if account is not None:
@@ -7221,6 +7261,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     ai_label = "On" if effective_ai_analysis_enabled else ("Saved" if ai_analysis_enabled else "Off")
     return {
         "device_id": normalized_device_id,
+        "device_setup_type": device_setup_type,
         "main_sensor_enabled": main_sensor_enabled,
         "master_upper_sensor_enabled": master_upper_sensor_enabled,
         "slave_device_enabled": slave_device_enabled,
@@ -7291,6 +7332,7 @@ def default_device_service_config(device_id=None, account=None):
     return serialize_device_service_config(
         device_id,
         {
+            "device_setup_type": "source_only",
             "main_sensor_enabled": True,
             "master_upper_sensor_enabled": False,
             "slave_device_enabled": True,
@@ -7464,7 +7506,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
+            SELECT device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
                    source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
                    master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
@@ -7506,7 +7548,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
     snapshots_by_device = snapshots_by_device or {}
     query = (
         """
-        SELECT device_id, main_sensor_enabled, master_upper_sensor_enabled,
+        SELECT device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
                source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
                master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
@@ -7579,6 +7621,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
 
 def upsert_device_service_config(
     device_id,
+    device_setup_type=None,
     main_sensor_enabled=None,
     master_upper_sensor_enabled=None,
     slave_device_enabled=None,
@@ -7625,6 +7668,9 @@ def upsert_device_service_config(
 
     account = fetch_customer_account(normalized_device_id)
     existing = fetch_device_service_config(normalized_device_id, account=account)
+    resolved_device_setup_type = str(
+        device_setup_type or existing.get("device_setup_type") or "custom"
+    ).strip().lower()
     requested_slave_device_enabled = boolish_enabled(
         slave_device_enabled,
         default=existing.get("slave_device_enabled", True),
@@ -7786,7 +7832,7 @@ def upsert_device_service_config(
         db.execute(
             """
             INSERT INTO device_service_configs(
-                device_id, main_sensor_enabled, master_upper_sensor_enabled,
+                device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
                 source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
                 master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
@@ -7802,8 +7848,9 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
+                device_setup_type=excluded.device_setup_type,
                 main_sensor_enabled=excluded.main_sensor_enabled,
                 master_upper_sensor_enabled=excluded.master_upper_sensor_enabled,
                 slave_device_enabled=excluded.slave_device_enabled,
@@ -7846,6 +7893,7 @@ def upsert_device_service_config(
             """,
             (
                 normalized_device_id,
+                resolved_device_setup_type,
                 1 if resolved_main_sensor_enabled else 0,
                 1 if resolved_master_upper_sensor_enabled else 0,
                 1 if resolved_slave_device_enabled else 0,
@@ -11313,6 +11361,11 @@ def schedule_dashboard_summary_refresh(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return
+    # Keep tests deterministic: a daemon refresh from one test must not retain
+    # monkeypatched database objects and leak work into the next test.
+    if app.testing:
+        refresh_dashboard_summary(normalized_device_id)
+        return
     with dashboard_summary_refresh_lock:
         if normalized_device_id in dashboard_summary_refresh_pending:
             return
@@ -11589,6 +11642,17 @@ def build_db_summary_payload():
         "database": mysql_config.get("database"),
         "user": mysql_config.get("user"),
         "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
+        "connection_policy": {
+            "auto_create_database": mysql_auto_create_database_enabled(),
+            "connect_timeout_seconds": max(5, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 10)),
+            "read_timeout_seconds": max(10, env_int("MYSQL_READ_TIMEOUT_SECONDS", 25)),
+            "write_timeout_seconds": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
+            "lock_wait_timeout_seconds": max(
+                1,
+                min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10)),
+            ),
+            "automatic_write_retries": False,
+        },
     }
 
     return {
@@ -11620,6 +11684,7 @@ def build_db_summary_payload():
         },
         "maintenance": {
             "enabled": DB_MAINTENANCE_ENABLED,
+            "mysql_optimize_enabled": MYSQL_OPTIMIZE_ENABLED,
             "target_size_mb": DB_TARGET_SIZE_MB,
             "target_size_bytes": DB_TARGET_SIZE_BYTES,
             "min_interval_seconds": DB_MAINTENANCE_MIN_INTERVAL_SECONDS,
@@ -12583,11 +12648,15 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                direct_peer_config_channel, direct_peer_wifi_channel,
                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_last_sequence, direct_peer_duplicate_packets,
+               direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                direct_peer_sync_pending, direct_peer_sync_channel,
                direct_peer_sync_last_ok_age_s,
                last_ping_target, last_ping_status, last_ping_response_ms,
                last_ping_age_s, last_ping_nonce,
+               controller_state, upper_high_float_enabled, upper_high_float_active,
+               source_low_float_enabled, source_low_float_active,
                created_at
         FROM tank_data
         WHERE 
@@ -19571,26 +19640,93 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "municipal_sensor_enabled": False,
         "municipal_valve_enabled": False,
         "source_outlet_valve_enabled": False,
+        "simulator_route": "source_only",
+        "simulator_upper_level": 20,
+        "simulator_source_level": 80,
+        "auto_mode_enabled": True,
+    },
+    "borewell_upper": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": False,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+        "simulator_route": "borewell",
+        "simulator_upper_level": 20,
+        "simulator_source_level": 80,
+        "auto_mode_enabled": True,
     },
     "municipal_direct": {
         "source_tank_monitoring_enabled": False,
         "municipal_sensor_enabled": True,
         "municipal_valve_enabled": False,
         "source_outlet_valve_enabled": False,
+        "simulator_route": "municipal_direct",
+        "simulator_upper_level": 20,
+        "auto_mode_enabled": True,
+    },
+    "municipal_source_gravity": {
+        "source_tank_monitoring_enabled": True,
+        "municipal_sensor_enabled": True,
+        "municipal_valve_enabled": False,
+        "source_outlet_valve_enabled": False,
+        "simulator_route": "municipal_source_gravity",
+        "simulator_upper_level": 70,
+        "simulator_source_level": 20,
+        "auto_mode_enabled": True,
     },
     "dual_source_gravity": {
         "source_tank_monitoring_enabled": True,
         "municipal_sensor_enabled": True,
         "municipal_valve_enabled": True,
         "source_outlet_valve_enabled": False,
+        "simulator_route": "dual_source_gravity",
+        "simulator_upper_level": 20,
+        "simulator_source_level": 70,
+        "auto_mode_enabled": True,
     },
     "dual_source_pumped": {
         "source_tank_monitoring_enabled": True,
         "municipal_sensor_enabled": True,
         "municipal_valve_enabled": True,
         "source_outlet_valve_enabled": True,
+        "simulator_route": "dual_source_pumped",
+        "simulator_upper_level": 70,
+        "simulator_source_level": 20,
+        "auto_mode_enabled": True,
     },
 }
+
+
+def automatic_simulator_commands_for_setup(setup_type, service_config):
+    preset = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
+    if preset is None:
+        return []
+    config = service_config or {}
+    commands = [
+        "SIMULATOR_ON",
+        "set:upper_sensor_fault:none",
+        "set:source_sensor_fault:none",
+        "set:pump_feedback_override:off",
+        "set:upper_high_float:off",
+        "set:source_low_float:off",
+        "set:peer_drop_every:0",
+        "set:peer_duplicate_every:0",
+        "set:peer_delay_ms:0",
+        f"set:simulator_level:{preset['simulator_upper_level']}",
+    ]
+    if config.get("source_tank_monitoring_enabled"):
+        commands.append(f"set:simulator_lower_level:{preset['simulator_source_level']}")
+    if config.get("municipal_sensor_enabled"):
+        commands.append("MUNICIPAL_SIMULATOR_ON")
+    if config.get("municipal_valve_enabled"):
+        commands.append("MUNICIPAL_VALVE_SIMULATOR_ON")
+    if config.get("source_outlet_valve_enabled"):
+        commands.append("SOURCE_OUTLET_VALVE_SIMULATOR_ON")
+    if config.get("master_turbidity_enabled"):
+        commands.append("LOWER_TURBIDITY_SIMULATOR_ON")
+    if config.get("slave_turbidity_enabled"):
+        commands.append("UPPER_TURBIDITY_SIMULATOR_ON")
+    return commands
 
 
 def simulator_enabled_for_feature(snapshot, service_config, simulator_key, feature_key):
@@ -19649,14 +19785,17 @@ def admin_device_detail_configuration(device_id):
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
     municipal_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form)
     source_outlet_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form)
+    auto_mode_enabled = "auto_mode_enabled" in request.form
     if setup_features is not None:
         source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
         municipal_feature_enabled = setup_features["municipal_sensor_enabled"]
         municipal_valve_enabled = setup_features["municipal_valve_enabled"]
         source_outlet_valve_enabled = setup_features["source_outlet_valve_enabled"]
+        auto_mode_enabled = setup_features["auto_mode_enabled"]
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
+            device_setup_type=setup_type,
             main_sensor_enabled=main_sensor_enabled,
             master_upper_sensor_enabled=master_upper_sensor_enabled,
             slave_device_enabled=slave_device_enabled,
@@ -19671,7 +19810,7 @@ def admin_device_detail_configuration(device_id):
             buzzer_enabled=("buzzer_enabled" in request.form),
             led_display_enabled=("led_display_enabled" in request.form),
             ai_analysis_enabled=("ai_analysis_enabled" in request.form),
-            auto_mode_enabled=("auto_mode_enabled" in request.form),
+            auto_mode_enabled=auto_mode_enabled,
             cloud_feed_mode=(
                 DEVICE_SERVICE_CLOUD_FEED_OFF
                 if "cloud_feed_disabled" in request.form
@@ -19716,6 +19855,25 @@ def admin_device_detail_configuration(device_id):
     )
     if simulator_off_errors:
         queue_error = "; ".join([error for error in [queue_error, *simulator_off_errors] if error])
+    automatic_simulator_commands = []
+    automatic_simulator_errors = []
+    simulator_firmware_detected = any(
+        key in snapshot
+        for key in ("simulator", "upper_tank_simulator", "lower_tank_simulator")
+    )
+    if simulator_firmware_detected and setup_features is not None:
+        for command in automatic_simulator_commands_for_setup(setup_type, updated_config):
+            result, error = safe_queue_device_detail_command(
+                command,
+                scoped_device_id,
+                f"Unable to queue automatic simulator setup command {command}",
+            )
+            if error:
+                automatic_simulator_errors.append(error)
+            elif result:
+                automatic_simulator_commands.append(command)
+    if automatic_simulator_errors:
+        queue_error = "; ".join([error for error in [queue_error, *automatic_simulator_errors] if error])
     logger.info(
         "Admin water feature command queue result: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s queued=%s error=%s",
         scoped_device_id,
@@ -19738,6 +19896,8 @@ def admin_device_detail_configuration(device_id):
                 "queued_command": queued_command,
                 "queue_error": queue_error,
                 "simulator_off_commands": simulator_off_commands,
+                "automatic_simulator_commands": automatic_simulator_commands,
+                "automatic_simulator_errors": automatic_simulator_errors,
                 "android_sessions_preserved": True,
             },
         )
@@ -19761,9 +19921,14 @@ def admin_device_detail_configuration(device_id):
         if simulator_off_commands
         else ""
     )
+    automatic_simulator_message = (
+        f" Automatic simulator scenario queued for {setup_type}."
+        if automatic_simulator_commands
+        else ""
+    )
     message = (
         f"Configuration saved. Auto Start/Stop is {auto_mode_label}. "
-        f"Device changes apply on the next command poll.{simulator_message}"
+        f"Device changes apply on the next command poll.{simulator_message}{automatic_simulator_message}"
     )
     return device_detail_action_response(
         scoped_device_id,

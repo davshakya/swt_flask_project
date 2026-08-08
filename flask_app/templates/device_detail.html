@@ -134,7 +134,21 @@ body{font-size:16px}
     {% set slave_upper_checked = slave_device_checked and service_config.get("slave_upper_sensor_enabled", slave_device_checked) %}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
     {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
-    {% set configured_setup_type = "municipal_direct" if service_config.get("municipal_sensor_enabled") and not service_config.get("source_tank_monitoring_enabled") else ("source_only" if service_config.get("source_tank_monitoring_enabled") and not service_config.get("municipal_sensor_enabled") else ("dual_source_pumped" if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and service_config.get("source_outlet_valve_enabled") else ("dual_source_gravity" if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and not service_config.get("source_outlet_valve_enabled") else "custom"))) %}
+    {% set stored_setup_type = service_config.get("device_setup_type", "custom") %}
+    {% set configured_setup_type = stored_setup_type %}
+    {% if stored_setup_type == "custom" %}
+        {% if service_config.get("municipal_sensor_enabled") and not service_config.get("source_tank_monitoring_enabled") %}
+            {% set configured_setup_type = "municipal_direct" %}
+        {% elif service_config.get("source_tank_monitoring_enabled") and not service_config.get("municipal_sensor_enabled") %}
+            {% set configured_setup_type = "source_only" %}
+        {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and service_config.get("source_outlet_valve_enabled") %}
+            {% set configured_setup_type = "dual_source_pumped" %}
+        {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") %}
+            {% set configured_setup_type = "dual_source_gravity" %}
+        {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") %}
+            {% set configured_setup_type = "municipal_source_gravity" %}
+        {% endif %}
+    {% endif %}
     {% set upper_tank_height_value = current_saved_config.get("upper_tank_height_cm") or current_saved_config.get("tank_height_cm") or service_config.get("upper_tank_height_cm") or service_config.get("tank_height_cm") or live_snapshot.get("tank_height_cm") or "" %}
     {% set upper_tank_capacity_value = current_saved_config.get("upper_tank_capacity_liters") or current_saved_config.get("tank_capacity_liters") or service_config.get("upper_tank_capacity_liters") or service_config.get("tank_capacity_liters") or live_snapshot.get("tank_capacity_liters") or live_snapshot.get("capacity_liters") or "" %}
     {% set lower_tank_height_value = current_saved_config.get("lower_tank_height_cm") or service_config.get("lower_tank_height_cm") or live_snapshot.get("lower_tank_height_cm") or live_snapshot.get("source_tank_height_cm") or "" %}
@@ -290,9 +304,11 @@ body{font-size:16px}
                     <label for="deviceSetupTypeOption">Device Setup Type</label>
                     <select id="deviceSetupTypeOption" name="device_setup_type" onchange="window.swtApplyDeviceSetupType&&window.swtApplyDeviceSetupType(this.value)">
                         <option value="source_only" {% if configured_setup_type == "source_only" %}selected{% endif %}>Source Tank → Pump → Upper Tank</option>
+                        <option value="borewell_upper" {% if configured_setup_type == "borewell_upper" %}selected{% endif %}>Borewell / Submersible Pump → Upper Tank</option>
                         <option value="municipal_direct" {% if configured_setup_type == "municipal_direct" %}selected{% endif %}>Municipal Water → Pump → Upper Tank (No Source)</option>
-                        <option value="dual_source_gravity" {% if configured_setup_type == "dual_source_gravity" %}selected{% endif %}>Municipal Gravity → Source + Source/Municipal → Upper</option>
-                        <option value="dual_source_pumped" {% if configured_setup_type == "dual_source_pumped" %}selected{% endif %}>Fully Routed Municipal/Source (Inlet + Outlet Valves)</option>
+                        <option value="municipal_source_gravity" {% if configured_setup_type == "municipal_source_gravity" %}selected{% endif %}>Municipal Gravity → Source → Pump → Upper</option>
+                        <option value="dual_source_gravity" {% if configured_setup_type == "dual_source_gravity" %}selected{% endif %}>Municipal Gravity → Source + Municipal/Source → Pump → Upper</option>
+                        <option value="dual_source_pumped" {% if configured_setup_type == "dual_source_pumped" %}selected{% endif %}>Municipal/Source → Pump → Upper or Source (Inlet + Outlet Valves)</option>
                         <option value="custom" {% if configured_setup_type == "custom" %}selected{% endif %}>Custom Configuration</option>
                     </select>
                 </div>
@@ -323,7 +339,7 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
-                        <label class="service-option"><input type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
+                        <label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
                         <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
                         <div class="form-group">
                             <label for="android_sso_session_limit">Android SSO Device Count</label>
@@ -799,10 +815,12 @@ const ACTIVITY_FETCH_LIMIT=50;
 const ACTIVITY_REFRESH_MS=30000;
 const DEVICE_REFRESH_MS=30000;
 const DEVICE_SETUP_PRESETS={
-  source_only:{source:true,municipal:false,inlet:false,outlet:false},
-  municipal_direct:{source:false,municipal:true,inlet:false,outlet:false},
-  dual_source_gravity:{source:true,municipal:true,inlet:true,outlet:false},
-  dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true},
+  source_only:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
+  borewell_upper:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
+  municipal_direct:{source:false,municipal:true,inlet:false,outlet:false,auto:true},
+  municipal_source_gravity:{source:true,municipal:true,inlet:false,outlet:false,auto:true},
+  dual_source_gravity:{source:true,municipal:true,inlet:true,outlet:false,auto:true},
+  dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true,auto:true},
 };
 function currentDeviceSetupType(){
   const state={
@@ -811,6 +829,9 @@ function currentDeviceSetupType(){
     inlet:Boolean(document.getElementById("municipalValveOption")?.checked),
     outlet:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
   };
+  const selected=document.getElementById("deviceSetupTypeOption")?.value;
+  const selectedPreset=DEVICE_SETUP_PRESETS[selected];
+  if(selectedPreset&&Object.keys(state).every(key=>state[key]===selectedPreset[key]))return selected;
   return Object.entries(DEVICE_SETUP_PRESETS).find(([,preset])=>Object.keys(state).every(key=>state[key]===preset[key]))?.[0]||"custom";
 }
 function applyDeviceSetupType(type){
@@ -821,6 +842,7 @@ function applyDeviceSetupType(type){
   setChecked("municipalSensorOption",preset.municipal);
   setChecked("municipalValveOption",preset.inlet);
   setChecked("sourceOutletValveOption",preset.outlet);
+  setChecked("autoModeOption",preset.auto);
   setChecked("relayOption",true);
   syncLowerSensorSetupVisibility();
   syncRuntimeConfigurationOptions();

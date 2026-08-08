@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-02`
+Last refreshed: `2026-08-08`
 
 ## Developer Setup
 
@@ -50,6 +50,8 @@ Within the wider workspace:
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
 - MySQL/MariaDB schema initialization for local and hosted deployment
 - Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
+- A persisted Device Setup Type selector with six supported route presets plus Custom/manual configuration. Saving a preset applies compatible service flags and automatic mode as one configuration.
+- Automatic preset scenarios for simulator-enabled firmware: reset injected faults and overrides, seed route-appropriate tank levels, and enable only the installed tank, municipal, valve, and turbidity simulators. Production firmware is detected from telemetry and does not receive simulator-only commands.
 - The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
 - Master Configuration keeps the optional municipal-water sensor independent from the motorized inlet valve. Sensor-free installations use firmware level-rise detection instead of disabling valve routing.
 - The public homepage keeps the original rooftop preview image. Its **Dashboard Preview** link opens `static/marketing/water_flow_animation.html`; regenerate that deployed asset with `python ../scripts/sync_water_flow_animation.py` after changing the source animation.
@@ -401,6 +403,8 @@ Important tables include:
 - `customer_accounts`: Customer login records keyed by `device_id`
 - `registered_devices`: Known devices seen by the backend
 - `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
+  including the persisted `device_setup_type`. Existing databases receive this
+  column through startup schema maintenance; no manual SQL migration is needed.
 - `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
@@ -447,6 +451,7 @@ pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
 pytest tests/test_activity_events_runtime.py
 pytest tests/test_device_purge.py
+pytest tests/test_device_setup_type_scenarios.py
 ```
 
 Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.

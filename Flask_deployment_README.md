@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-08-01`
+Last refreshed: `2026-08-08`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
 
@@ -37,6 +37,13 @@ How it works:
 - `requirements.txt` is the single dependency file for the whole project
 - `flask_app/.env` holds backend settings
 - `device.env` holds shared device/cloud settings
+
+On the first restart after this release, startup schema maintenance adds the
+persisted `device_service_configs.device_setup_type` column when it is missing.
+Back up MySQL first, restart Passenger once, and confirm a Device Setup Type can
+be saved and reloaded from the device-detail page. Presets send automatic
+scenario commands only when current telemetry identifies simulator-enabled
+test firmware; production devices receive service flags only.
 
 ## Scope
 
@@ -171,6 +178,7 @@ Use real secrets, not the placeholder values:
 
 ```dotenv
 APP_SECRET_KEY=replace-with-a-long-random-secret
+SWT_HOSTING_PROFILE=cpanel
 DB_BACKEND=mysql
 DATABASE_URL=
 MYSQL_HOST=localhost
@@ -178,6 +186,13 @@ MYSQL_PORT=3306
 MYSQL_USER=<cpanel-user>_swtadmin
 MYSQL_PASSWORD=replace-with-mysql-password
 MYSQL_DATABASE=<cpanel-user>_swtadmin
+MYSQL_AUTO_CREATE_DATABASE=false
+MYSQL_CONNECT_TIMEOUT_SECONDS=5
+MYSQL_READ_TIMEOUT_SECONDS=20
+MYSQL_WRITE_TIMEOUT_SECONDS=20
+MYSQL_LOCK_WAIT_TIMEOUT_SECONDS=5
+MYSQL_OPTIMIZE_ENABLED=false
+BACKGROUND_DB_MAX_WORKERS=1
 ANALYTICS_SYNC_EVENTS_ON_REQUEST=false
 DASHBOARD_SUMMARY_RECONCILIATION_ENABLED=false
 LOGIN_USERNAME=admin
@@ -212,6 +227,11 @@ RELAY_COMMAND_URLS=
 Notes:
 
 - create the MySQL database and assign the MySQL user in cPanel before restarting the app
+- keep `MYSQL_AUTO_CREATE_DATABASE=false`; shared cPanel database users normally cannot create databases
+- keep `MYSQL_OPTIMIZE_ENABLED=false`; use cPanel/phpMyAdmin maintenance during a planned window instead of locking production tables from a web request
+- the one-worker background database limit is intentional for the account's restricted memory/process allowance
+- ordinary reads may reconnect and retry once after a dropped connection; writes, DDL, and locking reads are never replayed automatically
+- if `DATABASE_URL` is used instead of `MYSQL_*`, percent-encode special characters in its username and password
 - create or verify the cPanel mailbox `support@salewell.co.in`; `SMTP_PASSWORD` must be that mailbox password for customer forgot-password emails
 - `WHATSAPP_TEAM_PHONE=918796452878` sends internal demo/enquiry notifications to the SaleWell team number
 - `WHATSAPP_WEBHOOK_URL` must point to a real WhatsApp Business provider/proxy endpoint; use `https://salewell.co.in/integrations/whatsapp/send` only if you deploy that route on `salewell.co.in` and it forwards to Meta WhatsApp Cloud API, Twilio, WATI, Interakt, AiSensy, or another provider
