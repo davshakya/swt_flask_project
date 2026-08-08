@@ -69,6 +69,7 @@ from flask_app.firmware_artifacts import (
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
 from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.device_key_vault import decrypt_device_key, encrypt_device_key
 from flask_app.rag_routes import public_chat_blueprint, rag_blueprint
 from flask_app.runtime_utils import (
     env_float,
@@ -1170,7 +1171,10 @@ def configured_device_key_for_id(device_id):
     ):
         return shared_swt_key
     with authenticated_device_key_lock:
-        return authenticated_device_key_cache.get(normalized_device_id)
+        cached_key = authenticated_device_key_cache.get(normalized_device_id)
+    if cached_key:
+        return cached_key
+    return fetch_persisted_device_key(normalized_device_id)
 
 
 def remember_authenticated_device_key(device_id, device_key):
@@ -1185,7 +1189,41 @@ def remember_authenticated_device_key(device_id, device_key):
     if not normalized_device_id or not normalized_device_key:
         return
     with authenticated_device_key_lock:
+        if authenticated_device_key_cache.get(normalized_device_id) == normalized_device_key:
+            return
         authenticated_device_key_cache[normalized_device_id] = normalized_device_key
+    encrypted_key = encrypt_device_key(normalized_device_key, APP_SECRET_KEY)
+    with get_db() as db:
+        db.execute(
+            """
+            INSERT INTO device_auth_keys(
+                device_id, device_key_hash, device_key_ciphertext, registration_source,
+                first_seen_at, last_seen_at, updated_at
+            )
+            VALUES (?, ?, ?, 'authenticated_checkin', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                device_key_ciphertext=excluded.device_key_ciphertext,
+                last_seen_at=CURRENT_TIMESTAMP,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, hash_device_api_key(normalized_device_key), encrypted_key),
+        )
+
+
+def fetch_persisted_device_key(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return None
+    with get_db() as db:
+        row = db.execute(
+            "SELECT device_key_ciphertext FROM device_auth_keys WHERE device_id = ? LIMIT 1",
+            (normalized_device_id,),
+        ).fetchone()
+    raw_key = decrypt_device_key(row["device_key_ciphertext"], APP_SECRET_KEY) if row else ""
+    if raw_key:
+        with authenticated_device_key_lock:
+            authenticated_device_key_cache[normalized_device_id] = raw_key
+    return raw_key or None
 
 
 def hash_device_api_key(device_key):
@@ -1257,15 +1295,16 @@ def remember_auto_registered_device_key(device_id, device_key, remote_addr=None,
     with get_db() as db:
         db.execute(
             """
-            INSERT INTO device_auth_keys(device_id, device_key_hash, registration_source, first_seen_at, last_seen_at, updated_at)
-            VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            INSERT INTO device_auth_keys(device_id, device_key_hash, device_key_ciphertext, registration_source, first_seen_at, last_seen_at, updated_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 device_key_hash=excluded.device_key_hash,
+                device_key_ciphertext=excluded.device_key_ciphertext,
                 registration_source=excluded.registration_source,
                 last_seen_at=CURRENT_TIMESTAMP,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (normalized_device_id, device_key_hash, registration_source),
+            (normalized_device_id, device_key_hash, encrypt_device_key(device_key, APP_SECRET_KEY), registration_source),
         )
     logger.info("Registered device credentials for %s from %s", normalized_device_id, remote_addr or "unknown")
     return {
@@ -6137,6 +6176,7 @@ def ensure_device_auth_keys_table(cursor):
         CREATE TABLE IF NOT EXISTS device_auth_keys(
             device_id TEXT PRIMARY KEY,
             device_key_hash TEXT NOT NULL,
+            device_key_ciphertext LONGTEXT,
             registration_source TEXT NOT NULL,
             first_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
             last_seen_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -6144,6 +6184,9 @@ def ensure_device_auth_keys_table(cursor):
         )
         """
     )
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_auth_keys)").fetchall()}
+    if "device_key_ciphertext" not in existing:
+        cursor.execute("ALTER TABLE device_auth_keys ADD COLUMN device_key_ciphertext LONGTEXT")
 
 
 def ensure_ignored_devices_table(cursor):
