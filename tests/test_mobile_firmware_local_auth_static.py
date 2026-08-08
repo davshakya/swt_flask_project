@@ -54,6 +54,9 @@ def test_ota_key_resolution_can_use_shared_swt_key_when_registry_is_absent():
     assert 'normalized_device_id.startswith("swt-")' in function_body
     assert "not device_config_value_is_placeholder(shared_swt_key)" in function_body
     assert "return shared_swt_key" in function_body
+    assert 'env_flag("SWT_DEVICE_KEYS_OVERRIDE_VAULT", default=False)' in function_body
+    assert "if configured_registry_overrides_vault and matched_rule:" in function_body
+    assert function_body.index("if configured_registry_overrides_vault and matched_rule:") < function_body.index("authenticated_device_key_cache.get")
 
 
 def test_health_exposes_signed_ota_contract_version():

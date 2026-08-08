@@ -1158,11 +1158,26 @@ def find_matching_device_key_rule(device_id):
 
 
 def configured_device_key_for_id(device_id):
+    normalized_device_id = normalize_device_id(device_id)
     matched_rule = find_matching_device_key_rule(device_id)
+    configured_registry_overrides_vault = env_flag("SWT_DEVICE_KEYS_OVERRIDE_VAULT", default=False)
+    if configured_registry_overrides_vault and matched_rule:
+        return matched_rule.get("key")
+
+    with authenticated_device_key_lock:
+        cached_key = authenticated_device_key_cache.get(normalized_device_id)
+    if cached_key:
+        return cached_key
+    persisted_key = fetch_persisted_device_key(normalized_device_id)
+    if persisted_key:
+        return persisted_key
+
+    # Environment rules are bootstrap/fallback credentials. A key observed in
+    # a successful device check-in is authoritative after rotation and must be
+    # preferred for OTA signing.
     if matched_rule:
         return matched_rule.get("key")
 
-    normalized_device_id = normalize_device_id(device_id)
     shared_swt_key = os.environ.get("SWT_DEVICE_API_KEY", "").strip()
     if (
         normalized_device_id.startswith("swt-")
@@ -1170,11 +1185,7 @@ def configured_device_key_for_id(device_id):
         and not device_config_value_is_placeholder(shared_swt_key)
     ):
         return shared_swt_key
-    with authenticated_device_key_lock:
-        cached_key = authenticated_device_key_cache.get(normalized_device_id)
-    if cached_key:
-        return cached_key
-    return fetch_persisted_device_key(normalized_device_id)
+    return None
 
 
 def remember_authenticated_device_key(device_id, device_key):
