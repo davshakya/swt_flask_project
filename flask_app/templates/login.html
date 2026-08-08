@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.">
+<link rel="preload" as="image" type="image/webp" href="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }}" imagesrcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" imagesizes="(max-width: 900px) 100vw, 48vw">
 <title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
 {% include '_pwa_head.html' %}
 <style>
@@ -964,62 +965,17 @@ background:#0d2b34;
 border:1px solid var(--line);
 box-shadow:0 20px 48px rgba(6,40,49,.2);
 }
-.preview-slider{
+.preview-dashboard-frame{
 position:absolute;
-inset:0;
-}
-.preview-slide{
-position:absolute;
-inset:0;
-width:100%;
-height:100%;
-margin:0;
-opacity:0;
-visibility:hidden;
-transition:opacity 1s ease,visibility 1s ease;
-}
-.preview-slide.is-active{
-opacity:1;
-visibility:visible;
-z-index:1;
-}
-.preview-slide img{
-width:100%;
-height:100%;
-object-fit:cover;
-object-position:center;
-}
-.preview-slider-nav{
-position:absolute;
-z-index:3;
-left:50%;
-bottom:12px;
-display:flex;
-gap:7px;
-padding:7px 9px;
-border:1px solid rgba(255,255,255,.16);
-border-radius:999px;
-background:rgba(5,23,45,.76);
-backdrop-filter:blur(10px);
-transform:translateX(-50%);
-}
-.preview-slider-dot{
-width:9px;
-height:9px;
-padding:0;
+inset:0 auto auto 0;
+display:block;
+width:1400px;
+height:1050px;
 border:0;
-border-radius:50%;
-background:#8298b5;
-cursor:pointer;
-transition:width .3s ease,background .3s ease;
+background:#071f3f;
+transform:scale(var(--dashboard-preview-scale,.4));
+transform-origin:top left;
 }
-.preview-slider-dot.is-active{
-width:25px;
-border-radius:999px;
-background:#35dcbd;
-}
-.preview-slider-dot:focus-visible{outline:2px solid #fff;outline-offset:3px}
-@media (prefers-reduced-motion:reduce){.preview-slide{transition:none}}
 .preview-overlay{
 position:absolute;
 padding:10px 12px;
@@ -4488,6 +4444,49 @@ min-width:0;
 @media(max-width:760px){body{padding-bottom:54px}.confidence-grid{grid-template-columns:1fr}.trust-grid,.price-preview-grid{grid-template-columns:1fr}.conversion-strip{align-items:stretch;flex-direction:column}.conversion-actions>*{flex:1}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;left:10px;right:10px;bottom:6px;z-index:90;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(244,252,252,.96);box-shadow:0 6px 20px rgba(9,47,58,.18);backdrop-filter:blur(14px)}body.chatbot-open .mobile-contact-bar{display:none}.mobile-contact-bar a,.mobile-contact-bar button{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;height:38px;min-height:38px;max-height:38px;margin:0;padding:4px 2px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:linear-gradient(135deg,#159eb4,#137d90);color:#fff;font-family:inherit;font-size:9px;font-weight:800;line-height:1;text-align:center;text-decoration:none;white-space:nowrap;overflow:hidden;box-shadow:none;cursor:pointer}.mobile-contact-bar .contact-tab,.mobile-contact-bar .contact-tab:link,.mobile-contact-bar .contact-tab:visited,.mobile-contact-bar .contact-tab:hover,.mobile-contact-bar .contact-tab:focus,.mobile-contact-bar .contact-tab:active{background:linear-gradient(135deg,#159eb4,#137d90);color:#fff!important;-webkit-text-fill-color:#fff;text-decoration:none;transform:none}.mobile-contact-bar a span,.mobile-contact-bar button span{display:block;min-width:0;margin:0;color:inherit;font:inherit;line-height:1;letter-spacing:0;white-space:nowrap}.mobile-contact-bar .contact-icon{display:block;flex:0 0 13px;width:13px;height:13px;fill:currentColor;color:inherit}.mobile-contact-bar .whatsapp-icon{color:inherit}.whatsapp-float{display:none}.site-chatbot:not(.is-open) .chatbot-launcher{display:none}.enquiry-modal{z-index:120}.comparison-table th:first-child,.comparison-table td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}.comparison-table th:first-child{z-index:2}.hero-actions>*{flex:1;min-width:140px}}
 </style>
 {% include '_theme_overrides.html' %}
+<style id="swt-login-modal-contrast-fix">
+#loginModal .modal-panel{
+background:linear-gradient(180deg,#0d2b35 0%,#071f28 100%);
+border-color:rgba(157,220,232,.28);
+color:#f1fbfd;
+}
+#loginModal .modal-header h2,
+#loginModal .login-pane h3{color:#f1fbfd;}
+#loginModal .modal-header p,
+#loginModal .login-pane p{color:#c3dce1;}
+#loginModal .eyebrow{color:#64d9ea;background:rgba(36,181,205,.13);}
+#loginModal .toggle-button{background:#153640;color:#dff6f9;border-color:rgba(157,220,232,.2);}
+#loginModal .toggle-button.is-active{background:#176477;color:#fff;border-color:#39bfd4;box-shadow:0 0 0 3px rgba(57,191,212,.15);}
+#loginModal .login-help{background:#13333d;color:#d8edf1;border-color:rgba(157,220,232,.16);}
+#loginModal .login-help a{color:#72c7ff;}
+#loginModal .group label{color:#cce6eb;}
+#loginModal .portal-form input:not([type="hidden"]){
+color-scheme:dark;
+background:#102f39!important;
+border-color:rgba(157,220,232,.28)!important;
+color:#f4fcfd!important;
+caret-color:#67e8f9;
+-webkit-text-fill-color:#f4fcfd!important;
+}
+#loginModal .portal-form input:not([type="hidden"])::placeholder{color:#9fc2c9!important;-webkit-text-fill-color:#9fc2c9!important;}
+#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill,
+#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill:hover,
+#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill:focus,
+#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill:active{
+background-color:#102f39!important;
+background-clip:content-box!important;
+-webkit-box-shadow:0 0 0 1000px #102f39 inset!important;
+box-shadow:0 0 0 1000px #102f39 inset!important;
+color:#f4fcfd!important;
+-webkit-text-fill-color:#f4fcfd!important;
+caret-color:#67e8f9!important;
+}
+#loginModal .portal-form input:not([type="hidden"]):focus{border-color:#42c7dc!important;box-shadow:0 0 0 4px rgba(66,199,220,.18);outline:none;}
+#loginModal .password-toggle{color:#aee5ee;}
+#loginModal .password-toggle:hover,
+#loginModal .password-toggle:focus-visible{background:#1b4652;color:#e7fbff;}
+#loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
+</style>
 </head>
 <body data-default-login-mode="{{ login_mode }}">
 <div class="page">
@@ -4581,27 +4580,8 @@ min-width:0;
         </div>
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
-            <div class="preview-visual" id="waterPlanSlider" aria-label="Animated water-supply plan previews" aria-roledescription="carousel">
-                <div class="preview-slider" aria-live="off">
-                    <figure class="preview-slide is-active" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-source.jpg') }}" alt="Municipal water gravity-filling the source tank plan." width="1280" height="960" loading="eager" decoding="async" fetchpriority="high"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/municipal-upper.jpg') }}" alt="Municipal water pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-pump-fill.jpg') }}" alt="Municipal water pumping to the source tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-upper.jpg') }}" alt="Source tank pumping to the upper tank while municipal water gravity-fills the source plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/source-only.jpg') }}" alt="Source-only tank pumping to the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/borewell.jpg') }}" alt="Borewell submersible pump filling the upper tank plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/idle.jpg') }}" alt="Water-supply plan idle with tanks satisfied." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                    <figure class="preview-slide" data-plan-slide><img src="{{ url_for('static', filename='marketing/water-plan-slides/failsafe.jpg') }}" alt="Water-supply sensor fault fail-safe plan." width="1280" height="960" loading="lazy" decoding="async"></figure>
-                </div>
-                <div class="preview-slider-nav" aria-label="Choose a water-supply plan preview">
-                    <button class="preview-slider-dot is-active" type="button" data-plan-dot aria-label="Show municipal gravity plan" aria-current="true"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-upper plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show municipal-to-source pump plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-to-upper plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show source-only plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show borewell plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show idle plan"></button>
-                    <button class="preview-slider-dot" type="button" data-plan-dot aria-label="Show fail-safe plan"></button>
-                </div>
+            <div class="preview-visual" aria-label="Animated smart water tank dashboard">
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="about:blank" data-dashboard-src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260802-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager" sandbox="allow-scripts"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -6187,7 +6167,9 @@ const chatbotChips = document.querySelectorAll("[data-chat-prompt]");
 const pricingPageUrl = "{{ url_for('pricing_page') }}";
 const showPricingLinks = {{ "true" if show_pricing_links|default(false) else "false" }};
 let chatbotSessionCount = 1;
+let chatbotGreetingCount = 0;
 let chatbotOpenedAt = 0;
+let chatbotSubmitGuardUntil = 0;
 let whatsappDragSuppressClick = false;
 let chatbotDragSuppressClick = false;
 
@@ -6384,11 +6366,17 @@ function scrollChatToBottom() {
     });
 }
 
+function conciseChatbotText(text) {
+    const lines = String(text || "").split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    if (lines.length <= 3) return lines.join("\n");
+    return [lines[0], lines[1], lines.slice(2).join(" ")].join("\n");
+}
+
 function appendChatMessage(text, sender = "bot", actions = []) {
     if (!chatbotMessages) return;
     const message = document.createElement("div");
     message.className = `chatbot-message is-${sender === "user" ? "user" : "bot"}`;
-    message.textContent = text;
+    message.textContent = sender === "user" ? text : conciseChatbotText(text);
 
     const visibleActions = actions.filter((action) => {
         if (showPricingLinks) return true;
@@ -6422,6 +6410,7 @@ function resetChatbotDiscussion(message) {
     chatBookingState = null;
     chatCompletedBooking = null;
     chatEnquirySubmitting = false;
+    chatbotGreetingCount = 0;
     chatbotSessionCount += 1;
     if (chatbotMessages) chatbotMessages.replaceChildren();
     appendChatMessage(
@@ -6682,6 +6671,19 @@ function chatLooksLikeQuestion(input) {
             "which",
             "what",
             "when",
+            "stale",
+            "cannot connect",
+            "can't connect",
+            "does not start",
+            "not starting",
+            "does not stop",
+            "not stopping",
+            "incorrect",
+            "unreachable",
+            "offline",
+            "not working",
+            "problem",
+            "issue",
         ])
     );
 }
@@ -6975,6 +6977,8 @@ function getChatbotResponse(rawInput) {
     const recommendedPlan = recommendPlan(input);
     const wantsBooking = isChatBookingIntent(input);
     const wantsPrice = chatHasAny(input, ["price", "pricing", "cost", "rate", "fee", "monthly", "subscription", "package", "quote", "charges"]);
+    const wantsMinimumPrice = chatHasAny(input, ["min price", "min plan", "minimum price", "minimum plan", "lowest price", "lowest plan", "low price", "cheapest", "cheapest plan", "least expensive"]);
+    const wantsMaximumPrice = chatHasAny(input, ["max price", "max plan", "maximum price", "maximum plan", "highest price", "highest plan", "highst price", "high price", "most expensive", "costliest plan"]);
     const wantsCompare = chatHasAny(input, ["compare", "comparison", "difference", "all plans", "plans", "which plan", "best plan", "recommend", "suggest"]);
     const wantsInstall = chatHasAny(input, ["install", "installation", "sensor", "setup", "tank height", "underground", "source", "overhead", "plumber", "site visit", "hardware"]);
     const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "automation", "on off", "turn on", "turn off"]);
@@ -6983,7 +6987,60 @@ function getChatbotResponse(rawInput) {
     const wantsCoverage = chatHasAny(input, ["delhi", "ncr", "noida", "gurgaon", "gurugram", "faridabad", "ghaziabad", "area", "available", "location"]);
     const wantsDashboard = chatHasAny(input, ["app", "dashboard", "login", "mobile", "notification", "alert"]);
     const wantsProductInfo = chatHasAny(input, ["product", "complete information", "full information", "details", "features", "included", "include", "add-on", "addon", "module", "hardware", "kit"]);
+    const wantsCompanyIdentity = chatHasAny(input, ["company name", "your company", "business name", "brand name", "who are you", "who made you"]);
+    const wantsHowItWorks = (
+        chatHasAny(input, ["how it works", "how does it work", "how this works", "working process", "explain working"]) ||
+        /how\s+(?:does\s+)?(?:this\s+)?(?:device|system|product|salewell|it)\s+(?:work|works|working)/.test(input)
+    );
     const wantsGreeting = /(^|\s)(hi|hello|hey)(\s|$)/.test(input) || input.includes("help") || input.includes("what can you do");
+    const pumpDoesNotStart = chatHasAny(input, ["pump does not start", "pump not starting", "pump won't start", "pump wont start", "motor does not start", "motor not starting"]);
+    const pumpDoesNotStop = chatHasAny(input, ["pump does not stop", "pump not stopping", "pump won't stop", "pump wont stop", "motor does not stop", "motor not stopping"]);
+    const appCannotConnect = chatHasAny(input, ["app cannot connect", "app can't connect", "app cant connect", "cannot connect locally", "local app not working"]);
+    const remoteDataStale = chatHasAny(input, ["remote information is stale", "remote data is stale", "remote status is stale", "cloud data is stale", "last seen is stale"]);
+    const tankLevelIncorrect = chatHasAny(input, ["tank level incorrect", "incorrect tank level", "wrong tank level", "level reading incorrect", "level is wrong"]);
+    const deviceOffline = chatHasAny(input, ["device offline", "controller offline", "sensor offline", "device unreachable", "controller unreachable", "sensor unreachable"]);
+
+    if (pumpDoesNotStart) {
+        return {
+            text: "The pump may be blocked by a full destination tank, unavailable source water, missing sensor data, manual mode, or a safety lockout. Check the displayed alert and physical pump panel; do not bypass protection to force a start.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (pumpDoesNotStop) {
+        return {
+            text: "Use the physical OFF control or isolate power safely, then contact a qualified electrician. Check the level sensor, stop threshold, relay/contactor feedback, and wiring before restoring automatic operation.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (appCannotConnect) {
+        return {
+            text: "Confirm the controller is powered, the phone is using the intended local connection, local-network permissions are allowed, and the correct device is selected. Local controller access and cloud login are different connection modes.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (remoteDataStale) {
+        return {
+            text: "Check controller power, site internet, cloud connectivity, and the device's last-seen time. Local automation may continue, but remote updates require the controller to reconnect to the cloud.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
+
+    if (tankLevelIncorrect) {
+        return {
+            text: "Check sensor angle, obstruction, condensation, tank-height calibration, inlet flow, and whether the wireless reading is fresh. Do not change automation thresholds until the level is verified safely.",
+            actions: [{ label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
+        };
+    }
+
+    if (deviceOffline) {
+        return {
+            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+        };
+    }
 
     if (mentionedPlan && !wantsCompare) {
         return {
@@ -7000,6 +7057,48 @@ function getChatbotResponse(rawInput) {
             text: `Sure. I can book a demo.\n${expertRecommendationText(recommendedPlan, rawInput, count)}`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
+            ],
+        };
+    }
+
+    if (wantsMinimumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Home Basic");
+        return {
+            text: `The lowest published plan price is ${plan.name} at ${plan.price}. It includes the wireless tank sensor node and main controller, but not the phone app or cloud access. Installation is quoted separately after checking the site.`,
+            actions: [
+                { label: "View Home Basic", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsMaximumPrice) {
+        const plan = chatPlanCatalog.find((item) => item.name === "Enterprise Modular");
+        return {
+            text: `${plan.name} is the highest published starting tier: ${plan.price}. It is custom-scoped for builders, townships, industrial customers, multi-site deployments, dashboards, integrations, and bulk devices. The final price depends on the rollout.`,
+            actions: [
+                { label: "View Enterprise", href: selectedPlanUrl(plan.name, plan.segment) },
+                { label: "Compare all plans", href: `${pricingPageUrl}#comparison` },
+            ],
+        };
+    }
+
+    if (wantsHowItWorks) {
+        return {
+            text: "SaleWell uses a sensor node near the water tank to measure the level and send it wirelessly to the main controller near the pump panel. The controller shows the level and, when pump automation is installed, applies configured start, stop, overflow, and source-water safety rules. Local control continues without cloud access. Eligible app and cloud plans add phone monitoring, remote access, history, alerts, reports, and analytics.",
+            actions: [
+                { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
+                { label: "Installation details", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
+            ],
+        };
+    }
+
+    if (wantsCompanyIdentity) {
+        return {
+            text: "Our company is SaleWell IoT Solutions. We provide smart water-tank monitoring, pump-control, automation, app, and cloud solutions for homes and managed properties.",
+            actions: [
+                { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },
+                { label: "Contact SaleWell", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } },
             ],
         };
     }
@@ -7106,9 +7205,23 @@ function getChatbotResponse(rawInput) {
         };
     }
 
-    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"]) || wantsGreeting) {
+    if (wantsGreeting) {
+        chatbotGreetingCount += 1;
         return {
-            text: `${wantsGreeting ? "Happy to help. " : ""}${expertRecommendationText(recommendedPlan, rawInput, count)}\nTell me tank count and city for a sharper quote.`,
+            text: chatbotGreetingCount === 1
+                ? "Hi! Welcome to SaleWell. What would you like help with—tank monitoring, pump control, overflow prevention, pricing, or installation?"
+                : "Hello again! Tell me what you would like to know, or choose one of the topics below.",
+            actions: [
+                { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },
+                { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
+                { label: "Installation help", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
+            ],
+        };
+    }
+
+    if (chatHasAny(input, ["home", "villa", "house", "flat", "bungalow", "family", "apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "builder", "township", "shortage", "summer", "tanker", "low water", "daily water"])) {
+        return {
+            text: `${expertRecommendationText(recommendedPlan, rawInput, count)}\nTell me tank count and city for a sharper quote.`,
             actions: [
                 bookPlanAction(recommendedPlan, rawInput, count),
                 { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
@@ -7118,6 +7231,7 @@ function getChatbotResponse(rawInput) {
 
     return {
         text: "I can help with complete product information, plans, price, pump control, overflow, leakage, installation type, app access, and NCR availability.\nTry: 'home 1 tank', 'RWA 10 tanks', or 'price of Home Control'.",
+        useRag: true,
         actions: [
             { label: "Compare pricing", href: `${pricingPageUrl}#comparison` },
             { label: "Book demo", action: "start-booking", fill: makePlanFill(recommendedPlan, rawInput, count) },
@@ -7126,15 +7240,52 @@ function getChatbotResponse(rawInput) {
     };
 }
 
-function submitChatbotPrompt(prompt) {
+async function askChatbotKnowledgeBase(question) {
+    // Keep homepage rendering independent of optional RAG route registration.
+    // A missing/disabled handler returns an HTTP error and the existing
+    // deterministic chatbot response is used by the caller.
+    const response = await fetch("/chatbot/ask", {
+        method: "POST",
+        headers: {"Content-Type": "application/json", "Accept": "application/json"},
+        body: JSON.stringify({question}),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Knowledge search failed");
+    return payload;
+}
+
+async function submitChatbotPrompt(prompt) {
     const trimmed = prompt.trim();
     if (!trimmed) return;
+    // Mobile keyboards and disappearing fixed footers can dispatch a delayed
+    // click over the launcher after Send. Ignore that click briefly.
+    chatbotSubmitGuardUntil = Date.now() + 1800;
     setChatbotOpen(true);
     if (trimmed.toLowerCase() === "skip") {
         resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
         return;
     }
     appendChatMessage(trimmed, "user");
+    if (chatBookingState && chatLooksLikeQuestion(trimmed.toLowerCase())) {
+        const pendingField = chatBookingNextField();
+        const response = getChatbotResponse(trimmed);
+        if (response.useRag) {
+            try {
+                const ragResponse = await askChatbotKnowledgeBase(trimmed);
+                const groundedActions = Array.isArray(ragResponse.citations) && ragResponse.citations.length ? response.actions : [];
+                appendChatMessage(ragResponse.answer || response.text, "bot", groundedActions);
+            } catch (error) {
+                console.warn("Chatbot booking-question knowledge search failed", error);
+                appendChatMessage(response.text, "bot", response.actions);
+            }
+        } else {
+            appendChatMessage(response.text, "bot", response.actions);
+        }
+        if (pendingField) {
+            appendChatMessage(`Your booking is still saved. When ready, please answer: ${pendingField.question}`, "bot");
+        }
+        return;
+    }
     if (handleChatBookingAnswer(trimmed)) {
         if (chatbotInput) chatbotInput.value = "";
         return;
@@ -7147,6 +7298,17 @@ function submitChatbotPrompt(prompt) {
         return;
     }
     const response = getChatbotResponse(trimmed);
+    if (response.useRag) {
+        try {
+            const ragResponse = await askChatbotKnowledgeBase(trimmed);
+            const groundedActions = Array.isArray(ragResponse.citations) && ragResponse.citations.length ? response.actions : [];
+            appendChatMessage(ragResponse.answer || response.text, "bot", groundedActions);
+        } catch (error) {
+            console.warn("Chatbot knowledge search failed", error);
+            appendChatMessage(response.text, "bot", response.actions);
+        }
+        return;
+    }
     window.setTimeout(() => appendChatMessage(response.text, "bot", response.actions), 180);
 }
 
@@ -7160,9 +7322,14 @@ if (whatsappFloat) {
 }
 
 if (chatbotLauncher) {
-    chatbotLauncher.addEventListener("click", () => {
+    chatbotLauncher.addEventListener("click", (event) => {
         if (chatbotDragSuppressClick) {
             chatbotDragSuppressClick = false;
+            return;
+        }
+        if (chatbot?.classList.contains("is-open") && Date.now() < chatbotSubmitGuardUntil) {
+            event.preventDefault();
+            event.stopPropagation();
             return;
         }
         setChatbotOpen(!chatbot?.classList.contains("is-open"));
@@ -7191,6 +7358,7 @@ if (chatbotSkip) {
 if (chatbotForm) {
     chatbotForm.addEventListener("submit", (event) => {
         event.preventDefault();
+        event.stopPropagation();
         submitChatbotPrompt(chatbotInput?.value || "");
         if (chatbotInput) chatbotInput.value = "";
     });
@@ -7500,56 +7668,32 @@ if (demoStoryboard && demoScenes.length) {
 
 })();
 </script>
+{% include '_pwa_install.html' %}
 <script>
 (() => {
-    const slider = document.getElementById("waterPlanSlider");
-    if (!slider) return;
-    const slides = [...slider.querySelectorAll("[data-plan-slide]")];
-    const dots = [...slider.querySelectorAll("[data-plan-dot]")];
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let activeIndex = 0;
-    let rotationTimer = null;
-
-    const showSlide = (index) => {
-        activeIndex = (index + slides.length) % slides.length;
-        slides.forEach((slide, slideIndex) => {
-            const active = slideIndex === activeIndex;
-            slide.classList.toggle("is-active", active);
-            slide.setAttribute("aria-hidden", String(!active));
-        });
-        dots.forEach((dot, dotIndex) => {
-            const active = dotIndex === activeIndex;
-            dot.classList.toggle("is-active", active);
-            if (active) dot.setAttribute("aria-current", "true");
-            else dot.removeAttribute("aria-current");
-        });
+    const frame = document.getElementById("dashboardPreviewFrame");
+    const viewport = frame?.parentElement;
+    if (!frame || !viewport) return;
+    const dashboardSource = frame.dataset.dashboardSrc;
+    if (dashboardSource) {
+        fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})
+            .then((response) => {
+                if (!response.ok) throw new Error(`Dashboard preview returned ${response.status}`);
+                return response.text();
+            })
+            .then((documentSource) => { frame.srcdoc = documentSource; })
+            .catch(() => {
+                frame.srcdoc = "<style>body{margin:0;background:#071a34;color:#d7efff;font:700 28px system-ui;display:grid;place-items:center;text-align:center;height:100vh}a{color:#72e7ff}</style><a href='" + dashboardSource + "' target='_blank'>Open dashboard preview</a>";
+            });
+    }
+    const fitDashboardPreview = () => {
+        const scale = Math.min(viewport.clientWidth / 1400, viewport.clientHeight / 1050);
+        frame.style.setProperty("--dashboard-preview-scale", String(scale));
     };
-    const stopRotation = () => {
-        window.clearInterval(rotationTimer);
-        rotationTimer = null;
-    };
-    const startRotation = () => {
-        stopRotation();
-        if (reducedMotion.matches || document.hidden) return;
-        rotationTimer = window.setInterval(() => showSlide(activeIndex + 1), 5000);
-    };
-
-    dots.forEach((dot, index) => dot.addEventListener("click", () => {
-        showSlide(index);
-        startRotation();
-    }));
-    slider.addEventListener("pointerenter", stopRotation);
-    slider.addEventListener("pointerleave", startRotation);
-    slider.addEventListener("focusin", stopRotation);
-    slider.addEventListener("focusout", (event) => {
-        if (!slider.contains(event.relatedTarget)) startRotation();
-    });
-    document.addEventListener("visibilitychange", startRotation);
-    if (typeof reducedMotion.addEventListener === "function") reducedMotion.addEventListener("change", startRotation);
-    showSlide(0);
-    startRotation();
+    if (typeof ResizeObserver === "function") new ResizeObserver(fitDashboardPreview).observe(viewport);
+    window.addEventListener("resize", fitDashboardPreview, {passive:true});
+    fitDashboardPreview();
 })();
 </script>
-{% include '_pwa_install.html' %}
 </body>
 </html>

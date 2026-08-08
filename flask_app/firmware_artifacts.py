@@ -29,6 +29,10 @@ FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {
     "master": re.compile(rb"\bswt-000-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
     "slave": re.compile(rb"\bswt-100-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
 }
+FIRMWARE_BINARY_DISTINCT_ROLE_MARKERS = {
+    "master": (b"master_control",),
+    "slave": (b"slave_tank", b"peer-only-slave"),
+}
 FIRMWARE_BUILD_FLAG_KEYS = (
     "SWT_FEATURE_MASTER_LOWER_SENSOR",
     "SWT_ARCH_ID",
@@ -86,6 +90,14 @@ def detect_firmware_binary_role(payload):
     ]
     if len(exact_marker_matches) == 1:
         return exact_marker_matches[0]
+
+    distinct_role_matches = [
+        role
+        for role, markers in FIRMWARE_BINARY_DISTINCT_ROLE_MARKERS.items()
+        if any(marker.lower() in normalized_payload for marker in markers)
+    ]
+    if len(distinct_role_matches) == 1:
+        return distinct_role_matches[0]
 
     marker_matches = [
         role

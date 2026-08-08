@@ -164,6 +164,16 @@ def test_current_pump_run_is_included_before_an_off_reading_arrives():
     assert metrics["started_runs"] == 1
 
 
+def test_pump_runtime_excludes_an_on_segment_without_a_stop_boundary():
+    metrics = server.build_motor_activity_metrics(
+        ["2026-07-31 20:00:00", "2026-07-31 20:01:00", "2026-07-31 20:02:00", "2026-07-31 20:30:00"],
+        [0, 1, None, 0],
+    )
+
+    assert metrics["runtime_seconds"] == 0
+    assert metrics["completed_runs"] == 0
+
+
 def test_chart_downsampling_preserves_short_minimum_and_maximum():
     times = list(range(100))
     values = [50.0] * 100

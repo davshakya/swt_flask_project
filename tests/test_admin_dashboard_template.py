@@ -28,9 +28,9 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
 
     assert 'rel="preload" as="image" type="image/webp"' in template
     assert "smart-water-tank-hero-ai-1280.webp" in template
-    assert template.count("<source type=\"image/webp\"") >= 7
-    assert template.count('decoding="async"') >= 7
-    assert template.count('width="1536" height="1024"') >= 7
+    assert template.count("<source type=\"image/webp\"") >= 6
+    assert template.count('decoding="async"') >= 6
+    assert template.count('width="1536" height="1024"') >= 6
 
 
 def test_login_popup_inputs_use_a_visible_caret_and_selection():
@@ -77,11 +77,34 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260731-1'" in login_template
+    assert "water_flow_animation.html', v='20260802-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
+
+
+def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'class="preview-dashboard-frame"' in login_template
+    assert 'title="Interactive Smart Water Tank Flow dashboard"' in login_template
+    assert 'id="dashboardPreviewFrame"' in login_template
+    assert 'src="about:blank"' in login_template
+    assert 'data-dashboard-src="{{ url_for(' in login_template
+    assert 'fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})' in login_template
+    assert "frame.srcdoc = documentSource" in login_template
+    assert 'new ResizeObserver(fitDashboardPreview).observe(viewport)' in login_template
+    assert 'id="waterPlanSlider"' not in login_template
+    assert "data-plan-slide" not in login_template
+
+
+def test_embedded_dashboard_allows_only_same_origin_framing():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+
+    assert 'request.path == "/static/marketing/water_flow_animation.html"' in server_source
+    assert 'response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")' in server_source
+    assert 'response.headers.setdefault("X-Frame-Options", "DENY")' in server_source
 
 
 def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
@@ -183,15 +206,15 @@ def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_
     assert "Direct municipal setup requires a healthy water-availability input" in animation
 
 
-def test_homepage_uses_fading_water_plan_preview_slider():
+def test_homepage_replaces_picture_slider_with_animated_dashboard():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
-    assert 'id="waterPlanSlider"' in template
-    assert template.count("marketing/water-plan-slides/") == 8
-    assert template.count('<figure class="preview-slide') == 8
-    assert template.count('<button class="preview-slider-dot') == 8
-    assert "transition:opacity 1s ease,visibility 1s ease" in template
-    assert "smart-water-tank-hero-ai.png') }}\" alt=\"AI-generated rooftop smart water tank" not in template
+    assert 'class="preview-dashboard-frame"' in template
+    assert "marketing/water_flow_animation.html" in template
+    assert 'id="waterPlanSlider"' not in template
+    assert "marketing/water-plan-slides/" not in template
+    assert '<figure class="preview-slide' not in template
+    assert '<button class="preview-slider-dot' not in template
 
 
 def test_sales_enquiry_server_validation_matches_booking_form_rules():
@@ -567,7 +590,8 @@ def test_customer_dashboard_spins_company_logo_while_pump_is_on_or_start_pending
     assert "const PUMP_START_GRACE_MS=60000;" in customer_template
     assert "pendingPumpStartUntil:0" in customer_template
     assert "const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil" in customer_template
-    assert "const spinning=running||pendingActive||startInferred" in customer_template
+    assert "const spinning=running||pendingActive" in customer_template
+    assert "if(levelIncreasing&&!isPumpRunning(motor))return\"START\";" not in customer_template
     assert "state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0" in customer_template
 
 
@@ -1409,3 +1433,56 @@ def test_flask_pages_share_explanatory_term_tooltips():
     for term in ("telemetry", "rssi", "signal", '"municipal sensor"', "health"):
         assert term in tooltip_source
     assert "global-tooltips.js" in pwa_head
+
+
+def test_customer_remaining_time_uses_live_snapshot_while_analytics_loads():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "function estimatedRemainingHours(snapshot,analytics)" in customer_template
+    assert "return remaining/liveRate" in customer_template
+    assert "const remainingHours=estimatedRemainingHours(snapshot,analytics);" in customer_template
+
+
+def test_combined_fill_status_uses_firmware_active_fill_flags():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "const sourcePumpActive=flagEnabled(snapshot.source_pump_fill_active,false);" in customer_template
+    assert "const sourceGravityActive=flagEnabled(snapshot.source_gravity_fill_active,false);" in customer_template
+    assert "const filling=sourceGravityActive||pumpActive||valveFlowActive;" in customer_template
+
+
+def test_event_log_explains_motorized_valve_state_and_water_path():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'unknown:"Position not reported"' in customer_template
+    assert 'closed:"Closed (source-tank inlet selected)"' in customer_template
+    assert 'source:"Source Tank → Upper Tank"' in customer_template
+    assert "Water path: ${valveRoute}" in customer_template
+
+
+def test_today_savings_card_does_not_request_impossible_complete_days():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'if(analyticsRangeIsToday())return{' in customer_template
+    assert 'value:"Select 7 Days"' in customer_template
+    assert "Savings compares complete days." in customer_template
+
+
+def test_all_today_usage_cards_use_today_specific_readiness_text():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'if(analyticsRangeIsToday())return"Collecting today"' in customer_template
+    assert "Today is still in progress; daily averages appear in the 7 Days view." in customer_template
+    assert "Today is still in progress; use the 7 Days view for a complete-day forecast." in customer_template
+    assert "Waiting for complete days" not in customer_template
+
+
+def test_login_modal_has_scoped_high_contrast_theme():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'id="swt-login-modal-contrast-fix"' in login_template
+    assert "#loginModal .modal-panel" in login_template
+    assert "background:#102f39!important" in login_template
+    assert "-webkit-text-fill-color:#f4fcfd!important" in login_template
+    assert '#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill' in login_template
+    assert "-webkit-box-shadow:0 0 0 1000px #102f39 inset!important" in login_template

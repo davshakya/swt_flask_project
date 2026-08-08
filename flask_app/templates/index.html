@@ -414,6 +414,7 @@ canvas{height:260px!important}
                     <div class="controls">
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
+                        <select class="pump-run-duration" aria-label="Supervised pump run duration"><option value="0">Run until full</option><option value="15">Run 15 minutes</option><option value="30">Run 30 minutes</option></select>
                         <button id="btn_calibrate" class="btn-calibrate" onclick="sendCalibrateCommand()" {% if not can_control %}disabled{% endif %}>Calibrate Sensor</button>
                     </div>
                     <div class="tank-config" {% if not can_control %}style="display:none"{% endif %}>
@@ -456,6 +457,7 @@ canvas{height:260px!important}
                         <button id="btn_on" class="btn-on" onclick="sendMotorCommand('/motor/on','ON')" {% if not can_control %}disabled{% endif %}>Start Pump</button>
                         <button id="btn_off" class="btn-off" onclick="sendMotorCommand('/motor/off','OFF')" {% if not can_control %}disabled{% endif %}>Stop Pump</button>
                     </div>
+                    <select class="pump-run-duration" aria-label="Supervised pump run duration"><option value="0">Run until full</option><option value="15">Run 15 minutes</option><option value="30">Run 30 minutes</option></select>
                     <div class="customer-recommendation"><span class="label">Recommendation</span><strong id="customerSuggestedAction">Waiting for guidance</strong><p id="customerSuggestedActionNote">The safest next action will appear after fresh telemetry is validated.</p></div>
                     <div id="actionHint" class="subvalue" {% if not can_control %}style="display:none"{% endif %}>Source monitoring is off. Start Pump uses the main tank level and automation settings.</div>
                     <div id="controlSummary" class="subvalue">{% if viewer_role == "customer" and not cloud_feed_enabled %}Cloud feed is disabled for this customer account.{% elif can_control %}Auto threshold protection always stays enabled. Start Pump and Stop Pump are supervised requests.{% else %}This customer account is view-only. Contact the admin if you need device changes or remote control access.{% endif %}</div>
@@ -508,8 +510,8 @@ canvas{height:260px!important}
             <h3>Rate, trend, and forecast</h3>
             <p id="customerUsageRange" class="muted">AI/ML analysis · Last 7 days</p>
             <div class="customer-stat-grid customer-usage-grid">
-                <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">Waiting for complete days</div><div class="subvalue">Estimated next complete day</div></div>
-                <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">Waiting for complete days</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
+                <div class="card"><span class="label">Expected water usage</span><div id="ai_tomorrow_usage" class="value">Collecting usage data</div><div class="subvalue">Estimated next complete day</div></div>
+                <div class="card"><span class="label">Average water usage</span><div id="consumption_rate" class="value">Collecting usage data</div><div class="subvalue">Liters used per hour when capacity is configured</div></div>
                 <div class="card"><span class="label">Estimated savings</span><div id="customerSavingsNow" class="value">Waiting for comparison</div><div id="customerSavingsNote" class="subvalue">Savings insight appears when a usable comparison is available.</div></div>
                 <div class="card"><span class="label">Monthly estimate</span><div id="customerMonthlyEstimate" class="value">Building baseline</div><div class="subvalue">Projected from validated average daily use.</div></div>
             </div>
@@ -720,7 +722,7 @@ const fmtPct=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${Numbe
 const fmtHours=(v)=>v===null||v===undefined||Number.isNaN(Number(v))||Number(v)<=0?"--":`${Number(v).toFixed(1)} hrs`;
 const fmtWaterRemaining=(v)=>{const hours=Number(v);if(!Number.isFinite(hours)||hours<=0)return"--";return hours>=24?`${(hours/24).toFixed(1)} days`:`${hours.toFixed(1)} hrs`;};
 const customerMetricNumber=(value)=>VIEWER_ROLE==="customer"?Math.abs(Number(value)):Number(value);
-function analyticsReadinessText(analytics,requiredDays=2){const complete=Math.max(0,Number(analytics?.analysis?.quality?.complete_day_count||0));const remaining=Math.max(0,requiredDays-complete);return remaining?`Need ${remaining} more complete day${remaining===1?"":"s"}`:"Ready when telemetry validation completes";}
+function analyticsReadinessText(analytics,requiredDays=2){if(analyticsRangeIsToday())return"Collecting today";const complete=Math.max(0,Number(analytics?.analysis?.quality?.complete_day_count||0));const remaining=Math.max(0,requiredDays-complete);return remaining?`Need ${remaining} more complete day${remaining===1?"":"s"}`:"Ready when telemetry validation completes";}
 const fmtUsage=(v)=>{
     const capacity=Number(state.data.snapshot?.capacity_liters??state.data.systemStatus?.capacity_liters);
     if(v===null||v===undefined||Number.isNaN(Number(v))||!Number.isFinite(capacity)||capacity<=0)return"--";
@@ -1056,9 +1058,13 @@ function combinedTankFillStatus(snapshot={}){
     const sourceConfigured=flagEnabled(sourceFlag,true);
     const municipalEnabled=flagEnabled(municipalSensorFlag,inletRoute==="municipal")&&(flagEnabled(municipalFlag,inletRoute==="municipal")||!sourceConfigured);
     const municipalDirect=flagEnabled(municipalSensorFlag,false)&&!sourceConfigured;
-    const outletRoute=municipalEnabled&&!municipalDirect?reportedOutletRoute:"upper";
-    const filling=["on","running","started","active"].includes(pumpState)||(municipalEnabled&&!municipalDirect&&["open","opening"].includes(inletState))||(municipalEnabled&&!municipalDirect&&["open","opening"].includes(outletState));
-    const source=municipalDirect||(municipalEnabled&&inletRoute==="municipal")?"Municipal Water":"Source Tank";
+    const sourcePumpActive=flagEnabled(snapshot.source_pump_fill_active,false);
+    const sourceGravityActive=flagEnabled(snapshot.source_gravity_fill_active,false);
+    const pumpActive=sourcePumpActive||["on","running","started","active","1","true"].includes(pumpState);
+    const valveFlowActive=(municipalEnabled&&!municipalDirect&&["open","opening","active"].includes(inletState))||(municipalEnabled&&!municipalDirect&&["open","opening","active"].includes(outletState));
+    const filling=sourceGravityActive||pumpActive||valveFlowActive;
+    const outletRoute=sourceGravityActive?"source":sourcePumpActive?"upper":municipalEnabled&&!municipalDirect?reportedOutletRoute:"upper";
+    const source=sourceGravityActive||municipalDirect||(municipalEnabled&&inletRoute==="municipal")?"Municipal Water":"Source Tank";
     const destination=outletRoute==="source"?"Source Tank":"Upper Tank";
     return{filling,status:filling?`${destination} filling from ${source}`:"Not filling",route:`Selected route: ${source} → ${destination}`};
 }
@@ -1083,10 +1089,9 @@ function updateUpperTankTrend(snapshot){
 }
 function pumpDisplayState(motorState,levelIncreasing=false){
     const motor=String(motorState||"").toUpperCase();
-    if(levelIncreasing&&!isPumpRunning(motor))return"START";
     return motor||"--";
 }
-function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");if(!logo)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const startInferred=levelIncreasing&&!running;const spinning=running||pendingActive||startInferred;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",(pendingActive||startInferred)&&!running);}
+function updatePumpLogoMotion({motorState="",pending=false,levelIncreasing=false}={}){const logo=document.getElementById("brandLogo");if(!logo)return;const running=isPumpRunning(motorState);const pendingActive=pending&&Date.now()<state.pendingPumpStartUntil;const spinning=running||pendingActive;logo.classList.toggle("is-spinning",spinning);logo.classList.toggle("is-pending",pendingActive&&!running);}
 function buildSourceTankState(snapshot){
     const serviceOn=String(snapshot?.lower_tank_service||"").toUpperCase()==="ON";
     const monitoringActive=serviceOn;
@@ -1214,6 +1219,10 @@ function estimateUsageLiters(percentValue,capacityLiters){
     return(Number(percentValue)*Number(capacityLiters))/100;
 }
 function customerUsageSavings(snapshot,analytics){
+    if(analyticsRangeIsToday())return{
+        value:"Select 7 Days",
+        note:"Savings compares complete days. Use the 7 Days view for a reliable day-to-day comparison."
+    };
     if(analytics?.daily?.reliable!==true||Number(analytics?.analysis?.quality?.complete_day_count||0)<2)return{
         value:"--",
         note:"Savings insight appears after two complete days of reliable usage history."
@@ -1284,6 +1293,16 @@ function confidenceNote(score){
     if(score>=70)return"Useful guidance with a few gaps to watch.";
     return"Treat this guidance carefully until fresh data arrives.";
 }
+function estimatedRemainingHours(snapshot,analytics){
+    const validated=Number(analytics?.guidance?.time_to_empty_hours??analytics?.insights?.empty_prediction);
+    if(Number.isFinite(validated)&&validated>0)return validated;
+    const deviceEstimate=Number(snapshot?.empty_prediction);
+    if(Number.isFinite(deviceEstimate)&&deviceEstimate>0)return deviceEstimate;
+    const remaining=Number(snapshot?.remaining_liters);
+    const liveRate=Number(snapshot?.ai_usage_rate);
+    if(Number.isFinite(remaining)&&remaining>=0&&Number.isFinite(liveRate)&&liveRate>0)return remaining/liveRate;
+    return null;
+}
 function renderDecisionList(id,items,emptyText){
     const root=document.getElementById(id);
     if(!root)return;
@@ -1303,7 +1322,7 @@ function buildSharedGuidanceDecisionModel(snapshot,analytics){
     const confidenceScore=Number.isFinite(confidence)?confidence:customerConfidenceScore(snapshot,state.data.systemStatus,analytics,buildSourceTankState(snapshot));
     const observations=Array.isArray(guidance.observations)?guidance.observations.filter(Boolean):[];
     const actions=Array.isArray(guidance.actions)?guidance.actions.filter(Boolean):[];
-    const timeValue=Number(guidance.time_to_empty_hours);
+    const timeValue=estimatedRemainingHours(snapshot,analytics);
     const timeLabel=Number.isFinite(timeValue)&&timeValue>0?fmtWaterRemaining(timeValue):"--";
     const title=guidance.title||"Water system is stable";
     const summary=guidance.summary||"Tank level, pump state, and connection look steady right now.";
@@ -1427,11 +1446,7 @@ function buildCustomerDecisionModel(snapshot=state.data.snapshot,system=state.da
     const staleTelemetry=telemetry==="stale";
     const analyticsReady=hasMeaningfulAnalyticsData(analytics);
     const level=hasDisplayNumber(snapshot.level)?Number(snapshot.level):0;
-    const timeValue=hasDisplayNumber(analytics?.insights?.empty_prediction)
-        ?Number(analytics.insights.empty_prediction)
-        :hasDisplayNumber(snapshot.empty_prediction)
-            ?Number(snapshot.empty_prediction)
-            :null;
+    const timeValue=estimatedRemainingHours(snapshot,analytics);
     const timeLabel=fmtWaterRemaining(timeValue);
     const usageChange=Number(analytics?.comparison?.change_pct);
     const hasUsageChange=analyticsReady&&analytics?.comparison&&analytics.comparison.change_pct!==null&&analytics.comparison.change_pct!==undefined&&!Number.isNaN(usageChange);
@@ -1618,7 +1633,7 @@ function updateCustomerDecisionUI({snapshot=state.data.snapshot,system=state.dat
         :(Number.isFinite(level)&&Number.isFinite(capacity)&&capacity>0?(level*capacity)/100:NaN);
     setText("customerKpiRemainingWater",Number.isFinite(remaining)?`${remaining.toFixed(1)} L`:"Collecting");
     setText("customerKpiWaterTime",model.timeLabel==="--"?"Collecting":model.timeLabel);
-    const remainingHours=Number(analytics?.guidance?.time_to_empty_hours??analytics?.insights?.empty_prediction);
+    const remainingHours=estimatedRemainingHours(snapshot,analytics);
     const expectedEmptyIso=Number.isFinite(remainingHours)&&remainingHours>0?new Date(Date.now()+(remainingHours*3600000)).toISOString():null;
     const expectedEmptyText=expectedEmptyIso?compactExpectedEmptyText(expectedEmptyIso):"Collecting";
     setText("tankExpectedEmptySummary",expectedEmptyText);
@@ -1844,7 +1859,7 @@ function setRefreshMeta(status,tone="ok",detail,detailKind="api"){state.refreshS
 function markRefreshed(status){state.lastRefreshAt=Date.now();setRefreshMeta(status,"ok","Updated just now","api");}
 function telemetryRefreshMeta(snapshot,system,freshStatus="Live status synced"){const telemetry=String(snapshot?.telemetry_status||system?.telemetry_status||"no-data").toLowerCase();const age=Number(snapshot?.seconds_since_sync??system?.seconds_since_sync);const detail=Number.isFinite(age)?`Device telemetry ${ageLabelFromMs(age*1000)} old.`:"Waiting for device telemetry.";if(telemetry==="live"||telemetry==="recent"||telemetry==="fresh")return{status:freshStatus,tone:"ok",detail:"Updated just now"};if(telemetry==="stale")return{status:"Telemetry stale",tone:"warn",detail};return{status:"Waiting for telemetry",tone:"warn",detail};}
 function markTelemetryRefresh(snapshot,system,freshStatus="Live status synced"){state.lastRefreshAt=Date.now();const meta=telemetryRefreshMeta(snapshot,system,freshStatus);setRefreshMeta(meta.status,meta.tone,meta.detail,"telemetry");}
-function updateRefreshClock(){if(!state.lastRefreshAt)return;if(state.refreshDetailKind==="telemetry"){const meta=telemetryRefreshMeta(state.data.snapshot,state.data.systemStatus,state.refreshStatus);setRefreshMeta(meta.status,meta.tone,meta.detail,"telemetry");return;}setRefreshMeta(state.refreshStatus,state.refreshTone,`Updated ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`,"api");}
+function updateRefreshClock(){if(!state.lastRefreshAt)return;if(state.refreshDetailKind==="telemetry"){const meta=telemetryRefreshMeta(state.data.snapshot,state.data.systemStatus,state.refreshStatus);setRefreshMeta(meta.status,meta.tone,meta.detail,"telemetry");return;}const prefix=state.refreshDetailKind==="summary"?"Last updated":"Updated";setRefreshMeta(state.refreshStatus,state.refreshTone,`${prefix} ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`,state.refreshDetailKind);}
 function setRefreshBusy(status){if(state.lastRefreshAt){setRefreshMeta(status,"warn",`Last good update ${ageLabelFromMs(Date.now()-state.lastRefreshAt)} ago`);return;}setRefreshMeta(status,"warn","Waiting for the first successful sync.");}
 function updateAnalyticsDownloadLink(){const link=document.getElementById("analyticsDownloadLink");if(!link)return;const blocked=customerFeedBlocked();const queryString=query();link.href=blocked?"#":(queryString?`${ANALYTICS_EXPORT_PATH}?${queryString}`:ANALYTICS_EXPORT_PATH);link.classList.toggle("is-disabled",blocked);link.setAttribute("aria-disabled",blocked?"true":"false");link.tabIndex=blocked?-1:0;}
 function selectedAnalyticsRangeLabel(){
@@ -2572,7 +2587,7 @@ function renderAnalytics(data){
         ?`${Number(data.analysis?.quality?.complete_day_count)} complete days${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% device-reading coverage`:""}`
         :(data.analysis?.quality?.usage_physically_plausible===false
             ?"Hidden because level changes conflict with observed refill cycles."
-            :"At least two complete days of reliable readings are required."));
+            :analyticsRangeIsToday()?"Today is still in progress; daily averages appear in the 7 Days view.":"At least two complete days of reliable readings are required."));
     setText("peak_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.peak_usage_day):"--");
     setText("peak_usage_value",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--");
     setText("lowest_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.lowest_usage_day):"--");
@@ -2608,7 +2623,7 @@ function renderAnalytics(data){
         const note=node.parentElement?.querySelector(".subvalue");
         if(note)note.textContent=forecastReady
             ?`${Number(data.prediction?.confidence||0).toFixed(0)}% confidence | ${sampleDays} complete days`
-            :(data.prediction?.limitations?.[0]||"Not enough reliable history to forecast.");
+            :(analyticsRangeIsToday()?"Today is still in progress; use the 7 Days view for a complete-day forecast.":(data.prediction?.limitations?.[0]||"Not enough reliable history to forecast."));
     });
     updateCustomerSpotlightCards({snapshot:state.data.snapshot,system:state.data.systemStatus,analytics:data});
     updateCustomerAnalyticsKpis(data);
@@ -2679,9 +2694,15 @@ function eventStatusLines(event){
     if(sensors.length)lines.push(`Sensors · ${sensors.join(" · ")}`);
     const snapshot=state.data.snapshot||{};
     const valveSource=(details&&(details.inlet_valve_route||details.municipal_valve_route||details.inlet_valve_state||details.municipal_valve_state))?details:snapshot;
-    const valveState=String(valveSource.inlet_valve_state||valveSource.municipal_valve_state||"").toUpperCase();
-    const valveRoute=String(valveSource.inlet_valve_route||valveSource.municipal_valve_route||"").replace(/_/g," ");
-    if(valveState||valveRoute)lines.push(`Motorized valve${captured&&valveSource===snapshot?" (current)":""} · ${valveState||"--"} · Path: ${valveRoute||"--"}`);
+    const valveStateRaw=String(valveSource.inlet_valve_state||valveSource.municipal_valve_state||"").trim().toLowerCase();
+    const valveRouteRaw=String(valveSource.inlet_valve_route||valveSource.municipal_valve_route||"").trim().toLowerCase();
+    const valveEnabledRaw=valveSource.motorized_valve_enabled??valveSource.municipal_valve_feature_enabled??valveSource.municipal_valve_enabled??snapshot.municipal_valve_feature_enabled??snapshot.municipal_valve_enabled;
+    const valveEnabled=visualizationFlag(valveEnabledRaw,valveStateRaw!==""&&!["unknown","disabled","not_installed"].includes(valveStateRaw));
+    const valveStateLabels={open:"Open (municipal-water inlet selected)",opening:"Opening toward municipal-water inlet",closed:"Closed (source-tank inlet selected)",closing:"Closing toward source-tank inlet",fault:"Fault — check valve or wiring",error:"Error — check valve or wiring",disabled:"Disabled / not installed",not_installed:"Not installed",unknown:"Position not reported"};
+    const valveRouteLabels={source:"Source Tank → Upper Tank",municipal:"Municipal Water → Upper Tank",upper:"Source Tank → Upper Tank"};
+    const valveState=valveEnabled?(valveStateLabels[valveStateRaw]||valveStateRaw.replace(/_/g," ")||"Position not reported"):"Disabled / not installed";
+    const valveRoute=valveRouteLabels[valveRouteRaw]||valveRouteRaw.replace(/_/g," ")||"Water path not reported";
+    if(valveStateRaw||valveRouteRaw||valveEnabledRaw!==undefined)lines.push(`Motorized valve${captured&&valveSource===snapshot?" (current)":""} · ${valveState} · Water path: ${valveRoute}`);
     const wifi=text("wifi_state","wifi").toUpperCase()||"--";
     const rssi=Number(source?.wifi_rssi);
     lines.push(`Connectivity · Wi-Fi: ${wifi}${Number.isFinite(rssi)?` · ${Math.round(rssi)} dBm`:""}`);
@@ -2722,6 +2743,7 @@ function setCommandButtonsDisabled(disabled){state.commandBusy=disabled;updateCo
 function sendMotorCommand(path,label){
     const action=String(label||"").toUpperCase();
     const startRequest=action==="ON";
+    if(startRequest){const duration=Number(document.querySelector(".pump-run-duration")?.value||0);path=`${path}?duration_minutes=${duration}`;}
     const sourceState=buildSourceTankState(state.data.snapshot);
     if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}
     const dialog=document.getElementById("motorConfirmDialog");
@@ -2747,10 +2769,11 @@ function closeMotorConfirmation(confirmed){
     state.pendingMotorConfirmation=null;
     if(confirmed&&request)executeMotorCommand(request.path,request.label);
 }
-async function executeMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});const queuedAt=localizedTimeText(payload.queued_at,"now");const message=label==="ON"?`Motor ON request queued at ${queuedAt}. Auto threshold protection remains active.`:`Motor OFF request queued at ${queuedAt}. Auto threshold protection remains active.`;if(!startRequest){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
+async function monitorMotorCommand(requestId,label){for(let attempt=0;attempt<15;attempt+=1){await new Promise((resolve)=>setTimeout(resolve,2000));const status=await fetchJSON(scopedUrl(`/motor/command-status/${encodeURIComponent(requestId)}`));const phase=String(status.status||"queued").toLowerCase();const phaseLabel={queued:"Waiting for device",delivered:"Delivered to device",accepted:"Accepted by firmware",running:"Motor physically running",stopped:"Motor stopped",rejected:"Rejected",timed_out:"Timed out"}[phase]||phase;banner("commandBanner",`${label} · ${phaseLabel}${status.result_reason?` — ${String(status.result_reason).replaceAll("_"," ")}`:""}`,phase==="rejected"||phase==="timed_out"?"danger":"info");if(["running","stopped","rejected","timed_out"].includes(phase)){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;await refreshAll(true);return status;}}state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});banner("commandBanner",`${label} · Device has not acknowledged the command yet. It remains queued for up to 10 minutes; retry only if it times out.`,"warn");return null;}
+async function executeMotorCommand(path,label){const startRequest=String(label||"").toUpperCase()==="ON";const sourceState=buildSourceTankState(state.data.snapshot);if(startRequest&&!sourceState.canStart){banner("commandBanner",sourceState.hintText,"warn");return;}state.pendingPumpStart=startRequest;state.pendingPumpStartUntil=startRequest?Date.now()+PUMP_START_GRACE_MS:0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:state.pendingPumpStart});setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl(path),{method:"POST"});banner("commandBanner",`${label} · Waiting for device (queued ${localizedTimeText(payload.queued_at,"now")})`,"info");monitorMotorCommand(payload.request_id,label).catch((error)=>console.log("command status error",error));}catch(error){state.pendingPumpStart=false;state.pendingPumpStartUntil=0;updatePumpLogoMotion({motorState:state.data.snapshot?.motor||"",pending:false});console.log("command error",error);banner("commandBanner",error.message||`Unable to send ${label} command. Please retry.`,"danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendCalibrateCommand(){setCommandButtonsDisabled(true);try{const payload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});banner("commandBanner",`Calibration request queued at ${localizedTimeText(payload.queued_at,"now")}. The device will use the current sensor reading.`,"info");await refreshAll(true);}catch(error){console.log("calibration command error",error);banner("commandBanner","Unable to queue calibration command. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
 async function sendTankConfig({calibrateAfter=false}={}){const capacity=Number(document.getElementById("tankCapacityLiters").value);if(!Number.isFinite(capacity)){banner("commandBanner","Enter tank capacity in liters.","warn");return;}if(capacity<50||capacity>50000){banner("commandBanner","Tank capacity must be between 50 and 50000 liters.","warn");return;}setCommandButtonsDisabled(true);try{const params=new URLSearchParams({capacity_liters:String(capacity)});if(SELECTED_DEVICE_ID)params.set("device_id",SELECTED_DEVICE_ID);const payload=await fetchJSON("/sensor/configure",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},body:params.toString()});let message=`Tank capacity queued at ${localizedTimeText(payload.queued_at,"now")}: ${Number(payload.capacity_liters).toFixed(1)} L.`;if(calibrateAfter){const calibrationPayload=await fetchJSON(scopedUrl("/sensor/calibrate"),{method:"POST"});message+=` Calibration queued at ${localizedTimeText(calibrationPayload.queued_at,"now")} to learn tank height.`;}banner("commandBanner",message,"info");await refreshAll(true);}catch(error){console.log("tank config command error",error);banner("commandBanner",error.message||"Unable to queue tank config. Please retry.","danger");}finally{setCommandButtonsDisabled(false);}}
-async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(VIEWER_ROLE==="customer"?EVENT_FEED_FETCH_LIMIT:EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);markTelemetryRefresh(payload.snapshot,payload.system_status,"Dashboard synced");}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
+async function bootstrapDashboard(){if(customerFeedBlocked()){applyCloudFeedAvailability();return;}if(state.inFlight.bootstrap)return;state.inFlight.bootstrap=true;setRefreshButtonDisabled(true);setRefreshBusy("Loading dashboard");try{const payload=await fetchJSON(scopedUrl(`${API}/dashboard/bootstrap`,new URLSearchParams({event_limit:String(VIEWER_ROLE==="customer"?EVENT_FEED_FETCH_LIMIT:EVENT_FEED_LIMIT)})));syncSection("snapshot",payload.snapshot,renderSnapshot);syncSection("systemStatus",payload.system_status,renderSystemStatus);syncSection("events",payload.events,renderEvents);if(payload.last_updated){const normalized=String(payload.last_updated).replace(" ","T")+"Z";const savedAt=Date.parse(normalized);state.lastRefreshAt=Number.isFinite(savedAt)?savedAt:Date.now();setRefreshMeta("Dashboard summary loaded","ok",`Last updated: ${localizedTimeText(payload.last_updated)}`,"summary");}else{setRefreshMeta("Summary pending","warn","Last updated: waiting for telemetry","summary");}}catch(error){console.log("bootstrap error",error);setRefreshMeta("Dashboard offline","bad","Unable to load the initial dashboard data.");banner("commandBanner","Dashboard bootstrap failed. Check the Flask server connection.","danger");}finally{state.inFlight.bootstrap=false;setRefreshButtonDisabled(false);}}
 async function refreshLive({force=false}={}){if(customerFeedBlocked()||state.inFlight.live||(!force&&isPageHidden()))return;state.inFlight.live=true;try{await syncLocalDashboardSnapshot({force});const [snapshot,system]=await Promise.all([fetchJSON(scopedUrl(`${API}/last`)),fetchJSON(scopedUrl(`${API}/system/status`))]);const changed=syncSection("snapshot",snapshot,renderSnapshot)|syncSection("systemStatus",system,renderSystemStatus);if(changed||force)markTelemetryRefresh(snapshot,system,"Live status synced");if((changed||force)&&(!state.analyticsUpdatedAt||Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS))loadAnalytics({force:true});}catch(error){console.log("live refresh error",error);setRefreshBusy("Live sync delayed");}finally{state.inFlight.live=false;}}
 async function refreshEvents({force=false}={}){if(customerFeedBlocked()||state.inFlight.events||(!force&&isPageHidden()))return;state.inFlight.events=true;try{const events=await fetchJSON(scopedUrl(`${API}/events`,new URLSearchParams({limit:String(VIEWER_ROLE==="customer"?EVENT_FEED_FETCH_LIMIT:EVENT_FEED_LIMIT)})));const changed=syncSection("events",events,renderEvents);if(changed||force)markRefreshed("Activity synced");}catch(error){console.log("events refresh error",error);setRefreshBusy("Activity sync delayed");}finally{state.inFlight.events=false;}}
 async function prefetchReadyAnalyticsRanges(){

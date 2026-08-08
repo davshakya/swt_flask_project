@@ -14,7 +14,9 @@ env/
 .pytest-tmp/
 .tmp/
 sandbox-tmp/
-tmp/restart.txt
+# Passenger watches this tracked file for zero-touch production reloads.
+!tmp/
+!tmp/restart.txt
 pytest-cache-files-*/
 .coverage
 .coverage.*
@@ -27,7 +29,7 @@ htmlcov/
 .vscode/*
 !.vscode/
 !.vscode/settings.json
-!.vscode/pytest.env
+.vscode/pytest.env
 .DS_Store
 Thumbs.db
 

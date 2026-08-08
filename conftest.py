@@ -32,6 +32,19 @@ MYSQL_STDOUT_LOG = PROJECT_ROOT.parent / "mysql-local.out.log"
 MYSQL_STDERR_LOG = PROJECT_ROOT.parent / "mysql-local.err.log"
 
 
+def _load_local_pytest_env() -> None:
+    """Load VS Code's local test credentials for command-line pytest too."""
+    env_path = PROJECT_ROOT / ".vscode" / "pytest.env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip())
+
+
 def _mysql_is_listening() -> bool:
     try:
         result = subprocess.run(
@@ -126,12 +139,13 @@ def cleanup_test_artifacts() -> None:
 
 
 def pytest_sessionstart(session):
+    _load_local_pytest_env()
     os.environ["DB_BACKEND"] = "mysql"
     os.environ["DATABASE_URL"] = ""
     os.environ.setdefault("MYSQL_HOST", "127.0.0.1")
-    os.environ.setdefault("MYSQL_PORT", "3307")
-    os.environ.setdefault("MYSQL_USER", "swt")
-    os.environ.setdefault("MYSQL_PASSWORD", "swt-test-db-password")
+    os.environ.setdefault("MYSQL_PORT", "3306")
+    os.environ.setdefault("MYSQL_USER", "root")
+    os.environ.setdefault("MYSQL_PASSWORD", "")
     os.environ.setdefault("MYSQL_DATABASE", "swt_flask_test")
     os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-for-mysql-only-backend-2026")
     cleanup_test_artifacts()

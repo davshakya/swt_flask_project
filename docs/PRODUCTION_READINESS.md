@@ -1,6 +1,6 @@
 # Production Readiness Guide
 
-Last refreshed: `2026-04-30`
+Last refreshed: `2026-08-08`
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
@@ -55,6 +55,7 @@ The backend is stateful today because it stores:
 - customer accounts
 - persisted dashboard/auth settings
 - device service settings
+- persisted Device Setup Type selections
 - firmware artifact metadata and uploaded firmware binaries
 
 For hosted deployment:
@@ -98,6 +99,8 @@ Before field rollout:
 - confirm the device reports the right `device_id`
 - confirm Wi-Fi reset and rejoin workflow are documented for support
 - confirm local firmware upload/update behavior on a non-critical device before using it for customer updates
+- confirm production firmware reports no simulator capability/state fields and that saving a Device Setup Type does not queue simulator commands
+- validate the selected Device Setup Type against installed plumbing, sensors, and valves; a dashboard preset cannot make absent hardware safe
 
 Current repo note:
 

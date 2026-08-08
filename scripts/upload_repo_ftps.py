@@ -17,11 +17,21 @@ DEFAULT_USERNAME = "swt_flask@salewell.co.in"
 DEFAULT_REMOTE_ROOT = ""
 DEFAULT_PASSWORD_ENV_VAR = "SWT_FTP_PASSWORD"
 DEFAULT_LOCAL_ROOT = Path(__file__).resolve().parent.parent
+WORKSPACE_ROOT = DEFAULT_LOCAL_ROOT.parent
+CUSTOMER_RAG_UPLOADS = {
+    WORKSPACE_ROOT / "docs" / "SALEWELL_FEATURES_EN.md": "docs/customer_sources/SALEWELL_FEATURES_EN.md",
+    WORKSPACE_ROOT / "docs" / "SALEWELL_FEATURES_HI.md": "docs/customer_sources/SALEWELL_FEATURES_HI.md",
+    WORKSPACE_ROOT / "docs" / "INSTALLATION_RULE_BOOK_HI_EN.md": "docs/customer_sources/INSTALLATION_RULE_BOOK_HI_EN.md",
+    WORKSPACE_ROOT / "docs" / "COMPONENTS_AND_BOM.md": "docs/customer_sources/COMPONENTS_AND_BOM.md",
+    WORKSPACE_ROOT / "docs" / "MODULAR_PRODUCT_ARCHITECTURE.md": "docs/customer_sources/MODULAR_PRODUCT_ARCHITECTURE.md",
+    WORKSPACE_ROOT / "Smart_Water_Tank_100_Device_Estimation.docx": "docs/customer_sources/Smart_Water_Tank_100_Device_Estimation.docx",
+    WORKSPACE_ROOT / "Smart_Water_Tank_Controller_BOM.docx": "docs/customer_sources/Smart_Water_Tank_Controller_BOM.docx",
+}
 DEFAULT_INSECURE_FTPS = True
 PROTECTED_RUNTIME_HINT = (
     "Runtime config and data are protected by default: .env files, "
-    "database files, data directories, MySQL data, logs, and local artifacts are skipped."
-    " device.env is uploaded so firmware and Flask stay in sync."
+    "including device.env, database files, data directories, MySQL data, logs, "
+    "and local artifacts are skipped. Maintain production device.env directly on the host."
 )
 
 EXCLUDED_DIRECTORY_NAMES = {
@@ -44,15 +54,12 @@ EXCLUDED_DIRECTORY_NAMES = {
 
 EXCLUDED_FILE_NAMES = {
     ".DS_Store",
-    ".env",
     "Thumbs.db",
     "run_local.py"
 }
 
 EXCLUDED_RELATIVE_PATHS = {
-    ".env",
     "conftest.py",
-    "flask_app/.env",
     "pytest.ini",
 }
 
@@ -96,9 +103,6 @@ def join_remote_path(base_path: str, child_path: str) -> str:
 def should_include(relative_path: str) -> bool:
     normalized = relative_path.replace("\\", "/").strip("/")
 
-    if normalized == "device.env":
-        return True
-
     if normalized in EXCLUDED_RELATIVE_PATHS:
         return False
 
@@ -124,8 +128,7 @@ def should_include(relative_path: str) -> bool:
 
 def iter_protected_runtime_candidates(local_root: Path) -> Iterable[str]:
     candidates = (
-        ".env",
-        "flask_app/.env",
+        "device.env",
         "data",
         "mysql-data",
         "artifacts",
@@ -153,6 +156,10 @@ def iter_upload_items(local_root: Path) -> Iterable[UploadItem]:
                 continue
             if should_include(relative_path):
                 yield UploadItem(local_path=full_path, relative_path=relative_path)
+    if local_root.resolve() == DEFAULT_LOCAL_ROOT.resolve():
+        for source, relative_path in CUSTOMER_RAG_UPLOADS.items():
+            if source.is_file():
+                yield UploadItem(local_path=source, relative_path=relative_path)
 
 
 def get_password_text(password_arg: str | None, password_env_var: str, username: str, dry_run: bool) -> str:

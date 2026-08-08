@@ -35,3 +35,9 @@ max_requests_jitter = env_int("GUNICORN_MAX_REQUESTS_JITTER", 25 if max_requests
 loglevel = os.environ.get("LOG_LEVEL", "info")
 accesslog = "-" if env_flag("GUNICORN_ACCESS_LOG_ENABLED", default=not IS_RENDER) else None
 errorlog = "-"
+_color_logs = env_flag("SWT_LOG_COLOR", default=False)
+_cyan = "\033[36m" if _color_logs else ""
+_green = "\033[32m" if _color_logs else ""
+_reset = "\033[0m" if _color_logs else ""
+access_log_format = f'{_cyan}%(t)s{_reset} {_green}[INFO]{_reset} HTTP client=%(h)s request="%(r)s" status=%(s)s bytes=%(b)s duration=%(L)ss user_agent="%(a)s"'
+error_log_format = f"{_cyan}[%(asctime)s]{_reset} [%(levelname)s] %(message)s"

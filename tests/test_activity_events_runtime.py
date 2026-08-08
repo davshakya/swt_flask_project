@@ -258,3 +258,57 @@ def test_telemetry_pushed_firmware_logs_are_persisted_as_activity_events():
 
     assert any(event["kind"] == "firmware_command_applied" for event in events)
     assert any("SERVICECFG5" in event["message"] for event in events)
+
+
+def test_safety_state_and_peer_sequence_diagnostics_are_persisted():
+    device_id = "swt-999-999-999-993"
+    payload = {
+        "device_id": device_id,
+        "device_source": server.DEVICE_SOURCE_REAL,
+        "level": 64.0,
+        "motor": "OFF",
+        "mode": "AUTO",
+        "sensor": "OK",
+        "controller_state": "WAITING_FOR_SOURCE",
+        "upper_high_float_enabled": True,
+        "upper_high_float_active": False,
+        "source_low_float_enabled": True,
+        "source_low_float_active": True,
+        "direct_peer_last_sequence": 91,
+        "direct_peer_duplicate_packets": 2,
+        "direct_peer_out_of_order_packets": 3,
+        "direct_peer_estimated_lost_packets": 4,
+    }
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    try:
+        server.process_telemetry_payload(payload, source_ip="unit-test", transport="unit-test")
+        with server.get_db() as db:
+            row = db.execute(
+                """
+                SELECT controller_state, upper_high_float_enabled, upper_high_float_active,
+                       source_low_float_enabled, source_low_float_active,
+                       direct_peer_last_sequence, direct_peer_duplicate_packets,
+                       direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets
+                FROM tank_data WHERE device_id = ? ORDER BY id DESC LIMIT 1
+                """,
+                (device_id,),
+            ).fetchone()
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    columns = (
+        "controller_state",
+        "upper_high_float_enabled",
+        "upper_high_float_active",
+        "source_low_float_enabled",
+        "source_low_float_active",
+        "direct_peer_last_sequence",
+        "direct_peer_duplicate_packets",
+        "direct_peer_out_of_order_packets",
+        "direct_peer_estimated_lost_packets",
+    )
+    assert tuple(row[column] for column in columns) == ("WAITING_FOR_SOURCE", 1, 0, 1, 1, 91, 2, 3, 4)

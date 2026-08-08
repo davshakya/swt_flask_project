@@ -139,6 +139,41 @@ def test_simulator_flags_survive_telemetry_snapshot_refresh():
     assert bool(snapshot["upper_turbidity_simulated"])
 
 
+def test_snapshot_uses_saved_source_capacity_when_history_has_no_capacity_column():
+    device_id = "swt-source-capacity-snapshot-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+    try:
+        server.upsert_device_service_config(
+            device_id,
+            lower_tank_capacity_liters=1000.0,
+        )
+        server.process_telemetry_payload(
+            {
+                "device_id": device_id,
+                "device_source": server.DEVICE_SOURCE_REAL,
+                "level": 50.0,
+                "lower_tank_level": 100.0,
+                "motor": "OFF",
+                "mode": "AUTO",
+                "sensor": "OK",
+            },
+            source_ip="test",
+            transport="http",
+        )
+        snapshot = server.fetch_device_snapshot(device_id)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+    assert snapshot is not None
+    assert snapshot["source_tank_capacity_liters"] == 1000.0
+    assert snapshot["lower_water_available_label"] == "1000.0 L / 1000.0 L"
+
+
 def test_mobile_simulator_route_queues_firmware_simulator_commands():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 
@@ -223,8 +258,11 @@ def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     route_body = server_source[route_start : server_source.index('\n\n@app.route("/api/mobile/analytics")', route_start)]
 
     assert 'include_analytics = str(request.args.get("include_analytics", "0"))' in route_body
-    assert '"monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id)' in route_body
-    assert '"audit": fetch_audit_events(limit=audit_limit, device_id=scoped_device_id)' in route_body
+    assert "load_persisted_dashboard_summary(scoped_device_id)" in route_body
+    assert '"events": list(summary.get("events") or [])[:event_limit]' in route_body
+    assert '"audit": list(summary.get("audit") or [])[:audit_limit]' in route_body
+    assert "build_monitoring_summary_payload(" not in route_body
+    assert "fetch_audit_events(" not in route_body
     assert "if include_analytics and current_customer_ai_analysis_enabled()" in route_body
     assert 'payload["analytics"] = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)' in route_body
     assert 'payload["analytics"] = build_analytics_fallback_payload(' in route_body
@@ -332,8 +370,8 @@ def test_cloud_ingestion_accepts_firmware_device_ip_url():
     assert 'cleaned["level"] = cleaned.get("main_tank_level")' in server_source
     assert 'relay_state_label(cleaned.get("relay_on"))' in server_source
     assert 'relay_state_label(cleaned.get("relay"))' in server_source
-    assert 'cleaned["motor"] = relay_state' in server_source
-    assert 'cleaned["motor"] = cleaned.get("pump")' in server_source
+    assert 'cleaned["motor"] = pump_state' in server_source
+    assert 'pump_state = relay_state_label(cleaned.get("pump"))' in server_source
     assert 'cleaned["sensor"] = cleaned.get("upper_sensor")' in server_source
 
 
@@ -341,7 +379,7 @@ def test_registered_device_key_can_recover_from_stale_wildcard_key():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
 
     assert "def registered_device_auth_rule_matches(device_id, device_key):" in server_source
-    assert 'if matched_rule.get("kind") == "wildcard":' in server_source
+    assert "Admin registration is the authoritative per-device credential" in server_source
     assert "registered_rule = registered_device_auth_rule_matches(normalized_device_id, device_key)" in server_source
     assert "matched_rule = registered_rule" in server_source
 

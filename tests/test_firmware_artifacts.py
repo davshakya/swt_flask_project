@@ -24,6 +24,12 @@ def test_detect_firmware_binary_role_from_embedded_marker():
     assert detect_firmware_binary_role(b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=slave") == "slave"
 
 
+def test_detect_slave_role_ignores_generic_master_route_strings():
+    payload = b"swt_master route labels slave_tank peer-only-slave swt_slave"
+
+    assert detect_firmware_binary_role(payload) == "slave"
+
+
 def test_validate_firmware_binary_role_rejects_mismatch():
     with pytest.raises(ValueError, match="is slave firmware, but this upload slot expects master firmware"):
         validate_firmware_binary_role(

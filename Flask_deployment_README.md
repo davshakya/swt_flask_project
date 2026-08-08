@@ -1,10 +1,10 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-06-19`
+Last refreshed: `2026-08-08`
 
 This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
 
-The backend is only the remote dashboard and command layer. The field devices keep their local control loops on the ESP8266, so they continue working if this Flask deployment is offline.
+The backend is only the remote dashboard and command layer. Field devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master), so they continue working if this Flask deployment is offline.
 
 Use this file together with:
 
@@ -35,8 +35,15 @@ How it works:
 - `server.py` exposes the Flask app as `app`
 - `passenger_wsgi.py` exposes that app to Passenger as `application`
 - `requirements.txt` is the single dependency file for the whole project
-- `flask_app/.env` holds backend settings
-- `device.env` holds shared device/cloud settings
+- `device.env` is the single local file for backend, database, notification,
+  shared device, and cloud settings
+
+On the first restart after this release, startup schema maintenance adds the
+persisted `device_service_configs.device_setup_type` column when it is missing.
+Back up MySQL first, restart Passenger once, and confirm a Device Setup Type can
+be saved and reloaded from the device-detail page. Presets send automatic
+scenario commands only when current telemetry identifies simulator-enabled
+test firmware; production devices receive service flags only.
 
 ## Scope
 
@@ -155,22 +162,16 @@ Why:
 
 ## Required Configuration Files
 
-Create these two files before first production boot:
+Create `device.env` before first production boot, starting from
+`device.env.example`. Legacy `.env` and `flask_app/.env` files are not loaded.
 
-1. `flask_app/.env`
-2. `device.env`
-
-Start from:
-
-- `flask_app/.env.example`
-- `device.env.example`
-
-### Recommended `flask_app/.env` values
+### Recommended `device.env` values
 
 Use real secrets, not the placeholder values:
 
 ```dotenv
 APP_SECRET_KEY=replace-with-a-long-random-secret
+SWT_HOSTING_PROFILE=cpanel
 DB_BACKEND=mysql
 DATABASE_URL=
 MYSQL_HOST=localhost
@@ -178,6 +179,15 @@ MYSQL_PORT=3306
 MYSQL_USER=<cpanel-user>_swtadmin
 MYSQL_PASSWORD=replace-with-mysql-password
 MYSQL_DATABASE=<cpanel-user>_swtadmin
+MYSQL_AUTO_CREATE_DATABASE=false
+MYSQL_CONNECT_TIMEOUT_SECONDS=5
+MYSQL_READ_TIMEOUT_SECONDS=20
+MYSQL_WRITE_TIMEOUT_SECONDS=20
+MYSQL_LOCK_WAIT_TIMEOUT_SECONDS=5
+MYSQL_OPTIMIZE_ENABLED=false
+BACKGROUND_DB_MAX_WORKERS=1
+ANALYTICS_SYNC_EVENTS_ON_REQUEST=false
+DASHBOARD_SUMMARY_RECONCILIATION_ENABLED=false
 LOGIN_USERNAME=admin
 LOGIN_PASSWORD=replace-with-a-strong-password
 CUSTOMER_COMMUNICATION_FROM_EMAIL=support@salewell.co.in
@@ -210,6 +220,11 @@ RELAY_COMMAND_URLS=
 Notes:
 
 - create the MySQL database and assign the MySQL user in cPanel before restarting the app
+- keep `MYSQL_AUTO_CREATE_DATABASE=false`; shared cPanel database users normally cannot create databases
+- keep `MYSQL_OPTIMIZE_ENABLED=false`; use cPanel/phpMyAdmin maintenance during a planned window instead of locking production tables from a web request
+- the one-worker background database limit is intentional for the account's restricted memory/process allowance
+- ordinary reads may reconnect and retry once after a dropped connection; writes, DDL, and locking reads are never replayed automatically
+- if `DATABASE_URL` is used instead of `MYSQL_*`, percent-encode special characters in its username and password
 - create or verify the cPanel mailbox `support@salewell.co.in`; `SMTP_PASSWORD` must be that mailbox password for customer forgot-password emails
 - `WHATSAPP_TEAM_PHONE=918796452878` sends internal demo/enquiry notifications to the SaleWell team number
 - `WHATSAPP_WEBHOOK_URL` must point to a real WhatsApp Business provider/proxy endpoint; use `https://salewell.co.in/integrations/whatsapp/send` only if you deploy that route on `salewell.co.in` and it forwards to Meta WhatsApp Cloud API, Twilio, WATI, Interakt, AiSensy, or another provider
@@ -337,7 +352,7 @@ Important:
 For this repository, the cleanest setup is:
 
 - leave the cPanel `Environment variables` section empty
-- create `flask_app/.env` and `device.env` in the app folder instead
+- create `device.env` in the app folder instead
 
 This project already loads those files automatically on startup.
 
@@ -399,7 +414,7 @@ After the basic smoke test, also verify:
 2. Upload the repo into the same folder you configured as the cPanel `Application root`.
 3. Recommended path: `/home/<cpanel-user>/apps/swt_flask_project/`.
 4. Create `/home/<cpanel-user>/swt_data/`.
-5. Add `flask_app/.env`.
+5. Add `device.env` from `device.env.example`.
 6. Add `device.env`.
 7. Install dependencies with `pip install -r requirements.txt`.
 8. Restart the app.
@@ -451,7 +466,7 @@ Check:
 - `SWT_DEVICE_API_KEY`
 - `SWT_CLOUD_BASE_URL=https://salewell.co.in/`
 - whether the device is posting to `/status`
-- whether the `swt_master` firmware has telemetry service enabled and the matching device key is registered in Flask
+- whether the `swt_esp32_master` firmware (or legacy `swt_master`) has telemetry service enabled and the matching device key is registered in Flask
 
 ## Related Workspace Docs
 
@@ -463,6 +478,6 @@ Check:
 ## Deployment Summary
 
 ```text
-Upload repo -> create Passenger app -> set flask_app/.env and device.env ->
+Upload repo -> create Passenger app -> set device.env ->
 install requirements -> restart app -> test /health and /login/admin
 ```

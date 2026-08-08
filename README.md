@@ -1,8 +1,22 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-07-26`
+Last refreshed: `2026-08-08`
 
-This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. The devices still keep their local control loops on the ESP8266 when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
+## Developer Setup
+
+On Ubuntu/WSL, prepare the complete workspace from its root:
+
+```bash
+cd ~/workspace/all_swt_project
+./getting_start.sh
+source swt_flask_project/.venv/bin/activate
+```
+
+The bootstrap installs both `requirements.txt` and `requirements-dev.txt` in
+this project's `.venv`. It does not create or overwrite `device.env`, start
+Flask, start Docker, or modify MySQL.
+
+This repository contains the Flask backend for the SaleWell Smart Tank system. It receives telemetry from tank controllers, stores operational state in MySQL/MariaDB, serves the web dashboard and PWA, exposes mobile-friendly APIs, queues control commands for devices, and provides monitoring, alerting, and support tooling. Devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master) when Flask or the internet is unavailable; Flask adds remote visibility and command routing on top.
 
 This backend is one part of the wider SaleWell IoT Solutions stack. The shared `device.env` file is designed so the firmware, Flask backend, and companion clients can use the same device identity and endpoint settings.
 
@@ -36,6 +50,8 @@ Within the wider workspace:
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
 - MySQL/MariaDB schema initialization for local and hosted deployment
 - Independent AJAX simulator switches for tank level, municipal water, motorized valve, lower turbidity, and upper turbidity. Simulator state is read back from persisted device telemetry after refresh.
+- A persisted Device Setup Type selector with six supported route presets plus Custom/manual configuration. Saving a preset applies compatible service flags and automatic mode as one configuration.
+- Automatic preset scenarios for simulator-enabled firmware: reset injected faults and overrides, seed route-appropriate tank levels, and enable only the installed tank, municipal, valve, and turbidity simulators. Production firmware is detected from telemetry and does not receive simulator-only commands.
 - The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
 - Master Configuration keeps the optional municipal-water sensor independent from the motorized inlet valve. Sensor-free installations use firmware level-rise detection instead of disabling valve routing.
 - The public homepage keeps the original rooftop preview image. Its **Dashboard Preview** link opens `static/marketing/water_flow_animation.html`; regenerate that deployed asset with `python ../scripts/sync_water_flow_animation.py` after changing the source animation.
@@ -61,8 +77,7 @@ Simulator prerequisites, workflows, transitions, and troubleshooting are in [`..
 | `flask_app/__init__.py` | Package export for `app` |
 | `flask_app/templates/` | Login, dashboard, admin, and device-detail UI templates |
 | `flask_app/static/` | PWA assets, frontend JS, and fallback `version.json` for Android update checks |
-| `flask_app/.env.example` | Example backend environment file |
-| `device.env.example` | Example shared device identity/settings file |
+| `device.env.example` | Canonical example for Flask backend settings and shared device identity/settings |
 | `requirements.txt` | Single dependency file for the whole project, including ML support |
 | `gunicorn.conf.py` | Root wrapper that loads `flask_app/gunicorn.conf.py` |
 | `Procfile` | Procfile for gunicorn-based platforms |
@@ -80,6 +95,73 @@ Simulator prerequisites, workflows, transitions, and troubleshooting are in [`..
 5. Browser or mobile control actions queue commands in `device_command_queue`; optional integrations can relay selected payloads when configured.
 6. Devices poll `GET /device/command`, execute the command, then confirm delivery with `POST /device/command/ack`.
 
+## MCP Server and RAG
+
+The backend now includes local-document RAG and a stdio MCP server. It indexes
+this project's `README.md` and `docs/` first, plus workspace-level `../docs`
+and `../README.md` when they exist. Set
+`RAG_DOCUMENT_PATHS` to an OS-path-separator-delimited list of other Markdown,
+text, reStructuredText, or DOCX files/directories. Relative paths start from
+`swt_flask_project`, so `RAG_DOCUMENT_PATHS=README.md:docs` works on Linux.
+
+Anonymous homepage answers use a separate customer-safe allowlist. By default
+it includes the chatbot knowledge base, customer FAQ, English/Hindi
+feature guides, installation rule book, components/BOM, modular architecture,
+and customer BOM/estimation DOCX files. Internal production, Jenkins, pytest,
+and maintenance documents are excluded. Override this list only with
+visitor-safe paths using `PUBLIC_RAG_DOCUMENT_PATHS`.
+
+The FTPS uploader packages workspace-level customer sources into
+`docs/customer_sources/` on the hosted Flask application, so the curated
+corpus remains available on cPanel even when only `swt_flask_project` is
+uploaded. Runtime configuration files and internal workspace documents remain
+excluded.
+
+For HTTP access, set `RAG_ENABLED=true` and a strong `RAG_API_KEY`, then send
+the key as `Authorization: Bearer <RAG_API_KEY>` (an authenticated dashboard
+session also works):
+
+```bash
+curl -X POST http://localhost:8000/api/rag/ask \
+  -H "Authorization: Bearer $RAG_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"How does overflow protection work?"}'
+```
+
+The routes are `POST /api/rag/search`, `POST /api/rag/ask`, and
+`POST /api/rag/refresh`. Retrieval uses the existing scikit-learn dependency
+and works without a cloud key. With `OPENAI_API_KEY` configured, `/ask`
+generates a grounded answer with source citations; without it, the endpoint
+returns the strongest matching source passage.
+
+The existing homepage chatbot keeps its deterministic pricing, plan, booking,
+and contact flows. Questions that do not match those flows fall back to the
+chatbot-specific `POST /chatbot/ask` handler, which searches the same RAG index without exposing
+`RAG_API_KEY` to the browser. This public route limits question length and
+requests per client; tune `PUBLIC_RAG_RATE_LIMIT`,
+`PUBLIC_RAG_RATE_WINDOW_SECONDS`, and `PUBLIC_RAG_MAX_QUESTION_LENGTH` for the
+production traffic profile. Only place visitor-safe content in configured RAG
+document paths.
+
+Install its optional dependency with `pip install -r requirements-mcp.txt`,
+then start the MCP server from `swt_flask_project` with `python mcp_server.py`. A
+typical MCP client configuration is:
+
+```json
+{
+  "mcpServers": {
+    "salewell-smart-tank": {
+      "command": "python",
+      "args": ["D:/all_swt_project/swt_flask_project/mcp_server.py"]
+    }
+  }
+}
+```
+
+The MCP tools are `search_knowledge_base`, `ask_knowledge_base`, and
+`refresh_knowledge_base`. The stdio server is intended to be launched by a
+trusted local MCP client; it does not expose a network listener.
+
 Pump `Start` and `Stop` commands are logical commands. On current default
 firmware they become short relay pulses for the physical green Start and red
 Stop/open circuits. Old maintained-relay firmware can still interpret them as
@@ -88,16 +170,15 @@ panel safety wiring.
 
 ## Local Setup
 
-### 1. Copy the example config files
+### 1. Copy the example config file
 
 PowerShell:
 
 ```powershell
-Copy-Item flask_app\.env.example flask_app\.env
 Copy-Item device.env.example device.env
 ```
 
-### 2. Edit the copied files before first run
+### 2. Edit the copied file before first run
 
 At minimum, update these values:
 
@@ -142,19 +223,20 @@ Useful first URLs:
 
 ## Configuration Loading
 
-The app automatically reads configuration from:
+The app reads local configuration from one canonical file:
 
-1. `./.env`
-2. `./flask_app/.env`
-3. `./device.env`
+1. `./device.env`
 
-Values already present in the real process environment are preserved. Among the dotenv-style files, later files override earlier ones. In practice:
+Values already present in the real process environment are preserved. In practice:
 
 - system environment variables win
-- `device.env` can override values loaded from `.env` files
+- `device.env` supplies Flask, database, notification, and shared device settings
 - the sibling test repo can layer per-device virtual-device env files on top of the shared settings for its emulator tooling
 
-To avoid confusion, keep backend-only settings in `flask_app/.env`, shared device credentials in `device.env`, and virtual-device overrides in the sibling `swt_test_cases_project` repo.
+Legacy `./.env` and `./flask_app/.env` files are no longer loaded. Keep every
+local Flask/backend and shared device setting in `device.env`; virtual-device
+overrides remain in the sibling `swt_test_cases_project` repo. Hosted process
+environment variables may still be used when the platform injects them.
 
 ## Important Environment Variables
 
@@ -226,7 +308,7 @@ python scripts\sync_device_identity.py --generate-if-placeholder
 - `LEVEL_FORECAST_MODEL_PATH`: Optional custom path to the forecast artifact.
 - `MOBILE_TOKEN_MAX_AGE_HOURS`: Lifetime for mobile API tokens.
 
-Check [`flask_app/.env.example`](flask_app/.env.example) for the currently wired backend defaults.
+Check [`device.env.example`](device.env.example) for the currently wired backend defaults.
 
 ## Main Routes and APIs
 
@@ -320,6 +402,8 @@ Important tables include:
 - `customer_accounts`: Customer login records keyed by `device_id`
 - `registered_devices`: Known devices seen by the backend
 - `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
+  including the persisted `device_setup_type`. Existing databases receive this
+  column through startup schema maintenance; no manual SQL migration is needed.
 - `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
@@ -366,6 +450,7 @@ pytest tests/test_startup_env_parsing.py
 pytest tests/test_external_simulator.py
 pytest tests/test_activity_events_runtime.py
 pytest tests/test_device_purge.py
+pytest tests/test_device_setup_type_scenarios.py
 ```
 
 Flask integration, API, Playwright UI, ML script, and virtual-device tests live in the sibling repository `../swt_test_cases_project`.
@@ -431,7 +516,7 @@ For rollout and support work, see:
 
 ## Recommended First-Run Checklist
 
-1. Copy `flask_app/.env.example` and `device.env.example`.
+1. Copy `device.env.example` to `device.env`.
 2. Replace every `change-me` value.
 3. Set `SESSION_COOKIE_SECURE=false` for local HTTP.
 4. Decide whether relay URLs should be blank for local testing.
