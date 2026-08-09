@@ -5548,10 +5548,21 @@ class MySqlConnectionAdapter:
 
     def __exit__(self, exc_type, exc, tb):
         if exc_type is None:
-            self.commit()
-        else:
+            try:
+                self.commit()
+            finally:
+                self.close()
+            return False
+
+        try:
             self.rollback()
-        self.close()
+        except Exception as rollback_exc:
+            # Preserve the exception raised by the database operation. A lost
+            # connection can make rollback fail as well, but that cleanup
+            # failure must not hide the actionable root cause.
+            logger.warning("MySQL rollback failed while handling an earlier error: %s", rollback_exc)
+        finally:
+            self.close()
         return False
 
 
@@ -5792,7 +5803,13 @@ def ensure_tank_data_columns(cursor):
 
 
 def ensure_tank_data_mysql_column_types(cursor):
+    existing_types = {
+        row[1]: str(row[2] or "").strip().lower()
+        for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()
+    }
     for column in ("runtime", "current_runtime", "last_runtime", "fill_time"):
+        if existing_types.get(column) == "text":
+            continue
         cursor.execute(f"ALTER TABLE tank_data MODIFY COLUMN {column} TEXT")
 
 

@@ -10,6 +10,13 @@ Use this file together with:
 
 - [`README.md`](README.md) for local setup, API surface, scripts, and testing
 - [`scripts/upload_repo_ftps.py`](scripts/upload_repo_ftps.py) if you are pushing code to the host over FTPS
+- [`../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md`](../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md) for the phase-by-phase capacity schema, feature-flag, cron, validation, and rollback rollout
+
+The production capacity rollout is currently held after Phase 1 because cPanel
+LSAPI process saturation and shared-MySQL connection/lock pressure were observed
+during the Phase 2 trial. Keep Phase 2 and later write-path flags disabled until
+the recovery gates in the [production incident section](../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md#production-incident-phase-2-blocked-by-cpanel-resource-pressure)
+have passed.
 
 The deployment target referenced in this repo today is `https://salewell.co.in/`.
 
@@ -55,6 +62,10 @@ This document focuses on:
 - environment/config files
 - dependency installation
 - restart and validation steps
+
+SSH/Terminal access is optional. Use cPanel Backup/phpMyAdmin, File Manager or
+FTPS, Setup Python App, Restart, Cron Jobs, and Metrics/Errors when shell access
+is unavailable. The phase-by-phase capacity guide documents the UI equivalents.
 
 It does not replace the main backend README, which covers routes, background jobs, mobile APIs, service controls, firmware artifacts, virtual devices, ML tooling, and day-to-day development.
 
