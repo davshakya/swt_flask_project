@@ -498,6 +498,62 @@ Before deploying:
 - deploy both `server.py` and `flask_app/server.py` together on cPanel / Passenger so the root wrapper and the main app stay aligned
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
 
+### Live Production `stderr.log` over FTPS
+
+The cPanel Passenger log is stored at:
+
+```text
+/home/salewellco/repositories/swt_flask_project/stderr.log
+```
+
+Create a dedicated cPanel FTP account for read/diagnostic access:
+
+```text
+Login: logviewer@salewell.co.in
+Directory: repositories/swt_flask_project
+FTP server: ftp.salewell.co.in
+Explicit FTPS port: 21
+```
+
+Enter the FTP login name before the directory because cPanel may update the
+directory automatically when the login changes. The resulting full directory
+must be `/home/salewellco/repositories/swt_flask_project`. Creating an FTP
+account for this existing directory does not delete its contents. Do not store
+the FTP password in the repository.
+
+From the workspace root, follow the end of the production log with:
+
+```powershell
+python .\swt_flask_project\scripts\watch_stderr_ftps.py --user logviewer@salewell.co.in --remote-file stderr.log --insecure-ftps
+```
+
+The watcher prompts for the password, initially displays the last 64 KiB,
+prints newly appended data, reconnects after temporary failures, and detects
+log truncation or rotation. To display only entries written after the watcher
+starts, use:
+
+```powershell
+python .\swt_flask_project\scripts\watch_stderr_ftps.py --user logviewer@salewell.co.in --remote-file stderr.log --insecure-ftps --tail-bytes 0
+```
+
+The hosting server currently presents a TLS certificate whose hostname does
+not match `ftp.salewell.co.in`. `--insecure-ftps` keeps the connection encrypted
+but disables server identity verification; it is a temporary workaround. The
+hosting provider should install a certificate valid for the FTP hostname.
+
+If FTP login succeeds but only `.ftpquota` appears, the account is jailed in an
+empty directory. Recreate it with `repositories/swt_flask_project` as its cPanel
+Directory. A `421 Home directory not available` error also indicates an invalid
+FTP account home and occurs before the requested log path is evaluated.
+
+Operational messages seen in this log include:
+
+- `Telemetry postprocess skipped ... background worker is busy`: raw telemetry
+  was saved, but optional derived/background processing was skipped.
+- `Dashboard summary refresh failed ... MySQL ... not reachable or credentials
+  are invalid`: verify `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`,
+  `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in the production environment.
+
 ## Operational Docs
 
 For rollout and support work, see:

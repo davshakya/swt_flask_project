@@ -80,6 +80,14 @@ from flask_app.runtime_utils import (
     parse_simple_dotenv,
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
+from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
+from flask_app.capacity_schema import ensure_capacity_schema
+from flask_app.capacity_ingestion import DeviceIngestionResult, ingest_device_payload
+from flask_app.capacity_state import build_alert_flags, upsert_device_latest_state
+from flask_app.capacity_history import store_narrow_history_if_due
+from flask_app.capacity_rollout import evaluate_device_rollout
+from flask_app.capacity_reads import fetch_latest_state_payload, fetch_narrow_history_rows
+from flask_app.capacity_security import DeviceTokenBucketLimiter, sequence_status
 
 PLACEHOLDER_DEVICE_CONFIG_MARKERS = (
     "change-me",
@@ -244,6 +252,19 @@ def normalize_http_base_url(value):
 
 def env_flag(name, default=False):
     return runtime_env_flag(name, default=default, environ=os.environ)
+
+
+CAPACITY_FEATURES = CapacityFeatureRegistry()
+DEVICE_SYNC_RATE_LIMITER = DeviceTokenBucketLimiter(
+    rate_per_second=max(0.1, env_float("DEVICE_SYNC_RATE_PER_SECOND", 2.0)),
+    burst=max(1, env_int("DEVICE_SYNC_RATE_BURST", 5)),
+    max_devices=max(100, env_int("DEVICE_SYNC_RATE_TRACKED_DEVICES", 5000)),
+)
+CAPACITY_REQUEST_METRICS = BoundedRequestMetrics(
+    max_buckets=max(1, env_int("CAPACITY_METRICS_RETAINED_MINUTES", 60)),
+)
+for capacity_feature_warning in CAPACITY_FEATURES.warnings:
+    logging.getLogger(__name__).warning(capacity_feature_warning)
 
 
 def strip_ip_address_fields(payload, keep_device_local_url=False):
@@ -412,6 +433,14 @@ def service_worker():
     return response
 @app.after_request
 def apply_security_headers(response):
+    request_started_at = getattr(g, "capacity_request_started_at", None)
+    if request_started_at is not None:
+        route_rule = request.url_rule.rule if request.url_rule is not None else "unmatched"
+        CAPACITY_REQUEST_METRICS.record(
+            route_rule,
+            response.status_code,
+            (time.perf_counter() - request_started_at) * 1000.0,
+        )
     if request.path == "/static/marketing/water_flow_animation.html":
         # The public homepage embeds this first-party dashboard preview. Keep it
         # protected from cross-site framing while allowing the same origin iframe.
@@ -435,6 +464,12 @@ def apply_security_headers(response):
     if should_gzip_response(response):
         gzip_response(response)
     return response
+
+
+@app.before_request
+def start_capacity_request_timing():
+    if CAPACITY_FEATURES.enabled("request_timing") or CAPACITY_FEATURES.enabled("capacity_metrics"):
+        g.capacity_request_started_at = time.perf_counter()
 
 
 def route_should_not_store(path):
@@ -5082,6 +5117,22 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
             insert_values,
         )
         latest_row_id = cursor.lastrowid
+        if CAPACITY_FEATURES.enabled("latest_state_writes"):
+            cleaned["_latest_state_write_result"] = upsert_device_latest_state(
+                cursor,
+                cleaned,
+                received_at,
+            )
+        if CAPACITY_FEATURES.enabled("narrow_history_writes"):
+            cleaned["_narrow_history_write_result"] = store_narrow_history_if_due(
+                cursor,
+                cleaned,
+                received_at,
+                adaptive=CAPACITY_FEATURES.enabled("adaptive_history"),
+                idle_interval_seconds=max(1, env_int("CAPACITY_HISTORY_IDLE_SECONDS", 300)),
+                active_interval_seconds=max(1, env_int("CAPACITY_HISTORY_ACTIVE_SECONDS", 60)),
+                level_delta_pct=max(0.0, env_float("CAPACITY_HISTORY_LEVEL_DELTA_PCT", 2.0)),
+            )
 
     clear_runtime_caches(cleaned.get("device_id"))
     logger.info(
@@ -5099,6 +5150,24 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         postprocess_telemetry_payload(cleaned, raw_firmware_logs, source_ip, transport, latest_row_id)
     cleaned["_telemetry_sync_result"] = "saved"
     return cleaned
+
+
+def ingest_device_sync(
+    data,
+    *,
+    authenticated_device_id=None,
+    source_ip=None,
+    transport="http",
+    defer_postprocess=False,
+):
+    return ingest_device_payload(
+        data,
+        processor=process_telemetry_payload,
+        authenticated_device_id=authenticated_device_id,
+        source_ip=source_ip,
+        transport=transport,
+        defer_postprocess=defer_postprocess,
+    )
 
 
 def mysql_connection_config():
@@ -5432,8 +5501,11 @@ class MySqlCursorAdapter:
 
 
 class MySqlConnectionAdapter:
-    def __init__(self, connection):
+    def __init__(self, connection, pool=None, pool_created_at=None):
         self.connection = connection
+        self.pool = pool
+        self.pool_created_at = pool_created_at
+        self.closed = False
 
     def cursor(self):
         return MySqlCursorAdapter(self, self.connection.cursor())
@@ -5444,6 +5516,11 @@ class MySqlConnectionAdapter:
         return cursor
 
     def reconnect(self):
+        if self.pool is not None:
+            self.pool.release(self.connection, self.pool_created_at, discard=True)
+            self.connection, self.pool_created_at = self.pool.acquire()
+            self.closed = False
+            return
         try:
             if self.connection is not None:
                 self.connection.close()
@@ -5459,6 +5536,11 @@ class MySqlConnectionAdapter:
         return self.connection.rollback()
 
     def close(self):
+        if self.closed:
+            return None
+        self.closed = True
+        if self.pool is not None:
+            return self.pool.release(self.connection, self.pool_created_at)
         return self.connection.close()
 
     def __enter__(self):
@@ -5474,9 +5556,11 @@ class MySqlConnectionAdapter:
 
 
 _MYSQL_RESOLVED_LOCAL_PORT = None
+_MYSQL_CONNECTION_POOL = None
+_MYSQL_CONNECTION_POOL_LOCK = threading.Lock()
 
 
-def connect_mysql():
+def connect_mysql_unpooled():
     global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
@@ -5557,8 +5641,51 @@ def connect_mysql():
     return MySqlConnectionAdapter(conn)
 
 
+def mysql_connection_pool():
+    global _MYSQL_CONNECTION_POOL
+    if _MYSQL_CONNECTION_POOL is not None:
+        return _MYSQL_CONNECTION_POOL
+    with _MYSQL_CONNECTION_POOL_LOCK:
+        if _MYSQL_CONNECTION_POOL is None:
+            from flask_app.capacity_db_pool import MySqlConnectionPool
+
+            def connection_factory():
+                return connect_mysql_unpooled().connection
+
+            _MYSQL_CONNECTION_POOL = MySqlConnectionPool(
+                connection_factory,
+                size=env_int("MYSQL_POOL_SIZE", 2),
+                max_overflow=env_int("MYSQL_POOL_MAX_OVERFLOW", 1),
+                recycle_seconds=env_int("MYSQL_POOL_RECYCLE_SECONDS", 240),
+                wait_seconds=env_int("MYSQL_POOL_WAIT_SECONDS", 5),
+            )
+    return _MYSQL_CONNECTION_POOL
+
+
+def connect_mysql():
+    if not CAPACITY_FEATURES.enabled("db_connection_pool"):
+        return connect_mysql_unpooled()
+    pool = mysql_connection_pool()
+    connection, created_at = pool.acquire()
+    return MySqlConnectionAdapter(connection, pool=pool, pool_created_at=created_at)
+
+
 def get_db():
     return connect_mysql()
+
+
+def init_db_serialized():
+    """Prevent multiple Passenger/Gunicorn workers from racing schema DDL."""
+    database_name = mysql_connection_config().get("database") or "swt"
+    lock_name = f"swt_schema_init_{database_name}"[:64]
+    with get_db() as lock_db:
+        row = lock_db.execute("SELECT GET_LOCK(?, ?) AS acquired", (lock_name, 60)).fetchone()
+        if int((row or {}).get("acquired") or 0) != 1:
+            raise RuntimeError("Timed out waiting for the database schema initialization lock")
+        try:
+            init_db()
+        finally:
+            lock_db.execute("SELECT RELEASE_LOCK(?) AS released", (lock_name,))
 
 
 def ensure_tank_data_columns(cursor):
@@ -6502,6 +6629,8 @@ def init_db():
         ensure_registered_devices_table(cursor)
         ensure_device_auth_keys_table(cursor)
         ensure_ignored_devices_table(cursor)
+        if CAPACITY_FEATURES.enabled("capacity_schema"):
+            ensure_capacity_schema(cursor)
         seed_bootstrap_customer_accounts(cursor)
         seed_default_customer_accounts(cursor)
         ensure_performance_indexes(cursor)
@@ -11301,16 +11430,26 @@ def build_empty_snapshot_payload(device_id=None):
     return apply_source_tank_aliases(payload, include_aliases=True)
 
 
-def load_dashboard_snapshot(device_id=None):
+def load_dashboard_snapshot(device_id=None, prefer_capacity=False):
     normalized_device_id = normalize_device_id(device_id)
     active_mode = get_device_source_mode()
-    cache_key = f"{active_mode}:{normalized_device_id or '__latest__'}"
+    read_source = "capacity" if prefer_capacity else "legacy"
+    cache_key = f"{read_source}:{active_mode}:{normalized_device_id or '__latest__'}"
     if SNAPSHOT_CACHE_TTL_SECONDS > 0:
         cached = dashboard_snapshot_cache.get(cache_key)
         if cached and (time.time() - cached["created_at"] < SNAPSHOT_CACHE_TTL_SECONDS):
             return dict(cached["payload"])
     if normalized_device_id:
-        snapshot = fetch_device_snapshot(normalized_device_id)
+        snapshot = None
+        if prefer_capacity:
+            try:
+                with get_db() as db:
+                    capacity_payload = fetch_latest_state_payload(db.cursor(), normalized_device_id, active_mode)
+                snapshot = enrich_snapshot(capacity_payload) if capacity_payload else None
+            except Exception as exc:
+                logger.warning("Latest-state read unavailable for %s; using legacy snapshot: %s", normalized_device_id, exc)
+        if snapshot is None:
+            snapshot = fetch_device_snapshot(normalized_device_id)
         payload = snapshot or build_empty_snapshot_payload(normalized_device_id)
     else:
         with get_db() as db:
@@ -11322,6 +11461,20 @@ def load_dashboard_snapshot(device_id=None):
             "payload": dict(payload),
         }
     return dict(payload)
+
+
+def overlay_capacity_snapshot(summary, device_id, feature_name):
+    payload = copy.deepcopy(summary or {})
+    if not CAPACITY_FEATURES.enabled(feature_name):
+        return payload
+    snapshot = load_dashboard_snapshot(device_id, prefer_capacity=True)
+    if not snapshot_has_live_device_data(snapshot):
+        return payload
+    public_snapshot = strip_ip_address_fields(snapshot, keep_device_local_url=True)
+    payload["snapshot"] = public_snapshot
+    payload["system_status"] = build_system_status_payload(snapshot, device_id=device_id)
+    payload["monitoring_summary"] = build_monitoring_summary_payload(snapshot, device_id=device_id)
+    return payload
 
 
 def build_dashboard_summary_payload(device_id, event_limit=30, audit_limit=30):
@@ -11740,6 +11893,11 @@ def build_db_summary_payload():
                 min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10)),
             ),
             "automatic_write_retries": False,
+            "pool_enabled": CAPACITY_FEATURES.enabled("db_connection_pool"),
+            "pool_size": max(1, min(env_int("MYSQL_POOL_SIZE", 2), 4)),
+            "pool_max_overflow": max(0, min(env_int("MYSQL_POOL_MAX_OVERFLOW", 1), 2)),
+            "pool_recycle_seconds": max(30, min(env_int("MYSQL_POOL_RECYCLE_SECONDS", 240), 900)),
+            "pool_stats": _MYSQL_CONNECTION_POOL.stats() if _MYSQL_CONNECTION_POOL is not None else None,
         },
     }
 
@@ -14993,12 +15151,14 @@ def describe_command_activity(command):
     return details
 
 
-def send_alert_webhook(payload):
+def deliver_alert_webhook(payload, raise_on_failure=False):
+    failures = []
     if ALERT_WEBHOOK_URL:
         try:
             requests.post(ALERT_WEBHOOK_URL, json=payload, timeout=(3, 8))
         except requests.RequestException as exc:
             logger.warning("Generic alert webhook failed: %s", exc)
+            failures.append(str(exc))
 
     if SLACK_WEBHOOK_URL:
         try:
@@ -15008,6 +15168,7 @@ def send_alert_webhook(payload):
             requests.post(SLACK_WEBHOOK_URL, json={"text": text}, timeout=(3, 8))
         except requests.RequestException as exc:
             logger.warning("Slack alert webhook failed: %s", exc)
+            failures.append(str(exc))
 
     if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
         try:
@@ -15022,6 +15183,7 @@ def send_alert_webhook(payload):
             )
         except requests.RequestException as exc:
             logger.warning("Telegram alert delivery failed: %s", exc)
+            failures.append(str(exc))
 
     if WHATSAPP_WEBHOOK_URL:
         try:
@@ -15039,6 +15201,25 @@ def send_alert_webhook(payload):
             )
         except requests.RequestException as exc:
             logger.warning("WhatsApp-style alert webhook failed: %s", exc)
+            failures.append(str(exc))
+    if failures and raise_on_failure:
+        raise RuntimeError("; ".join(failures))
+    return not failures
+
+
+def send_alert_webhook(payload):
+    if CAPACITY_FEATURES.enabled("database_job_queue"):
+        from flask_app.capacity_jobs import enqueue_job
+
+        with get_db() as db:
+            enqueue_job(
+                db.cursor(),
+                "alert_webhook",
+                payload,
+                device_id=normalize_device_id(payload.get("device_id")),
+            )
+        return True
+    return deliver_alert_webhook(payload)
 
 
 def log_audit_event(actor, action, target_type, target_id=None, device_id=None, details=None):
@@ -15429,6 +15610,33 @@ def fetch_device_history(device_id, limit=48):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return []
+    active_mode = get_device_source_mode()
+    if CAPACITY_FEATURES.enabled("history_read_narrow_table"):
+        try:
+            with get_db() as db:
+                rows = fetch_narrow_history_rows(db.cursor(), normalized_device_id, active_mode, limit)
+            capacity_history = [
+                {
+                    "time": format_timestamp(row["recorded_at"]),
+                    "level": row["level"],
+                    "lower_tank_level": row["lower_tank_level"],
+                    "source_tank_level": row["lower_tank_level"],
+                    "motor": row["motor"],
+                    "sensor": row["sensor"],
+                    "wifi_rssi": None,
+                    "free_heap": None,
+                    "cpu_utilization_pct": None,
+                    "slave_free_heap": None,
+                    "slave_cpu_utilization_pct": None,
+                    "node_role": None,
+                    "device_type": None,
+                }
+                for row in reversed(rows)
+            ]
+            if capacity_history:
+                return capacity_history
+        except Exception as exc:
+            logger.warning("Narrow history read unavailable for %s; using legacy history: %s", normalized_device_id, exc)
     source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         rows = db.execute(
@@ -17213,6 +17421,7 @@ def mobile_bootstrap():
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    summary = overlay_capacity_snapshot(summary, scoped_device_id, "mobile_read_latest_state")
     public_snapshot = summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id)
     snapshot = public_snapshot
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
@@ -17387,7 +17596,10 @@ def mobile_last():
     if response:
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
+    snapshot = load_dashboard_snapshot(
+        scoped_device_id,
+        prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
+    )
     if not snapshot:
         return jsonify({"error": "no data"}), 404
     return jsonify(strip_ip_address_fields(snapshot))
@@ -17492,7 +17704,10 @@ def mobile_device_status():
     if response:
         return response
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
+    snapshot = load_dashboard_snapshot(
+        scoped_device_id,
+        prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
+    )
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     return jsonify({
         "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
@@ -17763,6 +17978,138 @@ register_mobile_firmware_routes(
     build_firmware_artifact_file_response=build_firmware_artifact_file_response,
     logger=logger,
 )
+
+
+def device_sync_next_interval(telemetry):
+    critical = build_alert_flags(telemetry) != 0
+    motor_running = str(telemetry.get("motor") or telemetry.get("pump") or "").strip().upper() == "ON"
+    if critical or motor_running:
+        return max(5, env_int("DEVICE_SYNC_ACTIVE_SECONDS", 10))
+    return max(10, env_int("DEVICE_SYNC_IDLE_SECONDS", 60))
+
+
+@app.route("/api/device/sync", methods=["POST"])
+def device_sync():
+    if not CAPACITY_FEATURES.enabled("device_sync_api"):
+        return jsonify({"error": "device sync protocol is not enabled", "fallback": "/status"}), 404
+
+    if CAPACITY_FEATURES.enabled("device_request_limits"):
+        max_bytes = max(1024, min(env_int("DEVICE_SYNC_MAX_PAYLOAD_BYTES", 8192), 65536))
+        if request.content_length is not None and request.content_length > max_bytes:
+            return jsonify({"error": "device sync payload is too large", "max_bytes": max_bytes}), 413
+
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify({"error": "invalid json"}), 400
+    try:
+        protocol_version = int(payload.get("protocol_version", 1))
+    except (TypeError, ValueError):
+        return jsonify({"error": "protocol_version must be an integer"}), 400
+    if protocol_version != 1:
+        return jsonify({"error": "unsupported protocol_version", "supported_versions": [1]}), 400
+    telemetry = payload.get("telemetry")
+    if not isinstance(telemetry, dict):
+        return jsonify({"error": "telemetry object is required"}), 400
+
+    auth_payload_source = dict(payload)
+    auth_payload_source.setdefault("device_id", telemetry.get("device_id"))
+    auth_ok, auth_payload, auth_status = authenticate_device_request(auth_payload_source)
+    if not auth_ok:
+        return auth_payload, auth_status
+    device_id = auth_payload
+    if CAPACITY_FEATURES.enabled("device_rate_limiting"):
+        allowed, retry_after = DEVICE_SYNC_RATE_LIMITER.allow(device_id)
+        if not allowed:
+            response = jsonify({"error": "device sync rate limit exceeded", "retry_after": retry_after})
+            response.status_code = 429
+            response.headers["Retry-After"] = str(max(1, int(retry_after + 0.999)))
+            return response
+    telemetry = dict(telemetry)
+    telemetry["device_id"] = device_id
+    for field in ("boot_id", "sequence_number", "sequence", "device_reported_at"):
+        if field in payload and field not in telemetry:
+            telemetry[field] = payload[field]
+    try:
+        telemetry["device_source"] = resolve_request_device_source(telemetry)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    sequence_result = "new"
+    if CAPACITY_FEATURES.enabled("sequence_deduplication"):
+        with get_db() as db:
+            sequence_result = sequence_status(
+                db.cursor(), device_id, telemetry["device_source"], telemetry
+            )
+        if sequence_result == "missing":
+            return jsonify({"error": "boot_id and sequence_number are required"}), 400
+        if sequence_result == "replay" and CAPACITY_FEATURES.enabled("replay_protection"):
+            return jsonify({"error": "replayed sequence_number", "device_id": device_id}), 409
+
+    command_ack = payload.get("command_ack")
+    acknowledgement = None
+    if CAPACITY_FEATURES.enabled("sync_command_ack") and isinstance(command_ack, dict):
+        command_source = str(command_ack.get("command_source") or "queue").strip().lower()
+        if command_source == "relay":
+            acknowledged = acknowledge_relay_command(
+                device_id,
+                command_ack.get("command_id"),
+                device_source=telemetry["device_source"],
+            )
+        else:
+            acknowledged = acknowledge_queued_command_id(
+                device_id,
+                command_ack.get("command_id"),
+                result=command_ack,
+            )
+            if acknowledged:
+                clear_mqtt_command(device_id)
+        acknowledgement = {
+            "acknowledged": bool(acknowledged),
+            "command_id": command_ack.get("command_id"),
+            "command_source": command_source,
+        }
+
+    if sequence_result == "duplicate":
+        ingestion = DeviceIngestionResult(telemetry=telemetry, outcome="duplicate")
+    else:
+        ingestion = ingest_device_sync(
+            telemetry,
+            authenticated_device_id=device_id,
+            source_ip=request.remote_addr,
+            transport="device_sync",
+            defer_postprocess=True,
+        )
+    command = None
+    if CAPACITY_FEATURES.enabled("sync_command_delivery"):
+        queued = peek_queued_command(device_id)
+        if queued:
+            command = {
+                "command": queued.get("command"),
+                "command_id": queued.get("id"),
+                "request_id": queued.get("request_id"),
+                "desired_state": queued.get("desired_state"),
+                "expires_at": queued.get("expires_at"),
+                "command_source": "queue",
+            }
+
+    response_payload = {
+        "accepted": True,
+        "duplicate": ingestion.duplicate,
+        "result": ingestion.outcome,
+        "protocol_version": protocol_version,
+        "server_time": now_utc().strftime(TIMESTAMP_FORMAT),
+        "device_id": device_id,
+        "device_source": telemetry["device_source"],
+        "configuration_version": None,
+        "command": command,
+    }
+    if CAPACITY_FEATURES.enabled("sync_interval_hints"):
+        response_payload["next_sync_seconds"] = device_sync_next_interval(telemetry)
+    if acknowledgement is not None:
+        response_payload["command_ack"] = acknowledgement
+    if CAPACITY_FEATURES.enabled("staged_rollout"):
+        response_payload["rollout"] = evaluate_device_rollout(device_id, os.environ)
+    return jsonify(response_payload)
 
 
 @app.route("/api/mobile/app/update")
@@ -20848,7 +21195,16 @@ def status():
     if not auth_ok:
         return auth_payload, auth_status
     data["device_id"] = auth_payload
-    process_telemetry_payload(data, source_ip=request.remote_addr, transport="http", defer_postprocess=True)
+    if CAPACITY_FEATURES.enabled("shared_ingestion_service"):
+        ingest_device_sync(
+            data,
+            authenticated_device_id=auth_payload,
+            source_ip=request.remote_addr,
+            transport="http",
+            defer_postprocess=True,
+        )
+    else:
+        process_telemetry_payload(data, source_ip=request.remote_addr, transport="http", defer_postprocess=True)
 
     return jsonify({
         "result": "saved",
@@ -20871,6 +21227,7 @@ def last():
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    summary = overlay_capacity_snapshot(summary, scoped_device_id, "dashboard_read_latest_state")
     return jsonify(summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id))
 
 
@@ -20893,7 +21250,17 @@ def history():
         return jsonify({"error": str(exc)}), 400
 
     with get_db() as db:
-        if scoped_device_id:
+        rows = []
+        if scoped_device_id and CAPACITY_FEATURES.enabled("history_read_narrow_table"):
+            rows = list(reversed(fetch_narrow_history_rows(
+                db.cursor(),
+                scoped_device_id,
+                get_device_source_mode(),
+                800,
+                start_at=start_dt.strftime(TIMESTAMP_FORMAT),
+                end_at=end_exclusive.strftime(TIMESTAMP_FORMAT),
+            )))
+        if scoped_device_id and not rows:
             rows = db.execute(
                 f"""
                 SELECT level, lower_tank_level, ai_usage_rate, created_at
@@ -20911,7 +21278,7 @@ def history():
                     *source_params,
                 ),
             ).fetchall()
-        else:
+        if not scoped_device_id:
             rows = db.execute(
                 f"""
                 SELECT level, lower_tank_level, ai_usage_rate, created_at
@@ -20930,8 +21297,8 @@ def history():
                 "level": row["level"],
                 "lower_tank_level": row["lower_tank_level"],
                 "source_tank_level": row["lower_tank_level"],
-                "ai_usage_rate": row["ai_usage_rate"],
-                "time": format_timestamp(row["created_at"])
+                "ai_usage_rate": row.get("ai_usage_rate"),
+                "time": format_timestamp(row.get("created_at") or row.get("recorded_at"))
             }
             for row in rows
         ]
@@ -20963,7 +21330,10 @@ def device_status():
     if response:
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
-    snapshot = load_dashboard_snapshot(scoped_device_id)
+    snapshot = load_dashboard_snapshot(
+        scoped_device_id,
+        prefer_capacity=CAPACITY_FEATURES.enabled("dashboard_read_latest_state"),
+    )
     if not snapshot_has_live_device_data(snapshot):
         refresh_operational_alerts(None)
         return device_status_from_snapshot(None)
@@ -20980,7 +21350,21 @@ def system_status():
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
-    return jsonify(summary.get("system_status") or {})
+    payload = dict(summary.get("system_status") or {})
+    if CAPACITY_FEATURES.enabled("capacity_metrics"):
+        payload["capacity"] = {
+            "features": CAPACITY_FEATURES.snapshot(),
+            "request_metrics": CAPACITY_REQUEST_METRICS.snapshot(),
+        }
+        if any(
+            CAPACITY_FEATURES.enabled(name)
+            for name in ("cron_health", "database_size_alerts", "offserver_backup")
+        ):
+            from flask_app.capacity_operations import fetch_runtime_status
+
+            with get_db() as db:
+                payload["capacity"]["operations"] = fetch_runtime_status(db.cursor())
+    return jsonify(payload)
 
 
 @app.route("/relay/health")
@@ -21085,6 +21469,7 @@ def dashboard_bootstrap():
         return response
     scoped_device_id = current_scope_device_id(request.args.get("device_id", type=str))
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    summary = overlay_capacity_snapshot(summary, scoped_device_id, "dashboard_read_latest_state")
     payload = dict(summary)
     payload.update({
         "events": list(summary.get("events") or [])[:event_limit],
@@ -21327,7 +21712,7 @@ logger.info(
 )
 logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
-init_db()
+init_db_serialized()
 ensure_homepage_visitor_count_loaded()
 resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()
