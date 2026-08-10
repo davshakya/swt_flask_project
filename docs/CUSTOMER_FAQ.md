@@ -78,6 +78,8 @@ quote depends on city, wiring, panel work, enclosures, tank count, and site scop
 
 No published SaleWell plan has a monthly fee. Cloud, analytics, and reporting
 features are included in eligible plans or supplied as a one-time quoted upgrade.
+Commercial AI Pro and Enterprise Modular customers can request an optional,
+separately quoted monthly or annual maintenance contract.
 
 ## Tank monitoring and pump operation
 

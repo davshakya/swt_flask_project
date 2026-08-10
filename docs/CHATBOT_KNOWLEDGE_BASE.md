@@ -108,6 +108,8 @@ local pump safety and automation logic.
 - Intended for large apartments, hotels, factories, and institutions.
 - Adds multi-tank visibility, advanced reports, AI analytics, leak insight,
   source-to-destination logic, and priority support to eligible installations.
+- Customers may optionally request a separately quoted monthly or annual
+  maintenance contract. It is not a mandatory subscription.
 
 ### Dealer / Installer Kit
 
@@ -125,6 +127,8 @@ local pump safety and automation logic.
   deployments, and large rollouts.
 - Can include custom dashboards, integrations, reports, user roles, rollout
   support, and bulk device planning.
+- Customers may optionally request a separately quoted monthly or annual
+  maintenance contract. It is not a mandatory subscription.
 
 ## Optional additions
 

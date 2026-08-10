@@ -236,8 +236,11 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
         assert 'name="upper_tank_count"' in template
         assert 'name="source_configuration"' in template
         assert 'name="pump_type"' in template
+        assert 'name="maintenance_preference"' in template
         assert "Municipal supply" in template
         assert "Submersible pump" in template
+        assert "Monthly maintenance quote" in template
+        assert "Annual maintenance quote" in template
 
 
 def test_demo_booking_uses_waf_safe_canonical_route():
@@ -1441,6 +1444,19 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert pricing.count('class="addon-fit"') == 10
     assert 'id="planWizard"' in pricing
     assert 'id="wizardPlan"' in pricing
+    assert 'id="wizardPrice"' in pricing
+    assert '"Home Basic": 4999' in pricing
+    assert '"Home Control": 5999' in pricing
+    assert '"Home Cloud Pro": 8499' in pricing
+    assert '"RWA Standard": 10999' in pricing
+    assert '"Commercial AI Pro": 13999' in pricing
+    assert "additionalUpperTanks * 2500" in pricing
+    assert 'priceParts.push("pump control: from ₹1,500")' in pricing
+    assert 'priceParts.push("source-tank monitoring: from ₹2,000")' in pricing
+    assert '" + site quote"' in pricing
+    assert 'name="maintenance" value="monthly"' in pricing
+    assert 'name="maintenance" value="annual"' in pricing
+    assert "Optional monthly or annual maintenance" in pricing
     assert 'id="use-cases"' in pricing
     assert 'id="installation"' in pricing
     assert 'id="faqs"' in pricing

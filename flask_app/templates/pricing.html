@@ -1422,9 +1422,16 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <label class="option-chip"><input type="checkbox" name="water_source" value="submersible">Submersible pump</label>
                     <label class="option-chip"><input type="checkbox" name="water_source" value="municipal">Municipal supply</label>
                 </div></fieldset>
+                <fieldset class="wizard-question"><legend>6. Optional maintenance for Commercial AI Pro</legend><div class="option-row">
+                    <label class="option-chip"><input type="radio" name="maintenance" value="none" checked>No maintenance contract</label>
+                    <label class="option-chip"><input type="radio" name="maintenance" value="monthly">Monthly maintenance quote</label>
+                    <label class="option-chip"><input type="radio" name="maintenance" value="annual">Annual maintenance quote</label>
+                </div></fieldset>
             </form>
             <aside class="wizard-result" aria-live="polite">
                 <span>Recommended starting plan</span><strong id="wizardPlan">Home Basic</strong>
+                <span>Estimated starting price</span><strong id="wizardPrice">&#8377;4,999</strong>
+                <p id="wizardPriceNote">One-time estimate with no monthly fee. Installation is quoted after the site check.</p>
                 <p id="wizardReason">A simple one-time equipment package without an app or monthly fee.</p>
                 <p id="wizardAddons"></p>
                 <a class="button-secondary js-book-plan" id="wizardBook" href="#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book This Plan</a>
@@ -1665,6 +1672,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;13,999</div>
                     <div class="price-note">Starting hardware price per setup</div>
                     <div class="price-note">Cloud + reports included &bull; No monthly subscription</div>
+                    <div class="price-note">Optional monthly or annual maintenance: quote-based on request</div>
                     <div class="price-note is-outcome">Wi-Fi required. Built for reporting and prevention.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1757,6 +1765,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">Custom</div>
                     <div class="price-note">Usually starts from &#8377;25,999</div>
                     <div class="price-note">One-time custom quote &bull; No monthly subscription</div>
+                    <div class="price-note">Optional monthly or annual maintenance: quote-based on request</div>
                     <div class="price-note is-outcome">Quoted after the site map, connectivity needs and device count are reviewed.</div>
                 </div>
                 <div class="list-title">Can Include</div>
@@ -2186,6 +2195,13 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </select>
             </div>
             <div class="group">
+                <label for="lead_maintenance_preference">Optional Maintenance</label>
+                <select id="lead_maintenance_preference" name="maintenance_preference">
+                    {% set selected_maintenance = (sales_form|default({})).get('maintenance_preference', 'No maintenance contract') %}
+                    {% for maintenance in ['No maintenance contract', 'Monthly maintenance quote', 'Annual maintenance quote'] %}<option value="{{ maintenance }}" {% if selected_maintenance == maintenance %}selected{% endif %}>{{ maintenance }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="group">
                 <label for="lead_message">Project Notes</label>
                 <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
@@ -2208,6 +2224,8 @@ const bookingButtons = document.querySelectorAll(".js-book-plan");
 const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
 const planWizard = document.getElementById("planWizard");
 const wizardPlan = document.getElementById("wizardPlan");
+const wizardPrice = document.getElementById("wizardPrice");
+const wizardPriceNote = document.getElementById("wizardPriceNote");
 const wizardReason = document.getElementById("wizardReason");
 const wizardAddons = document.getElementById("wizardAddons");
 const wizardBook = document.getElementById("wizardBook");
@@ -2228,9 +2246,17 @@ function updatePlanWizard() {
     const wantsPump = data.has("pump");
     const wantsAi = data.has("ai");
     const waterSources = data.getAll("water_source");
+    const maintenance = data.get("maintenance") || "none";
     let plan = "Home Basic";
     let reason = "A simple one-time equipment package without an app or monthly fee.";
     let segment = "Home / Villa";
+    const planPrices = {
+        "Home Basic": 4999,
+        "Home Control": 5999,
+        "Home Cloud Pro": 8499,
+        "RWA Standard": 10999,
+        "Commercial AI Pro": 13999,
+    };
 
     if (property === "commercial") {
         plan = "Commercial AI Pro";
@@ -2258,16 +2284,45 @@ function updatePlanWizard() {
     if (waterSources.includes("borewell")) additions.push("borewell availability and pump protection");
     if (waterSources.includes("submersible")) additions.push("a compatible submersible starter interface");
     if (waterSources.includes("municipal")) additions.push("municipal-water detection or inlet-valve control");
+    if (maintenance !== "none" && plan === "Commercial AI Pro") additions.push(`an optional ${maintenance} maintenance contract`);
+    let estimatedPrice = planPrices[plan] || 4999;
+    const priceParts = [`${plan}: ₹${estimatedPrice.toLocaleString("en-IN")}`];
+    const additionalUpperTanks = Math.max(0, tanks - 1);
+    if (additionalUpperTanks) {
+        const extraTankPrice = additionalUpperTanks * 2500;
+        estimatedPrice += extraTankPrice;
+        priceParts.push(`${additionalUpperTanks} extra upper-tank sensor${additionalUpperTanks > 1 ? "s" : ""}: from ₹${extraTankPrice.toLocaleString("en-IN")}`);
+    }
+    if (wantsPump && !["RWA Standard", "Commercial AI Pro"].includes(plan)) {
+        estimatedPrice += 1500;
+        priceParts.push("pump control: from ₹1,500");
+    }
+    if (waterSources.includes("source-tank")) {
+        estimatedPrice += 2000;
+        priceParts.push("source-tank monitoring: from ₹2,000");
+    }
+    const requiresMaintenanceQuote = maintenance !== "none" && plan === "Commercial AI Pro";
+    const requiresSiteQuote = requiresMaintenanceQuote || waterSources.some((source) => ["borewell", "submersible", "municipal"].includes(source));
+    const estimatedPriceLabel = `From ₹${estimatedPrice.toLocaleString("en-IN")}${requiresSiteQuote ? " + site quote" : ""}`;
     if (wizardPlan) wizardPlan.textContent = plan;
+    if (wizardPrice) wizardPrice.textContent = estimatedPriceLabel;
+    if (wizardPriceNote) {
+        const quoteDetails = [];
+        if (waterSources.some((source) => ["borewell", "submersible", "municipal"].includes(source))) quoteDetails.push("source and pump hardware");
+        if (requiresMaintenanceQuote) quoteDetails.push(`${maintenance} maintenance`);
+        wizardPriceNote.textContent = `${priceParts.join("; ")}. Base plan has no mandatory monthly fee.${quoteDetails.length ? ` ${quoteDetails.join(" and ")} will be quoted separately on request.` : " Installation is quoted after the site check."}`;
+    }
     if (wizardReason) wizardReason.textContent = reason;
     if (wizardAddons) wizardAddons.textContent = additions.length ? `Also consider ${additions.join(" and ")}.` : "No extra add-on is required for the needs selected above.";
     if (wizardBook) {
         wizardBook.dataset.plan = plan;
         wizardBook.dataset.segment = segment;
         wizardBook.dataset.devices = String(tanks);
-        wizardBook.dataset.note = waterSources.length
+        const sourceNote = waterSources.length
             ? `Requested water configuration: ${waterSources.join(", ")}.`
             : "Requested water configuration: upper tank only.";
+        const maintenanceNote = maintenance === "none" ? "No maintenance contract requested." : `Customer requested a ${maintenance} maintenance quote.`;
+        wizardBook.dataset.note = `${sourceNote} ${maintenanceNote} Online estimate: ${estimatedPriceLabel}. ${priceParts.join("; ")}.`;
     }
     highlightPlan(plan);
 }

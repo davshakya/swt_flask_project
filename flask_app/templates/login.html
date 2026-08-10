@@ -5742,6 +5742,13 @@ caret-color:#67e8f9!important;
                 </select>
             </div>
             <div class="group">
+                <label for="lead_maintenance_preference">Optional Maintenance</label>
+                <select id="lead_maintenance_preference" name="maintenance_preference">
+                    {% set selected_maintenance = sales_form.get('maintenance_preference', 'No maintenance contract') %}
+                    {% for maintenance in ['No maintenance contract', 'Monthly maintenance quote', 'Annual maintenance quote'] %}<option value="{{ maintenance }}" {% if selected_maintenance == maintenance %}selected{% endif %}>{{ maintenance }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="group">
                 <label for="lead_message">Project Notes</label>
                 <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ sales_form.get('message', '') }}</textarea>
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
@@ -6532,10 +6539,10 @@ const chatPlanCatalog = [
         name: "Commercial AI Pro",
         segment: "Commercial Site",
         devices: "10",
-        price: "Rs. 13,999 starting wireless hardware, cloud and reports price per setup, no monthly fee",
+        price: "Rs. 13,999 starting wireless hardware, cloud and reports price per setup, no mandatory monthly fee; optional monthly or annual maintenance is quote-based on request",
         shortPrice: "Rs. 13,999, no monthly fee",
         bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
-        includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
+        includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support", "optional monthly or annual maintenance contract on request"],
         strengths: ["best for multi-tank sites", "advanced reporting", "water movement between tanks"],
         keywords: ["commercial ai pro", "ai pro", "large apartment", "factory", "institution", "hotel", "multi tank", "advanced report"],
     },
@@ -6554,7 +6561,7 @@ const chatPlanCatalog = [
         name: "Enterprise Modular",
         segment: "Commercial Site",
         devices: "25",
-        price: "custom one-time pricing, usually starts from Rs. 25,999, with no monthly fee",
+        price: "custom one-time pricing, usually starts from Rs. 25,999, with no mandatory monthly fee; optional monthly or annual maintenance is quote-based on request",
         shortPrice: "Custom, usually from Rs. 25,999",
         bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
         includes: ["multiple wireless sensor and controller roles", "custom dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],

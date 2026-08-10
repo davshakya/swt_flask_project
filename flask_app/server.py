@@ -2726,6 +2726,11 @@ def sales_form_from_pricing_query():
         "Submersible pump",
         "No pump control needed",
     }
+    valid_maintenance_preferences = {
+        "No maintenance contract",
+        "Monthly maintenance quote",
+        "Annual maintenance quote",
+    }
     if selected_segment not in valid_segments:
         selected_segment = "Commercial Site" if selected_plan == "Enterprise" or "Commercial" in selected_plan else "Home / Villa"
 
@@ -2809,6 +2814,7 @@ def validate_sales_enquiry_payload(form):
         "upper_tank_count": str(form.get("upper_tank_count", "1")).strip() or "1",
         "source_configuration": str(form.get("source_configuration", "Upper tank only")).strip() or "Upper tank only",
         "pump_type": str(form.get("pump_type", "Not sure / site check needed")).strip() or "Not sure / site check needed",
+        "maintenance_preference": str(form.get("maintenance_preference", "No maintenance contract")).strip() or "No maintenance contract",
         "message": str(form.get("message", "")).strip(),
     }
     errors = []
@@ -2871,6 +2877,8 @@ def validate_sales_enquiry_payload(form):
         errors.append("Please choose a valid water source configuration.")
     if cleaned["pump_type"] not in valid_pump_types:
         errors.append("Please choose a valid pump type.")
+    if cleaned["maintenance_preference"] not in valid_maintenance_preferences:
+        errors.append("Please choose a valid maintenance preference.")
 
     if not cleaned["message"]:
         errors.append("Please enter project notes.")
@@ -2884,7 +2892,8 @@ def validate_sales_enquiry_payload(form):
             f"Water configuration: {cleaned['upper_tank_count']} upper/overhead tank(s); "
             f"source: {cleaned['source_configuration']}; pump: {cleaned['pump_type']}."
         )
-        cleaned["message"] = f"{configuration}\n{cleaned['message']}"
+        maintenance = f"Maintenance preference: {cleaned['maintenance_preference']}."
+        cleaned["message"] = f"{configuration}\n{maintenance}\n{cleaned['message']}"
 
     return cleaned, errors
 
