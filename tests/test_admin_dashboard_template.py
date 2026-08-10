@@ -1431,7 +1431,7 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Shielded Wire or Dual Node" not in homepage
     assert "One wireless setup for every building height." in pricing
     assert "No long sensor signal cable" in pricing
-    assert "Every base plan includes a complete wireless tank setup." in pricing
+    assert "Every base plan includes a complete wireless tank setup and automatic pump control." in pricing
     assert "Included Equipment" in pricing
     assert "one-time equipment price" in homepage
     assert "Phone app and live screen not included" in pricing
@@ -1443,7 +1443,7 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Local mobile app and live monitoring" in pricing
     assert "+ &#8377;1,000 one-time" in pricing
     assert "Wireless range extension node" in pricing
-    assert pricing.count('class="addon-fit"') == 10
+    assert pricing.count('class="addon-fit"') == 9
     assert 'id="planWizard"' in pricing
     assert 'id="wizardPlan"' in pricing
     assert 'id="wizardPrice"' in pricing
@@ -1456,7 +1456,8 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert 'upperLayout === "shared" ? 1 : upperTankCount' in pricing
     assert 'property === "managed" || requiredSensorNodeCount >= 3' in pricing
     assert "sourceSensorCount * 2000" in pricing
-    assert 'priceParts.push("pump control: from ₹1,500")' in pricing
+    assert 'name="pump"' not in pricing
+    assert "Every device plan includes automatic pump control" in pricing
     assert "source-tank sensor" in pricing
     assert '" + site quote"' in pricing
     assert 'name="maintenance" value="monthly"' in pricing

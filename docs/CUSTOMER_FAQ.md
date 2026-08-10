@@ -12,7 +12,7 @@ pump-control, automation, mobile-app, and cloud solutions.
 
 ### What does SaleWell do?
 
-SaleWell measures tank level and can add alerts, pump automation, local phone
+SaleWell measures tank level and includes alerts and pump automation. Local phone
 access, remote monitoring, history, reports, and analytics by plan.
 
 ### How does the device work?
@@ -35,8 +35,8 @@ features. Cloud features require a suitable internet connection.
 
 ### What is the lowest-price plan?
 
-Home Basic is the lowest published plan at Rs. 4,999 one-time with no monthly
-fee. Installation and optional modules are quoted separately.
+Home Basic is the lowest published plan at Rs. 4,999 as a one-time equipment
+purchase. Installation and optional modules are quoted separately.
 
 ### What is the highest-price plan?
 
@@ -46,18 +46,19 @@ integration scope.
 
 ### What is included in Home Basic?
 
-It includes a wireless tank sensor node and main controller. It does not
-include the phone app, cloud access, or every optional pump-control component.
+It includes a wireless tank sensor node, main controller, and automatic pump
+control. It does not include the phone app, cloud access, or site-specific
+starter-panel, contactor, and installation work.
 
 ### What is included in Home Control?
 
 It includes Home Basic capabilities plus local phone access at the property.
-Its published price is Rs. 5,999 one-time with no monthly fee.
+Its published price is Rs. 5,999 one-time.
 
 ### What is included in Home Cloud Pro?
 
 It adds remote access, family sharing, cloud history, usage trends, insights,
-and reports. Its published price is Rs. 8,499 one-time with no monthly fee.
+and reports. Its published price is Rs. 8,499 one-time.
 
 ### Which plan is suitable for an apartment or RWA?
 
@@ -66,18 +67,19 @@ Pro is better when the site needs many tanks, advanced reports, or leak insight.
 
 ### Do all plans include pump automation?
 
-No. Pump automation depends on the selected plan, compatible controller,
-relay/contactor interface, source-water logic, and approved installation.
+Yes. Every device plan includes automatic pump control. Final operation still
+depends on a compatible relay/contactor interface, source-water logic, and an
+approved installation.
 
 ### Are installation charges included?
 
 Do not assume installation is included in the published equipment price. The
 quote depends on city, wiring, panel work, enclosures, tank count, and site scope.
 
-### Is there a monthly fee?
+### Is a recurring subscription required?
 
-No published SaleWell plan has a monthly fee. Cloud, analytics, and reporting
-features are included in eligible plans or supplied as a one-time quoted upgrade.
+Cloud, analytics, and reporting features are included in eligible plans or
+supplied as a one-time quoted upgrade.
 Commercial AI Pro and Enterprise Modular customers can request an optional,
 separately quoted monthly or annual maintenance contract.
 

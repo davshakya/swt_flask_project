@@ -8,7 +8,7 @@ modules.
 
 ## What the SaleWell system does
 
-SaleWell monitors water-tank level and can add pump automation, alerts, local
+SaleWell monitors water-tank level and includes automatic pump control, alerts, local
 phone access, remote cloud access, history, reports, and water-usage insights,
 depending on the selected plan and installed hardware.
 
@@ -72,15 +72,16 @@ local pump safety and automation logic.
 
 ### Home Basic
 
-- Published price: Rs. 4,999 one-time equipment price; no monthly fee.
+- Published price: Rs. 4,999 one-time equipment price.
 - Intended for one home tank and controller setup at the lowest entry price.
 - Includes the wireless tank sensor node and main controller.
+- Includes automatic pump start/stop control and overflow cut-off.
 - Does not include the phone app or cloud access.
 - Home Wi-Fi and internet are not required.
 
 ### Home Control
 
-- Published price: Rs. 5,999 one-time equipment and app price; no monthly fee.
+- Published price: Rs. 5,999 one-time equipment and app price.
 - Includes Home Basic capabilities plus live tank information on a phone while
   the customer is at the property.
 - Uses a direct/local connection to the controller.
@@ -88,7 +89,7 @@ local pump safety and automation logic.
 
 ### Home Cloud Pro
 
-- Published price: Rs. 8,499 one-time equipment, app, and cloud-feature price; no monthly fee.
+- Published price: Rs. 8,499 one-time equipment, app, and cloud-feature price.
 - Intended for families, rental homes, and owners who want remote access.
 - Includes remote access, family sharing, cloud history, usage trends, AI
   insights, and monthly water reporting.
@@ -96,7 +97,7 @@ local pump safety and automation logic.
 
 ### RWA Standard
 
-- Published starting price: Rs. 10,999 per setup; no monthly fee.
+- Published starting price: Rs. 10,999 per setup.
 - Intended for apartments, RWAs, hostels, small hotels, schools, and shared
   buildings.
 - Supports managed visibility, pump control, source-tank monitoring, supported
@@ -104,7 +105,7 @@ local pump safety and automation logic.
 
 ### Commercial AI Pro
 
-- Published starting price: Rs. 13,999 per setup; no monthly fee.
+- Published starting price: Rs. 13,999 per setup.
 - Intended for large apartments, hotels, factories, and institutions.
 - Adds multi-tank visibility, advanced reports, AI analytics, leak insight,
   source-to-destination logic, and priority support to eligible installations.
@@ -113,7 +114,7 @@ local pump safety and automation logic.
 
 ### Dealer / Installer Kit
 
-- Published starter-kit price: Rs. 12,999 with no monthly fee; volume pricing is discussed
+- Published starter-kit price: Rs. 12,999; volume pricing is discussed
   separately.
 - Intended for dealers, plumbers, electricians, resellers, and local
   installation partners.
@@ -122,7 +123,7 @@ local pump safety and automation logic.
 
 ### Enterprise Modular
 
-- Custom one-time pricing, usually starting from Rs. 25,999, with no monthly fee.
+- Custom one-time pricing, usually starting from Rs. 25,999,.
 - Intended for builders, townships, industrial customers, multi-site
   deployments, and large rollouts.
 - Can include custom dashboards, integrations, reports, user roles, rollout
