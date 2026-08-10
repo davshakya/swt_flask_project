@@ -90,4 +90,69 @@ code,pre{
     color:var(--text,#e6f4f7);
   }
 }
+
+/* The booking dialog deliberately combines a dark header with a light form.
+   Keep those two surfaces independent from the page's preferred color scheme. */
+.enquiry-modal .modal-panel[role="dialog"]{
+  background:linear-gradient(180deg,#12323c 0%,#08252e 100%);
+  border-color:rgba(157,220,232,.3);
+  color:#f2fbfd;
+}
+.enquiry-modal .modal-header h2{
+  color:#f2fbfd;
+  text-shadow:0 1px 1px rgba(0,0,0,.18);
+}
+.enquiry-modal .modal-panel .eyebrow{
+  background:rgba(67,206,226,.14);
+  color:#68d9ea;
+}
+.enquiry-modal .modal-close{
+  background:#1d3d47;
+  border-color:rgba(185,229,237,.24);
+  color:#f2fbfd;
+}
+.enquiry-modal .modal-close:hover,
+.enquiry-modal .modal-close:focus-visible{
+  background:#28515d;
+  color:#fff;
+}
+.enquiry-modal .enquiry-form{
+  --text:#173238;
+  --muted:#587078;
+  --line:rgba(25,77,88,.18);
+  --input-bg:#f8fcfa;
+  background:rgba(244,249,248,.96);
+  color:#173238;
+}
+.enquiry-modal .group label{
+  color:#526d75;
+}
+.enquiry-modal .enquiry-form input,
+.enquiry-modal .enquiry-form select,
+.enquiry-modal .enquiry-form textarea{
+  color-scheme:light;
+  background-color:#f8fcfa!important;
+  border-color:rgba(25,77,88,.18)!important;
+  color:#173238!important;
+  caret-color:#0d7f95;
+  -webkit-text-fill-color:#173238!important;
+}
+.enquiry-modal .enquiry-form input::placeholder,
+.enquiry-modal .enquiry-form textarea::placeholder{
+  color:#667c82!important;
+  -webkit-text-fill-color:#667c82!important;
+}
+.enquiry-modal .field-warning{
+  color:#a52f47;
+}
+.enquiry-modal .banner.success{
+  background:#e2f2eb;
+  border-color:#acd9c6;
+  color:#126847;
+}
+.enquiry-modal .banner.error{
+  background:#f9e7ea;
+  border-color:#e8b8c1;
+  color:#982f43;
+}
 </style>
