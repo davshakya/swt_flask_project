@@ -18465,6 +18465,7 @@ def whatsapp_send_integration():
 
 @app.route("/sales/enquiry", methods=["GET", "POST"])
 @app.route("/sales/enquiry/", methods=["GET", "POST"])
+@app.route("/book-demo", methods=["GET", "POST"])
 @csrf_protect
 def sales_enquiry():
     if request.method == "GET":

@@ -229,6 +229,21 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     assert 'len(cleaned["message"]) < 10' in server_source
 
 
+def test_demo_booking_uses_waf_safe_canonical_route():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    route_block = server_source[server_source.index('@app.route("/sales/enquiry"'):server_source.index("def sales_enquiry():")]
+    assert '@app.route("/sales/enquiry", methods=["GET", "POST"])' in route_block
+    assert '@app.route("/sales/enquiry/", methods=["GET", "POST"])' in route_block
+    # Flask applies decorators from the bottom up, so the closest route is the
+    # first registered rule and therefore the URL emitted by url_for().
+    assert route_block.rstrip().endswith('@csrf_protect')
+    assert route_block.index('@app.route("/book-demo"') > route_block.index('@app.route("/sales/enquiry/"')
+
+    for template_name in ("login.html", "pricing.html"):
+        template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
+        assert 'action="{{ url_for(\'sales_enquiry\') }}"' in template
+
+
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
