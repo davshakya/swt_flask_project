@@ -2713,6 +2713,19 @@ def sales_form_from_pricing_query():
         "Dealer / Installer",
         "Commercial Site",
     }
+    valid_source_configurations = {
+        "Upper tank only",
+        "Underground / source tank",
+        "Borewell",
+        "Municipal supply",
+        "Multiple sources",
+    }
+    valid_pump_types = {
+        "Not sure / site check needed",
+        "Surface / monoblock pump",
+        "Submersible pump",
+        "No pump control needed",
+    }
     if selected_segment not in valid_segments:
         selected_segment = "Commercial Site" if selected_plan == "Enterprise" or "Commercial" in selected_plan else "Home / Villa"
 
@@ -2793,6 +2806,9 @@ def validate_sales_enquiry_payload(form):
         "city": str(form.get("city", "")).strip(),
         "segment": str(form.get("segment", "")).strip(),
         "device_count": str(form.get("device_count", "")).strip(),
+        "upper_tank_count": str(form.get("upper_tank_count", "1")).strip() or "1",
+        "source_configuration": str(form.get("source_configuration", "Upper tank only")).strip() or "Upper tank only",
+        "pump_type": str(form.get("pump_type", "Not sure / site check needed")).strip() or "Not sure / site check needed",
         "message": str(form.get("message", "")).strip(),
     }
     errors = []
@@ -2841,12 +2857,34 @@ def validate_sales_enquiry_payload(form):
             else:
                 cleaned["device_count"] = str(device_count)
 
+    try:
+        upper_tank_count = int(cleaned["upper_tank_count"])
+    except (TypeError, ValueError):
+        errors.append("Upper tank quantity must be a whole number.")
+    else:
+        if upper_tank_count < 1 or upper_tank_count > 1000:
+            errors.append("Upper tank quantity must be between 1 and 1000.")
+        else:
+            cleaned["upper_tank_count"] = str(upper_tank_count)
+
+    if cleaned["source_configuration"] not in valid_source_configurations:
+        errors.append("Please choose a valid water source configuration.")
+    if cleaned["pump_type"] not in valid_pump_types:
+        errors.append("Please choose a valid pump type.")
+
     if not cleaned["message"]:
         errors.append("Please enter project notes.")
     elif len(cleaned["message"]) < 10:
         errors.append("Project notes must be at least 10 characters.")
     elif len(cleaned["message"]) > 800:
         errors.append("Project notes must stay under 800 characters.")
+
+    if not errors:
+        configuration = (
+            f"Water configuration: {cleaned['upper_tank_count']} upper/overhead tank(s); "
+            f"source: {cleaned['source_configuration']}; pump: {cleaned['pump_type']}."
+        )
+        cleaned["message"] = f"{configuration}\n{cleaned['message']}"
 
     return cleaned, errors
 

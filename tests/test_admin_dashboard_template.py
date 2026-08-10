@@ -227,6 +227,17 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     assert 'len(phone_digits) > 15' in server_source
     assert 'cleaned["segment"] not in valid_segments' in server_source
     assert 'len(cleaned["message"]) < 10' in server_source
+    assert 'cleaned["source_configuration"] not in valid_source_configurations' in server_source
+    assert 'cleaned["pump_type"] not in valid_pump_types' in server_source
+    assert 'Water configuration:' in server_source
+
+    for template_name in ("login.html", "pricing.html"):
+        template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
+        assert 'name="upper_tank_count"' in template
+        assert 'name="source_configuration"' in template
+        assert 'name="pump_type"' in template
+        assert "Municipal supply" in template
+        assert "Submersible pump" in template
 
 
 def test_demo_booking_uses_waf_safe_canonical_route():
@@ -1374,8 +1385,8 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert '>Buy Now</a>' in template
     assert 'id="buyer-confidence"' in template
     assert 'aria-label="Pricing preview"' in template
-    assert "From &#8377;3,999" in template
-    assert "From &#8377;9,999" in template
+    assert "From &#8377;4,999" in template
+    assert "From &#8377;10,999" in template
     assert 'class="faq-list"' in template
     assert "Does it work without Wi-Fi?" in template
     assert 'class="mobile-contact-bar"' in template
@@ -1417,9 +1428,9 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "No long sensor signal cable" in pricing
     assert "Every base plan includes a complete wireless tank setup." in pricing
     assert "Included Equipment" in pricing
-    assert "one-time wireless hardware price" in homepage
+    assert "one-time equipment price" in homepage
     assert "Phone app and live screen not included" in pricing
-    assert "&#8377;4,999" in pricing
+    assert "&#8377;5,999" in pricing
     assert "Phone access at the property only. Remote access and AI are not included." in pricing
     assert "Home Basic and Home Control connect directly" in pricing
     assert "<th>Home Wi-Fi / Internet</th>" in pricing

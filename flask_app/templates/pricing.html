@@ -1392,7 +1392,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 
     <section class="section surface" id="find-my-plan">
         <div class="section-head">
-            <div><div class="eyebrow">Find My Kit</div><h2>Answer four quick questions.</h2></div>
+            <div><div class="eyebrow">Find My Kit</div><h2>Customize your water setup.</h2></div>
             <p>We will narrow the choices and show the best starting plan. Final equipment is confirmed after the site check.</p>
         </div>
         <div class="wizard-layout">
@@ -1415,6 +1415,12 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <fieldset class="wizard-question"><legend>4. What else do you need?</legend><div class="option-row">
                     <label class="option-chip"><input type="checkbox" name="pump">Automatic pump control</label>
                     <label class="option-chip"><input type="checkbox" name="ai">AI analytics and reports</label>
+                </div></fieldset>
+                <fieldset class="wizard-question"><legend>5. Which water sources are part of your setup?</legend><div class="option-row">
+                    <label class="option-chip"><input type="checkbox" name="water_source" value="source-tank">Underground / source tank</label>
+                    <label class="option-chip"><input type="checkbox" name="water_source" value="borewell">Borewell</label>
+                    <label class="option-chip"><input type="checkbox" name="water_source" value="submersible">Submersible pump</label>
+                    <label class="option-chip"><input type="checkbox" name="water_source" value="municipal">Municipal supply</label>
                 </div></fieldset>
             </form>
             <aside class="wizard-result" aria-live="polite">
@@ -1501,7 +1507,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Best for customers who want the tank sensor and controller at the lowest one-time price.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;3,999</div>
+                    <div class="price-main">&#8377;4,999</div>
                     <div class="price-note">One-time equipment price</div>
                     <div class="price-note">No monthly subscription</div>
                     <div class="price-note is-outcome">Works without home Wi-Fi or internet.</div>
@@ -1537,7 +1543,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Connect your phone directly to the controller and check live tank information without home Wi-Fi or internet.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;4,999</div>
+                    <div class="price-main">&#8377;5,999</div>
                     <div class="price-note">One-time equipment and app price</div>
                     <div class="price-note">No monthly subscription</div>
                     <div class="price-note is-outcome">Phone access at the property only. Remote access and AI are not included.</div>
@@ -1574,9 +1580,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Best for families, rental homes and owners who want remote access, AI analytics and useful reports.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;7,499</div>
+                    <div class="price-main">&#8377;8,499</div>
                     <div class="price-note">One-time equipment and app price</div>
-                    <div class="price-note">+ &#8377;149/month</div>
+                    <div class="price-note">No monthly subscription</div>
                     <div class="price-note is-outcome">Use the app from anywhere. Home Wi-Fi and internet are required.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1618,9 +1624,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Best for RWAs and small managed sites that need remote monitoring, admin access and pump visibility.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;9,999</div>
+                    <div class="price-main">&#8377;10,999</div>
                     <div class="price-note">Starting hardware price per setup</div>
-                    <div class="price-note">&#8377;299/month cloud service</div>
+                    <div class="price-note">Cloud service included &bull; No monthly subscription</div>
                     <div class="price-note is-outcome">Wi-Fi required at device locations.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1656,9 +1662,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Best where usage reports, leak warnings, water movement between tanks and multiple tank views matter.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;12,999</div>
+                    <div class="price-main">&#8377;13,999</div>
                     <div class="price-note">Starting hardware price per setup</div>
-                    <div class="price-note">&#8377;599/month cloud + reports</div>
+                    <div class="price-note">Cloud + reports included &bull; No monthly subscription</div>
                     <div class="price-note is-outcome">Wi-Fi required. Built for reporting and prevention.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1703,7 +1709,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <p>Best for partners who want a working starter kit, customer setup flow and modular add-on pricing.</p>
                 </div>
                 <div class="price-stack">
-                    <div class="price-main">&#8377;11,999</div>
+                    <div class="price-main">&#8377;12,999</div>
                     <div class="price-note">Starter partner kit</div>
                     <div class="price-note">Reseller pricing by volume</div>
                     <div class="price-note is-outcome">Wi-Fi required during setup and installs.</div>
@@ -1749,8 +1755,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
                 <div class="price-stack">
                     <div class="price-main">Custom</div>
-                    <div class="price-note">Usually starts from &#8377;24,999</div>
-                    <div class="price-note">Monthly service by scope</div>
+                    <div class="price-note">Usually starts from &#8377;25,999</div>
+                    <div class="price-note">One-time custom quote &bull; No monthly subscription</div>
                     <div class="price-note is-outcome">Quoted after the site map, connectivity needs and device count are reviewed.</div>
                 </div>
                 <div class="list-title">Can Include</div>
@@ -1840,7 +1846,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;3,999</strong><span>No monthly fee</span></td>
+                        <td><strong>&#8377;4,999</strong><span>No monthly fee</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr class="is-recommended-row" data-plan-row="home">
@@ -1853,7 +1859,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="no">Add-on</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;4,999</strong><span>No monthly fee; works at the property</span></td>
+                        <td><strong>&#8377;5,999</strong><span>No monthly fee; works at the property</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
@@ -1866,7 +1872,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="no">Add-on</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;7,499</strong><span>+ &#8377;149/mo cloud, remote access and AI</span></td>
+                        <td><strong>&#8377;8,499</strong><span>No monthly fee; cloud, remote access and AI included</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
@@ -1879,7 +1885,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;9,999</strong><span>+ &#8377;299/mo</span></td>
+                        <td><strong>&#8377;10,999</strong><span>No monthly fee</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
@@ -1892,7 +1898,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;12,999</strong><span>+ &#8377;599/mo</span></td>
+                        <td><strong>&#8377;13,999</strong><span>No monthly fee</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
                     <tr data-plan-row="partner">
@@ -1905,7 +1911,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="yes">Demo</span></td>
                         <td><span class="no">Optional</span></td>
                         <td><span class="no">Optional</span></td>
-                        <td><strong>&#8377;11,999</strong><span>Volume pricing available</span></td>
+                        <td><strong>&#8377;12,999</strong><span>No monthly fee; volume pricing available</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book</a></td>
                     </tr>
                     <tr data-plan-row="enterprise">
@@ -1918,7 +1924,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
-                        <td><strong>Custom</strong><span>Usually from &#8377;24,999</span></td>
+                        <td><strong>Custom</strong><span>Usually from &#8377;25,999; no monthly fee</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book</a></td>
                     </tr>
                 </tbody>
@@ -1932,7 +1938,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <article class="problem-panel"><h3>Without SaleWell</h3><ul><li>&#10060; Overflow discovered too late</li><li>&#10060; Dry-run and motor damage risk</li><li>&#10060; Repeated rooftop checks</li><li>&#10060; Unnoticed water and electricity waste</li><li>&#10060; No clear usage history</li></ul></article>
             <article class="problem-panel"><h3>With the right SaleWell plan</h3><ul><li>&#9989; Tank status when and where your plan allows</li><li>&#9989; Optional automatic pump protection</li><li>&#9989; Alerts and reports on supported plans</li><li>&#9989; Less overflow and unnecessary pump runtime</li><li>&#9989; Upgrade without replacing the full system</li></ul></article>
         </div>
-        <div class="install-note">A &#8377;3,999-&#8377;12,999 setup is an investment in preventing overflow, reducing manual checks and protecting pump equipment. Actual savings depend on tank size, pump use and the selected automation features.</div>
+        <div class="install-note">A &#8377;4,999-&#8377;13,999 setup is an investment in preventing overflow, reducing manual checks and protecting pump equipment. Actual savings depend on tank size, pump use and the selected automation features.</div>
     </section>
 
     <section class="section surface" id="installation">
@@ -1981,13 +1987,13 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             </article>
             <article class="addon-card" data-addon-category="cloud">
                 <strong>Cloud dashboard and remote access</strong>
-                <div class="addon-price">+ &#8377;99 to &#8377;299/mo</div>
+                <div class="addon-price">One-time quote</div>
                 <span class="addon-fit">Home Control and managed plans</span>
                 <p>Check the tank from anywhere, view past readings and receive alerts. Home Wi-Fi and internet are required; Home Cloud Pro already includes this service.</p>
             </article>
             <article class="addon-card" data-addon-category="cloud">
                 <strong>AI analytics and leak insight</strong>
-                <div class="addon-price">+ &#8377;149 to &#8377;499/mo</div>
+                <div class="addon-price">One-time quote</div>
                 <span class="addon-fit">Cloud-capable plans</span>
                 <p>Add usage trends, leak warnings, unusual consumption alerts and monthly reports. Requires cloud access; included in Home Cloud Pro and Commercial AI Pro.</p>
             </article>
@@ -2159,6 +2165,26 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_upper_tank_count">Upper / Overhead Tanks</label>
+                    <input id="lead_upper_tank_count" name="upper_tank_count" type="number" min="1" max="1000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('upper_tank_count', '1') }}">
+                </div>
+                <div class="group">
+                    <label for="lead_source_configuration">Water Source</label>
+                    <select id="lead_source_configuration" name="source_configuration">
+                        {% set selected_source = (sales_form|default({})).get('source_configuration', 'Upper tank only') %}
+                        {% for source in ['Upper tank only', 'Underground / source tank', 'Borewell', 'Municipal supply', 'Multiple sources'] %}<option value="{{ source }}" {% if selected_source == source %}selected{% endif %}>{{ source }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="group">
+                <label for="lead_pump_type">Pump Type</label>
+                <select id="lead_pump_type" name="pump_type">
+                    {% set selected_pump = (sales_form|default({})).get('pump_type', 'Not sure / site check needed') %}
+                    {% for pump in ['Not sure / site check needed', 'Surface / monoblock pump', 'Submersible pump', 'No pump control needed'] %}<option value="{{ pump }}" {% if selected_pump == pump %}selected{% endif %}>{{ pump }}</option>{% endfor %}
+                </select>
+            </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
                 <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
@@ -2201,6 +2227,7 @@ function updatePlanWizard() {
     const access = data.get("access") || "none";
     const wantsPump = data.has("pump");
     const wantsAi = data.has("ai");
+    const waterSources = data.getAll("water_source");
     let plan = "Home Basic";
     let reason = "A simple one-time equipment package without an app or monthly fee.";
     let segment = "Home / Villa";
@@ -2225,13 +2252,22 @@ function updatePlanWizard() {
 
     const additions = [];
     if (tanks === 2) additions.push("an extra tank sensor");
+    if (tanks >= 3) additions.push("a multi-upper-tank configuration");
     if (wantsPump && !["RWA Standard", "Commercial AI Pro"].includes(plan)) additions.push("the pump control add-on");
+    if (waterSources.includes("source-tank")) additions.push("source-tank monitoring and dry-run protection");
+    if (waterSources.includes("borewell")) additions.push("borewell availability and pump protection");
+    if (waterSources.includes("submersible")) additions.push("a compatible submersible starter interface");
+    if (waterSources.includes("municipal")) additions.push("municipal-water detection or inlet-valve control");
     if (wizardPlan) wizardPlan.textContent = plan;
     if (wizardReason) wizardReason.textContent = reason;
     if (wizardAddons) wizardAddons.textContent = additions.length ? `Also consider ${additions.join(" and ")}.` : "No extra add-on is required for the needs selected above.";
     if (wizardBook) {
         wizardBook.dataset.plan = plan;
         wizardBook.dataset.segment = segment;
+        wizardBook.dataset.devices = String(tanks);
+        wizardBook.dataset.note = waterSources.length
+            ? `Requested water configuration: ${waterSources.join(", ")}.`
+            : "Requested water configuration: upper tank only.";
     }
     highlightPlan(plan);
 }
@@ -2298,6 +2334,7 @@ function updateEnquirySubmitState() {
 function openEnquiryModal(fill = {}) {
     if (!enquiryModal) return;
     if (fill.plan) addLeadNote(`Selected pricing plan: ${fill.plan}`);
+    if (fill.note) addLeadNote(fill.note);
     if (fill.segment) setLeadValue("lead_segment", fill.segment, true);
     if (!String(document.getElementById("lead_device_count")?.value || "").trim()) {
         setLeadValue("lead_device_count", fill.devices || "1", true);
@@ -2322,7 +2359,7 @@ bookingButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openEnquiryModal({ plan: button.dataset.plan, segment: button.dataset.segment });
+        openEnquiryModal({ plan: button.dataset.plan, segment: button.dataset.segment, devices: button.dataset.devices, note: button.dataset.note });
     });
 });
 

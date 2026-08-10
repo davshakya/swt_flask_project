@@ -5484,9 +5484,9 @@ caret-color:#67e8f9!important;
                     <article class="trust-item"><span aria-hidden="true">&#128260;</span><strong>OTA updates</strong><p>Supported devices receive managed firmware improvements without replacement.</p></article>
                 </div>
                 <div class="price-preview-grid" aria-label="Pricing preview" style="margin-top:10px">
-                    <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;3,999</strong><small>No monthly fee on the starter plan.</small></article>
-                    <article class="price-preview"><span>Phone access at home</span><strong class="price-from">From &#8377;4,999</strong><small>Connect directly at the property; no home Wi-Fi required.</small></article>
-                    <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;9,999</strong><small>Final scope depends on tanks and site layout.</small></article>
+                    <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;4,999</strong><small>One-time price with no monthly fee.</small></article>
+                    <article class="price-preview"><span>Phone access at home</span><strong class="price-from">From &#8377;5,999</strong><small>Connect directly at the property; no home Wi-Fi required.</small></article>
+                    <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;10,999</strong><small>One-time starting price; final scope depends on the site.</small></article>
                 </div>
                 <div class="conversion-strip" style="margin-top:10px">
                     <div><strong>See the exact kit and recurring cost.</strong><span class="muted">Compare inclusions before booking installation.</span></div>
@@ -5720,6 +5720,26 @@ caret-color:#67e8f9!important;
                     <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
+            </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_upper_tank_count">Upper / Overhead Tanks</label>
+                    <input id="lead_upper_tank_count" name="upper_tank_count" type="number" min="1" max="1000" step="1" inputmode="numeric" value="{{ sales_form.get('upper_tank_count', '1') }}">
+                </div>
+                <div class="group">
+                    <label for="lead_source_configuration">Water Source</label>
+                    <select id="lead_source_configuration" name="source_configuration">
+                        {% set selected_source = sales_form.get('source_configuration', 'Upper tank only') %}
+                        {% for source in ['Upper tank only', 'Underground / source tank', 'Borewell', 'Municipal supply', 'Multiple sources'] %}<option value="{{ source }}" {% if selected_source == source %}selected{% endif %}>{{ source }}</option>{% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="group">
+                <label for="lead_pump_type">Pump Type</label>
+                <select id="lead_pump_type" name="pump_type">
+                    {% set selected_pump = sales_form.get('pump_type', 'Not sure / site check needed') %}
+                    {% for pump in ['Not sure / site check needed', 'Surface / monoblock pump', 'Submersible pump', 'No pump control needed'] %}<option value="{{ pump }}" {% if selected_pump == pump %}selected{% endif %}>{{ pump }}</option>{% endfor %}
+                </select>
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
@@ -6468,8 +6488,8 @@ const chatPlanCatalog = [
         name: "Home Basic",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 3,999 one-time equipment price, no monthly fee",
-        shortPrice: "Rs. 3,999",
+        price: "Rs. 4,999 one-time equipment price, no monthly fee",
+        shortPrice: "Rs. 4,999",
         bestFor: "customers who want the tank sensor and controller at the lowest one-time price",
         includes: ["wireless tank sensor node and main controller", "ready-to-use wireless connection", "no home Wi-Fi or internet needed", "phone app and live screen not included"],
         strengths: ["lowest entry cost", "simple wireless equipment", "no monthly fee"],
@@ -6479,8 +6499,8 @@ const chatPlanCatalog = [
         name: "Home Control",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 4,999 one-time equipment and app price, no monthly fee",
-        shortPrice: "Rs. 4,999, phone access at home",
+        price: "Rs. 5,999 one-time equipment and app price, no monthly fee",
+        shortPrice: "Rs. 5,999, phone access at home",
         bestFor: "homes and villas that want to see live tank information on a phone while at the property",
         includes: ["everything in Home Basic", "mobile app included", "live tank level on your phone", "direct connection to the controller", "no home Wi-Fi or internet needed", "works only at the property"],
         strengths: ["phone app at home", "live tank information", "no monthly fee"],
@@ -6490,8 +6510,8 @@ const chatPlanCatalog = [
         name: "Home Cloud Pro",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 7,499 one-time wireless hardware price + Rs. 149/month",
-        shortPrice: "Rs. 7,499 + Rs. 149/mo",
+        price: "Rs. 8,499 one-time equipment, app and cloud-feature price, no monthly fee",
+        shortPrice: "Rs. 8,499, no monthly fee",
         bestFor: "families, rental homes and owners who want to check their tank from anywhere",
         includes: ["everything in Home Control", "remote access from anywhere", "family sharing", "cloud history and usage trends", "AI analytics and insights", "monthly water report"],
         strengths: ["cloud access from anywhere", "AI analytics", "history and reports"],
@@ -6501,8 +6521,8 @@ const chatPlanCatalog = [
         name: "RWA Standard",
         segment: "Apartment / Hostel",
         devices: "6",
-        price: "Rs. 9,999 starting wireless hardware price per setup + Rs. 299/month cloud service",
-        shortPrice: "Rs. 9,999 + Rs. 299/mo",
+        price: "Rs. 10,999 starting wireless hardware and cloud-feature price per setup, no monthly fee",
+        shortPrice: "Rs. 10,999, no monthly fee",
         bestFor: "apartments, RWAs, small hotels, schools and shared buildings",
         includes: ["remote monitoring over Internet", "wireless tank sensor nodes and pump controller", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
         strengths: ["built for shared tanks", "admin visibility", "good RWA starting plan"],
@@ -6512,8 +6532,8 @@ const chatPlanCatalog = [
         name: "Commercial AI Pro",
         segment: "Commercial Site",
         devices: "10",
-        price: "Rs. 12,999 starting wireless hardware price per setup + Rs. 599/month cloud and reports",
-        shortPrice: "Rs. 12,999 + Rs. 599/mo",
+        price: "Rs. 13,999 starting wireless hardware, cloud and reports price per setup, no monthly fee",
+        shortPrice: "Rs. 13,999, no monthly fee",
         bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
         includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
         strengths: ["best for multi-tank sites", "advanced reporting", "water movement between tanks"],
@@ -6523,8 +6543,8 @@ const chatPlanCatalog = [
         name: "Dealer / Installer Kit",
         segment: "Dealer / Installer",
         devices: "1",
-        price: "Rs. 11,999 starter partner kit, reseller pricing by volume",
-        shortPrice: "Rs. 11,999 partner kit",
+        price: "Rs. 12,999 starter partner kit, no monthly fee; reseller pricing by volume",
+        shortPrice: "Rs. 12,999 partner kit",
         bestFor: "dealers, plumbers, electricians and local installers who need a working starter kit",
         includes: ["complete wireless demo kit", "installer checklist", "customer setup support", "plan and add-on menu", "partner follow-up support", "bulk pricing discussion"],
         strengths: ["partner-ready kit", "installer setup flow", "volume pricing discussion"],
@@ -6534,8 +6554,8 @@ const chatPlanCatalog = [
         name: "Enterprise Modular",
         segment: "Commercial Site",
         devices: "25",
-        price: "custom pricing, usually starts from Rs. 24,999",
-        shortPrice: "Custom, usually from Rs. 24,999",
+        price: "custom one-time pricing, usually starts from Rs. 25,999, with no monthly fee",
+        shortPrice: "Custom, usually from Rs. 25,999",
         bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
         includes: ["multiple wireless sensor and controller roles", "custom dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],
         strengths: ["custom rollout planning", "multi-site support", "API and role-based access"],
@@ -6546,8 +6566,8 @@ const chatPlanCatalog = [
 const chatAddOns = [
     "Local mobile app and live monitoring: Rs. 1,000 one-time Home Basic upgrade",
     "Automatic pump control: Rs. 1,500 to Rs. 2,500 for home plans",
-    "Cloud dashboard and remote access: Rs. 99 to Rs. 299/month for Home Control or managed plans; external Wi-Fi and internet required",
-    "AI analytics and leak insight: Rs. 149 to Rs. 499/month for cloud-capable plans",
+    "Cloud dashboard and remote access: one-time quote for Home Control or managed plans; external Wi-Fi and internet required",
+    "AI analytics and leak insight: one-time quote for cloud-capable plans; no monthly fee",
     "Source tank monitoring: Rs. 2,000 to Rs. 3,500 for Home Control or Home Cloud Pro",
     "Extra tank or sensor node: Rs. 2,500 to Rs. 4,500 for monitoring and managed plans",
     "Wireless range extension node: quoted after site survey",

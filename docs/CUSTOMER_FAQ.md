@@ -35,13 +35,13 @@ features. Cloud features require a suitable internet connection.
 
 ### What is the lowest-price plan?
 
-Home Basic is the lowest published plan at Rs. 3,999 one-time with no monthly
+Home Basic is the lowest published plan at Rs. 4,999 one-time with no monthly
 fee. Installation and optional modules are quoted separately.
 
 ### What is the highest-price plan?
 
 Enterprise Modular is the highest published starting tier, usually from
-Rs. 24,999. It is custom-priced according to devices, sites, dashboards, and
+Rs. 25,999. It is custom-priced according to devices, sites, dashboards, and
 integration scope.
 
 ### What is included in Home Basic?
@@ -52,12 +52,12 @@ include the phone app, cloud access, or every optional pump-control component.
 ### What is included in Home Control?
 
 It includes Home Basic capabilities plus local phone access at the property.
-Its published price is Rs. 4,999 one-time with no monthly fee.
+Its published price is Rs. 5,999 one-time with no monthly fee.
 
 ### What is included in Home Cloud Pro?
 
 It adds remote access, family sharing, cloud history, usage trends, insights,
-and reports. Its published price is Rs. 7,499 plus Rs. 149 per month.
+and reports. Its published price is Rs. 8,499 one-time with no monthly fee.
 
 ### Which plan is suitable for an apartment or RWA?
 
@@ -76,8 +76,8 @@ quote depends on city, wiring, panel work, enclosures, tank count, and site scop
 
 ### Is there a monthly fee?
 
-Home Basic and Home Control have no published monthly fee. Cloud, RWA,
-commercial, analytics, and reporting services may have recurring charges.
+No published SaleWell plan has a monthly fee. Cloud, analytics, and reporting
+features are included in eligible plans or supplied as a one-time quoted upgrade.
 
 ## Tank monitoring and pump operation
 
