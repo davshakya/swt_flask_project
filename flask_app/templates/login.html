@@ -7261,13 +7261,9 @@ async function submitChatbotPrompt(prompt) {
     // click over the launcher after Send. Ignore that click briefly.
     chatbotSubmitGuardUntil = Date.now() + 1800;
     setChatbotOpen(true);
-    if (trimmed.toLowerCase() === "skip") {
-        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
-        return;
-    }
     appendChatMessage(trimmed, "user");
-    if (chatBookingState && chatLooksLikeQuestion(trimmed.toLowerCase())) {
-        const pendingField = chatBookingNextField();
+    const pendingField = chatBookingNextField();
+    if (chatBookingState && pendingField?.key !== "note" && chatLooksLikeQuestion(trimmed.toLowerCase())) {
         const response = getChatbotResponse(trimmed);
         if (response.useRag) {
             try {
@@ -7288,6 +7284,10 @@ async function submitChatbotPrompt(prompt) {
     }
     if (handleChatBookingAnswer(trimmed)) {
         if (chatbotInput) chatbotInput.value = "";
+        return;
+    }
+    if (trimmed.toLowerCase() === "skip") {
+        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
         return;
     }
     if (isChatBookingIntent(trimmed.toLowerCase())) {

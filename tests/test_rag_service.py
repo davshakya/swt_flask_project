@@ -121,10 +121,19 @@ def test_chatbot_handles_price_extremes_and_questions_during_booking():
     assert '"max plan"' in template
     assert "The lowest published plan price" in template
     assert "the highest published starting tier" in template
-    assert "chatBookingState && chatLooksLikeQuestion" in template
+    assert 'chatBookingState && pendingField?.key !== "note" && chatLooksLikeQuestion' in template
     assert "Your booking is still saved" in template
     assert template.index("if (wantsMinimumPrice)") < template.index("if (wantsCompare || wantsPrice)")
     assert template.index("if (wantsMaximumPrice)") < template.index("if (wantsCompare || wantsPrice)")
+
+
+def test_chatbot_accepts_requirement_keywords_and_skip_as_final_booking_answer():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    booking_answer = 'if (handleChatBookingAnswer(trimmed)) {'
+    general_skip = 'if (trimmed.toLowerCase() === "skip") {'
+
+    assert 'pendingField?.key !== "note"' in template
+    assert template.index(booking_answer) < template.index(general_skip, template.index(booking_answer))
 
 
 def test_chatbot_explains_how_the_product_works_without_raw_rag_docs():
