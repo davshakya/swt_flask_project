@@ -139,6 +139,15 @@ extra tank/sensor nodes, wireless range extension, custom reports, dealer
 branding, and installation services. These are not automatically included in
 every base plan.
 
+The Municipal Water Kit is Rs. 7,999 one-time. It includes two motorized
+valves, one municipal-water availability sensor, and controller integration.
+Installation, plumbing modifications, and non-standard valve sizes are charged
+separately according to the actual work.
+
+Every plan price is an equipment or service-package price. Installation and
+plumbing are additional and depend on wiring, pipe size, valve size, pump and
+starter panel, access, civil work, and installation location.
+
 Overhead-tank quantity and upper-MCU quantity are not always the same. When
 overhead tanks are on the same surface, interconnected, and operate as one main
 tank group, one upper MCU can monitor that group. Tanks on separate levels or

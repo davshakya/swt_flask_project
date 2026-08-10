@@ -1443,7 +1443,7 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Local mobile app and live monitoring" in pricing
     assert "+ &#8377;1,000 one-time" in pricing
     assert "Wireless range extension node" in pricing
-    assert pricing.count('class="addon-fit"') == 9
+    assert pricing.count('class="addon-fit"') == 10
     assert 'id="planWizard"' in pricing
     assert 'id="wizardPlan"' in pricing
     assert 'id="wizardPrice"' in pricing
@@ -1456,6 +1456,9 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert 'upperLayout === "shared" ? 1 : upperTankCount' in pricing
     assert 'property === "managed" || requiredSensorNodeCount >= 3' in pricing
     assert "sourceSensorCount * 2000" in pricing
+    assert "estimatedPrice += 7999" in pricing
+    assert "Municipal Water Kit (2 motorized valves + 1 water sensor)" in pricing
+    assert pricing.count("Installation and plumbing charged separately by work type") == 7
     assert 'name="pump"' not in pricing
     assert "Every device plan includes automatic pump control" in pricing
     assert "source-tank sensor" in pricing

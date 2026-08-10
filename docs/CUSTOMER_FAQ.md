@@ -73,8 +73,15 @@ approved installation.
 
 ### Are installation charges included?
 
-Do not assume installation is included in the published equipment price. The
-quote depends on city, wiring, panel work, enclosures, tank count, and site scope.
+No. Installation and plumbing are charged separately for every plan according
+to the type of work. The quote depends on city, wiring, pipe and valve size,
+panel work, enclosures, tank count, access, and site scope.
+
+### What does the Municipal Water Kit cost?
+
+The Municipal Water Kit is Rs. 7,999 one-time and includes two motorized
+valves, one municipal-water availability sensor, and controller integration.
+Installation, plumbing modifications, and non-standard valve sizes cost extra.
 
 ### Is a recurring subscription required?
 

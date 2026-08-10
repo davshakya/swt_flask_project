@@ -1518,6 +1518,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;4,999</div>
                     <div class="price-note">One-time equipment price</div>
                     <div class="price-note">One-time purchase</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Works without home Wi-Fi or internet.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1555,6 +1556,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;5,999</div>
                     <div class="price-note">One-time equipment and app price</div>
                     <div class="price-note">One-time purchase</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Phone access at the property only. Remote access and AI are not included.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1592,6 +1594,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;8,499</div>
                     <div class="price-note">One-time equipment and app price</div>
                     <div class="price-note">Cloud service included</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Use the app from anywhere. Home Wi-Fi and internet are required.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1636,6 +1639,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;10,999</div>
                     <div class="price-note">Starting hardware price per setup</div>
                     <div class="price-note">Cloud service included</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Wi-Fi required at device locations.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1675,6 +1679,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-note">Starting hardware price per setup</div>
                     <div class="price-note">Cloud + reports included</div>
                     <div class="price-note">Optional monthly or annual maintenance: quote-based on request</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Wi-Fi required. Built for reporting and prevention.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1722,6 +1727,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-main">&#8377;12,999</div>
                     <div class="price-note">Starter partner kit</div>
                     <div class="price-note">Reseller pricing by volume</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Wi-Fi required during setup and installs.</div>
                 </div>
                 <div class="list-title">Includes</div>
@@ -1768,6 +1774,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <div class="price-note">Usually starts from &#8377;25,999</div>
                     <div class="price-note">One-time custom quote</div>
                     <div class="price-note">Optional monthly or annual maintenance: quote-based on request</div>
+                    <div class="price-note">Installation and plumbing charged separately by work type</div>
                     <div class="price-note is-outcome">Quoted after the site map, connectivity needs and device count are reviewed.</div>
                 </div>
                 <div class="list-title">Can Include</div>
@@ -2012,6 +2019,12 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <div class="addon-price">+ &#8377;2,500 to &#8377;4,500</div>
                 <span class="addon-fit">Monitoring and managed plans</span>
                 <p>Used when an additional tank needs independent sensing. Interconnected overhead tanks on the same surface can share one upper MCU and are not charged as separate sensor nodes.</p>
+            </article>
+            <article class="addon-card" data-addon-category="monitoring">
+                <strong>Municipal Water Kit</strong>
+                <div class="addon-price">+ &#8377;7,999 one-time</div>
+                <span class="addon-fit">Municipal supply configurations</span>
+                <p>Includes two motorized valves, one municipal-water availability sensor and controller integration. Installation, plumbing and non-standard valve sizes are charged separately.</p>
             </article>
             <article class="addon-card" data-addon-category="accessories">
                 <strong>Wireless range extension node</strong>
@@ -2310,16 +2323,20 @@ function updatePlanWizard() {
         estimatedPrice += sourceSensorPrice;
         priceParts.push(`${sourceSensorCount} source-tank sensor${sourceSensorCount > 1 ? "s" : ""}: from ₹${sourceSensorPrice.toLocaleString("en-IN")}`);
     }
+    if (waterSources.includes("municipal")) {
+        estimatedPrice += 7999;
+        priceParts.push("Municipal Water Kit (2 motorized valves + 1 water sensor): ₹7,999");
+    }
     const requiresMaintenanceQuote = maintenance !== "none" && plan === "Commercial AI Pro";
-    const requiresSiteQuote = requiresMaintenanceQuote || waterSources.some((source) => ["borewell", "submersible", "municipal"].includes(source));
+    const requiresSiteQuote = requiresMaintenanceQuote || waterSources.some((source) => ["borewell", "submersible"].includes(source));
     const estimatedPriceLabel = `From ₹${estimatedPrice.toLocaleString("en-IN")}${requiresSiteQuote ? " + site quote" : ""}`;
     if (wizardPlan) wizardPlan.textContent = plan;
     if (wizardPrice) wizardPrice.textContent = estimatedPriceLabel;
     if (wizardPriceNote) {
         const quoteDetails = [];
-        if (waterSources.some((source) => ["borewell", "submersible", "municipal"].includes(source))) quoteDetails.push("source and pump hardware");
+        if (waterSources.some((source) => ["borewell", "submersible"].includes(source))) quoteDetails.push("borewell or submersible pump hardware");
         if (requiresMaintenanceQuote) quoteDetails.push(`${maintenance} maintenance`);
-        wizardPriceNote.textContent = `${priceParts.join("; ")}. ${quoteDetails.length ? ` ${quoteDetails.join(" and ")} will be quoted separately on request.` : " Installation is quoted after the site check."}`;
+        wizardPriceNote.textContent = `${priceParts.join("; ")}. Installation and plumbing are charged separately based on the work.${quoteDetails.length ? ` ${quoteDetails.join(" and ")} will be quoted separately on request.` : ""}`;
     }
     if (wizardReason) wizardReason.textContent = reason;
     if (wizardAddons) wizardAddons.textContent = additions.length ? `Also consider ${additions.join(" and ")}.` : "No extra add-on is required for the needs selected above.";
