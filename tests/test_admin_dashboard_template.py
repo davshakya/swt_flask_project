@@ -234,6 +234,8 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     for template_name in ("login.html", "pricing.html"):
         template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
         assert 'name="upper_tank_count"' in template
+        assert 'name="source_tank_count"' in template
+        assert 'name="upper_layout"' in template
         assert 'name="source_configuration"' in template
         assert 'name="pump_type"' in template
         assert 'name="maintenance_preference"' in template
@@ -1450,9 +1452,12 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert '"Home Cloud Pro": 8499' in pricing
     assert '"RWA Standard": 10999' in pricing
     assert '"Commercial AI Pro": 13999' in pricing
-    assert "additionalUpperTanks * 2500" in pricing
+    assert "additionalUpperMcuCount * 2500" in pricing
+    assert 'upperLayout === "shared" ? 1 : upperTankCount' in pricing
+    assert 'property === "managed" || requiredSensorNodeCount >= 3' in pricing
+    assert "sourceSensorCount * 2000" in pricing
     assert 'priceParts.push("pump control: from ₹1,500")' in pricing
-    assert 'priceParts.push("source-tank monitoring: from ₹2,000")' in pricing
+    assert "source-tank sensor" in pricing
     assert '" + site quote"' in pricing
     assert 'name="maintenance" value="monthly"' in pricing
     assert 'name="maintenance" value="annual"' in pricing

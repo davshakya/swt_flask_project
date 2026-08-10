@@ -2726,6 +2726,10 @@ def sales_form_from_pricing_query():
         "Submersible pump",
         "No pump control needed",
     }
+    valid_upper_layouts = {
+        "Same level and interconnected",
+        "Separate levels or not interconnected",
+    }
     valid_maintenance_preferences = {
         "No maintenance contract",
         "Monthly maintenance quote",
@@ -2812,6 +2816,8 @@ def validate_sales_enquiry_payload(form):
         "segment": str(form.get("segment", "")).strip(),
         "device_count": str(form.get("device_count", "")).strip(),
         "upper_tank_count": str(form.get("upper_tank_count", "1")).strip() or "1",
+        "source_tank_count": str(form.get("source_tank_count", "0")).strip() or "0",
+        "upper_layout": str(form.get("upper_layout", "Same level and interconnected")).strip() or "Same level and interconnected",
         "source_configuration": str(form.get("source_configuration", "Upper tank only")).strip() or "Upper tank only",
         "pump_type": str(form.get("pump_type", "Not sure / site check needed")).strip() or "Not sure / site check needed",
         "maintenance_preference": str(form.get("maintenance_preference", "No maintenance contract")).strip() or "No maintenance contract",
@@ -2873,6 +2879,19 @@ def validate_sales_enquiry_payload(form):
         else:
             cleaned["upper_tank_count"] = str(upper_tank_count)
 
+    try:
+        source_tank_count = int(cleaned["source_tank_count"])
+    except (TypeError, ValueError):
+        errors.append("Source tank quantity must be a whole number.")
+    else:
+        if source_tank_count < 0 or source_tank_count > 1000:
+            errors.append("Source tank quantity must be between 0 and 1000.")
+        else:
+            cleaned["source_tank_count"] = str(source_tank_count)
+
+    if cleaned["upper_layout"] not in valid_upper_layouts:
+        errors.append("Please choose a valid overhead tank layout.")
+
     if cleaned["source_configuration"] not in valid_source_configurations:
         errors.append("Please choose a valid water source configuration.")
     if cleaned["pump_type"] not in valid_pump_types:
@@ -2888,8 +2907,11 @@ def validate_sales_enquiry_payload(form):
         errors.append("Project notes must stay under 800 characters.")
 
     if not errors:
+        required_upper_mcus = 1 if cleaned["upper_layout"] == "Same level and interconnected" else int(cleaned["upper_tank_count"])
         configuration = (
-            f"Water configuration: {cleaned['upper_tank_count']} upper/overhead tank(s); "
+            f"Water configuration: {cleaned['upper_tank_count']} upper/overhead tank(s), "
+            f"{cleaned['source_tank_count']} source tank(s), {required_upper_mcus} required upper MCU(s); "
+            f"layout: {cleaned['upper_layout']}; "
             f"source: {cleaned['source_configuration']}; pump: {cleaned['pump_type']}."
         )
         maintenance = f"Maintenance preference: {cleaned['maintenance_preference']}."

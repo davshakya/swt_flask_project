@@ -138,6 +138,12 @@ extra tank/sensor nodes, wireless range extension, custom reports, dealer
 branding, and installation services. These are not automatically included in
 every base plan.
 
+Overhead-tank quantity and upper-MCU quantity are not always the same. When
+overhead tanks are on the same surface, interconnected, and operate as one main
+tank group, one upper MCU can monitor that group. Tanks on separate levels or
+not interconnected require independently scoped upper sensor nodes. Source
+tanks are counted separately and normally require their own source sensors.
+
 ## Information needed for a quote or site check
 
 Customers should provide:

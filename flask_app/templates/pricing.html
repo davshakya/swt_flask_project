@@ -1402,27 +1402,29 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <label class="option-chip"><input type="radio" name="property" value="managed">Apartment / Society</label>
                     <label class="option-chip"><input type="radio" name="property" value="commercial">Hotel / School / Factory</label>
                 </div></fieldset>
-                <fieldset class="wizard-question"><legend>2. How many tanks?</legend><div class="option-row">
-                    <label class="option-chip"><input type="radio" name="tanks" value="1" checked>One</label>
-                    <label class="option-chip"><input type="radio" name="tanks" value="2">Two</label>
-                    <label class="option-chip"><input type="radio" name="tanks" value="3">Three or more</label>
+                <fieldset class="wizard-question"><legend>2. Enter the actual tank counts</legend><div class="row-2">
+                    <label class="group">Upper / overhead tanks<input type="number" name="upper_tanks" value="1" min="1" max="1000" step="1" inputmode="numeric"></label>
+                    <label class="group">Underground / source tanks<input type="number" name="source_tanks" value="0" min="0" max="1000" step="1" inputmode="numeric"></label>
                 </div></fieldset>
-                <fieldset class="wizard-question"><legend>3. Where do you want to check the tank?</legend><div class="option-row">
+                <fieldset class="wizard-question"><legend>3. Are all overhead tanks on the same level and interconnected?</legend><div class="option-row">
+                    <label class="option-chip"><input type="radio" name="upper_layout" value="shared" checked>Yes, use one shared upper MCU</label>
+                    <label class="option-chip"><input type="radio" name="upper_layout" value="separate">No, each tank needs its own sensor node</label>
+                </div></fieldset>
+                <fieldset class="wizard-question"><legend>4. Where do you want to check the tank?</legend><div class="option-row">
                     <label class="option-chip"><input type="radio" name="access" value="none" checked>No phone app</label>
                     <label class="option-chip"><input type="radio" name="access" value="local">On my phone at home</label>
                     <label class="option-chip"><input type="radio" name="access" value="remote">From anywhere</label>
                 </div></fieldset>
-                <fieldset class="wizard-question"><legend>4. What else do you need?</legend><div class="option-row">
+                <fieldset class="wizard-question"><legend>5. What else do you need?</legend><div class="option-row">
                     <label class="option-chip"><input type="checkbox" name="pump">Automatic pump control</label>
                     <label class="option-chip"><input type="checkbox" name="ai">AI analytics and reports</label>
                 </div></fieldset>
-                <fieldset class="wizard-question"><legend>5. Which water sources are part of your setup?</legend><div class="option-row">
-                    <label class="option-chip"><input type="checkbox" name="water_source" value="source-tank">Underground / source tank</label>
+                <fieldset class="wizard-question"><legend>6. Which supply types are part of your setup?</legend><div class="option-row">
                     <label class="option-chip"><input type="checkbox" name="water_source" value="borewell">Borewell</label>
                     <label class="option-chip"><input type="checkbox" name="water_source" value="submersible">Submersible pump</label>
                     <label class="option-chip"><input type="checkbox" name="water_source" value="municipal">Municipal supply</label>
                 </div></fieldset>
-                <fieldset class="wizard-question"><legend>6. Optional maintenance for Commercial AI Pro</legend><div class="option-row">
+                <fieldset class="wizard-question"><legend>7. Optional maintenance for Commercial AI Pro</legend><div class="option-row">
                     <label class="option-chip"><input type="radio" name="maintenance" value="none" checked>No maintenance contract</label>
                     <label class="option-chip"><input type="radio" name="maintenance" value="monthly">Monthly maintenance quote</label>
                     <label class="option-chip"><input type="radio" name="maintenance" value="annual">Annual maintenance quote</label>
@@ -2016,7 +2018,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <strong>Extra tank or sensor node</strong>
                 <div class="addon-price">+ &#8377;2,500 to &#8377;4,500</div>
                 <span class="addon-fit">Monitoring and managed plans</span>
-                <p>Expand from one tank to overhead, underground, source, destination or multi-floor tank setups.</p>
+                <p>Used when an additional tank needs independent sensing. Interconnected overhead tanks on the same surface can share one upper MCU and are not charged as separate sensor nodes.</p>
             </article>
             <article class="addon-card" data-addon-category="accessories">
                 <strong>Wireless range extension node</strong>
@@ -2180,7 +2182,20 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <input id="lead_upper_tank_count" name="upper_tank_count" type="number" min="1" max="1000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('upper_tank_count', '1') }}">
                 </div>
                 <div class="group">
-                    <label for="lead_source_configuration">Water Source</label>
+                    <label for="lead_source_tank_count">Underground / Source Tanks</label>
+                    <input id="lead_source_tank_count" name="source_tank_count" type="number" min="0" max="1000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('source_tank_count', '0') }}">
+                </div>
+            </div>
+            <div class="row-2">
+                <div class="group">
+                    <label for="lead_upper_layout">Overhead Tank Layout</label>
+                    <select id="lead_upper_layout" name="upper_layout">
+                        {% set selected_layout = (sales_form|default({})).get('upper_layout', 'Same level and interconnected') %}
+                        {% for layout in ['Same level and interconnected', 'Separate levels or not interconnected'] %}<option value="{{ layout }}" {% if selected_layout == layout %}selected{% endif %}>{{ layout }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="group">
+                    <label for="lead_source_configuration">Supply Type</label>
                     <select id="lead_source_configuration" name="source_configuration">
                         {% set selected_source = (sales_form|default({})).get('source_configuration', 'Upper tank only') %}
                         {% for source in ['Upper tank only', 'Underground / source tank', 'Borewell', 'Municipal supply', 'Multiple sources'] %}<option value="{{ source }}" {% if selected_source == source %}selected{% endif %}>{{ source }}</option>{% endfor %}
@@ -2241,7 +2256,13 @@ function updatePlanWizard() {
     if (!planWizard) return;
     const data = new FormData(planWizard);
     const property = data.get("property") || "home";
-    const tanks = Number(data.get("tanks") || 1);
+    const upperTankCount = Math.max(1, Number(data.get("upper_tanks") || 1));
+    const sourceTankCount = Math.max(0, Number(data.get("source_tanks") || 0));
+    const upperLayout = data.get("upper_layout") || "shared";
+    const upperMcuCount = upperLayout === "shared" ? 1 : upperTankCount;
+    const sourceSensorCount = sourceTankCount;
+    const requiredSensorNodeCount = upperMcuCount + sourceSensorCount;
+    const estimatedDeviceCount = 1 + requiredSensorNodeCount;
     const access = data.get("access") || "none";
     const wantsPump = data.has("pump");
     const wantsAi = data.has("ai");
@@ -2262,7 +2283,7 @@ function updatePlanWizard() {
         plan = "Commercial AI Pro";
         reason = "Designed for hotels, schools and factories that need managed multi-tank information and reports.";
         segment = "Commercial Site";
-    } else if (property === "managed" || tanks >= 3) {
+    } else if (property === "managed" || requiredSensorNodeCount >= 3) {
         plan = wantsAi ? "Commercial AI Pro" : "RWA Standard";
         reason = wantsAi
             ? "A managed multi-tank plan with AI analytics and advanced reports."
@@ -2277,29 +2298,30 @@ function updatePlanWizard() {
     }
 
     const additions = [];
-    if (tanks === 2) additions.push("an extra tank sensor");
-    if (tanks >= 3) additions.push("a multi-upper-tank configuration");
+    if (upperTankCount > 1 && upperLayout === "shared") additions.push(`one shared upper MCU for ${upperTankCount} interconnected overhead tanks`);
+    if (upperMcuCount > 1) additions.push(`${upperMcuCount} upper sensor nodes for separately monitored overhead tanks`);
+    if (sourceSensorCount > 0) additions.push(`${sourceSensorCount} source-tank sensor node${sourceSensorCount > 1 ? "s" : ""}`);
     if (wantsPump && !["RWA Standard", "Commercial AI Pro"].includes(plan)) additions.push("the pump control add-on");
-    if (waterSources.includes("source-tank")) additions.push("source-tank monitoring and dry-run protection");
     if (waterSources.includes("borewell")) additions.push("borewell availability and pump protection");
     if (waterSources.includes("submersible")) additions.push("a compatible submersible starter interface");
     if (waterSources.includes("municipal")) additions.push("municipal-water detection or inlet-valve control");
     if (maintenance !== "none" && plan === "Commercial AI Pro") additions.push(`an optional ${maintenance} maintenance contract`);
     let estimatedPrice = planPrices[plan] || 4999;
     const priceParts = [`${plan}: ₹${estimatedPrice.toLocaleString("en-IN")}`];
-    const additionalUpperTanks = Math.max(0, tanks - 1);
-    if (additionalUpperTanks) {
-        const extraTankPrice = additionalUpperTanks * 2500;
+    const additionalUpperMcuCount = Math.max(0, upperMcuCount - 1);
+    if (additionalUpperMcuCount) {
+        const extraTankPrice = additionalUpperMcuCount * 2500;
         estimatedPrice += extraTankPrice;
-        priceParts.push(`${additionalUpperTanks} extra upper-tank sensor${additionalUpperTanks > 1 ? "s" : ""}: from ₹${extraTankPrice.toLocaleString("en-IN")}`);
+        priceParts.push(`${additionalUpperMcuCount} extra upper MCU${additionalUpperMcuCount > 1 ? "s" : ""}: from ₹${extraTankPrice.toLocaleString("en-IN")}`);
     }
     if (wantsPump && !["RWA Standard", "Commercial AI Pro"].includes(plan)) {
         estimatedPrice += 1500;
         priceParts.push("pump control: from ₹1,500");
     }
-    if (waterSources.includes("source-tank")) {
-        estimatedPrice += 2000;
-        priceParts.push("source-tank monitoring: from ₹2,000");
+    if (sourceSensorCount) {
+        const sourceSensorPrice = sourceSensorCount * 2000;
+        estimatedPrice += sourceSensorPrice;
+        priceParts.push(`${sourceSensorCount} source-tank sensor${sourceSensorCount > 1 ? "s" : ""}: from ₹${sourceSensorPrice.toLocaleString("en-IN")}`);
     }
     const requiresMaintenanceQuote = maintenance !== "none" && plan === "Commercial AI Pro";
     const requiresSiteQuote = requiresMaintenanceQuote || waterSources.some((source) => ["borewell", "submersible", "municipal"].includes(source));
@@ -2317,17 +2339,19 @@ function updatePlanWizard() {
     if (wizardBook) {
         wizardBook.dataset.plan = plan;
         wizardBook.dataset.segment = segment;
-        wizardBook.dataset.devices = String(tanks);
+        wizardBook.dataset.devices = String(estimatedDeviceCount);
         const sourceNote = waterSources.length
-            ? `Requested water configuration: ${waterSources.join(", ")}.`
-            : "Requested water configuration: upper tank only.";
+            ? `Supply types: ${waterSources.join(", ")}.`
+            : "Supply type not additionally selected.";
         const maintenanceNote = maintenance === "none" ? "No maintenance contract requested." : `Customer requested a ${maintenance} maintenance quote.`;
-        wizardBook.dataset.note = `${sourceNote} ${maintenanceNote} Online estimate: ${estimatedPriceLabel}. ${priceParts.join("; ")}.`;
+        const tankNote = `${upperTankCount} overhead tank(s), ${sourceTankCount} source tank(s), ${upperMcuCount} required upper MCU(s), ${sourceSensorCount} required source sensor(s), and 1 main controller.`;
+        wizardBook.dataset.note = `${tankNote} ${sourceNote} ${maintenanceNote} Online estimate: ${estimatedPriceLabel}. ${priceParts.join("; ")}.`;
     }
     highlightPlan(plan);
 }
 
 planWizard?.addEventListener("change", updatePlanWizard);
+planWizard?.addEventListener("input", updatePlanWizard);
 updatePlanWizard();
 
 document.querySelectorAll("[data-use-plan]").forEach((button) => {

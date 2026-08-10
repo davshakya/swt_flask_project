@@ -135,6 +135,10 @@ contactor, manual controls, earthing, and enclosure components.
 Supported configurations can monitor source/underground and destination/
 overhead tanks. The final sensor and controller roles depend on the site survey.
 
+Interconnected overhead tanks on the same surface can use one shared upper MCU.
+Overhead tanks on different levels, or tanks that are not interconnected, need
+separate upper sensor nodes. Source-tank quantity is collected separately.
+
 ### Can one system monitor multiple tanks?
 
 Yes, supported commercial and modular configurations can use multiple sensor
