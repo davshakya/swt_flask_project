@@ -1,5 +1,10 @@
 # SaleWell Smart Water Tank — Public Chatbot Knowledge Base
 
+Last refreshed: `2026-08-11`
+
+Answers must stay within the shipped capabilities in
+[`../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md); future or unshipped clients must not be presented as available.
+
 This document is written for website visitors, homeowners, apartment managers,
 installers, dealers, and commercial customers. Prices and availability should
 be confirmed with SaleWell before purchase because the final quote depends on

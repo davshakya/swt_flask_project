@@ -50,6 +50,28 @@ def test_mobile_local_sync_preserves_scope_and_transport_markers():
     assert 'transport="android_local_wifi"' in server_source
 
 
+def test_mobile_local_sync_defers_database_heavy_postprocessing():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = server_source.index("def mobile_local_sync():")
+    route_body = server_source[route_start : server_source.index("\n\n@app.route", route_start)]
+
+    assert "defer_postprocess=True" in route_body
+    assert "refresh_operational_alerts(" not in route_body
+
+
+def test_telemetry_worker_debounces_before_taking_permit_and_uses_cross_process_lease():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    worker_start = server_source.index("def schedule_telemetry_postprocess(")
+    worker_body = server_source[worker_start : server_source.index("\n\ndef process_telemetry_payload", worker_start)]
+
+    assert worker_body.index("time.sleep(remaining)") < worker_body.index(
+        "telemetry_background_semaphore.acquire"
+    )
+    assert 'SELECT GET_LOCK(?, 0) AS acquired' in worker_body
+    assert 'SELECT RELEASE_LOCK(?) AS released' in worker_body
+    assert "telemetry_postprocess_pending[normalized_device_id] = pending" in worker_body
+
+
 def test_android_local_sync_duplicate_payload_is_deduplicated():
     device_id = "swt-android-sync-dedupe-001"
     payload = {

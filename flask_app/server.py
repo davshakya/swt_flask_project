@@ -4892,23 +4892,6 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
         telemetry_postprocess_running.add(normalized_device_id)
 
     def worker():
-        acquired = telemetry_background_semaphore.acquire(
-            blocking=False
-        )
-
-        if not acquired:
-            with telemetry_postprocess_lock:
-                telemetry_postprocess_running.discard(
-                    normalized_device_id
-                )
-
-            logger.warning(
-                "Telemetry postprocess skipped for %s because the "
-                "background worker is busy.",
-                normalized_device_id,
-            )
-            return
-
         try:
             while True:
                 with telemetry_postprocess_lock:
@@ -4930,6 +4913,9 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                 )
 
                 if remaining > 0:
+                    # Debouncing does not consume the scarce database-work
+                    # permit. Otherwise one quiet device can block all other
+                    # devices for the full 30-second coalescing interval.
                     time.sleep(remaining)
 
                     with telemetry_postprocess_lock:
@@ -4938,7 +4924,38 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                             pending,
                         )
 
-                postprocess_telemetry_payload(*pending)
+                acquired = telemetry_background_semaphore.acquire(blocking=False)
+                if not acquired:
+                    with telemetry_postprocess_lock:
+                        telemetry_postprocess_pending[normalized_device_id] = pending
+                    logger.warning(
+                        "Telemetry postprocess deferred for %s because the "
+                        "background worker is busy.",
+                        normalized_device_id,
+                    )
+                    return
+
+                try:
+                    # Passenger runs several independent Python processes, so
+                    # the in-memory per-device set above cannot prevent the
+                    # same device being processed concurrently in two workers.
+                    # A zero-wait MySQL advisory lock provides cross-process
+                    # coalescing without tying up a web/LSAPI child.
+                    lease_db = get_db()
+                    lease_acquired = True
+                    if isinstance(lease_db, MySqlConnectionAdapter):
+                        lease_name = f"swt_telemetry_{hashlib.sha256(normalized_device_id.encode('utf-8')).hexdigest()[:32]}"
+                        row = lease_db.execute("SELECT GET_LOCK(?, 0) AS acquired", (lease_name,)).fetchone()
+                        lease_acquired = int((row or {}).get("acquired") or 0) == 1
+                    try:
+                        if lease_acquired:
+                            postprocess_telemetry_payload(*pending)
+                    finally:
+                        if isinstance(lease_db, MySqlConnectionAdapter) and lease_acquired:
+                            lease_db.execute("SELECT RELEASE_LOCK(?) AS released", (lease_name,))
+                        lease_db.close()
+                finally:
+                    telemetry_background_semaphore.release()
 
                 with telemetry_postprocess_lock:
                     telemetry_postprocess_last_run_at[
@@ -4952,8 +4969,6 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                 telemetry_postprocess_running.discard(
                     normalized_device_id
                 )
-
-            telemetry_background_semaphore.release()
 
     threading.Thread(
         target=worker,
@@ -17592,9 +17607,16 @@ def mobile_local_sync():
 
     data["device_id"] = scoped_device_id
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
-    cleaned = process_telemetry_payload(data, source_ip="android_local_wifi", transport="android_local_wifi")
+    # Keep the mobile request on the same short ingestion path as device HTTP
+    # telemetry. Event synchronization, alert evaluation, and dashboard
+    # materialization are database-heavy and must not occupy an LSAPI child.
+    cleaned = process_telemetry_payload(
+        data,
+        source_ip="android_local_wifi",
+        transport="android_local_wifi",
+        defer_postprocess=True,
+    )
     snapshot = load_dashboard_snapshot(scoped_device_id)
-    refresh_operational_alerts(snapshot if snapshot_has_live_device_data(snapshot) else None)
     sync_result = str(cleaned.get("_telemetry_sync_result") or "saved")
     return jsonify(
         {

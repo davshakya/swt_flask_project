@@ -1,5 +1,7 @@
 # SaleWell Customer FAQ
 
+Last refreshed: `2026-08-11`
+
 These answers are for the public website chatbot. Final price, compatibility,
 installation scope, and availability must be confirmed by SaleWell.
 
