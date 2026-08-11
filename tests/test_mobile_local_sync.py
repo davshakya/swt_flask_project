@@ -67,8 +67,9 @@ def test_telemetry_worker_debounces_before_taking_permit_and_uses_cross_process_
     assert worker_body.index("time.sleep(remaining)") < worker_body.index(
         "telemetry_background_semaphore.acquire"
     )
-    assert 'SELECT GET_LOCK(?, 0) AS acquired' in worker_body
-    assert 'SELECT RELEASE_LOCK(?) AS released' in worker_body
+    assert "fcntl.LOCK_EX | fcntl.LOCK_NB" in worker_body
+    assert "fcntl.LOCK_UN" in worker_body
+    assert "lease_db = get_db()" not in worker_body
     assert "telemetry_postprocess_pending[normalized_device_id] = pending" in worker_body
 
 

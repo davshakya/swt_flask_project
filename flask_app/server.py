@@ -19,10 +19,16 @@ import re
 import secrets
 import smtplib
 import subprocess
+import tempfile
 import time
 import threading
 import math
 from email.message import EmailMessage
+
+try:
+    import fcntl
+except ImportError:  # Windows development/tests; Passenger production is POSIX.
+    fcntl = None
 
 pd = None
 PANDAS_IMPORT_ERROR = None
@@ -4939,21 +4945,27 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                     # Passenger runs several independent Python processes, so
                     # the in-memory per-device set above cannot prevent the
                     # same device being processed concurrently in two workers.
-                    # A zero-wait MySQL advisory lock provides cross-process
-                    # coalescing without tying up a web/LSAPI child.
-                    lease_db = get_db()
+                    # Use a zero-wait filesystem lease instead of GET_LOCK:
+                    # holding a MySQL connection for this whole job can exhaust
+                    # shared-host connection limits and trigger error 2006.
+                    lease_file = None
                     lease_acquired = True
-                    if isinstance(lease_db, MySqlConnectionAdapter):
-                        lease_name = f"swt_telemetry_{hashlib.sha256(normalized_device_id.encode('utf-8')).hexdigest()[:32]}"
-                        row = lease_db.execute("SELECT GET_LOCK(?, 0) AS acquired", (lease_name,)).fetchone()
-                        lease_acquired = int((row or {}).get("acquired") or 0) == 1
+                    if fcntl is not None:
+                        lease_digest = hashlib.sha256(normalized_device_id.encode("utf-8")).hexdigest()[:32]
+                        lease_path = Path(tempfile.gettempdir()) / f"swt-telemetry-{lease_digest}.lock"
+                        lease_file = lease_path.open("a+")
+                        try:
+                            fcntl.flock(lease_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        except BlockingIOError:
+                            lease_acquired = False
                     try:
                         if lease_acquired:
                             postprocess_telemetry_payload(*pending)
                     finally:
-                        if isinstance(lease_db, MySqlConnectionAdapter) and lease_acquired:
-                            lease_db.execute("SELECT RELEASE_LOCK(?) AS released", (lease_name,))
-                        lease_db.close()
+                        if lease_file is not None:
+                            if lease_acquired:
+                                fcntl.flock(lease_file.fileno(), fcntl.LOCK_UN)
+                            lease_file.close()
                 finally:
                     telemetry_background_semaphore.release()
 
