@@ -1412,6 +1412,9 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'mobileChatbotButton.addEventListener("click", (event) =>' in template
     assert 'event.stopPropagation();' in template
     assert 'id="mobileChatbotButton"' in template
+    assert "--chat-text:#f1fbfd" in template
+    assert "--chat-control-text:#dff8fc" in template
+    assert "font-size:14px;\nline-height:1.48" in template
     assert 'setChatbotOpen(true);' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
     assert ".enquiry-modal{z-index:120}" in template
@@ -1469,7 +1472,12 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert 'id="use-cases"' in pricing
     assert 'id="installation"' in pricing
     assert 'id="faqs"' in pricing
-    assert 'class="sticky-actions"' in pricing
+    assert 'class="mobile-contact-bar"' in pricing
+    assert 'aria-label="Call SaleWell"' in pricing
+    assert 'aria-label="Contact SaleWell on WhatsApp"' in pricing
+    assert 'aria-label="Book a free demo"' in pricing
+    assert 'aria-label="Open chat"' in pricing
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in pricing
     assert "500+" in pricing
     assert "10,000+ KL/day" in pricing
     assert "Warranty coverage varies by kit and project scope." in pricing
