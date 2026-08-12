@@ -4529,7 +4529,11 @@ caret-color:#67e8f9!important;
 .login-account-panel{display:grid;gap:10px;margin:16px 0 4px;padding:14px;border:1px solid rgba(111,224,235,.22);border-radius:20px;background:linear-gradient(135deg,rgba(37,169,184,.14),rgba(73,207,151,.08))}
 .login-account-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.login-account-identity{min-width:0;flex:1}.login-account-identity small{display:block;color:#8fb8c1;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.login-account-identity strong{display:block;margin-top:3px;color:#f3fcfd;overflow-wrap:anywhere}
 .login-account-actions{display:flex;gap:8px;flex-wrap:wrap}.login-account-actions .nav-button{min-height:40px;padding:8px 13px}.login-account-actions .logout-button{background:linear-gradient(135deg,#ffc46c,#ef9840);border-color:rgba(255,201,119,.5);color:#173238}
-@media(max-width:600px){#loginModal .modal-panel{width:calc(100vw - 16px);padding:20px 14px;border-radius:22px}.login-account-row{align-items:stretch;flex-direction:column}.login-account-actions>*{flex:1}}
+@media(max-width:600px){
+#loginModal .modal-panel{width:calc(100vw - 16px);padding:20px 14px;border-radius:22px}
+.login-account-row{align-items:stretch;flex-direction:column}
+.login-account-actions>*{flex:1}
+}
 :root{--page-text-size:15px;font-size:var(--page-text-size)}
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
 .nav{position:relative;top:auto;z-index:50}

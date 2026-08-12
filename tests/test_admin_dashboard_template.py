@@ -1470,6 +1470,13 @@ def test_homepage_shows_active_identity_and_logout():
     assert '<form class="logout-form" method="post" action="/logout">' in login_template
 
 
+def test_homepage_template_has_valid_jinja_syntax():
+    from jinja2 import Environment
+
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    Environment().parse(template)
+
+
 def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
