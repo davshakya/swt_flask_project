@@ -317,8 +317,10 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
         assert 'id="lead_source_configuration"' not in template
         assert 'id="lead_pump_type"' not in template
         assert 'id="lead_maintenance_preference"' not in template
-        assert "Customize Your Water Setup" in template
-        assert "#find-my-plan" in template
+        assert "Customize Your Water Setup" not in template
+    pricing_template = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    assert "Customize your water setup." in pricing_template
+    assert "Customized water setup:" in pricing_template
 
 
 def test_demo_booking_uses_waf_safe_canonical_route():
