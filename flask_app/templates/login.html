@@ -4517,16 +4517,19 @@ caret-color:#67e8f9!important;
 #loginModal .password-toggle:hover,
 #loginModal .password-toggle:focus-visible{background:#1b4652;color:#e7fbff;}
 #loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
-#loginModal .modal-panel{width:min(92vw,720px);padding:26px;border:1px solid rgba(111,224,235,.3);border-radius:28px;background:radial-gradient(circle at 90% 0,rgba(39,188,205,.18),transparent 34%),linear-gradient(145deg,rgba(13,48,59,.98),rgba(5,28,37,.98));box-shadow:0 32px 90px rgba(0,20,28,.52),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(24px)}
-#loginModal .modal-close{top:18px;right:18px;width:44px;height:44px;border-radius:14px}
-#loginModal .modal-header h2{font-size:clamp(1.8rem,4vw,2.5rem);margin-top:14px}
-#loginModal .login-toggle{padding:5px;border:1px solid rgba(157,220,232,.16);border-radius:18px;background:rgba(3,23,31,.38)}
-#loginModal .toggle-button{min-height:48px;border-radius:14px}
+#loginModal .modal-panel{width:min(92vw,560px);padding:20px;border:1px solid rgba(111,224,235,.3);border-radius:24px;background:radial-gradient(circle at 90% 0,rgba(39,188,205,.18),transparent 34%),linear-gradient(145deg,rgba(13,48,59,.98),rgba(5,28,37,.98));box-shadow:0 32px 90px rgba(0,20,28,.52),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(24px)}
+#loginModal .modal-close{top:14px;right:14px;width:38px;height:38px;border-radius:12px}
+#loginModal .modal-header h2{font-size:clamp(1.55rem,3vw,2rem);margin-top:10px}
+#loginModal .modal-header p{font-size:12px;line-height:1.4}
+#loginModal .login-toggle{padding:4px;border:1px solid rgba(157,220,232,.16);border-radius:16px;background:rgba(3,23,31,.38)}
+#loginModal .toggle-button{min-height:42px;border-radius:12px;font-size:13px}
 #loginModal .toggle-button.is-active{background:linear-gradient(135deg,#1aa8bd,#147b91);box-shadow:0 10px 24px rgba(10,142,164,.25)}
-#loginModal .login-pane{padding:18px;margin-top:12px;border:1px solid rgba(157,220,232,.14);border-radius:20px;background:rgba(9,39,49,.55)}
-#loginModal .portal-form input:not([type="hidden"]){min-height:50px;border-radius:14px!important}
-#loginModal .portal-form .button{min-height:48px;border-radius:14px;background:linear-gradient(135deg,#1eb3c8,#137f96);box-shadow:0 10px 24px rgba(12,139,162,.22)}
-.login-account-panel{display:grid;gap:10px;margin:16px 0 4px;padding:14px;border:1px solid rgba(111,224,235,.22);border-radius:20px;background:linear-gradient(135deg,rgba(37,169,184,.14),rgba(73,207,151,.08))}
+#loginModal .login-pane{padding:13px;margin-top:9px;border:1px solid rgba(157,220,232,.14);border-radius:16px;background:rgba(9,39,49,.55)}
+#loginModal .modal-panel .portal-form{gap:6px;margin-top:0}
+#loginModal .portal-form input:not([type="hidden"]){min-height:44px;padding:8px 11px;border-radius:12px!important}
+#loginModal .portal-form .button{min-height:42px;padding:8px 12px;border-radius:12px;background:linear-gradient(135deg,#1eb3c8,#137f96);box-shadow:0 10px 24px rgba(12,139,162,.22)}
+.login-account-panel{display:grid;gap:8px;margin:11px 0 3px;padding:11px;border:1px solid rgba(111,224,235,.22);border-radius:16px;background:linear-gradient(135deg,rgba(37,169,184,.14),rgba(73,207,151,.08))}
+.login-account-panel[hidden]{display:none}
 .login-account-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.login-account-identity{min-width:0;flex:1}.login-account-identity small{display:block;color:#8fb8c1;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.login-account-identity strong{display:block;margin-top:3px;color:#f3fcfd;overflow-wrap:anywhere}
 .login-account-actions{display:flex;gap:8px;flex-wrap:wrap}.login-account-actions .nav-button{min-height:40px;padding:8px 13px}.login-account-actions .logout-button{background:linear-gradient(135deg,#ffc46c,#ef9840);border-color:rgba(255,201,119,.5);color:#173238}
 @media(max-width:600px){
@@ -5814,13 +5817,12 @@ caret-color:#67e8f9!important;
     aria-hidden="{% if show_login_modal|default(false) %}false{% else %}true{% endif %}"
 >
     <div class="modal-backdrop" data-close-modal></div>
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
         <button class="modal-close" type="button" aria-label="Close login" data-close-modal>&times;</button>
 
         <div class="modal-header">
             <div class="eyebrow">Sign In</div>
             <h2 id="loginModalTitle">{{ login_title }}</h2>
-            <p id="loginModalDescription">{{ login_description }}</p>
         </div>
 
         <div class="modal-banners">
@@ -5831,22 +5833,6 @@ caret-color:#67e8f9!important;
             <div class="banner error">{{ error }}</div>
             {% endif %}
         </div>
-
-        {% if active_homepage_user %}
-        <section class="login-account-panel" aria-label="Signed-in account">
-            <div class="login-account-row">
-                <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
-                <div class="login-account-actions">
-                    {% if nav_customer_logged_in %}<a class="nav-button" href="{{ url_for('customer_dashboard') }}">Customer Dashboard</a>{% endif %}
-                    {% if nav_admin_logged_in %}<a class="nav-button" href="{{ url_for('admin_customers') }}">Admin Dashboard</a>{% endif %}
-                    <form class="logout-form" method="post" action="/logout">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                        <button class="nav-button logout-button" type="submit">Logout</button>
-                    </form>
-                </div>
-            </div>
-        </section>
-        {% endif %}
 
         <div class="login-toggle" role="tablist" aria-label="Login role selector">
             <button
@@ -5864,11 +5850,19 @@ caret-color:#67e8f9!important;
         </div>
 
         <section class="login-pane {% if login_mode != 'admin' %}is-active{% endif %}" data-login-pane="customer">
-            <h3>Customer Login</h3>
-            <p>Use your registered tank credentials.</p>
-            <div class="login-help">Use your assigned device ID as the username.</div>
+            {% if active_homepage_user and active_homepage_user.role == 'customer' %}
+            <div class="login-account-panel" aria-label="Signed-in customer account">
+                <div class="login-account-row">
+                    <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
+                    <div class="login-account-actions">
+                        <a class="nav-button" href="{{ url_for('customer_dashboard') }}">Customer Dashboard</a>
+                        <form class="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button logout-button" type="submit">Logout</button></form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
             <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
+                <input type="hidden" name="next" value="{{ url_for('customer_dashboard') }}">
                 <div class="group">
                     <label for="customer_username">Device ID</label>
                     <input id="customer_username" name="username" type="text" autocomplete="username" value="{% if login_mode != 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
@@ -5883,17 +5877,26 @@ caret-color:#67e8f9!important;
                         </button>
                     </div>
                 </div>
-                <button class="button" type="submit">Open Customer Dashboard</button>
+                <button class="button" type="submit">Login</button>
             </form>
             <div class="login-help"><a href="{{ url_for('customer_forgot_password') }}">Forgot customer password?</a></div>
+            {% endif %}
         </section>
 
         <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">
-            <h3>Admin Login</h3>
-            <p>For installer and service access.</p>
-            <div class="login-help">Use your admin username and password.</div>
+            {% if active_homepage_user and active_homepage_user.role == 'admin' %}
+            <div class="login-account-panel" aria-label="Signed-in admin account">
+                <div class="login-account-row">
+                    <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
+                    <div class="login-account-actions">
+                        <a class="nav-button" href="{{ url_for('admin_customers') }}">Admin Dashboard</a>
+                        <form class="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button logout-button" type="submit">Logout</button></form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
             <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
+                <input type="hidden" name="next" value="{{ url_for('admin_customers') }}">
                 <div class="group">
                     <label for="admin_username">Username</label>
                     <input id="admin_username" name="username" type="text" autocomplete="username" value="{% if login_mode == 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
@@ -5908,8 +5911,9 @@ caret-color:#67e8f9!important;
                         </button>
                     </div>
                 </div>
-                <button class="button" type="submit">Open Admin Dashboard</button>
+                <button class="button" type="submit">Login</button>
             </form>
+            {% endif %}
         </section>
     </div>
 </div>
