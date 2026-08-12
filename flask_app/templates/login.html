@@ -4517,6 +4517,19 @@ caret-color:#67e8f9!important;
 #loginModal .password-toggle:hover,
 #loginModal .password-toggle:focus-visible{background:#1b4652;color:#e7fbff;}
 #loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
+#loginModal .modal-panel{width:min(92vw,720px);padding:26px;border:1px solid rgba(111,224,235,.3);border-radius:28px;background:radial-gradient(circle at 90% 0,rgba(39,188,205,.18),transparent 34%),linear-gradient(145deg,rgba(13,48,59,.98),rgba(5,28,37,.98));box-shadow:0 32px 90px rgba(0,20,28,.52),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(24px)}
+#loginModal .modal-close{top:18px;right:18px;width:44px;height:44px;border-radius:14px}
+#loginModal .modal-header h2{font-size:clamp(1.8rem,4vw,2.5rem);margin-top:14px}
+#loginModal .login-toggle{padding:5px;border:1px solid rgba(157,220,232,.16);border-radius:18px;background:rgba(3,23,31,.38)}
+#loginModal .toggle-button{min-height:48px;border-radius:14px}
+#loginModal .toggle-button.is-active{background:linear-gradient(135deg,#1aa8bd,#147b91);box-shadow:0 10px 24px rgba(10,142,164,.25)}
+#loginModal .login-pane{padding:18px;margin-top:12px;border:1px solid rgba(157,220,232,.14);border-radius:20px;background:rgba(9,39,49,.55)}
+#loginModal .portal-form input:not([type="hidden"]){min-height:50px;border-radius:14px!important}
+#loginModal .portal-form .button{min-height:48px;border-radius:14px;background:linear-gradient(135deg,#1eb3c8,#137f96);box-shadow:0 10px 24px rgba(12,139,162,.22)}
+.login-account-panel{display:grid;gap:10px;margin:16px 0 4px;padding:14px;border:1px solid rgba(111,224,235,.22);border-radius:20px;background:linear-gradient(135deg,rgba(37,169,184,.14),rgba(73,207,151,.08))}
+.login-account-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.login-account-identity{min-width:0;flex:1}.login-account-identity small{display:block;color:#8fb8c1;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.login-account-identity strong{display:block;margin-top:3px;color:#f3fcfd;overflow-wrap:anywhere}
+.login-account-actions{display:flex;gap:8px;flex-wrap:wrap}.login-account-actions .nav-button{min-height:40px;padding:8px 13px}.login-account-actions .logout-button{background:linear-gradient(135deg,#ffc46c,#ef9840);border-color:rgba(255,201,119,.5);color:#173238}
+@media(max-width:600px){#loginModal .modal-panel{width:calc(100vw - 16px);padding:20px 14px;border-radius:22px}.login-account-row{align-items:stretch;flex-direction:column}.login-account-actions>*{flex:1}}
 :root{--page-text-size:15px;font-size:var(--page-text-size)}
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
 .nav{position:relative;top:auto;z-index:50}
@@ -4562,47 +4575,10 @@ caret-color:#67e8f9!important;
             {% set nav_admin_logged_in = nav_auth.admin_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'admin') %}
             {% set nav_customer_logged_in = nav_auth.customer_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'customer') %}
             <a class="nav-button is-secondary is-demo book-demo-button" href="#enquiry">Book Demo</a>
-            <details class="user-login-menu">
-                <summary class="nav-button is-primary user-login-trigger">
-                    <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
-                    <span>Login</span>
-                </summary>
-                <div class="user-login-dropdown" aria-label="User login options">
-                    {% if active_homepage_user %}
-                    <div class="user-menu-account-row">
-                        <span>{{ active_homepage_user.display_name }}</span>
-                        <form class="logout-form" method="post" action="/logout">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                            <button class="nav-button is-secondary" type="submit">Logout</button>
-                        </form>
-                    </div>
-                    {% endif %}
-                    {% if nav_customer_logged_in %}
-                    <a
-                        class="nav-button"
-                        href="{{ url_for('customer_dashboard') }}"
-                    >Customer Dashboard</a>
-                    {% else %}
-                    <a
-                        class="nav-button js-open-login {% if login_mode != 'admin' %}is-current{% endif %}"
-                        href="{{ url_for('customer_login', next=next_url) }}"
-                        data-role="customer"
-                    >Customer Login</a>
-                    {% endif %}
-                    {% if nav_admin_logged_in %}
-                    <a
-                        class="nav-button"
-                        href="{{ url_for('admin_customers') }}"
-                    >Admin Dashboard</a>
-                    {% else %}
-                    <a
-                        class="nav-button js-open-login {% if login_mode == 'admin' %}is-current{% endif %}"
-                        href="{{ url_for('admin_login', next=next_url) }}"
-                        data-role="admin"
-                    >Admin Login</a>
-                    {% endif %}
-                </div>
-            </details>
+            <button class="nav-button is-primary user-login-trigger js-open-login" type="button" data-role="{{ 'admin' if login_mode == 'admin' else 'customer' }}" aria-haspopup="dialog" aria-controls="loginModal">
+                <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>Login</span>
+            </button>
             <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
@@ -5852,6 +5828,22 @@ caret-color:#67e8f9!important;
             {% endif %}
         </div>
 
+        {% if active_homepage_user %}
+        <section class="login-account-panel" aria-label="Signed-in account">
+            <div class="login-account-row">
+                <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
+                <div class="login-account-actions">
+                    {% if nav_customer_logged_in %}<a class="nav-button" href="{{ url_for('customer_dashboard') }}">Customer Dashboard</a>{% endif %}
+                    {% if nav_admin_logged_in %}<a class="nav-button" href="{{ url_for('admin_customers') }}">Admin Dashboard</a>{% endif %}
+                    <form class="logout-form" method="post" action="/logout">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button class="nav-button logout-button" type="submit">Logout</button>
+                    </form>
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
         <div class="login-toggle" role="tablist" aria-label="Login role selector">
             <button
                 class="toggle-button {% if login_mode != 'admin' %}is-active{% endif %}"
@@ -5930,7 +5922,6 @@ const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
 const toggleButtons = document.querySelectorAll("[data-login-role]");
 const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
-const userLoginMenus = document.querySelectorAll(".user-login-menu");
 const landingModeInput = document.getElementById("landingModeInput");
 const enquiryForm = document.getElementById("enquiryForm");
 const enquirySubmitButton = document.getElementById("enquirySubmitButton");
@@ -6187,9 +6178,6 @@ toggleButtons.forEach((button) => {
 openLoginButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
-        userLoginMenus.forEach((menu) => {
-            menu.removeAttribute("open");
-        });
         openLoginModal(button.dataset.role);
     });
 });

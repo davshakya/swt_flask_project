@@ -1464,7 +1464,9 @@ def test_homepage_shows_active_identity_and_logout():
     assert "homepage_user=homepage_login_status()" in server_source
     assert "active_homepage_user = nav_auth.active_user|default(homepage_user)" in login_template
     assert "Logged in as - {{ active_homepage_user.display_name }}" not in login_template
-    assert "<span>{{ active_homepage_user.display_name }}</span>" in login_template
+    assert "<strong>{{ active_homepage_user.display_name }}</strong>" in login_template
+    assert 'class="login-account-panel"' in login_template
+    assert 'aria-controls="loginModal"' in login_template
     assert '<form class="logout-form" method="post" action="/logout">' in login_template
 
 
