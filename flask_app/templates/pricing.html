@@ -483,8 +483,8 @@ border:4px solid var(--plan-edge);
 box-shadow:0 0 0 1px color-mix(in srgb,var(--plan-edge) 18%,transparent),inset 0 1px 0 rgba(255,255,255,.52);
 display:grid;
 grid-template-columns:minmax(0,1.15fr) minmax(190px,.85fr);
-grid-template-areas:"summary price" "features-title fit-title" "features fit" "assurance assurance" "actions actions";
-grid-template-rows:auto auto 1fr auto auto;
+grid-template-areas:"summary price" "features-title fit-title" "features fit" "actions actions";
+grid-template-rows:auto auto 1fr auto;
 gap:12px;
 align-content:start;
 transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
@@ -496,7 +496,7 @@ transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 .plan-card[data-plan-name="Commercial AI Pro"]{--plan-edge:#dd5f91}
 .plan-card[data-plan-name="Dealer / Installer Kit"]{--plan-edge:#287fd0}
 .plan-card[data-plan-name="Enterprise Modular"]{--plan-edge:#8b5cc7}
-.plan-card>.plan-top{grid-area:summary}.plan-card>.price-stack{grid-area:price;height:100%;align-content:center}.plan-card>.list-title:nth-child(3){grid-area:features-title}.plan-card>.feature-list{grid-area:features}.plan-card>.list-title:nth-child(5){grid-area:fit-title}.plan-card>.fit-list{grid-area:fit}.plan-card>.assurance-bar{grid-area:assurance}.plan-card>.plan-action{grid-area:actions}
+.plan-card>.plan-top{grid-area:summary}.plan-card>.price-stack{grid-area:price;height:100%;align-content:center}.plan-card>.list-title:nth-child(3){grid-area:features-title}.plan-card>.feature-list{grid-area:features}.plan-card>.list-title:nth-child(5){grid-area:fit-title}.plan-card>.fit-list{grid-area:fit}.plan-card>.plan-action{grid-area:actions}
 .plan-card:hover{
 transform:translateY(-3px);
 border-color:var(--plan-edge);
@@ -1214,7 +1214,7 @@ grid-template-columns:1fr;
 }
 }
 @media (max-width:720px){
-.plan-card{grid-template-columns:1fr;grid-template-areas:"summary" "price" "features-title" "features" "fit-title" "fit" "assurance" "actions"}.plan-action{display:grid}.plan-action .button,.plan-action .button-secondary{width:100%}
+.plan-card{grid-template-columns:1fr;grid-template-areas:"summary" "price" "features-title" "features" "fit-title" "fit" "actions"}.plan-action{display:grid}.plan-action .button,.plan-action .button-secondary{width:100%}
 .plans-carousel{padding:0}.plans-carousel-track .plan-card{flex-basis:100%}.plans-carousel-button{width:34px;height:34px;font-size:22px;background:var(--surface-strong);box-shadow:0 8px 22px rgba(12,56,66,.24)}.plans-carousel-button.is-prev{left:6px}.plans-carousel-button.is-next{right:6px}
 .page{
 width:min(100% - 18px,1380px);
@@ -1288,7 +1288,7 @@ body{font-size:16px}
 .animation-modal-title{position:absolute;left:22px;right:72px;top:14px;margin:0;color:#eaf8ff;font:800 18px/1.3 "Aptos","Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .animation-frame{display:block;width:100%;height:auto;aspect-ratio:1050/790;border:0;border-radius:14px;background:#071a39}
 @media(max-width:680px){.animation-modal .modal-panel{width:min(100vw,calc((96vh - 52px) * 1.3292));height:auto;border-radius:12px;padding:50px 0 0}.animation-modal-title{left:14px;top:15px;font-size:15px}.animation-frame{border-radius:0 0 12px 12px}}
-.plans-carousel-track .plan-card{height:clamp(520px,58vh,610px);padding:14px;gap:8px;font-size:13px;line-height:1.3;overflow:hidden;grid-template-rows:auto auto auto 1fr auto auto;align-content:stretch;transform:none!important}.plans-carousel-track .plan-card:hover{transform:none!important}.plans-carousel-track .plan-top{gap:6px}.plans-carousel-track .plan-badges{gap:5px}.plans-carousel-track .plan-badge{padding:5px 8px;font-size:10px;letter-spacing:.1em}.plans-carousel-track .plan-badge.is-recommended{padding:6px 9px;font-size:10px}.plans-carousel-track .plan-card h3{font-size:1.3rem;line-height:1.12}.plans-carousel-track .plan-card p{font-size:13px!important;line-height:1.38!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.plans-carousel-track .price-stack{padding:12px 14px;border-radius:15px;gap:0;height:auto!important;min-height:64px;align-content:center!important}.plans-carousel-track .price-main{font-size:1.8rem}.plans-carousel-track .price-note{display:none!important}.plans-carousel-track .list-title{font-size:10px;letter-spacing:.1em}.plans-carousel-track .feature-list,.plans-carousel-track .fit-list{gap:7px;align-content:start;align-self:start}.plans-carousel-track .feature-list li,.plans-carousel-track .fit-list li{gap:7px;font-size:12px!important;line-height:1.3!important}.plans-carousel-track .feature-list li::before,.plans-carousel-track .fit-list li::before{width:8px;height:8px;margin-top:3px;box-shadow:0 0 0 3px rgba(13,147,168,.08)}.plans-carousel-track .assurance-bar{padding:8px 10px;border-radius:11px;font-size:10px;line-height:1.25}.plans-carousel-track .assurance-bar::after{display:none!important}.plans-carousel-track .plan-action{gap:7px;margin-top:0;align-self:end}.plans-carousel-track .plan-action span{display:none}.plans-carousel-track .plan-action .button,.plans-carousel-track .plan-action .button-secondary{min-height:38px;padding:8px 11px;font-size:11px;border-radius:10px;flex:1 1 130px}.plans-carousel-track{padding-top:12px;padding-bottom:14px;align-items:stretch}.plans-carousel-status{line-height:1.2}
+.plans-carousel-track .plan-card{height:clamp(520px,58vh,610px);padding:14px;gap:8px;font-size:13px;line-height:1.3;overflow:hidden;grid-template-rows:auto auto 1fr auto;align-content:stretch;transform:none!important}.plans-carousel-track .plan-card:hover{transform:none!important}.plans-carousel-track .plan-top{gap:6px}.plans-carousel-track .plan-badges{gap:5px}.plans-carousel-track .plan-badge{padding:5px 8px;font-size:10px;letter-spacing:.1em}.plans-carousel-track .plan-badge.is-recommended{padding:6px 9px;font-size:10px}.plans-carousel-track .plan-card h3{font-size:1.3rem;line-height:1.12}.plans-carousel-track .plan-card p{font-size:13px!important;line-height:1.38!important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.plans-carousel-track .price-stack{padding:12px 14px;border-radius:15px;gap:0;height:auto!important;min-height:64px;align-content:center!important}.plans-carousel-track .price-main{font-size:1.8rem}.plans-carousel-track .price-note{display:none!important}.plans-carousel-track .list-title{font-size:10px;letter-spacing:.1em}.plans-carousel-track .feature-list,.plans-carousel-track .fit-list{gap:7px;align-content:start;align-self:start}.plans-carousel-track .feature-list li,.plans-carousel-track .fit-list li{gap:7px;font-size:12px!important;line-height:1.3!important}.plans-carousel-track .feature-list li::before,.plans-carousel-track .fit-list li::before{width:8px;height:8px;margin-top:3px;box-shadow:0 0 0 3px rgba(13,147,168,.08)}.plans-carousel-track .assurance-bar{padding:8px 10px;border-radius:11px;font-size:10px;line-height:1.25}.plans-carousel-track .assurance-bar::after{display:none!important}.plans-carousel-track .plan-action{gap:7px;margin-top:0;align-self:end}.plans-carousel-track .plan-action span{display:none}.plans-carousel-track .plan-action .button,.plans-carousel-track .plan-action .button-secondary{min-height:38px;padding:8px 11px;font-size:11px;border-radius:10px;flex:1 1 130px}.plans-carousel-track{padding-top:12px;padding-bottom:14px;align-items:stretch}.plans-carousel-status{line-height:1.2}
 .plans-carousel-track .plan-card{position:relative}.plan-info-button{margin-left:auto;width:27px;height:27px;display:grid;place-items:center;border:1px solid rgba(13,147,168,.32);border-radius:999px;background:var(--brand-soft);color:var(--brand-deep);font:900 13px/1 Georgia,serif;cursor:pointer}.plan-info-button:hover,.plan-info-button[aria-expanded="true"]{background:var(--brand);color:#fff}.plan-info-panel{position:absolute;inset:9px;z-index:8;display:none;padding:16px;overflow:auto;border:1px solid var(--line-strong);border-radius:18px;background:var(--surface-strong);color:var(--text);box-shadow:0 20px 55px rgba(5,36,45,.28)}.plan-info-panel.is-open{display:block}.plan-info-panel h4{margin:0 42px 12px 0;font-size:1.15rem}.plan-info-panel h5{margin:14px 0 5px;color:var(--brand-deep);font-size:10px;letter-spacing:.1em;text-transform:uppercase}.plan-info-panel p,.plans-carousel-track .plan-info-panel p{display:block!important;margin:0;color:var(--muted);font-size:12px!important;line-height:1.45!important;overflow:visible;-webkit-line-clamp:unset}.plan-info-panel ul{margin:0;padding-left:18px;color:var(--muted);font-size:11px;line-height:1.45}.plan-info-close{position:absolute;right:12px;top:11px;width:30px;height:30px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--text);font-size:18px;cursor:pointer}
 @media(max-width:720px){.plans-carousel-track .plan-card{height:auto;min-height:560px;max-height:none;overflow:visible}.plans-carousel-track .plan-card p{-webkit-line-clamp:3}}
 .decision-grid,.value-grid,.process-grid,.trust-grid,.use-case-grid,.faq-grid{display:grid;gap:14px}
@@ -1582,7 +1582,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Small buildings</li>
                     <li>Budget customers</li>
                 </ul>
-                <div class="assurance-bar">Hardware: tank sensor + controller &bull; App users: none &bull; Cloud: no &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book Home Basic</a>
                     <span>Upgrade to Home Control when you want to see the tank level on your phone.</span>
@@ -1620,7 +1619,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Villas</li>
                     <li>Customers who want local app visibility</li>
                 </ul>
-                <div class="assurance-bar">Hardware: tank sensor + controller &bull; App: local phone access &bull; Cloud: no &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book Home Control</a>
                     <span>Choose this when you only need phone access at home.</span>
@@ -1658,7 +1656,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Rental homes</li>
                     <li>Users who want remote control</li>
                 </ul>
-                <div class="assurance-bar">Hardware: tank sensor + controller &bull; Users: family sharing &bull; Cloud: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book Home Cloud Pro</a>
                     <span>Choose this when phone control from anywhere matters.</span>
@@ -1704,7 +1701,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Small hotels</li>
                     <li>Schools and commercial buildings</li>
                 </ul>
-                <div class="assurance-bar">Equipment: wireless tank sensors + main pump unit &bull; Users: managed access &bull; Online access: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book RWA Standard</a>
                     <span>Built for shared tanks and managed properties.</span>
@@ -1744,7 +1740,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Hotels</li>
                     <li>Factories and institutions</li>
                 </ul>
-                <div class="assurance-bar">Hardware: multi-tank wireless setup &bull; Users: managed access &bull; Cloud + smart reports: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book Commercial AI Pro</a>
                     <span>Recommended for multi-tank sites and reporting needs.</span>
@@ -1791,7 +1786,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Installers</li>
                     <li>Local service partners</li>
                 </ul>
-                <div class="assurance-bar">Hardware: complete demo kit &bull; Cloud: optional &bull; Training/support: included &bull; Warranty terms: confirmed in quote</div>
                 <div class="plan-action">
                     <a class="button js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book Partner Kit</a>
                     <span>Use this to sell modular devices locally.</span>
@@ -1841,7 +1835,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <li>Industrial sites</li>
                     <li>Large commercial groups</li>
                 </ul>
-                <div class="assurance-bar">Hardware, users, cloud, warranty and support are defined in the approved rollout scope.</div>
                 <div class="plan-action">
                     <a class="button-secondary js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book Custom Call</a>
                     <span>Use this when standard packages are too small.</span>
@@ -2274,7 +2267,6 @@ function initializePlanCarousel() {
         const planName = card.dataset.planName || `Plan ${index + 1}`;
         const description = card.querySelector(".plan-top p")?.textContent.trim() || "";
         const priceNotes = Array.from(card.querySelectorAll(".price-note")).map((item) => item.textContent.trim()).filter(Boolean);
-        const assurance = card.querySelector(".assurance-bar")?.textContent.trim() || "";
         const helper = card.querySelector(".plan-action span")?.textContent.trim() || "";
         const button = document.createElement("button");
         const panel = document.createElement("div");
@@ -2288,11 +2280,10 @@ function initializePlanCarousel() {
         panel.id = panelId;
         panel.className = "plan-info-panel";
         panel.setAttribute("aria-hidden", "true");
-        panel.innerHTML = `<button class="plan-info-close" type="button" aria-label="Close plan information">&times;</button><h4>${planName}</h4><h5>Plan details</h5><p></p><h5>Pricing and access</h5><ul></ul><h5>Equipment assurance</h5><p></p><h5>Recommendation</h5><p></p>`;
+        panel.innerHTML = `<button class="plan-info-close" type="button" aria-label="Close plan information">&times;</button><h4>${planName}</h4><h5>Plan details</h5><p></p><h5>Pricing and access</h5><ul></ul><h5>Recommendation</h5><p></p>`;
         const paragraphs = panel.querySelectorAll("p");
         paragraphs[0].textContent = description;
-        paragraphs[1].textContent = assurance;
-        paragraphs[2].textContent = helper;
+        paragraphs[1].textContent = helper;
         const list = panel.querySelector("ul");
         priceNotes.forEach((note) => { const item = document.createElement("li"); item.textContent = note; list.appendChild(item); });
         const close = () => { panel.classList.remove("is-open");panel.setAttribute("aria-hidden", "true");button.setAttribute("aria-expanded", "false"); };
