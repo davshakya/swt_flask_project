@@ -428,6 +428,7 @@ grid-template-columns:repeat(2,minmax(0,1fr));
 gap:16px;
 margin-top:18px;
 }
+.plans-carousel{position:relative;margin-top:20px;padding:0 48px}.plans-carousel-track{display:flex;gap:16px;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none;padding:12px 4px 18px}.plans-carousel-track::-webkit-scrollbar{display:none}.plans-carousel-track .plan-card{flex:0 0 calc((100% - 16px)/2);scroll-snap-align:start;scroll-snap-stop:always}.plans-carousel-button{position:absolute;top:50%;z-index:4;width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-strong);color:var(--brand-deep);font-size:28px;font-weight:900;line-height:1;box-shadow:0 12px 28px rgba(12,56,66,.18);cursor:pointer;transform:translateY(-50%);transition:transform .18s ease,opacity .18s ease}.plans-carousel-button:hover:not(:disabled){transform:translateY(-50%) scale(1.06)}.plans-carousel-button:disabled{opacity:.3;cursor:default}.plans-carousel-button.is-prev{left:0}.plans-carousel-button.is-next{right:0}.plans-carousel-status{text-align:center;color:var(--muted);font-size:12px;font-weight:900;letter-spacing:.08em}.plans-carousel-status strong{color:var(--brand-deep)}
 .plan-group{
 position:relative;
 margin-top:34px;
@@ -480,10 +481,14 @@ background:
 border:1px solid var(--line);
 box-shadow:inset 0 1px 0 rgba(255,255,255,.52);
 display:grid;
+grid-template-columns:minmax(0,1.15fr) minmax(190px,.85fr);
+grid-template-areas:"summary price" "features-title fit-title" "features fit" "assurance assurance" "actions actions";
+grid-template-rows:auto auto 1fr auto auto;
 gap:12px;
 align-content:start;
 transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 }
+.plan-card>.plan-top{grid-area:summary}.plan-card>.price-stack{grid-area:price;height:100%;align-content:center}.plan-card>.list-title:nth-child(3){grid-area:features-title}.plan-card>.feature-list{grid-area:features}.plan-card>.list-title:nth-child(5){grid-area:fit-title}.plan-card>.fit-list{grid-area:fit}.plan-card>.assurance-bar{grid-area:assurance}.plan-card>.plan-action{grid-area:actions}
 .plan-card:hover{
 transform:translateY(-3px);
 border-color:rgba(13,147,168,.28);
@@ -562,15 +567,19 @@ line-height:1.6;
 }
 .plan-action{
 margin-top:auto;
-display:grid;
+display:flex;
+align-items:center;
+flex-wrap:wrap;
 gap:8px;
 }
 .plan-action .button,
 .plan-action .button-secondary{
-width:100%;
+width:auto;
+flex:0 0 auto;
 min-height:44px;
 }
 .plan-action span{
+flex:1 1 180px;
 font-size:12px;
 font-weight:800;
 line-height:1.45;
@@ -1178,6 +1187,8 @@ grid-template-columns:1fr;
 }
 }
 @media (max-width:720px){
+.plan-card{grid-template-columns:1fr;grid-template-areas:"summary" "price" "features-title" "features" "fit-title" "fit" "assurance" "actions"}.plan-action{display:grid}.plan-action .button,.plan-action .button-secondary{width:100%}
+.plans-carousel{padding:0 36px}.plans-carousel-track .plan-card{flex-basis:100%}.plans-carousel-button{width:34px;height:34px;font-size:22px}
 .page{
 width:min(100% - 18px,1380px);
 padding-top:16px;
@@ -2277,6 +2288,35 @@ const animationBoardUrl = {{ url_for('static', filename='marketing/water_flow_an
 const animationPlanCatalogUrl = {{ url_for('static', filename='marketing/water_flow_plan_catalog.json')|tojson }};
 let animationPlanCatalog = null;
 let currentWizardAnimationConfig = null;
+
+function initializePlanCarousel() {
+    const groups = Array.from(document.querySelectorAll("#plans .plan-group"));
+    if (!groups.length || !planCards.length) return;
+    const shell = document.createElement("div");
+    shell.className = "plans-carousel";
+    shell.setAttribute("aria-label", "Pricing plans carousel");
+    shell.innerHTML = `<button class="plans-carousel-button is-prev" type="button" aria-label="Show previous plans">&#8249;</button><div class="plans-carousel-track" tabindex="0"></div><button class="plans-carousel-button is-next" type="button" aria-label="Show next plans">&#8250;</button><div class="plans-carousel-status" aria-live="polite"></div>`;
+    groups[0].before(shell);
+    const track = shell.querySelector(".plans-carousel-track");
+    planCards.forEach((card) => track.appendChild(card));
+    groups.forEach((group) => group.remove());
+    const previous = shell.querySelector(".is-prev"), next = shell.querySelector(".is-next"), status = shell.querySelector(".plans-carousel-status");
+    const visibleCount = () => window.matchMedia("(max-width:720px)").matches ? 1 : 2;
+    const cardStep = () => (track.querySelector(".plan-card")?.getBoundingClientRect().width || track.clientWidth) + 16;
+    const update = () => {
+        const first = Math.max(0, Math.min(planCards.length - 1, Math.round(track.scrollLeft / cardStep())));
+        const last = Math.min(planCards.length, first + visibleCount());
+        previous.disabled = first === 0;
+        next.disabled = last >= planCards.length;
+        status.innerHTML = `Showing <strong>${first + 1}&ndash;${last}</strong> of <strong>${planCards.length}</strong> plans`;
+    };
+    previous.addEventListener("click", () => track.scrollBy({ left: -cardStep() * visibleCount(), behavior: "smooth" }));
+    next.addEventListener("click", () => track.scrollBy({ left: cardStep() * visibleCount(), behavior: "smooth" }));
+    track.addEventListener("scroll", () => window.requestAnimationFrame(update), { passive: true });
+    window.addEventListener("resize", update);
+    update();
+}
+initializePlanCarousel();
 
 async function addPlanAnimationLinks() {
     try {

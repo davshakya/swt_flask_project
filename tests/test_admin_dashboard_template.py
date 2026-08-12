@@ -239,6 +239,13 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "openAnimationModal(planName, url.toString())" in pricing
     assert 'animationFrame.src = "about:blank"' in pricing
     assert "grid-template-columns:repeat(2,minmax(0,1fr))" in pricing
+    assert 'grid-template-areas:"summary price"' in pricing
+    assert ".plan-card>.feature-list{grid-area:features}" in pricing
+    assert "function initializePlanCarousel()" in pricing
+    assert 'className = "plans-carousel"' in pricing
+    assert 'class="plans-carousel-button is-prev"' in pricing
+    assert 'class="plans-carousel-button is-next"' in pricing
+    assert "planCards.forEach((card) => track.appendChild(card))" in pricing
     assert "loadSelectedPlan" in animation
     assert "const params=new URLSearchParams(location.search),requested=params.get('plan')" in animation
     assert "planSetup.modes" in animation
