@@ -1128,6 +1128,25 @@ min-width:190px;
 min-height:42px;
 padding:10px 18px;
 }
+.enquiry-modal .form-actions .action-separator{
+color:#587078;
+font-size:12px;
+font-weight:800;
+text-transform:uppercase;
+letter-spacing:.12em;
+}
+.enquiry-modal .form-actions .custom-device-button{
+min-height:42px;
+padding:10px 18px;
+border:1px solid rgba(10,156,181,.34);
+background:linear-gradient(135deg,rgba(82,205,232,.18),rgba(79,221,174,.22));
+color:#075d70;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 22px rgba(8,112,132,.12);
+}
+.enquiry-modal .form-actions .custom-device-button:hover{
+background:linear-gradient(135deg,rgba(82,205,232,.28),rgba(79,221,174,.34));
+transform:translateY(-1px);
+}
 .form-note{
 font-size:13px;
 line-height:1.62;
@@ -1278,8 +1297,9 @@ padding:18px;border-radius:22px;background:var(--surface-strong);border:1px soli
 .info-card p,.process-card p,.trust-stat span{margin:0;color:var(--muted);line-height:1.55}
 .trust-stat{text-align:center}
 .trust-stat strong{font-size:2rem;color:var(--brand-deep)}
-.wizard-layout{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.65fr);gap:18px;align-items:start}
-.wizard-form{display:grid;gap:16px}
+.wizard-layout{display:grid;grid-template-columns:1fr;gap:18px;align-items:start}
+.wizard-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.wizard-part{display:grid;gap:16px;align-content:start}
 .wizard-question{border:0;padding:0;margin:0;display:grid;gap:9px}
 .wizard-question legend{font-weight:900;margin-bottom:3px}
 .option-row,.addon-filters{display:flex;gap:8px;flex-wrap:wrap}
@@ -1291,7 +1311,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .option-chip:has(input:checked),.addon-filter.is-active,.use-case-button.is-active{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-deep);box-shadow:0 8px 20px rgba(13,147,168,.12)}
 .wizard-form{padding:18px;border:1px solid color-mix(in srgb,var(--brand) 20%,var(--line));border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.58),rgba(222,248,248,.35));box-shadow:inset 0 1px 0 rgba(255,255,255,.72),0 18px 45px rgba(12,89,104,.08);backdrop-filter:blur(16px)}
 .wizard-question{padding:12px 14px;border:1px solid color-mix(in srgb,var(--wizard-color,var(--brand)) 22%,var(--line));border-radius:18px;background:linear-gradient(135deg,color-mix(in srgb,var(--wizard-color,var(--brand)) 8%,var(--surface-strong)),color-mix(in srgb,var(--accent) 4%,var(--surface-strong)));box-shadow:inset 0 1px 0 rgba(255,255,255,.62)}
-.wizard-question:nth-child(1),.wizard-question:nth-child(4){--wizard-color:#159eb4}.wizard-question:nth-child(2),.wizard-question:nth-child(6){--wizard-color:#2ca56f}.wizard-question:nth-child(3),.wizard-question:nth-child(7){--wizard-color:#ef9b41}.wizard-question:nth-child(5){--wizard-color:#8e62c7}
+.wizard-part:first-child .wizard-question:nth-child(1),.wizard-part:first-child .wizard-question:nth-child(4){--wizard-color:#159eb4}.wizard-part:first-child .wizard-question:nth-child(2),.wizard-part:last-child .wizard-question:nth-child(2){--wizard-color:#2ca56f}.wizard-part:first-child .wizard-question:nth-child(3),.wizard-part:last-child .wizard-question:nth-child(3){--wizard-color:#ef9b41}.wizard-part:last-child .wizard-question:nth-child(1){--wizard-color:#8e62c7}
 .wizard-question legend{padding:0 7px;color:color-mix(in srgb,var(--wizard-color,var(--brand)) 72%,var(--text));font-size:14px}
 .wizard-question .option-row{gap:9px}
 .wizard-question .option-chip{overflow:hidden;min-height:43px;padding:10px 15px;border:1px solid color-mix(in srgb,var(--wizard-color,var(--brand)) 24%,var(--line));border-radius:999px;background:rgba(255,255,255,.54);box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 6px 16px rgba(12,56,66,.06);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background .2s ease}
@@ -1300,10 +1320,11 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .wizard-question .option-chip:has(input:checked)::before{content:"✓";display:inline-grid;place-items:center;width:20px;height:20px;margin-right:7px;border-radius:999px;background:var(--wizard-color,var(--brand));color:#fff;font-size:12px;font-weight:900}
 .wizard-question input[type="number"]{min-height:44px;border-radius:14px!important;background:rgba(255,255,255,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
 .wizard-result{border:1px solid rgba(120,230,235,.28);background:radial-gradient(circle at 100% 0,rgba(40,202,168,.18),transparent 38%),linear-gradient(145deg,rgba(15,53,63,.96),rgba(7,37,47,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 24px 55px rgba(6,48,58,.24);backdrop-filter:blur(20px)}
-.wizard-result{background:var(--surface-dark);color:#effcff;position:sticky;top:112px}
+.wizard-result{background:var(--surface-dark);color:#effcff;position:static;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(340px,1.3fr) auto;gap:18px 28px;align-items:center;width:100%}
+.wizard-result-summary,.wizard-result-details{min-width:0}
 .wizard-result span{display:block;color:#abd2d9;font-size:.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
 .wizard-result strong{display:block;font-size:1.7rem;margin:8px 0}
-.wizard-result p{color:#d5ebee;line-height:1.6}
+.wizard-result p{color:#d5ebee;line-height:1.6;margin:5px 0}
 .wizard-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.wizard-actions .button-secondary{width:auto;min-width:0}.wizard-animation-button{background:transparent!important;color:#8eeafa!important;border:1px solid rgba(142,234,250,.62)!important;box-shadow:none!important}.wizard-animation-button:hover{background:rgba(142,234,250,.12)!important}
 .progression{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:stretch}
 .progress-step{padding:17px;border-radius:20px;background:var(--surface-strong);border:1px solid var(--line);position:relative}
@@ -1326,7 +1347,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .plan-card .assurance-bar::after{content:"Free consultation \2022 Remote support \2022 Supported firmware updates";display:block;margin-top:6px;color:var(--brand-deep)}
 .plan-card.is-wizard-match{outline:3px solid var(--brand);box-shadow:0 24px 56px rgba(13,147,168,.24);transform:translateY(-3px)}
 .mobile-contact-bar{display:none}
-@media(max-width:1000px){.value-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.progression{grid-template-columns:1fr}.progress-step:not(:last-child)::after{content:"\2193";right:50%;top:auto;bottom:-14px}.wizard-layout{grid-template-columns:1fr}.wizard-result{position:static}}
+@media(max-width:1000px){.value-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.progression{grid-template-columns:1fr}.progress-step:not(:last-child)::after{content:"\2193";right:50%;top:auto;bottom:-14px}.wizard-result{grid-template-columns:repeat(2,minmax(0,1fr))}.wizard-result .wizard-actions{grid-column:1/-1}}
+@media(max-width:760px){.wizard-form,.wizard-result{grid-template-columns:1fr}.wizard-result .wizard-actions{grid-column:auto}}
 @media(max-width:680px){.decision-grid,.value-grid,.process-grid,.trust-grid,.faq-grid,.problem-split{grid-template-columns:1fr}.use-case-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding-bottom:62px}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;left:10px;right:10px;bottom:6px;z-index:90;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(244,252,252,.96);box-shadow:0 6px 20px rgba(9,47,58,.18);backdrop-filter:blur(14px)}.mobile-contact-bar a,.mobile-contact-bar button{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;height:38px;min-height:38px;max-height:38px;margin:0;padding:4px 2px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:linear-gradient(135deg,#159eb4,#137d90);color:#fff;font-family:inherit;font-size:9px;font-weight:800;line-height:1;text-align:center;text-decoration:none;white-space:nowrap;overflow:hidden;box-shadow:none;cursor:pointer}.mobile-contact-bar .contact-tab,.mobile-contact-bar .contact-tab:link,.mobile-contact-bar .contact-tab:visited,.mobile-contact-bar .contact-tab:hover,.mobile-contact-bar .contact-tab:focus,.mobile-contact-bar .contact-tab:active{background:linear-gradient(135deg,#159eb4,#137d90);color:#fff!important;-webkit-text-fill-color:#fff;text-decoration:none;transform:none}.mobile-contact-bar a span,.mobile-contact-bar button span{display:block;min-width:0;margin:0;color:inherit;font:inherit;line-height:1;letter-spacing:0;white-space:nowrap}.mobile-contact-bar .contact-icon{display:block;flex:0 0 13px;width:13px;height:13px;fill:currentColor;color:inherit}.enquiry-modal{z-index:120}}
 @media (max-width:720px){
 .page{width:min(100% - 16px,1380px)}
@@ -1455,6 +1477,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         </div>
         <div class="wizard-layout">
             <form class="wizard-form" id="planWizard">
+                <div class="wizard-part">
                 <fieldset class="wizard-question"><legend>1. What type of property is this?</legend><div class="option-row">
                     <label class="option-chip"><input type="radio" name="property" value="home" checked>Home / Villa</label>
                     <label class="option-chip"><input type="radio" name="property" value="managed">Apartment / Society</label>
@@ -1473,6 +1496,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <label class="option-chip"><input type="radio" name="access" value="local">On my phone at home</label>
                     <label class="option-chip"><input type="radio" name="access" value="remote">From anywhere</label>
                 </div></fieldset>
+                </div>
+                <div class="wizard-part">
                 <fieldset class="wizard-question"><legend>5. Do you need smart reports?</legend><div class="option-row">
                     <label class="option-chip"><input type="checkbox" name="ai">AI analytics and reports</label>
                 </div></fieldset>
@@ -1486,13 +1511,18 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <label class="option-chip"><input type="radio" name="maintenance" value="monthly">Monthly maintenance quote</label>
                     <label class="option-chip"><input type="radio" name="maintenance" value="annual">Annual maintenance quote</label>
                 </div></fieldset>
+                </div>
             </form>
             <aside class="wizard-result" aria-live="polite">
-                <span>Recommended starting plan</span><strong id="wizardPlan">Home Basic</strong>
-                <span>Estimated starting price</span><strong id="wizardPrice">&#8377;4,999</strong>
-                <p id="wizardPriceNote">One-time equipment estimate. Installation is quoted after the site check.</p>
-                <p id="wizardReason">A simple one-time equipment package without an app or monthly fee.</p>
-                <p id="wizardAddons"></p>
+                <div class="wizard-result-summary">
+                    <span>Recommended starting plan</span><strong id="wizardPlan">Home Basic</strong>
+                    <span>Estimated starting price</span><strong id="wizardPrice">&#8377;4,999</strong>
+                </div>
+                <div class="wizard-result-details">
+                    <p id="wizardPriceNote">One-time equipment estimate. Installation is quoted after the site check.</p>
+                    <p id="wizardReason">A simple one-time equipment package without an app or monthly fee.</p>
+                    <p id="wizardAddons"></p>
+                </div>
                 <div class="wizard-actions">
                     <a class="button-secondary js-book-plan" id="wizardBook" href="#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book This Plan</a>
                     <button class="button-secondary wizard-animation-button" id="wizardAnimation" type="button">See How It Works</button>
@@ -2190,6 +2220,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             </div>
             <div class="form-actions">
                 <button class="button-secondary is-primary-cta book-demo-button" id="enquirySubmitButton" type="submit" disabled>Book Demo</button>
+                <span class="action-separator" aria-hidden="true">or</span>
+                <a class="button custom-device-button" href="#find-my-plan" data-close-enquiry>Select Customized Device</a>
             </div>
             <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
