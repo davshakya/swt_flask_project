@@ -227,6 +227,8 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert 'url.searchParams.set("plan", planName)' in pricing
     assert 'id="animationModal"' in pricing
     assert 'id="planAnimationFrame"' in pricing
+    assert 'class="animation-modal-title"' in pricing
+    assert 'url.searchParams.set("embed", "1")' in pricing
     assert 'id="wizardAnimation"' in pricing
     assert "updateWizardAnimationButton(plan, {upperTanks:upperTankCount" in pricing
     assert "openAnimationModal(planName, url.toString())" in pricing
@@ -241,6 +243,9 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "const params=new URLSearchParams(location.search),requested=params.get('plan')" in animation
     assert "planSetup.modes" in animation
     assert "params.get('configured')==='1'" in animation
+    assert "get('embed')==='1'" in animation
+    assert "body.embedded .diagram-header,body.embedded .sidebar{display:none!important}" in animation
+    assert "aspect-ratio:1050/790" in pricing
     assert "configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper')" in animation
     assert "configuredModes.push('municipal-direct')" in animation
     assert "configuredModes.push('borewell')" in animation

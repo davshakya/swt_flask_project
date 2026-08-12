@@ -1245,10 +1245,11 @@ color:var(--muted);
 body{font-size:16px}
 }
 .animation-modal{z-index:130}
-.animation-modal .modal-panel{width:min(96vw,1500px);height:min(92vh,920px);max-width:none;padding:46px 10px 10px;overflow:hidden;background:#071a39}
+.animation-modal .modal-panel{position:relative;width:min(94vw,calc((88vh - 62px) * 1.3292),1400px);height:auto;max-width:none;padding:52px 8px 8px;overflow:hidden;background:#071a39}
 .animation-modal .modal-close{z-index:2;color:#fff;background:#17345f;border-color:#5d7da8}
-.animation-frame{display:block;width:100%;height:100%;border:0;border-radius:16px;background:#071a39}
-@media(max-width:680px){.animation-modal .modal-panel{width:100vw;height:100dvh;max-height:none;border-radius:0;padding:48px 0 0}.animation-frame{border-radius:0}}
+.animation-modal-title{position:absolute;left:22px;right:72px;top:14px;margin:0;color:#eaf8ff;font:800 18px/1.3 "Aptos","Segoe UI",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.animation-frame{display:block;width:100%;height:auto;aspect-ratio:1050/790;border:0;border-radius:14px;background:#071a39}
+@media(max-width:680px){.animation-modal .modal-panel{width:min(100vw,calc((96vh - 52px) * 1.3292));height:auto;border-radius:12px;padding:50px 0 0}.animation-modal-title{left:14px;top:15px;font-size:15px}.animation-frame{border-radius:0 0 12px 12px}}
 .decision-grid,.value-grid,.process-grid,.trust-grid,.use-case-grid,.faq-grid{display:grid;gap:14px}
 .decision-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .value-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -2125,7 +2126,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 <div class="modal animation-modal" id="animationModal" aria-hidden="true">
     <div class="modal-backdrop" data-close-animation></div>
     <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="animationModalTitle">
-        <h2 id="animationModalTitle" class="sr-only">Plan device animation</h2>
+        <h2 id="animationModalTitle" class="animation-modal-title">Plan device animation</h2>
         <button class="modal-close" type="button" aria-label="Close plan animation" data-close-animation>&times;</button>
         <iframe id="planAnimationFrame" class="animation-frame" title="Plan-specific Smart Water Tank animation" src="about:blank" sandbox="allow-scripts allow-same-origin"></iframe>
     </div>
@@ -2292,6 +2293,7 @@ async function addPlanAnimationLinks() {
             const link = document.createElement("a");
             const url = new URL(animationBoardUrl, window.location.origin);
             url.searchParams.set("plan", planName);
+            url.searchParams.set("embed", "1");
             link.href = url.toString();
             link.className = "button-secondary js-view-animation";
             link.textContent = "See How It Works";
@@ -2323,6 +2325,7 @@ wizardAnimation?.addEventListener("click", () => {
     if (!planName) return;
     const url = new URL(animationBoardUrl, window.location.origin);
     url.searchParams.set("plan", planName);
+    url.searchParams.set("embed", "1");
     const config = currentWizardAnimationConfig;
     if (config) {
         url.searchParams.set("configured", "1");
