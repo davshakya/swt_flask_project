@@ -473,13 +473,14 @@ color:var(--muted);
 font-weight:700;
 }
 .plan-card{
+--plan-edge:#129bb1;
 padding:16px;
 border-radius:26px;
 background:
     radial-gradient(circle at 100% 0,rgba(13,147,168,.08),transparent 32%),
     var(--surface-strong);
-border:1px solid var(--line);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.52);
+border:4px solid var(--plan-edge);
+box-shadow:0 0 0 1px color-mix(in srgb,var(--plan-edge) 18%,transparent),inset 0 1px 0 rgba(255,255,255,.52);
 display:grid;
 grid-template-columns:minmax(0,1.15fr) minmax(190px,.85fr);
 grid-template-areas:"summary price" "features-title fit-title" "features fit" "assurance assurance" "actions actions";
@@ -488,11 +489,18 @@ gap:12px;
 align-content:start;
 transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 }
+.plan-card[data-plan-name="Home Basic"]{--plan-edge:#0798ad}
+.plan-card[data-plan-name="Home Control"]{--plan-edge:#f1a13f}
+.plan-card[data-plan-name="Home Cloud Pro"]{--plan-edge:#6d67d9}
+.plan-card[data-plan-name="RWA Standard"]{--plan-edge:#2aa66f}
+.plan-card[data-plan-name="Commercial AI Pro"]{--plan-edge:#dd5f91}
+.plan-card[data-plan-name="Dealer / Installer Kit"]{--plan-edge:#287fd0}
+.plan-card[data-plan-name="Enterprise Modular"]{--plan-edge:#8b5cc7}
 .plan-card>.plan-top{grid-area:summary}.plan-card>.price-stack{grid-area:price;height:100%;align-content:center}.plan-card>.list-title:nth-child(3){grid-area:features-title}.plan-card>.feature-list{grid-area:features}.plan-card>.list-title:nth-child(5){grid-area:fit-title}.plan-card>.fit-list{grid-area:fit}.plan-card>.assurance-bar{grid-area:assurance}.plan-card>.plan-action{grid-area:actions}
 .plan-card:hover{
 transform:translateY(-3px);
-border-color:rgba(13,147,168,.28);
-box-shadow:0 28px 56px rgba(12,56,66,.16),inset 0 1px 0 rgba(255,255,255,.6);
+border-color:var(--plan-edge);
+box-shadow:0 28px 56px color-mix(in srgb,var(--plan-edge) 22%,rgba(12,56,66,.16)),0 0 0 2px color-mix(in srgb,var(--plan-edge) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.6);
 }
 .plan-card.is-featured{
 position:relative;
@@ -500,24 +508,24 @@ transform:translateY(-8px);
 background:
     linear-gradient(180deg,rgba(255,255,255,.98),rgba(235,250,250,.96)),
     radial-gradient(circle at 100% 0,rgba(239,155,65,.18),transparent 34%);
-border:2px solid rgba(239,155,65,.68);
-box-shadow:0 42px 86px rgba(12,56,66,.22),0 0 0 4px rgba(239,155,65,.18),inset 0 1px 0 rgba(255,255,255,.72);
+border:4px solid var(--plan-edge);
+box-shadow:0 42px 86px rgba(12,56,66,.22),0 0 0 4px color-mix(in srgb,var(--plan-edge) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.72);
 z-index:1;
 }
 .plan-card.is-featured:hover{
 transform:translateY(-11px);
-box-shadow:0 50px 96px rgba(12,56,66,.26),0 0 0 4px rgba(239,155,65,.22),inset 0 1px 0 rgba(255,255,255,.76);
+box-shadow:0 50px 96px rgba(12,56,66,.26),0 0 0 4px color-mix(in srgb,var(--plan-edge) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.76);
 }
 @media (prefers-color-scheme: dark){
 .plan-card.is-featured{
 background:
     linear-gradient(180deg,rgba(13,43,51,.98),rgba(8,31,39,.96)),
     radial-gradient(circle at 100% 0,rgba(255,187,97,.18),transparent 34%);
-border-color:rgba(255,187,97,.68);
-box-shadow:0 42px 86px rgba(0,0,0,.4),0 0 0 4px rgba(255,187,97,.16),inset 0 1px 0 rgba(255,255,255,.1);
+border-color:var(--plan-edge);
+box-shadow:0 42px 86px rgba(0,0,0,.4),0 0 0 4px color-mix(in srgb,var(--plan-edge) 20%,transparent),inset 0 1px 0 rgba(255,255,255,.1);
 }
 .plan-card.is-featured:hover{
-box-shadow:0 50px 96px rgba(0,0,0,.46),0 0 0 4px rgba(255,187,97,.2),inset 0 1px 0 rgba(255,255,255,.12);
+box-shadow:0 50px 96px rgba(0,0,0,.46),0 0 0 4px color-mix(in srgb,var(--plan-edge) 26%,transparent),inset 0 1px 0 rgba(255,255,255,.12);
 }
 }
 .plan-top{
@@ -1473,7 +1481,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     <section class="section surface" id="find-my-plan">
         <div class="section-head">
             <div><div class="eyebrow">Find My Kit</div><h2>Customize your water setup.</h2></div>
-            <p>We will narrow the choices and show the best starting plan. Final equipment is confirmed after the site check.</p>
         </div>
         <div class="wizard-layout">
             <form class="wizard-form" id="planWizard">
