@@ -194,6 +194,26 @@ def test_water_flow_animation_removes_optional_municipal_hardware_from_source_on
     assert "independent OPEN / CLOSE pair for each installed valve" in animation
 
 
+def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "function applyDeviceSetup(m,sensorInstalled)" in animation
+    assert "setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled)" in animation
+    assert "setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled)" in animation
+    assert "setInstalled($('sourceTankHardware'),hasSourceTank)" in animation
+    assert "setInstalled($('sourceLevelControllerWire'),hasSourceTank)" in animation
+    assert "setInstalled($('threeWayValve'),hasValves)" in animation
+    assert "setInstalled($('outletValveControlWire'),hasValves)" in animation
+    assert "setInstalled($('sourceQualityHardware'),false)" in animation
+
+
+def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "prefers-reduced-motion:reduce" in animation
+    assert "!$('tankSim').checked" in animation
+
+
 def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 

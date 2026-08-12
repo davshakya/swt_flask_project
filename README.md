@@ -4,6 +4,10 @@ Last refreshed: `2026-08-11`
 
 The complete product control, client, data, deployment, and test boundaries are
 defined in [`../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md).
+Last refreshed: `2026-08-11`
+
+The complete product control, client, data, deployment, and test boundaries are
+defined in [`../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md).
 
 ## Developer Setup
 
@@ -58,10 +62,31 @@ Within the wider workspace:
 - The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
 - Master Configuration keeps the optional municipal-water sensor independent from the motorized inlet valve. Sensor-free installations use firmware level-rise detection instead of disabling valve routing.
 - Flask queues logical inlet/outlet valve settings but does not own physical GPIO assignments. The firmware mapping currently reserves inlet OPEN/CLOSE on ESP32 `G25/G26`, outlet SOURCE/UPPER on `G27/G21`, and outlet feedback on `G22/G23`; both valve features remain disabled until hardware commissioning. See [`GPIO_POINT_TO_POINT_MAPPING.md`](../swt_firmware_project/docs/GPIO_POINT_TO_POINT_MAPPING.md).
+- Flask queues logical inlet/outlet valve settings but does not own physical GPIO assignments. The firmware mapping currently reserves inlet OPEN/CLOSE on ESP32 `G25/G26`, outlet SOURCE/UPPER on `G27/G21`, and outlet feedback on `G22/G23`; both valve features remain disabled until hardware commissioning. See [`GPIO_POINT_TO_POINT_MAPPING.md`](../swt_firmware_project/docs/GPIO_POINT_TO_POINT_MAPPING.md).
 - The public homepage keeps the original rooftop preview image. Its **Dashboard Preview** link opens `static/marketing/water_flow_animation.html`; regenerate that deployed asset with `python ../scripts/sync_water_flow_animation.py` after changing the source animation.
+- Public login and pricing pages provide corrected chatbot/footer actions, municipal-package pricing, and a chatbot-assisted demo/device-booking path backed by the maintained customer FAQ and chatbot knowledge base.
 - Public login and pricing pages provide corrected chatbot/footer actions, municipal-package pricing, and a chatbot-assisted demo/device-booking path backed by the maintained customer FAQ and chatbot knowledge base.
 
 Simulator prerequisites, workflows, transitions, and troubleshooting are in [`../docs/SIMULATOR_GUIDE.md`](../docs/SIMULATOR_GUIDE.md).
+
+### Optional Capacity Path
+
+The backend includes a default-off, staged path for scaling beyond the legacy
+wide `tank_data` workflow. It provides the combined `POST /api/device/sync`
+endpoint, latest-state and narrow-history tables, adaptive sampling, hourly and
+daily aggregation, bounded retention, conservative database pooling, request
+and replay protection, durable notification jobs, operational health records,
+staged device rollout, legacy telemetry archival, and a read-only hosting
+migration assessment.
+
+Keep `FEATURE_LEGACY_TANK_DATA_WRITES=true` until the replacement write and read
+paths have passed the documented gates. Start with
+[`../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md`](../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md)
+for the rollout procedure and
+[`../docs/CAPACITY_FEATURE_FLAGS.md`](../docs/CAPACITY_FEATURE_FLAGS.md) for the
+flag dependencies and safe defaults. Capacity scripts live in `scripts/`, and
+effective feature state and bounded process metrics are exposed to authenticated
+operators through `/system/status`.
 
 ### Optional Capacity Path
 

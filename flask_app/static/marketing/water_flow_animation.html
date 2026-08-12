@@ -26,6 +26,8 @@
     @media(max-width:520px){.sensor-grid,.status{grid-template-columns:1fr}}
     /* Keep the brand mark inside the header; diagram SVG sizing must never move it. */
     .diagram .diagram-home-link{overflow:hidden;align-self:center}.diagram .diagram-home-link>svg{display:block!important;position:static!important;width:43px!important;height:43px!important;min-width:43px!important;min-height:43px!important;max-width:43px!important;max-height:43px!important;flex:0 0 43px!important;margin:0!important;transform:none!important}
+    .configured-component{transition:opacity .3s ease,visibility .3s ease}.not-installed{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+    @media(prefers-reduced-motion:reduce){.flow.on,.pump-spin,.droplet.on{animation:none!important}.water,.valve-selector,.outlet-valve-selector{transition:none!important}}
   </style>
 </head>
 <body>
@@ -84,9 +86,7 @@
         <path class="wifi-wire" d="M900 662V700H500V662"/><text x="675" y="694" class="network-tag">CONTROLLER LINK</text>
         <path id="municipalWire" class="connection municipal-wire" d="M212 132V340H520V570H455V590"/>
         <g><rect x="365" y="590" width="185" height="72" rx="14" class="device" id="masterBox"/><text x="392" y="618" class="label">MAIN CONTROLLER</text><text x="388" y="642" class="small">safety · sensors · control</text></g>
-        <path class="control-wire" d="M550 626H580"/><path id="valveControlWire" class="control-wire" d="M630 590C560 430 450 310 350 233"/>
-        <!-- Keep the outlet-valve cable in its own corridor, clear of the starter panel and other control wiring. -->
-        <path id="outletValveControlWire" class="control-wire" d="M760 590H778V330H590V250L570 233"/>
+        <path class="control-wire" d="M550 626H580"/><path id="valveControlWire" class="control-wire" d="M630 590C560 430 450 310 350 233"/><path id="outletValveControlWire" class="control-wire" d="M680 590C680 440 650 325 570 233"/>
         <!-- Relay dry contact operates the starter coil; the starter contactor and overload feed the pump motor. -->
         <path id="relayToStarter" class="control-wire" d="M700 590V430H665V415"/>
         <path id="starterToPump" class="field-power-wire" d="M565 380H540V255H490"/>
@@ -194,6 +194,18 @@
   function percentText(value){const rounded=Math.round(value*10)/10;return (Number.isInteger(rounded)?rounded.toFixed(0):rounded.toFixed(1))+'%'}
   function tank(id,type,level,top,height){const bounded=boundedLevel(type,level);$(id).setAttribute('y',top+height*(1-bounded/100));$(id).setAttribute('height',height*bounded/100)}
   function setSensor(id,text,tone='good'){const el=$(id);el.textContent=text;el.className=tone==='bad'?'bad':tone==='optional'?'optional':''}
+  function setInstalled(target,installed){if(target)target.classList.toggle('not-installed',!installed)}
+  function applyDeviceSetup(m,sensorInstalled){
+    const hasMunicipal=!m.sourceOnly,hasSourceTank=!m.municipalDirect&&!m.borewell,hasValves=!m.sourceOnly&&!m.municipalDirect;
+    setInstalled($('municipalHardware'),hasMunicipal);setInstalled($('checkValve'),hasMunicipal);
+    setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled);setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled);
+    setInstalled($('sourceTankHardware'),hasSourceTank);setInstalled($('sourceTankSensorHardware'),hasSourceTank);setInstalled($('sourceLevelControllerWire'),hasSourceTank);
+    setInstalled($('sourceQualityHardware'),false);setInstalled($('sourceQualityControllerWire'),false);
+    setInstalled($('threeWayValve'),hasValves);setInstalled($('outletValve'),hasValves);setInstalled($('valveControlWire'),hasValves);setInstalled($('outletValveControlWire'),hasValves);
+    const upperQualityLabel=[...document.querySelectorAll('text')].find(el=>el.textContent.includes('UPPER WATER QUALITY'));
+    setInstalled(upperQualityLabel?.parentElement,false);
+    document.querySelectorAll('path.turbidity-wire').forEach(path=>setInstalled(path,false));
+  }
   function setPumpVisual(on){$('pumpState').textContent=on?'ON':'OFF';$('pumpText').textContent=on?'ON':'OFF';$('pumpRotor').classList.toggle('pump-spin',on);$('pumpBody').classList.toggle('device-on',on);$('starterBox').classList.toggle('device-on',on);$('relayToStarter').classList.toggle('energized',on);$('starterToPump').classList.toggle('energized',on)}
   function updateCapacityLabels(){
     ['source','upper'].forEach(type=>{const config=tanks[type],total=capacity(type),prefix=type==='source'?'source':'upper';$(prefix+'Capacity').textContent=tankCounts[type]+' × '+config.unitCapacity.toLocaleString('en-IN')+' L = '+total.toLocaleString('en-IN')+' L';$(prefix+'Limits').textContent=`DEMO START 30%=${Math.round(total*.30).toLocaleString('en-IN')} L · STOP 95%=${Math.round(total*.95).toLocaleString('en-IN')} L`})
@@ -210,7 +222,7 @@
   function setScenarioVolumes(m){tankVolumes.source=litres('source',m.source);tankVolumes.upper=litres('upper',m.upper);levelsInitialized=true}
   function stopFlow(ids,reason){ids.forEach(id=>{activeFlowSet.delete(id);$(id).classList.remove('on')});setPumpVisual(false);$('reasonText').textContent=reason;$('reasonText').className='warn'}
   function advanceLevels(){
-    if(!currentMode||currentMode.fault)return;
+    if(!currentMode||currentMode.fault||!$('tankSim').checked)return;
     const dt=.25,gravityRate=24,pumpRate=36,houseRate=2;
     if(activeFlowSet.has('municipalToSource'))tankVolumes.source+=gravityRate*dt;
     if(activeFlowSet.has('pumpToSource'))tankVolumes.source+=pumpRate*dt;
@@ -237,6 +249,7 @@
     document.body.classList.toggle('municipal-direct',Boolean(m.municipalDirect));
     document.body.classList.toggle('borewell',Boolean(m.borewell));
     document.body.classList.toggle('pump-source-fill',Boolean(m.sourcePumpFill));
+    applyDeviceSetup(m,sensorInstalled);
     $('valveMetricLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valves':'Motorized valve position';
     $('valveSensorLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valve hardware':'Motorized valve feedback';
     $('municipalControlsTitle').textContent=m.sourceOnly?'Municipal feature · not installed':m.municipalDirect?'Direct municipal supply':'Municipal-water detection';

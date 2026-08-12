@@ -1,6 +1,7 @@
 # Installer And Support Runbook
 
 Last refreshed: `2026-08-11`
+Last refreshed: `2026-08-11`
 
 Use this runbook to keep installations, handovers, and first-line support consistent across the current SaleWell IoT Solutions stack.
 
