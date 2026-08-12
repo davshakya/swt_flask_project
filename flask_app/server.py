@@ -20,16 +20,10 @@ import secrets
 import smtplib
 import subprocess
 import tempfile
-import tempfile
 import time
 import threading
 import math
 from email.message import EmailMessage
-
-try:
-    import fcntl
-except ImportError:  # Windows development/tests; Passenger production is POSIX.
-    fcntl = None
 
 try:
     import fcntl
@@ -2747,28 +2741,6 @@ def sales_form_from_pricing_query():
         "Monthly maintenance quote",
         "Annual maintenance quote",
     }
-    valid_source_configurations = {
-        "Upper tank only",
-        "Underground / source tank",
-        "Borewell",
-        "Municipal supply",
-        "Multiple sources",
-    }
-    valid_pump_types = {
-        "Not sure / site check needed",
-        "Surface / monoblock pump",
-        "Submersible pump",
-        "No pump control needed",
-    }
-    valid_upper_layouts = {
-        "Same level and interconnected",
-        "Separate levels or not interconnected",
-    }
-    valid_maintenance_preferences = {
-        "No maintenance contract",
-        "Monthly maintenance quote",
-        "Annual maintenance quote",
-    }
     if selected_segment not in valid_segments:
         selected_segment = "Commercial Site" if selected_plan == "Enterprise" or "Commercial" in selected_plan else "Home / Villa"
 
@@ -2855,12 +2827,6 @@ def validate_sales_enquiry_payload(form):
         "source_configuration": str(form.get("source_configuration", "Upper tank only")).strip() or "Upper tank only",
         "pump_type": str(form.get("pump_type", "Not sure / site check needed")).strip() or "Not sure / site check needed",
         "maintenance_preference": str(form.get("maintenance_preference", "No maintenance contract")).strip() or "No maintenance contract",
-        "upper_tank_count": str(form.get("upper_tank_count", "1")).strip() or "1",
-        "source_tank_count": str(form.get("source_tank_count", "0")).strip() or "0",
-        "upper_layout": str(form.get("upper_layout", "Same level and interconnected")).strip() or "Same level and interconnected",
-        "source_configuration": str(form.get("source_configuration", "Upper tank only")).strip() or "Upper tank only",
-        "pump_type": str(form.get("pump_type", "Not sure / site check needed")).strip() or "Not sure / site check needed",
-        "maintenance_preference": str(form.get("maintenance_preference", "No maintenance contract")).strip() or "No maintenance contract",
         "message": str(form.get("message", "")).strip(),
     }
     errors = []
@@ -2939,53 +2905,12 @@ def validate_sales_enquiry_payload(form):
     if cleaned["maintenance_preference"] not in valid_maintenance_preferences:
         errors.append("Please choose a valid maintenance preference.")
 
-    try:
-        upper_tank_count = int(cleaned["upper_tank_count"])
-    except (TypeError, ValueError):
-        errors.append("Upper tank quantity must be a whole number.")
-    else:
-        if upper_tank_count < 1 or upper_tank_count > 1000:
-            errors.append("Upper tank quantity must be between 1 and 1000.")
-        else:
-            cleaned["upper_tank_count"] = str(upper_tank_count)
-
-    try:
-        source_tank_count = int(cleaned["source_tank_count"])
-    except (TypeError, ValueError):
-        errors.append("Source tank quantity must be a whole number.")
-    else:
-        if source_tank_count < 0 or source_tank_count > 1000:
-            errors.append("Source tank quantity must be between 0 and 1000.")
-        else:
-            cleaned["source_tank_count"] = str(source_tank_count)
-
-    if cleaned["upper_layout"] not in valid_upper_layouts:
-        errors.append("Please choose a valid overhead tank layout.")
-
-    if cleaned["source_configuration"] not in valid_source_configurations:
-        errors.append("Please choose a valid water source configuration.")
-    if cleaned["pump_type"] not in valid_pump_types:
-        errors.append("Please choose a valid pump type.")
-    if cleaned["maintenance_preference"] not in valid_maintenance_preferences:
-        errors.append("Please choose a valid maintenance preference.")
-
     if not cleaned["message"]:
         errors.append("Please enter project notes.")
     elif len(cleaned["message"]) < 10:
         errors.append("Project notes must be at least 10 characters.")
     elif len(cleaned["message"]) > 800:
         errors.append("Project notes must stay under 800 characters.")
-
-    if not errors:
-        required_upper_mcus = 1 if cleaned["upper_layout"] == "Same level and interconnected" else int(cleaned["upper_tank_count"])
-        configuration = (
-            f"Water configuration: {cleaned['upper_tank_count']} upper/overhead tank(s), "
-            f"{cleaned['source_tank_count']} source tank(s), {required_upper_mcus} required upper MCU(s); "
-            f"layout: {cleaned['upper_layout']}; "
-            f"source: {cleaned['source_configuration']}; pump: {cleaned['pump_type']}."
-        )
-        maintenance = f"Maintenance preference: {cleaned['maintenance_preference']}."
-        cleaned["message"] = f"{configuration}\n{maintenance}\n{cleaned['message']}"
 
     if not errors:
         required_upper_mcus = 1 if cleaned["upper_layout"] == "Same level and interconnected" else int(cleaned["upper_tank_count"])
@@ -4997,9 +4922,6 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                     # Debouncing does not consume the scarce database-work
                     # permit. Otherwise one quiet device can block all other
                     # devices for the full 30-second coalescing interval.
-                    # Debouncing does not consume the scarce database-work
-                    # permit. Otherwise one quiet device can block all other
-                    # devices for the full 30-second coalescing interval.
                     time.sleep(remaining)
 
                     with telemetry_postprocess_lock:
@@ -5008,44 +4930,6 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                             pending,
                         )
 
-                acquired = telemetry_background_semaphore.acquire(blocking=False)
-                if not acquired:
-                    with telemetry_postprocess_lock:
-                        telemetry_postprocess_pending[normalized_device_id] = pending
-                    logger.warning(
-                        "Telemetry postprocess deferred for %s because the "
-                        "background worker is busy.",
-                        normalized_device_id,
-                    )
-                    return
-
-                try:
-                    # Passenger runs several independent Python processes, so
-                    # the in-memory per-device set above cannot prevent the
-                    # same device being processed concurrently in two workers.
-                    # Use a zero-wait filesystem lease instead of GET_LOCK:
-                    # holding a MySQL connection for this whole job can exhaust
-                    # shared-host connection limits and trigger error 2006.
-                    lease_file = None
-                    lease_acquired = True
-                    if fcntl is not None:
-                        lease_digest = hashlib.sha256(normalized_device_id.encode("utf-8")).hexdigest()[:32]
-                        lease_path = Path(tempfile.gettempdir()) / f"swt-telemetry-{lease_digest}.lock"
-                        lease_file = lease_path.open("a+")
-                        try:
-                            fcntl.flock(lease_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        except BlockingIOError:
-                            lease_acquired = False
-                    try:
-                        if lease_acquired:
-                            postprocess_telemetry_payload(*pending)
-                    finally:
-                        if lease_file is not None:
-                            if lease_acquired:
-                                fcntl.flock(lease_file.fileno(), fcntl.LOCK_UN)
-                            lease_file.close()
-                finally:
-                    telemetry_background_semaphore.release()
                 acquired = telemetry_background_semaphore.acquire(blocking=False)
                 if not acquired:
                     with telemetry_postprocess_lock:
@@ -17735,15 +17619,6 @@ def mobile_local_sync():
 
     data["device_id"] = scoped_device_id
     data["device_source"] = normalize_device_source(data.get("device_source"), default=DEVICE_SOURCE_REAL)
-    # Keep the mobile request on the same short ingestion path as device HTTP
-    # telemetry. Event synchronization, alert evaluation, and dashboard
-    # materialization are database-heavy and must not occupy an LSAPI child.
-    cleaned = process_telemetry_payload(
-        data,
-        source_ip="android_local_wifi",
-        transport="android_local_wifi",
-        defer_postprocess=True,
-    )
     # Keep the mobile request on the same short ingestion path as device HTTP
     # telemetry. Event synchronization, alert evaluation, and dashboard
     # materialization are database-heavy and must not occupy an LSAPI child.

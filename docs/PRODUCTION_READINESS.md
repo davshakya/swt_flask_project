@@ -4,10 +4,6 @@ Last refreshed: `2026-08-11`
 
 Use [`../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md)
 to verify the complete product boundary before applying this backend-specific gate.
-Last refreshed: `2026-08-11`
-
-Use [`../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md)
-to verify the complete product boundary before applying this backend-specific gate.
 
 This project is beyond lab-only status, but it still needs deliberate rollout controls before broad customer deployment. Use this guide as the current go-live checklist.
 
