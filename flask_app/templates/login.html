@@ -4513,6 +4513,20 @@ caret-color:#67e8f9!important;
 #loginModal .password-toggle:hover,
 #loginModal .password-toggle:focus-visible{background:#1b4652;color:#e7fbff;}
 #loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
+:root{--page-text-size:15px;font-size:var(--page-text-size)}
+.page{width:min(1380px,calc(100% - 8px));padding-top:4px}
+.nav{position:static;top:auto}
+.hero{margin-top:10px}
+.text-size-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:70px;min-height:42px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:12px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button strong{font-size:16px;line-height:1}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
+.nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.nav .nav-links a,.nav .nav-links a:nth-child(n){position:relative;isolation:isolate;min-height:38px;padding:9px 13px;border:1px solid transparent;border-radius:13px;color:var(--brand-deep);background:transparent;font-size:12px;font-weight:900;letter-spacing:.01em;text-shadow:none;transition:color .2s ease,transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 15%,transparent),color-mix(in srgb,var(--success) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
+.nav .nav-links a:hover,.nav .nav-links a:focus-visible{color:var(--brand-deep);border-color:color-mix(in srgb,var(--primary) 38%,var(--line));background:var(--surface);box-shadow:0 8px 18px rgba(12,56,66,.13);text-shadow:none;transform:translateY(-2px)}
+.nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
+.page-jump-controls{position:fixed;right:12px;bottom:18px;z-index:89;display:grid;gap:8px}
+.page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--primary);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
+.page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
+@media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
 </head>
 <body data-default-login-mode="{{ login_mode }}">
@@ -4582,6 +4596,7 @@ caret-color:#67e8f9!important;
                     {% endif %}
                 </div>
             </details>
+            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size"><strong>Aa</strong><span data-text-size-label>Normal</span></button>
         </div>
     </header>
 
@@ -4608,7 +4623,7 @@ caret-color:#67e8f9!important;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual" aria-label="Animated smart water tank dashboard">
-                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="about:blank" data-dashboard-src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260802-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager" sandbox="allow-scripts"></iframe>
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="about:blank" data-dashboard-src="{{ url_for('static', filename='marketing/water_flow_animation.html', embed='1', v='20260812-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager" sandbox="allow-scripts"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -5608,6 +5623,11 @@ caret-color:#67e8f9!important;
         <div class="footer-note">&copy; SaleWell IoT Solutions - All rights reserved.</div>
     </footer>
 </div>
+
+<nav class="page-jump-controls" aria-label="Page navigation">
+    <button class="page-jump-button" type="button" data-page-jump="top" aria-label="Go to start of page" title="Start of page">&#8593;</button>
+    <button class="page-jump-button" type="button" data-page-jump="bottom" aria-label="Go to end of page" title="End of page">&#8595;</button>
+</nav>
 
 <nav class="mobile-contact-bar" aria-label="Quick contact options">
     <a class="contact-tab" href="tel:+918796452878" aria-label="Call SaleWell">
@@ -7763,6 +7783,33 @@ if (demoStoryboard && demoScenes.length) {
     window.addEventListener("resize", fitDashboardPreview, {passive:true});
     fitDashboardPreview();
 })();
+</script>
+<script>
+document.querySelectorAll("[data-page-jump]").forEach((button) => {
+    button.addEventListener("click", () => {
+        const top = button.dataset.pageJump === "top" ? 0 : document.documentElement.scrollHeight;
+        window.scrollTo({ top, behavior: "smooth" });
+    });
+});
+const textSizeButton = document.querySelector("[data-text-size-button]");
+const textSizeModes = [
+    { name: "small", label: "Small", size: "14px" },
+    { name: "normal", label: "Normal", size: "15px" },
+    { name: "large", label: "Large", size: "17px" }
+];
+let textSizeIndex = Math.max(0, textSizeModes.findIndex((mode) => mode.name === localStorage.getItem("salewellTextSize")));
+const applyTextSize = () => {
+    const mode = textSizeModes[textSizeIndex];
+    document.documentElement.style.setProperty("--page-text-size", mode.size);
+    textSizeButton?.querySelector("[data-text-size-label]")?.replaceChildren(mode.label);
+    textSizeButton?.setAttribute("aria-label", `Text size: ${mode.label}. Click to change.`);
+};
+textSizeButton?.addEventListener("click", () => {
+    textSizeIndex = (textSizeIndex + 1) % textSizeModes.length;
+    localStorage.setItem("salewellTextSize", textSizeModes[textSizeIndex].name);
+    applyTextSize();
+});
+applyTextSize();
 </script>
 </body>
 </html>

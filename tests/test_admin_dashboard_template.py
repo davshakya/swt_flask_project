@@ -77,7 +77,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260802-1'" in login_template
+    assert "water_flow_animation.html', embed='1', v='20260812-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
@@ -1516,8 +1516,8 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Complete Wireless Smart Tank Kit" in homepage
     assert "Single Controller Kit" not in homepage
     assert "Shielded Wire or Dual Node" not in homepage
-    assert "One wireless setup for every building height." in pricing
-    assert "No long sensor signal cable" in pricing
+    assert "One wireless setup for every building height." not in pricing
+    assert 'id="modules"' not in pricing
     assert "Every base plan includes a complete wireless tank setup and automatic pump control." in pricing
     assert "Included Equipment" in pricing
     assert "one-time equipment price" in homepage
@@ -1562,8 +1562,8 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert 'aria-label="Book a free demo"' in pricing
     assert 'aria-label="Open chat"' in pricing
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in pricing
-    assert "500+" in pricing
-    assert "10,000+ KL/day" in pricing
+    assert "Built for homes and managed properties." not in pricing
+    assert "A simple path from basics to AI analytics." not in pricing
     assert "Warranty coverage varies by kit and project scope." in pricing
     assert "Single Controller Kit" not in pricing
     assert "Shielded Wire or Dual Node" not in pricing
