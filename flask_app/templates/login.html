@@ -5758,46 +5758,7 @@ caret-color:#67e8f9!important;
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
-            <div class="row-2">
-                <div class="group">
-                    <label for="lead_upper_tank_count">Upper / Overhead Tanks</label>
-                    <input id="lead_upper_tank_count" name="upper_tank_count" type="number" min="1" max="1000" step="1" inputmode="numeric" value="{{ sales_form.get('upper_tank_count', '1') }}">
-                </div>
-                <div class="group">
-                    <label for="lead_source_tank_count">Underground / Source Tanks</label>
-                    <input id="lead_source_tank_count" name="source_tank_count" type="number" min="0" max="1000" step="1" inputmode="numeric" value="{{ sales_form.get('source_tank_count', '0') }}">
-                </div>
-            </div>
-            <div class="row-2">
-                <div class="group">
-                    <label for="lead_upper_layout">Overhead Tank Layout</label>
-                    <select id="lead_upper_layout" name="upper_layout">
-                        {% set selected_layout = sales_form.get('upper_layout', 'Same level and interconnected') %}
-                        {% for layout in ['Same level and interconnected', 'Separate levels or not interconnected'] %}<option value="{{ layout }}" {% if selected_layout == layout %}selected{% endif %}>{{ layout }}</option>{% endfor %}
-                    </select>
-                </div>
-                <div class="group">
-                    <label for="lead_source_configuration">Supply Type</label>
-                    <select id="lead_source_configuration" name="source_configuration">
-                        {% set selected_source = sales_form.get('source_configuration', 'Upper tank only') %}
-                        {% for source in ['Upper tank only', 'Underground / source tank', 'Borewell', 'Municipal supply', 'Multiple sources'] %}<option value="{{ source }}" {% if selected_source == source %}selected{% endif %}>{{ source }}</option>{% endfor %}
-                    </select>
-                </div>
-            </div>
-            <div class="group">
-                <label for="lead_pump_type">Pump Type</label>
-                <select id="lead_pump_type" name="pump_type">
-                    {% set selected_pump = sales_form.get('pump_type', 'Not sure / site check needed') %}
-                    {% for pump in ['Not sure / site check needed', 'Surface / monoblock pump', 'Submersible pump', 'No pump control needed'] %}<option value="{{ pump }}" {% if selected_pump == pump %}selected{% endif %}>{{ pump }}</option>{% endfor %}
-                </select>
-            </div>
-            <div class="group">
-                <label for="lead_maintenance_preference">Optional Maintenance</label>
-                <select id="lead_maintenance_preference" name="maintenance_preference">
-                    {% set selected_maintenance = sales_form.get('maintenance_preference', 'No maintenance contract') %}
-                    {% for maintenance in ['No maintenance contract', 'Monthly maintenance quote', 'Annual maintenance quote'] %}<option value="{{ maintenance }}" {% if selected_maintenance == maintenance %}selected{% endif %}>{{ maintenance }}</option>{% endfor %}
-                </select>
-            </div>
+            <a class="button-secondary" href="{{ url_for('pricing_page') }}#find-my-plan">Customize Your Water Setup</a>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
                 <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ sales_form.get('message', '') }}</textarea>

@@ -311,16 +311,14 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
 
     for template_name in ("login.html", "pricing.html"):
         template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
-        assert 'name="upper_tank_count"' in template
-        assert 'name="source_tank_count"' in template
-        assert 'name="upper_layout"' in template
-        assert 'name="source_configuration"' in template
-        assert 'name="pump_type"' in template
-        assert 'name="maintenance_preference"' in template
-        assert "Municipal supply" in template
-        assert "Submersible pump" in template
-        assert "Monthly maintenance quote" in template
-        assert "Annual maintenance quote" in template
+        assert 'name="upper_tank_count"' not in template
+        assert 'name="source_tank_count"' not in template
+        assert 'id="lead_upper_layout"' not in template
+        assert 'id="lead_source_configuration"' not in template
+        assert 'id="lead_pump_type"' not in template
+        assert 'id="lead_maintenance_preference"' not in template
+        assert "Customize Your Water Setup" in template
+        assert "#find-my-plan" in template
 
 
 def test_demo_booking_uses_waf_safe_canonical_route():
