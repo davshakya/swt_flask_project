@@ -80,7 +80,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "water_flow_animation.html', v='20260802-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
-    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
@@ -225,9 +225,25 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "addPlanAnimationLinks" in pricing
     assert "if (!config?.animation) return" in pricing
     assert 'url.searchParams.set("plan", planName)' in pricing
+    assert 'id="animationModal"' in pricing
+    assert 'id="planAnimationFrame"' in pricing
+    assert 'id="wizardAnimation"' in pricing
+    assert "updateWizardAnimationButton(plan, {upperTanks:upperTankCount" in pricing
+    assert "openAnimationModal(planName, url.toString())" in pricing
+    assert 'url.searchParams.set("configured", "1")' in pricing
+    assert 'url.searchParams.set("upperTanks"' in pricing
+    assert 'url.searchParams.set("sourceTanks"' in pricing
+    assert 'url.searchParams.set("supplies"' in pricing
+    assert "openAnimationModal(planName, url.toString())" in pricing
+    assert 'animationFrame.src = "about:blank"' in pricing
+    assert "grid-template-columns:repeat(2,minmax(0,1fr))" in pricing
     assert "loadSelectedPlan" in animation
-    assert "new URLSearchParams(location.search).get('plan')" in animation
+    assert "const params=new URLSearchParams(location.search),requested=params.get('plan')" in animation
     assert "planSetup.modes" in animation
+    assert "params.get('configured')==='1'" in animation
+    assert "configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper')" in animation
+    assert "configuredModes.push('municipal-direct')" in animation
+    assert "configuredModes.push('borewell')" in animation
     assert catalog["plans"]["Enterprise Modular"]["animation"] is False
     assert all(catalog["plans"][name]["animation"] for name in (
         "Home Basic", "Home Control", "Home Cloud Pro", "RWA Standard", "Commercial AI Pro"
@@ -595,11 +611,17 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert '"/device/command"' in server_source
     assert '"/api/"' in server_source
     assert "Cache-Control\", \"no-store\"" in server_source
-    assert 'cache: "default"' in smooth_navigation
+    assert 'window.location.assign(targetUrl.href)' in smooth_navigation
+    assert 'window.location.replace(targetUrl.href)' in smooth_navigation
+    assert 'history.scrollRestoration = "auto"' in smooth_navigation
+    assert 'history.pushState' not in smooth_navigation
+    assert 'window.addEventListener("popstate"' not in smooth_navigation
+    assert 'document.addEventListener("click"' not in smooth_navigation
+    assert 'document.addEventListener("submit"' not in smooth_navigation
     assert 'cache: "no-store"' not in smooth_navigation
-    assert "20260615-cache-v1" in pwa_head
+    assert "20260812-native-history-v1" in pwa_head
     assert '"/static/js/smooth-navigation.js"' in service_worker
-    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
 
 
 def test_customer_graphs_refresh_after_live_telemetry_changes():

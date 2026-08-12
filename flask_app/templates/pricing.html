@@ -424,7 +424,7 @@ color:var(--muted);
 }
 .plans-grid{
 display:grid;
-grid-template-columns:repeat(3,minmax(0,1fr));
+grid-template-columns:repeat(2,minmax(0,1fr));
 gap:16px;
 margin-top:18px;
 }
@@ -472,7 +472,7 @@ color:var(--muted);
 font-weight:700;
 }
 .plan-card{
-padding:20px;
+padding:16px;
 border-radius:26px;
 background:
     radial-gradient(circle at 100% 0,rgba(13,147,168,.08),transparent 32%),
@@ -480,7 +480,7 @@ background:
 border:1px solid var(--line);
 box-shadow:inset 0 1px 0 rgba(255,255,255,.52);
 display:grid;
-gap:16px;
+gap:12px;
 align-content:start;
 transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease;
 }
@@ -636,18 +636,19 @@ color:var(--brand-deep);
 .compare-wrap{
 margin-top:18px;
 overflow:auto;
-border-radius:24px;
+border-radius:20px;
 border:1px solid var(--line);
 background:var(--surface-strong);
+box-shadow:0 18px 42px rgba(12,56,66,.1),inset 0 1px 0 rgba(255,255,255,.62);
 }
 table{
 width:100%;
 border-collapse:collapse;
-min-width:1040px;
+min-width:820px;
 }
 th,
 td{
-padding:16px 18px;
+padding:13px 14px;
 text-align:left;
 border-bottom:1px solid var(--line);
 vertical-align:top;
@@ -659,7 +660,13 @@ text-transform:uppercase;
 color:var(--brand-deep);
 background:linear-gradient(180deg,rgba(13,147,168,.13),rgba(255,255,255,.72));
 border-bottom:1px solid var(--line-strong);
+position:sticky;
+top:0;
+z-index:1;
 }
+tbody tr:nth-child(even):not(.is-recommended-row){background:rgba(13,147,168,.035)}
+tbody tr:hover{background:rgba(13,147,168,.08)}
+tbody tr:last-child td{border-bottom:0}
 tbody tr.is-recommended-row{
 background:linear-gradient(90deg,rgba(239,155,65,.16),rgba(13,147,168,.08),transparent);
 box-shadow:inset 4px 0 0 var(--accent);
@@ -726,6 +733,7 @@ transform:translateY(-1px);
 filter:brightness(1.04);
 box-shadow:0 14px 26px rgba(12,88,104,.22);
 }
+@media(max-width:680px){.compare-wrap{margin-left:-10px;margin-right:-10px;border-radius:16px}.compare-wrap th,.compare-wrap td{padding:11px 10px}.compare-wrap th:first-child,.compare-wrap td:first-child{position:sticky;left:0;z-index:2;background:var(--surface-strong);box-shadow:8px 0 14px rgba(12,56,66,.08)}.compare-wrap th:first-child{z-index:3;background:#e4f4f3}.comparison-plan{min-width:132px}}
 .addons-grid{
 display:grid;
 grid-template-columns:repeat(3,minmax(0,1fr));
@@ -802,6 +810,8 @@ margin:0;
 line-height:1.58;
 color:var(--muted);
 }
+.comparison-note{margin:8px 0 0;padding:12px 15px;border-radius:16px;background:var(--brand-soft);color:var(--brand-deep);font-weight:800;line-height:1.5}
+.comparison-plan{min-width:150px}.comparison-price{min-width:138px}
 .addon-fit{
 display:inline-flex;
 width:max-content;
@@ -1234,6 +1244,11 @@ color:var(--muted);
 @media (max-width:720px){
 body{font-size:16px}
 }
+.animation-modal{z-index:130}
+.animation-modal .modal-panel{width:min(96vw,1500px);height:min(92vh,920px);max-width:none;padding:46px 10px 10px;overflow:hidden;background:#071a39}
+.animation-modal .modal-close{z-index:2;color:#fff;background:#17345f;border-color:#5d7da8}
+.animation-frame{display:block;width:100%;height:100%;border:0;border-radius:16px;background:#071a39}
+@media(max-width:680px){.animation-modal .modal-panel{width:100vw;height:100dvh;max-height:none;border-radius:0;padding:48px 0 0}.animation-frame{border-radius:0}}
 .decision-grid,.value-grid,.process-grid,.trust-grid,.use-case-grid,.faq-grid{display:grid;gap:14px}
 .decision-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 .value-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -1263,6 +1278,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .wizard-result span{display:block;color:#abd2d9;font-size:.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
 .wizard-result strong{display:block;font-size:1.7rem;margin:8px 0}
 .wizard-result p{color:#d5ebee;line-height:1.6}
+.wizard-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}.wizard-actions .button-secondary{width:auto;min-width:0}.wizard-animation-button{background:transparent!important;color:#8eeafa!important;border:1px solid rgba(142,234,250,.62)!important;box-shadow:none!important}.wizard-animation-button:hover{background:rgba(142,234,250,.12)!important}
 .progression{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;align-items:stretch}
 .progress-step{padding:17px;border-radius:20px;background:var(--surface-strong);border:1px solid var(--line);position:relative}
 .progress-step:not(:last-child)::after{content:"\2192";position:absolute;right:-11px;top:42%;z-index:2;color:var(--brand);font-size:1.3rem;font-weight:900}
@@ -1434,7 +1450,10 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <p id="wizardPriceNote">One-time equipment estimate. Installation is quoted after the site check.</p>
                 <p id="wizardReason">A simple one-time equipment package without an app or monthly fee.</p>
                 <p id="wizardAddons"></p>
-                <a class="button-secondary js-book-plan" id="wizardBook" href="#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book This Plan</a>
+                <div class="wizard-actions">
+                    <a class="button-secondary js-book-plan" id="wizardBook" href="#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book This Plan</a>
+                    <button class="button-secondary wizard-animation-button" id="wizardAnimation" type="button">See How It Works</button>
+                </div>
             </aside>
         </div>
     </section>
@@ -1832,6 +1851,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         <div class="section-head">
             <div>
                 <h2>Compare the plans most sites shortlist.</h2>
+                <p class="comparison-note"><strong>Included Equipment:</strong> every listed plan has the core wireless tank setup and automatic pump protection. Compare only the features that change between plans.</p>
             </div>
         </div>
 
@@ -1840,12 +1860,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <thead>
                     <tr>
                         <th>Plan</th>
-                        <th>Best For</th>
                         <th>Home Wi-Fi / Internet</th>
-                        <th>Included Equipment</th>
                         <th>Phone App</th>
                         <th>Access From Anywhere</th>
-                        <th>Pump Control</th>
                         <th>AI Analytics</th>
                         <th>Source Tank</th>
                         <th>Price</th>
@@ -1854,94 +1871,73 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </thead>
                 <tbody>
                     <tr data-plan-row="home">
-                        <td><strong>Home Basic</strong><span>Equipment only</span></td>
-                        <td><span>Home / shop</span></td>
+                        <td class="comparison-plan"><strong>Home Basic</strong><span>Home / shop · equipment only</span></td>
                         <td><span class="no">Not needed</span></td>
-                        <td><span class="yes">Included</span></td>
                         <td><span class="no">&mdash;</span></td>
                         <td><span class="no">&mdash;</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;4,999</strong><span>One-time purchase</span></td>
+                        <td class="comparison-price"><strong>&#8377;4,999</strong><span>One-time purchase</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Basic', segment='Home / Villa') }}#enquiry" data-plan="Home Basic" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr class="is-recommended-row" data-plan-row="home">
-                        <td><strong>Home Control</strong><span>Phone access at home</span></td>
-                        <td><span>Home</span></td>
+                        <td class="comparison-plan"><strong>Home Control</strong><span>Home · phone access at property</span></td>
                         <td><span class="no">Not needed</span></td>
-                        <td><span class="yes">Included</span></td>
                         <td><span class="yes">&#10003;</span></td>
                         <td><span class="no">&mdash;</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;5,999</strong><span>One-time purchase; works at the property</span></td>
+                        <td class="comparison-price"><strong>&#8377;5,999</strong><span>One-time purchase</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Control', segment='Home / Villa') }}#enquiry" data-plan="Home Control" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="home">
-                        <td><strong>Home Cloud Pro</strong><span>Phone access from anywhere</span></td>
-                        <td><span>Home</span></td>
+                        <td class="comparison-plan"><strong>Home Cloud Pro</strong><span>Home · access from anywhere</span></td>
                         <td><span class="yes">Required</span></td>
-                        <td><span class="yes">Included</span></td>
                         <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">&#10003;</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
-                        <td><strong>&#8377;8,499</strong><span>Cloud, remote access and AI included</span></td>
+                        <td class="comparison-price"><strong>&#8377;8,499</strong><span>Cloud + AI included</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Home Cloud Pro', segment='Home / Villa') }}#enquiry" data-plan="Home Cloud Pro" data-segment="Home / Villa">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
-                        <td><strong>RWA Standard</strong><span>Managed shared tank</span></td>
-                        <td><span>Apartment / RWA</span></td>
+                        <td class="comparison-plan"><strong>RWA Standard</strong><span>Apartment / RWA · shared tanks</span></td>
                         <td><span class="yes">Required</span></td>
-                        <td><span class="yes">Included</span></td>
                         <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">&#10003;</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="no">No</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;10,999</strong><span>Cloud service included</span></td>
+                        <td class="comparison-price"><strong>&#8377;10,999</strong><span>Cloud included</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='RWA Standard', segment='Apartment / Hostel') }}#enquiry" data-plan="RWA Standard" data-segment="Apartment / Hostel">Book</a></td>
                     </tr>
                     <tr data-plan-row="commercial">
-                        <td><strong>Commercial AI Pro</strong><span>Advanced multi-tank insight</span></td>
-                        <td><span>Hotel / institution</span></td>
+                        <td class="comparison-plan"><strong>Commercial AI Pro</strong><span>Hotel / institution · multi-tank</span></td>
                         <td><span class="yes">Required</span></td>
-                        <td><span class="yes">Included</span></td>
                         <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">&#10003;</span></td>
                         <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Yes</span></td>
-                        <td><span class="yes">Yes</span></td>
-                        <td><strong>&#8377;13,999</strong><span>Cloud and reports included</span></td>
+                        <td class="comparison-price"><strong>&#8377;13,999</strong><span>Cloud + reports</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Commercial AI Pro', segment='Commercial Site') }}#enquiry" data-plan="Commercial AI Pro" data-segment="Commercial Site">Book</a></td>
                     </tr>
                     <tr data-plan-row="partner">
-                        <td><strong>Dealer / Installer Kit</strong><span>Partner starter kit</span></td>
-                        <td><span>Dealer / installer</span></td>
+                        <td class="comparison-plan"><strong>Dealer / Installer Kit</strong><span>Partner demo and starter kit</span></td>
                         <td><span class="yes">Required</span></td>
-                        <td><span class="yes">Demo kit</span></td>
                         <td><span class="yes">Demo</span></td>
                         <td><span class="no">Optional</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="no">Optional</span></td>
                         <td><span class="no">Optional</span></td>
-                        <td><strong>&#8377;12,999</strong><span>Volume pricing available</span></td>
+                        <td class="comparison-price"><strong>&#8377;12,999</strong><span>Volume pricing</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Dealer / Installer Kit', segment='Dealer / Installer') }}#enquiry" data-plan="Dealer / Installer Kit" data-segment="Dealer / Installer">Book</a></td>
                     </tr>
                     <tr data-plan-row="enterprise">
-                        <td><strong>Enterprise Modular</strong><span>Custom device mix</span></td>
-                        <td><span>Large projects</span></td>
+                        <td class="comparison-plan"><strong>Enterprise Modular</strong><span>Large projects · custom device mix</span></td>
                         <td><span class="yes">Required</span></td>
-                        <td><span class="yes">By scope</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
-                        <td><span class="yes">Yes</span></td>
                         <td><span class="yes">Custom</span></td>
                         <td><span class="yes">Custom</span></td>
-                        <td><strong>Custom</strong><span>Usually from &#8377;25,999</span></td>
+                        <td class="comparison-price"><strong>Custom</strong><span>Usually from &#8377;25,999</span></td>
                         <td><a class="table-book-link js-book-plan" href="{{ url_for('dashboard', plan='Enterprise Modular', segment='Commercial Site') }}#enquiry" data-plan="Enterprise Modular" data-segment="Commercial Site">Book</a></td>
                     </tr>
                 </tbody>
@@ -2126,6 +2122,15 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     </a>
 </nav>
 
+<div class="modal animation-modal" id="animationModal" aria-hidden="true">
+    <div class="modal-backdrop" data-close-animation></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="animationModalTitle">
+        <h2 id="animationModalTitle" class="sr-only">Plan device animation</h2>
+        <button class="modal-close" type="button" aria-label="Close plan animation" data-close-animation>&times;</button>
+        <iframe id="planAnimationFrame" class="animation-frame" title="Plan-specific Smart Water Tank animation" src="about:blank" sandbox="allow-scripts allow-same-origin"></iframe>
+    </div>
+</div>
+
 <div
     class="modal enquiry-modal"
     id="enquiryModal"
@@ -2252,6 +2257,10 @@ const enquiryModal = document.getElementById("enquiryModal");
 const enquiryForm = document.getElementById("enquiryForm");
 const enquirySubmitButton = document.getElementById("enquirySubmitButton");
 const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
+const animationModal = document.getElementById("animationModal");
+const animationFrame = document.getElementById("planAnimationFrame");
+const animationModalTitle = document.getElementById("animationModalTitle");
+const closeAnimationButtons = document.querySelectorAll("[data-close-animation]");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
 const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
 const planWizard = document.getElementById("planWizard");
@@ -2261,15 +2270,19 @@ const wizardPriceNote = document.getElementById("wizardPriceNote");
 const wizardReason = document.getElementById("wizardReason");
 const wizardAddons = document.getElementById("wizardAddons");
 const wizardBook = document.getElementById("wizardBook");
+const wizardAnimation = document.getElementById("wizardAnimation");
 const planCards = Array.from(document.querySelectorAll("[data-plan-name]"));
 const animationBoardUrl = {{ url_for('static', filename='marketing/water_flow_animation.html')|tojson }};
 const animationPlanCatalogUrl = {{ url_for('static', filename='marketing/water_flow_plan_catalog.json')|tojson }};
+let animationPlanCatalog = null;
+let currentWizardAnimationConfig = null;
 
 async function addPlanAnimationLinks() {
     try {
         const response = await fetch(animationPlanCatalogUrl, { cache: "no-cache" });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const catalog = await response.json();
+        animationPlanCatalog = catalog;
         planCards.forEach((card) => {
             const planName = card.dataset.planName;
             const config = catalog.plans?.[planName];
@@ -2283,13 +2296,64 @@ async function addPlanAnimationLinks() {
             link.className = "button-secondary js-view-animation";
             link.textContent = "See How It Works";
             link.setAttribute("aria-label", `See how the ${planName} devices work`);
+            link.addEventListener("click", (event) => {
+                event.preventDefault();
+                openAnimationModal(planName, url.toString());
+            });
             action.insertBefore(link, action.querySelector("span"));
         });
+        updateWizardAnimationButton(wizardPlan?.textContent?.trim());
     } catch (error) {
         console.warn("Plan animation catalog unavailable; animation links hidden.", error);
     }
 }
 addPlanAnimationLinks();
+
+function updateWizardAnimationButton(planName, deviceConfig = currentWizardAnimationConfig) {
+    if (!wizardAnimation) return;
+    if (deviceConfig) currentWizardAnimationConfig = deviceConfig;
+    const supported = Boolean(animationPlanCatalog?.plans?.[planName]?.animation);
+    wizardAnimation.hidden = !supported;
+    wizardAnimation.dataset.plan = supported ? planName : "";
+    wizardAnimation.setAttribute("aria-label", supported ? `See how the ${planName} devices work` : "Animation unavailable");
+}
+
+wizardAnimation?.addEventListener("click", () => {
+    const planName = wizardAnimation.dataset.plan;
+    if (!planName) return;
+    const url = new URL(animationBoardUrl, window.location.origin);
+    url.searchParams.set("plan", planName);
+    const config = currentWizardAnimationConfig;
+    if (config) {
+        url.searchParams.set("configured", "1");
+        url.searchParams.set("upperTanks", String(config.upperTanks));
+        url.searchParams.set("sourceTanks", String(config.sourceTanks));
+        url.searchParams.set("upperLayout", config.upperLayout);
+        url.searchParams.set("supplies", config.supplies.join(","));
+    }
+    openAnimationModal(planName, url.toString());
+});
+
+function openAnimationModal(planName, animationUrl) {
+    if (!animationModal || !animationFrame) return;
+    animationModalTitle.textContent = `${planName} device animation`;
+    animationFrame.title = `${planName} Smart Water Tank animation`;
+    animationFrame.src = animationUrl;
+    animationModal.classList.add("is-open");
+    animationModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
+    window.setTimeout(() => animationModal.querySelector(".modal-close")?.focus(), 30);
+}
+
+function closeAnimationModal() {
+    if (!animationModal) return;
+    animationModal.classList.remove("is-open");
+    animationModal.setAttribute("aria-hidden", "true");
+    if (animationFrame) animationFrame.src = "about:blank";
+    if (!enquiryModal?.classList.contains("is-open")) document.body.classList.remove("modal-open");
+}
+
+closeAnimationButtons.forEach((button) => button.addEventListener("click", closeAnimationModal));
 
 function highlightPlan(planName, scrollToPlan = false) {
     planCards.forEach((card) => card.classList.toggle("is-wizard-match", card.dataset.planName === planName));
@@ -2370,6 +2434,7 @@ function updatePlanWizard() {
     const requiresSiteQuote = requiresMaintenanceQuote || waterSources.some((source) => ["borewell", "submersible"].includes(source));
     const estimatedPriceLabel = `From ₹${estimatedPrice.toLocaleString("en-IN")}${requiresSiteQuote ? " + site quote" : ""}`;
     if (wizardPlan) wizardPlan.textContent = plan;
+    updateWizardAnimationButton(plan, {upperTanks:upperTankCount,sourceTanks:sourceTankCount,upperLayout,supplies:waterSources});
     if (wizardPrice) wizardPrice.textContent = estimatedPriceLabel;
     if (wizardPriceNote) {
         const quoteDetails = [];
@@ -2522,9 +2587,9 @@ if (enquiryModal) {
 }
 
 document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && enquiryModal?.classList.contains("is-open")) {
-        closeEnquiryModal();
-    }
+    if (event.key !== "Escape") return;
+    if (animationModal?.classList.contains("is-open")) closeAnimationModal();
+    else if (enquiryModal?.classList.contains("is-open")) closeEnquiryModal();
 });
 
 if (shouldOpenPricingBooking) {

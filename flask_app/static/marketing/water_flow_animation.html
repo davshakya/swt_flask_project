@@ -214,20 +214,37 @@
     if(devices)$('mobileAppDetail').textContent=devices.cloud?'Remote cloud access':'Local phone access';
   }
   async function loadSelectedPlan(){
-    const requested=new URLSearchParams(location.search).get('plan');
+    const params=new URLSearchParams(location.search),requested=params.get('plan');
     if(!requested)return;
     const response=await fetch('water_flow_plan_catalog.json',{cache:'no-cache'});
     if(!response.ok)throw new Error(`Plan catalog HTTP ${response.status}`);
     const catalog=await response.json(),config=catalog.plans?.[requested];
     if(!config?.animation)throw new Error(`No fixed animation configuration is available for ${requested}`);
-    selectedPlan=requested;planSetup=config;
+    selectedPlan=requested;planSetup=JSON.parse(JSON.stringify(config));
+    if(params.get('configured')==='1'){
+      const clamp=(value,min,max)=>Math.max(min,Math.min(max,Number.parseInt(value,10)||min));
+      const allowedSupplies=new Set(['municipal','borewell','submersible']);
+      const supplies=new Set((params.get('supplies')||'').split(',').filter(value=>allowedSupplies.has(value)));
+      const upperTanks=clamp(params.get('upperTanks'),1,4),sourceTanks=clamp(params.get('sourceTanks'),0,4);
+      const hasMunicipal=supplies.has('municipal'),hasBorewell=supplies.has('borewell')||supplies.has('submersible'),hasSourceTank=sourceTanks>0;
+      const configuredModes=[];
+      if(hasMunicipal&&hasSourceTank)configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper');
+      else if(hasMunicipal)configuredModes.push('municipal-direct');
+      if(hasBorewell)configuredModes.push('borewell');
+      if(!hasMunicipal&&!hasBorewell)configuredModes.push('source-only');
+      configuredModes.push('idle','failsafe');
+      const initialMode=hasMunicipal?(hasSourceTank?'municipal-source':'municipal-direct'):hasBorewell?'borewell':'source-only';
+      planSetup.modes=configuredModes;planSetup.initialMode=initialMode;
+      Object.assign(planSetup.devices,{upperTanks,sourceTanks:Math.max(1,sourceTanks),sourceTank:hasSourceTank||!supplies.size,municipal:hasMunicipal,municipalSensor:hasMunicipal,motorizedValves:hasMunicipal&&hasSourceTank});
+      planSetup.deviceSummary=`${upperTanks} upper tank${upperTanks===1?'':'s'} · ${sourceTanks} configured source tank${sourceTanks===1?'':'s'} · ${supplies.size?[...supplies].join(' + '):'direct source supply'}`;
+    }
     document.title=`${requested} — SaleWell Water Flow`;
-    document.querySelector('.diagram-kicker').textContent=`${requested} plan configuration`;
-    document.querySelectorAll('.mode').forEach(button=>{if(button.dataset.mode!=='auto')button.hidden=!config.modes.includes(button.dataset.mode)});
-    $('municipalSensorInstalled').checked=Boolean(config.devices.municipalSensor);
-    $('gravityAvailable').checked=Boolean(config.devices.municipal);
-    $('sourceTankCount').value=String(config.devices.sourceTanks||1);$('upperTankCount').value=String(config.devices.upperTanks||1);
-    tankCounts={source:Number(config.devices.sourceTanks||1),upper:Number(config.devices.upperTanks||1)};
+    document.querySelector('.diagram-kicker').textContent=planSetup.deviceSummary||`${requested} plan configuration`;
+    document.querySelectorAll('.mode').forEach(button=>{if(button.dataset.mode!=='auto')button.hidden=!planSetup.modes.includes(button.dataset.mode)});
+    $('municipalSensorInstalled').checked=Boolean(planSetup.devices.municipalSensor);
+    $('gravityAvailable').checked=Boolean(planSetup.devices.municipal);
+    $('sourceTankCount').value=String(planSetup.devices.sourceTanks||1);$('upperTankCount').value=String(planSetup.devices.upperTanks||1);
+    tankCounts={source:Number(planSetup.devices.sourceTanks||1),upper:Number(planSetup.devices.upperTanks||1)};
     ['municipalSensorInstalled','municipalDetected','gravityAvailable','sourceTankCount','upperTankCount'].forEach(id=>{$(id).disabled=true});
   }
   function setPumpVisual(on){$('pumpState').textContent=on?'ON':'OFF';$('pumpText').textContent=on?'ON':'OFF';$('pumpRotor').classList.toggle('pump-spin',on);$('pumpBody').classList.toggle('device-on',on);$('starterBox').classList.toggle('device-on',on);$('relayToStarter').classList.toggle('energized',on);$('starterToPump').classList.toggle('energized',on)}

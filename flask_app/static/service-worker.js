@@ -1,4 +1,4 @@
-const CACHE_NAME = "swt-pwa-v6";
+const CACHE_NAME = "swt-pwa-v7-native-history";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/static/js/smooth-navigation.js",

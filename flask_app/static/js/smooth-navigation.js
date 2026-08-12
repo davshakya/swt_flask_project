@@ -18,9 +18,11 @@
   };
   window.__swtSmoothNavigation = state;
 
-  if ("scrollRestoration" in history) {
-    history.scrollRestoration = "manual";
-  }
+  // Cross-document routing is deliberately left to the browser. Replacing a
+  // document after pushState can display new content under the previous URL
+  // and makes Back/Forward unreliable. Native navigation also restores pages
+  // correctly from the back-forward cache.
+  if ("scrollRestoration" in history) history.scrollRestoration = "auto";
 
   function storageKey(url) {
     const nextUrl = new URL(url, window.location.origin);
@@ -205,11 +207,10 @@
       forceTop: !targetUrl.hash && !scroll && !options.preserveScroll,
     };
 
-    if (options.replace) {
-      history.replaceState(Object.assign({}, history.state || {}, { swtScroll: currentScroll }), "", targetHref);
-    } else if (window.location.href !== targetHref) {
-      history.pushState({ swtScroll: currentScroll }, "", targetHref);
-    }
+    // This helper is only for refreshing the current admin document after an
+    // inline action. It may replace the current URL, but must never create a
+    // synthetic browser-history entry.
+    history.replaceState(Object.assign({}, history.state || {}, { swtScroll: currentScroll }), "", targetHref);
 
     if (typeof window.swtPageTeardown === "function") {
       try {
@@ -236,43 +237,10 @@
   async function navigateTo(url, options = {}) {
     const targetUrl = sameOriginNavigableUrl(url);
     if (!targetUrl || state.navigating || isDownloadOrAsset(targetUrl, null)) return false;
-
-    const samePath = targetUrl.pathname === window.location.pathname && targetUrl.search === window.location.search;
-    if (samePath && targetUrl.hash) {
-      saveScroll();
-      history.pushState({ swtScroll: { x: window.scrollX || 0, y: window.scrollY || 0 } }, "", targetUrl.href);
-      scrollToTarget({ hash: targetUrl.hash });
-      return true;
-    }
-
-    state.navigating = true;
-    updateHistoryScroll();
-    markLoading(true);
-    try {
-      const response = await fetch(targetUrl.href, {
-        credentials: "same-origin",
-        cache: "default",
-        headers: {
-          "X-Requested-With": "XMLHttpRequest",
-          "X-SWT-Client-Route": "1",
-        },
-      });
-      const contentType = response.headers.get("content-type") || "";
-      if (!response.ok || !contentType.includes("text/html")) {
-        window.location.assign(targetUrl.href);
-        return true;
-      }
-      const html = await response.text();
-      renderHtml(html, targetUrl.href, options);
-      return true;
-    } catch (error) {
-      console.warn("Client-side navigation failed; falling back to normal navigation.", error);
-      window.location.assign(targetUrl.href);
-      return true;
-    } finally {
-      state.navigating = false;
-      markLoading(false);
-    }
+    saveScroll();
+    if (options.replace) window.location.replace(targetUrl.href);
+    else window.location.assign(targetUrl.href);
+    return true;
   }
 
   window.swtNavigate = navigateTo;
@@ -282,38 +250,11 @@
 
   ensureTransitionStyles();
 
-  document.addEventListener("click", (event) => {
-    const link = event.target && event.target.closest ? event.target.closest("a[href]") : null;
-    if (!shouldInterceptLink(event, link)) return;
-    event.preventDefault();
-    navigateTo(link.href, { preserveScroll: false });
-  });
-
-  document.addEventListener("submit", (event) => {
-    const form = event.target;
-    if (!form || form.dataset.noClientRoute !== undefined) return;
-    const method = String(form.method || "get").toLowerCase();
-    if (method !== "get") return;
-    const targetUrl = sameOriginNavigableUrl(form.action || window.location.href);
-    if (!targetUrl || isDownloadOrAsset(targetUrl, null)) return;
-    event.preventDefault();
-    const params = new URLSearchParams(new FormData(form));
-    targetUrl.search = params.toString();
-    navigateTo(targetUrl.href, { preserveScroll: true });
-  });
-
-  window.addEventListener("popstate", () => {
-    const scroll = history.state && history.state.swtScroll ? history.state.swtScroll : readScroll(window.location.href);
-    navigateTo(window.location.href, { replace: true, preserveScroll: true }).then(() => {
-      scrollToTarget({ scroll, hash: window.location.hash });
-    });
-  });
-
   window.addEventListener("beforeunload", saveScroll);
   window.addEventListener("pagehide", saveScroll);
   window.addEventListener("scroll", () => {
     window.clearTimeout(state.scrollSaveTimer);
-    state.scrollSaveTimer = window.setTimeout(updateHistoryScroll, 120);
+    state.scrollSaveTimer = window.setTimeout(saveScroll, 120);
   }, { passive: true });
 
   if (document.readyState === "loading") {
