@@ -4517,7 +4517,7 @@ caret-color:#67e8f9!important;
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
 .nav{position:static;top:auto}
 .hero{margin-top:10px}
-.text-size-button{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-width:70px;min-height:42px;padding:8px 11px;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:12px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button strong{font-size:16px;line-height:1}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
+.text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
 .nav .nav-links a,.nav .nav-links a:nth-child(n){position:relative;isolation:isolate;min-height:38px;padding:9px 13px;border:1px solid transparent;border-radius:13px;color:var(--brand-deep);background:transparent;font-size:12px;font-weight:900;letter-spacing:.01em;text-shadow:none;transition:color .2s ease,transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 15%,transparent),color-mix(in srgb,var(--success) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
@@ -4596,7 +4596,7 @@ caret-color:#67e8f9!important;
                     {% endif %}
                 </div>
             </details>
-            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size"><strong>Aa</strong><span data-text-size-label>Normal</span></button>
+            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
 

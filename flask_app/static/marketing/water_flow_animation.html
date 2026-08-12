@@ -159,7 +159,7 @@
 <script>
 (() => {
   const $ = id => document.getElementById(id);
-  if(new URLSearchParams(location.search).get('embed')==='1')document.body.classList.add('embedded');
+  if(new URLSearchParams(location.search).get('embed')==='1'||window.self!==window.top)document.body.classList.add('embedded');
   const tanks = {
     source:{unitCapacity:2000,minPercent:30,maxPercent:95},
     upper:{unitCapacity:1000,minPercent:30,maxPercent:95}
