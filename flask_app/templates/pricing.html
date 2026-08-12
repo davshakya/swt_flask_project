@@ -1552,7 +1552,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <p>Choose how you want to use your system: hardware only, phone access at home, or full access from anywhere.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Basic">
+            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Basic" data-plan-assurance="Hardware: tank sensor + controller. App users: none. Cloud: no. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Basic</span>
@@ -1588,7 +1588,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
             </article>
 
-            <article class="plan-card is-featured" data-plan-segment="home" data-plan-name="Home Control">
+            <article class="plan-card is-featured" data-plan-segment="home" data-plan-name="Home Control" data-plan-assurance="Hardware: tank sensor + controller. App: local phone access. Cloud: no. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Control</span>
@@ -1625,7 +1625,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
             </article>
 
-            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Cloud Pro">
+            <article class="plan-card" data-plan-segment="home" data-plan-name="Home Cloud Pro" data-plan-assurance="Hardware: tank sensor + controller. Users: family sharing. Cloud: included. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Home Cloud Pro</span>
@@ -1670,7 +1670,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <p>For managed sites that need shared tank visibility, multiple users, reports, source tank logic and support handover.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="commercial" data-plan-name="RWA Standard">
+            <article class="plan-card" data-plan-segment="commercial" data-plan-name="RWA Standard" data-plan-assurance="Equipment: wireless tank sensors + main pump unit. Users: managed access. Online access: included. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">RWA Standard</span>
@@ -1707,7 +1707,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
             </article>
 
-            <article class="plan-card is-featured" data-plan-segment="commercial" data-plan-name="Commercial AI Pro">
+            <article class="plan-card is-featured" data-plan-segment="commercial" data-plan-name="Commercial AI Pro" data-plan-assurance="Hardware: multi-tank wireless setup. Users: managed access. Cloud and smart reports: included. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Commercial AI Pro</span>
@@ -1755,7 +1755,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <p>For dealers, plumbers, electricians and installers who need field setup support, installation material and volume pricing.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card" data-plan-segment="partner" data-plan-name="Dealer / Installer Kit">
+            <article class="plan-card" data-plan-segment="partner" data-plan-name="Dealer / Installer Kit" data-plan-assurance="Hardware: complete demo kit. Cloud: optional. Training and support: included. Warranty terms: confirmed in quote.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Dealer / Installer Kit</span>
@@ -1800,7 +1800,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <p>For builders, townships, institutions and industrial clients where device count, roles and integrations define the quote.</p>
             </div>
             <div class="plans-grid">
-            <article class="plan-card is-featured" data-plan-segment="enterprise" data-plan-name="Enterprise Modular">
+            <article class="plan-card is-featured" data-plan-segment="enterprise" data-plan-name="Enterprise Modular" data-plan-assurance="Hardware, users, cloud, warranty and support are defined in the approved rollout scope.">
                 <div class="plan-top">
                     <div class="plan-badges">
                         <span class="plan-badge">Enterprise Modular</span>
@@ -2267,6 +2267,7 @@ function initializePlanCarousel() {
         const planName = card.dataset.planName || `Plan ${index + 1}`;
         const description = card.querySelector(".plan-top p")?.textContent.trim() || "";
         const priceNotes = Array.from(card.querySelectorAll(".price-note")).map((item) => item.textContent.trim()).filter(Boolean);
+        const assurance = card.dataset.planAssurance || "Details are confirmed in the approved quotation.";
         const helper = card.querySelector(".plan-action span")?.textContent.trim() || "";
         const button = document.createElement("button");
         const panel = document.createElement("div");
@@ -2280,10 +2281,11 @@ function initializePlanCarousel() {
         panel.id = panelId;
         panel.className = "plan-info-panel";
         panel.setAttribute("aria-hidden", "true");
-        panel.innerHTML = `<button class="plan-info-close" type="button" aria-label="Close plan information">&times;</button><h4>${planName}</h4><h5>Plan details</h5><p></p><h5>Pricing and access</h5><ul></ul><h5>Recommendation</h5><p></p>`;
+        panel.innerHTML = `<button class="plan-info-close" type="button" aria-label="Close plan information">&times;</button><h4>${planName}</h4><h5>Plan details</h5><p></p><h5>Pricing and access</h5><ul></ul><h5>Hardware, users, cloud and support</h5><p></p><h5>Recommendation</h5><p></p>`;
         const paragraphs = panel.querySelectorAll("p");
         paragraphs[0].textContent = description;
-        paragraphs[1].textContent = helper;
+        paragraphs[1].textContent = assurance;
+        paragraphs[2].textContent = helper;
         const list = panel.querySelector("ul");
         priceNotes.forEach((note) => { const item = document.createElement("li"); item.textContent = note; list.appendChild(item); });
         const close = () => { panel.classList.remove("is-open");panel.setAttribute("aria-hidden", "true");button.setAttribute("aria-expanded", "false"); };
