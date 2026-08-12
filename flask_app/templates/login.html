@@ -4515,9 +4515,7 @@ caret-color:#67e8f9!important;
 #loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
 :root{--page-text-size:15px;font-size:var(--page-text-size)}
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
-.nav{position:static;top:auto;grid-template-columns:minmax(230px,max-content) minmax(0,1fr)}
-.nav .nav-links{flex-wrap:wrap;overflow:visible}
-.nav .nav-actions{grid-column:1/-1;justify-content:flex-end;width:100%}
+.nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
 .text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
@@ -4525,10 +4523,11 @@ caret-color:#67e8f9!important;
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 15%,transparent),color-mix(in srgb,var(--success) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
 .nav .nav-links a:hover,.nav .nav-links a:focus-visible{color:var(--brand-deep);border-color:color-mix(in srgb,var(--primary) 38%,var(--line));background:var(--surface);box-shadow:0 8px 18px rgba(12,56,66,.13);text-shadow:none;transform:translateY(-2px)}
 .nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
+.user-login-menu{z-index:60}.user-login-dropdown{z-index:1000}
 .page-jump-controls{position:fixed;right:12px;bottom:18px;z-index:89;display:grid;gap:8px}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--primary);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
-@media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav{grid-template-columns:1fr}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.nav .nav-actions{justify-content:flex-start}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
+@media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
 </head>
 <body data-default-login-mode="{{ login_mode }}">
@@ -4558,7 +4557,7 @@ caret-color:#67e8f9!important;
             {% set nav_customer_logged_in = nav_auth.customer_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'customer') %}
             {% if active_homepage_user %}
             <div class="login-status">
-                <span>Logged in as - {{ active_homepage_user.display_name }}</span>
+                <span>{{ active_homepage_user.display_name }}</span>
                 <form class="logout-form" method="post" action="/logout">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="nav-button is-secondary" type="submit">Logout</button>
@@ -4569,7 +4568,7 @@ caret-color:#67e8f9!important;
             <details class="user-login-menu">
                 <summary class="nav-button is-primary user-login-trigger">
                     <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
-                    <span>User Login</span>
+                    <span>Login</span>
                 </summary>
                 <div class="user-login-dropdown" aria-label="User login options">
                     {% if nav_customer_logged_in %}

@@ -1327,9 +1327,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 }
 :root{--page-text-size:15px;font-size:var(--page-text-size)}
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
-.nav{position:static;top:auto;grid-template-columns:minmax(230px,max-content) minmax(0,1fr)}
-.nav .nav-links{flex-wrap:wrap;overflow:visible}
-.nav .nav-actions{grid-column:1/-1;justify-content:flex-end;width:100%}
+.nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
 .text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface-strong);color:var(--brand-deep);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--brand);background:var(--brand-soft)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface-strong) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
@@ -1352,7 +1350,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .page-jump-controls{position:fixed;right:12px;bottom:18px;z-index:89;display:grid;gap:8px}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-strong);color:var(--brand-deep);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--brand)}
-@media(max-width:680px){.page{width:calc(100% - 8px);padding-top:4px}.nav{grid-template-columns:1fr}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a{min-height:34px;padding:7px 10px;font-size:11px}.nav .nav-actions{justify-content:flex-start}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
+@media(max-width:680px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a{min-height:34px;padding:7px 10px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
 {% include '_theme_overrides.html' %}
 </head>
