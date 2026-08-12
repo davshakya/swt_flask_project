@@ -1335,6 +1335,18 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 14%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
 .nav .nav-links a:hover,.nav .nav-links a:focus-visible{color:var(--brand-deep);border-color:color-mix(in srgb,var(--brand) 38%,var(--line));background:var(--surface-strong);box-shadow:0 8px 18px rgba(12,56,66,.13);text-shadow:none;transform:translateY(-2px)}
 .nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
+@media(min-width:721px){
+  .plans-carousel-track .plan-card{font-size:15px;line-height:1.42;gap:11px;padding:18px}
+  .plans-carousel-track .plan-card h3{font-size:1.5rem;line-height:1.15}
+  .plans-carousel-track .plan-card p{font-size:15px!important;line-height:1.5!important}
+  .plans-carousel-track .plan-badge{font-size:11px;padding:6px 10px}
+  .plans-carousel-track .plan-badge.is-recommended{font-size:11px;padding:7px 11px}
+  .plans-carousel-track .list-title{font-size:11px}
+  .plans-carousel-track .feature-list li,.plans-carousel-track .fit-list li{font-size:14px!important;line-height:1.42!important}
+  .plans-carousel-track .price-main{font-size:2.15rem}
+  .plans-carousel-track .assurance-bar{font-size:11px;line-height:1.4}
+  .plans-carousel-track .plan-action .button,.plans-carousel-track .plan-action .button-secondary{font-size:13px;min-height:44px}
+}
 .page-jump-controls{position:fixed;right:12px;bottom:18px;z-index:89;display:grid;gap:8px}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-strong);color:var(--brand-deep);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--brand)}
