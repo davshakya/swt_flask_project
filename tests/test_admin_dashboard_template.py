@@ -249,6 +249,9 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "track.appendChild(card)" in pricing
     assert "height:clamp(520px,58vh,610px)" in pricing
     assert ".plans-carousel-track .plan-action span{display:none}" in pricing
+    assert "align-content:start;align-self:start" in pricing
+    assert "transform:none!important" in pricing
+    assert ".plans-carousel-track .price-note{display:none!important}" in pricing
     assert 'button.className = "plan-info-button"' in pricing
     assert 'panel.className = "plan-info-panel"' in pricing
     assert 'button.setAttribute("aria-expanded", "false")' in pricing
