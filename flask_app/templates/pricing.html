@@ -2262,6 +2262,34 @@ const wizardReason = document.getElementById("wizardReason");
 const wizardAddons = document.getElementById("wizardAddons");
 const wizardBook = document.getElementById("wizardBook");
 const planCards = Array.from(document.querySelectorAll("[data-plan-name]"));
+const animationBoardUrl = {{ url_for('static', filename='marketing/water_flow_animation.html')|tojson }};
+const animationPlanCatalogUrl = {{ url_for('static', filename='marketing/water_flow_plan_catalog.json')|tojson }};
+
+async function addPlanAnimationLinks() {
+    try {
+        const response = await fetch(animationPlanCatalogUrl, { cache: "no-cache" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const catalog = await response.json();
+        planCards.forEach((card) => {
+            const planName = card.dataset.planName;
+            const config = catalog.plans?.[planName];
+            if (!config?.animation) return;
+            const action = card.querySelector(".plan-action");
+            if (!action || action.querySelector(".js-view-animation")) return;
+            const link = document.createElement("a");
+            const url = new URL(animationBoardUrl, window.location.origin);
+            url.searchParams.set("plan", planName);
+            link.href = url.toString();
+            link.className = "button-secondary js-view-animation";
+            link.textContent = "See How It Works";
+            link.setAttribute("aria-label", `See how the ${planName} devices work`);
+            action.insertBefore(link, action.querySelector("span"));
+        });
+    } catch (error) {
+        console.warn("Plan animation catalog unavailable; animation links hidden.", error);
+    }
+}
+addPlanAnimationLinks();
 
 function highlightPlan(planName, scrollToPlan = false) {
     planCards.forEach((card) => card.classList.toggle("is-wizard-match", card.dataset.planName === planName));

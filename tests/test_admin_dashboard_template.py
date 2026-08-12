@@ -214,6 +214,26 @@ def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
     assert "!$('tankSim').checked" in animation
 
 
+def test_pricing_and_animation_share_plan_configuration_catalog():
+    import json
+
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+    catalog_path = PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_plan_catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert "addPlanAnimationLinks" in pricing
+    assert "if (!config?.animation) return" in pricing
+    assert 'url.searchParams.set("plan", planName)' in pricing
+    assert "loadSelectedPlan" in animation
+    assert "new URLSearchParams(location.search).get('plan')" in animation
+    assert "planSetup.modes" in animation
+    assert catalog["plans"]["Enterprise Modular"]["animation"] is False
+    assert all(catalog["plans"][name]["animation"] for name in (
+        "Home Basic", "Home Control", "Home Cloud Pro", "RWA Standard", "Commercial AI Pro"
+    ))
+
+
 def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 

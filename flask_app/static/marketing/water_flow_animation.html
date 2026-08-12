@@ -95,8 +95,8 @@
         <g><rect x="820" y="590" width="180" height="72" rx="13" class="device"/><text x="842" y="618" class="label">TANK CONTROLLER</text><text x="858" y="642" class="small">upper tank sensing</text></g>
 
         <!-- Mobile app connection. -->
-        <path class="app-wifi-wire" d="M365 648H315V722H265"/><text x="285" y="714" class="network-tag">APP CONNECTION</text>
-        <g><rect x="55" y="692" width="210" height="60" rx="14" class="device device-on"/><rect x="72" y="703" width="24" height="38" rx="5" fill="none" stroke="#72e7ff" stroke-width="2"/><circle cx="84" cy="735" r="2" fill="#72e7ff"/><text x="108" y="717" class="label">MOBILE APP</text><text x="108" y="739" class="small">Local or remote access</text></g>
+        <g id="mobileAppConnection"><path class="app-wifi-wire" d="M365 648H315V722H265"/><text x="285" y="714" class="network-tag">APP CONNECTION</text></g>
+        <g id="mobileAppHardware"><rect x="55" y="692" width="210" height="60" rx="14" class="device device-on"/><rect x="72" y="703" width="24" height="38" rx="5" fill="none" stroke="#72e7ff" stroke-width="2"/><circle cx="84" cy="735" r="2" fill="#72e7ff"/><text x="108" y="717" class="label">MOBILE APP</text><text id="mobileAppDetail" x="108" y="739" class="small">Local or remote access</text></g>
 
         <g id="connectionLegend" aria-label="Connection indicator legend">
           <g transform="translate(35 770)"><line x1="0" x2="30" class="connection ultrasonic-wire"/><text x="40" y="5" class="small compact">water-level sensor</text></g>
@@ -163,6 +163,7 @@
     upper:{unitCapacity:1000,minPercent:30,maxPercent:95}
   };
   const flowIds = ['municipalToSource','municipalToPump','municipalOnlyBypass','sourceToPump','sourceOnlyBypass','valveToPump','pumpToUpper','pumpToSource','houseOutlet'];
+  let selectedPlan=null,planSetup=null;
   const modes = {
     'municipal-source': {flows:['municipalToSource','houseOutlet'],upper:70,source:30,route:'SOURCE → PUMP',valve:'Source → Pump · standby',pump:false,plan:'Municipal → Source · Gravity',reason:'Municipal water detected; gravity-fill source from 600 L minimum toward 1,900 L maximum',municipal:true},
     'municipal-upper': {flows:['municipalToPump','pumpToUpper','houseOutlet'],upper:30,source:95,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump',pump:true,plan:'Municipal → Pump → Upper',reason:'Upper tank reached 30% (300 L); pumping municipal water toward 95% (950 L)',municipal:true},
@@ -196,8 +197,12 @@
   function setSensor(id,text,tone='good'){const el=$(id);el.textContent=text;el.className=tone==='bad'?'bad':tone==='optional'?'optional':''}
   function setInstalled(target,installed){if(target)target.classList.toggle('not-installed',!installed)}
   function applyDeviceSetup(m,sensorInstalled){
-    const hasMunicipal=!m.sourceOnly,hasSourceTank=!m.municipalDirect&&!m.borewell,hasValves=!m.sourceOnly&&!m.municipalDirect;
+    const devices=planSetup?.devices;
+    const hasMunicipal=devices?devices.municipal:!m.sourceOnly;
+    const hasSourceTank=devices?devices.sourceTank:!m.municipalDirect&&!m.borewell;
+    const hasValves=devices?devices.motorizedValves:!m.sourceOnly&&!m.municipalDirect;
     setInstalled($('municipalHardware'),hasMunicipal);setInstalled($('checkValve'),hasMunicipal);
+    setInstalled($('municipalPipe'),hasMunicipal);setInstalled($('municipalPumpPipe'),hasMunicipal);setInstalled($('municipalSupplyLabel'),hasMunicipal);setInstalled($('gravityFillLabel'),hasMunicipal);
     setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled);setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled);
     setInstalled($('sourceTankHardware'),hasSourceTank);setInstalled($('sourceTankSensorHardware'),hasSourceTank);setInstalled($('sourceLevelControllerWire'),hasSourceTank);
     setInstalled($('sourceQualityHardware'),false);setInstalled($('sourceQualityControllerWire'),false);
@@ -205,6 +210,25 @@
     const upperQualityLabel=[...document.querySelectorAll('text')].find(el=>el.textContent.includes('UPPER WATER QUALITY'));
     setInstalled(upperQualityLabel?.parentElement,false);
     document.querySelectorAll('path.turbidity-wire').forEach(path=>setInstalled(path,false));
+    setInstalled($('mobileAppHardware'),devices?.mobileApp!==false);setInstalled($('mobileAppConnection'),devices?.mobileApp!==false);
+    if(devices)$('mobileAppDetail').textContent=devices.cloud?'Remote cloud access':'Local phone access';
+  }
+  async function loadSelectedPlan(){
+    const requested=new URLSearchParams(location.search).get('plan');
+    if(!requested)return;
+    const response=await fetch('water_flow_plan_catalog.json',{cache:'no-cache'});
+    if(!response.ok)throw new Error(`Plan catalog HTTP ${response.status}`);
+    const catalog=await response.json(),config=catalog.plans?.[requested];
+    if(!config?.animation)throw new Error(`No fixed animation configuration is available for ${requested}`);
+    selectedPlan=requested;planSetup=config;
+    document.title=`${requested} — SaleWell Water Flow`;
+    document.querySelector('.diagram-kicker').textContent=`${requested} plan configuration`;
+    document.querySelectorAll('.mode').forEach(button=>{if(button.dataset.mode!=='auto')button.hidden=!config.modes.includes(button.dataset.mode)});
+    $('municipalSensorInstalled').checked=Boolean(config.devices.municipalSensor);
+    $('gravityAvailable').checked=Boolean(config.devices.municipal);
+    $('sourceTankCount').value=String(config.devices.sourceTanks||1);$('upperTankCount').value=String(config.devices.upperTanks||1);
+    tankCounts={source:Number(config.devices.sourceTanks||1),upper:Number(config.devices.upperTanks||1)};
+    ['municipalSensorInstalled','municipalDetected','gravityAvailable','sourceTankCount','upperTankCount'].forEach(id=>{$(id).disabled=true});
   }
   function setPumpVisual(on){$('pumpState').textContent=on?'ON':'OFF';$('pumpText').textContent=on?'ON':'OFF';$('pumpRotor').classList.toggle('pump-spin',on);$('pumpBody').classList.toggle('device-on',on);$('starterBox').classList.toggle('device-on',on);$('relayToStarter').classList.toggle('energized',on);$('starterToPump').classList.toggle('energized',on)}
   function updateCapacityLabels(){
@@ -297,8 +321,9 @@
   function select(mode){
     clearInterval(autoTimer); clearTimeout(fallbackTimer); activeMode=mode; document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===mode));
     if(mode==='auto'){
-      const sequence=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence(); autoIndex=0; render(sequence[autoIndex]);
-      autoTimer=setInterval(()=>{const next=$('municipalSensorInstalled').checked?autoSequence:fallbackSequence();autoIndex=(autoIndex+1)%next.length;render(next[autoIndex])},5000);
+      const configured=()=>planSetup?planSetup.modes.filter(name=>name!=='failsafe'):$('municipalSensorInstalled').checked?autoSequence:fallbackSequence();
+      const sequence=configured(); autoIndex=0; render(sequence[autoIndex]);
+      autoTimer=setInterval(()=>{const next=configured();autoIndex=(autoIndex+1)%next.length;render(next[autoIndex])},5000);
     }else{
       render(mode);
       if(mode==='municipal-upper'&&!$('municipalSensorInstalled').checked){fallbackTimer=setTimeout(()=>render($('municipalDetected').checked?'no-sensor-confirmed':'no-sensor-source-lock'),3500)}
@@ -317,7 +342,12 @@
   $('tankSim').addEventListener('change',e=>{$('upperSim').classList.toggle('hidden',!e.target.checked);$('sourceSim').classList.toggle('hidden',!e.target.checked);render(currentScenario)});
   $('municipalSim').addEventListener('change',e=>{const effect=e.target.checked?'drop-shadow(0 0 5px #8f5dff)':'';$('municipalToSource').style.filter=effect;$('municipalToPump').style.filter=effect;$('municipalOnlyBypass').style.filter=effect;render(currentScenario)});
   $('valveSim').addEventListener('change',e=>{const effect=e.target.checked?'drop-shadow(0 0 7px #8f5dff)':'';$('threeWayValve').style.filter=effect;$('outletValve').style.filter=effect;render(currentScenario)});
-  $('upperSim').classList.remove('hidden'); $('sourceSim').classList.remove('hidden'); $('municipalSim').dispatchEvent(new Event('change')); $('valveSim').dispatchEvent(new Event('change')); select('auto'); levelTimer=setInterval(advanceLevels,250);
+  async function start(){
+    try{await loadSelectedPlan()}catch(error){$('livePill').textContent='CONFIGURATION UNAVAILABLE';$('reasonText').textContent=error.message;$('reasonText').className='danger';return}
+    $('upperSim').classList.remove('hidden');$('sourceSim').classList.remove('hidden');$('municipalSim').dispatchEvent(new Event('change'));$('valveSim').dispatchEvent(new Event('change'));
+    select(selectedPlan?planSetup.initialMode:'auto');levelTimer=setInterval(advanceLevels,250);
+  }
+  start();
 })();
 </script>
 </body>
