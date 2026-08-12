@@ -384,6 +384,10 @@ display:none;
 width:100%;
 justify-content:flex-start;
 }
+.user-menu-account-row{display:flex;align-items:center;gap:8px;padding-bottom:9px;margin-bottom:2px;border-bottom:1px solid var(--line)}
+.user-menu-account-row>span{min-width:0;flex:1;overflow-wrap:anywhere;color:var(--brand-deep);font-weight:900}
+.user-menu-account-row .logout-form{flex:0 0 auto}
+.user-menu-account-row .nav-button{width:auto;min-height:38px;padding:8px 12px}
 .nav-button,
 .button,
 .button-secondary,
@@ -4518,6 +4522,8 @@ caret-color:#67e8f9!important;
 .nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
 .text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
+.book-demo-button,.book-demo-button:link,.book-demo-button:visited{color:#073d2d!important;-webkit-text-fill-color:#073d2d;background:linear-gradient(135deg,rgba(119,238,179,.9),rgba(42,190,129,.78))!important;border:1px solid rgba(26,145,97,.48)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 9px 24px rgba(25,138,97,.2)!important;backdrop-filter:blur(14px) saturate(145%)}
+.book-demo-button:hover,.book-demo-button:focus-visible{color:#032c20!important;-webkit-text-fill-color:#032c20;background:linear-gradient(135deg,rgba(145,248,198,.96),rgba(53,205,141,.88))!important;border-color:rgba(17,122,79,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 13px 30px rgba(25,138,97,.3)!important;transform:translateY(-2px)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
 .nav .nav-links a,.nav .nav-links a:nth-child(n){position:relative;isolation:isolate;min-height:38px;padding:9px 13px;border:1px solid transparent;border-radius:13px;color:var(--brand-deep);background:transparent;font-size:12px;font-weight:900;letter-spacing:.01em;text-shadow:none;transition:color .2s ease,transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 15%,transparent),color-mix(in srgb,var(--success) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
@@ -4548,29 +4554,29 @@ caret-color:#67e8f9!important;
             <a href="#solutions">Property Types</a>
             <a href="#proof">Setup Check</a>
             <a href="{{ url_for('pricing_page') }}">Pricing</a>
-            <a href="#enquiry">Contact Sales</a>
+            <a href="#enquiry">Contact Us</a>
         </nav>
         <div class="nav-actions">
             {% set nav_auth = homepage_auth|default({}) %}
             {% set active_homepage_user = nav_auth.active_user|default(homepage_user) %}
             {% set nav_admin_logged_in = nav_auth.admin_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'admin') %}
             {% set nav_customer_logged_in = nav_auth.customer_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'customer') %}
-            {% if active_homepage_user %}
-            <div class="login-status">
-                <span>{{ active_homepage_user.display_name }}</span>
-                <form class="logout-form" method="post" action="/logout">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button class="nav-button is-secondary" type="submit">Logout</button>
-                </form>
-            </div>
-            {% endif %}
-            <a class="nav-button is-secondary is-demo" href="#enquiry">Book Free Demo</a>
+            <a class="nav-button is-secondary is-demo book-demo-button" href="#enquiry">Book Demo</a>
             <details class="user-login-menu">
                 <summary class="nav-button is-primary user-login-trigger">
                     <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
                     <span>Login</span>
                 </summary>
                 <div class="user-login-dropdown" aria-label="User login options">
+                    {% if active_homepage_user %}
+                    <div class="user-menu-account-row">
+                        <span>{{ active_homepage_user.display_name }}</span>
+                        <form class="logout-form" method="post" action="/logout">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button class="nav-button is-secondary" type="submit">Logout</button>
+                        </form>
+                    </div>
+                    {% endif %}
                     {% if nav_customer_logged_in %}
                     <a
                         class="nav-button"
@@ -4616,7 +4622,7 @@ caret-color:#67e8f9!important;
             </div>
 
             <div class="hero-actions">
-                <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
                 <a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">Buy Now</a>
                 <a class="button-secondary is-primary-cta" href="#demo">Watch 2-Min Video</a>
             </div>
@@ -4830,7 +4836,7 @@ caret-color:#67e8f9!important;
                     {% if show_pricing_links|default(false) %}
                     <a class="button-secondary" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
                     {% else %}
-                    <a class="button-secondary" href="#enquiry">Book Free Demo</a>
+                    <a class="button-secondary book-demo-button" href="#enquiry">Book Demo</a>
                     {% endif %}
                 </div>
             </div>
@@ -5533,7 +5539,7 @@ caret-color:#67e8f9!important;
                 </div>
                 <div class="conversion-strip" style="margin-top:10px">
                     <div><strong>See the exact kit and recurring cost.</strong><span class="muted">Compare inclusions before booking installation.</span></div>
-                    <div class="conversion-actions"><a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">View Pricing &amp; Buy</a><a class="button is-primary-cta" href="#enquiry">Book Free Demo</a></div>
+                    <div class="conversion-actions"><a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">View Pricing &amp; Buy</a><a class="button is-primary-cta book-demo-button" href="#enquiry">Book Demo</a></div>
                 </div>
             </div>
             <div>
@@ -5603,12 +5609,12 @@ caret-color:#67e8f9!important;
                 <p>Free site assessment &bull; 10 minutes. Tank setup, pump risk and best plan reviewed.</p>
             </div>
             <div class="final-cta-actions">
-                <a class="button-secondary is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button-secondary is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
             </div>
         </div>
         <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
-        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Sales</a></nav>
+        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Us</a></nav>
         <div class="visitor-count" aria-label="Homepage visitor count">
             <span>Visitors</span>
             <strong>{{ homepage_visitor_count|default("0") }}</strong>
@@ -5712,7 +5718,7 @@ caret-color:#67e8f9!important;
         <button class="modal-close" type="button" aria-label="Close booking form" data-close-enquiry>&times;</button>
 
         <div class="modal-header">
-            <div class="eyebrow">Book Free Demo</div>
+            <div class="eyebrow">Book Demo</div>
             <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
             <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
         </div>
@@ -5815,7 +5821,7 @@ caret-color:#67e8f9!important;
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
-                <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
+                <button class="button-secondary is-primary-cta book-demo-button" id="enquirySubmitButton" type="submit" disabled>Book Demo</button>
             </div>
             <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>

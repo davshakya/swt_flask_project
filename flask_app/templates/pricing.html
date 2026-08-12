@@ -1330,6 +1330,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
 .text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface-strong);color:var(--brand-deep);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--brand);background:var(--brand-soft)}
+.book-demo-button,.book-demo-button:link,.book-demo-button:visited{color:#073d2d!important;-webkit-text-fill-color:#073d2d;background:linear-gradient(135deg,rgba(119,238,179,.9),rgba(42,190,129,.78))!important;border:1px solid rgba(26,145,97,.48)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 9px 24px rgba(25,138,97,.2)!important;backdrop-filter:blur(14px) saturate(145%)}
+.book-demo-button:hover,.book-demo-button:focus-visible{color:#032c20!important;-webkit-text-fill-color:#032c20;background:linear-gradient(135deg,rgba(145,248,198,.96),rgba(53,205,141,.88))!important;border-color:rgba(17,122,79,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 13px 30px rgba(25,138,97,.3)!important;transform:translateY(-2px)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface-strong) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
 .nav .nav-links a{position:relative;isolation:isolate;min-height:38px;padding:9px 14px;border:1px solid transparent;border-radius:13px;color:var(--brand-deep);background:transparent;font-size:12px;font-weight:900;letter-spacing:.01em;text-shadow:none;transition:color .2s ease,transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 14%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
@@ -1375,7 +1377,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         </nav>
         <div class="nav-actions">
             <a class="ghost-link" href="{{ url_for('dashboard') }}">Homepage</a>
-            <a class="button-secondary js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+            <a class="button-secondary js-book-plan book-demo-button" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Demo</a>
             <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
@@ -1386,7 +1388,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <p>Every device plan includes automatic pump control. Add phone access, remote monitoring or AI analytics whenever you need them.</p>
             <div class="trust-line">Home Basic and Home Control connect directly without needing home Wi-Fi or internet. Plans with access from anywhere need an internet connection. Final pricing depends on tank count, pump location, site access, installation city and selected add-ons.</div>
             <div class="cta-row">
-                <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+                <a class="button js-book-plan book-demo-button" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Demo</a>
                 <a class="button-secondary" href="#find-my-plan">Find My Kit</a>
             </div>
         </div>
@@ -2041,7 +2043,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <h2>Still not sure which setup fits your tank?</h2>
                 <p>Get a free 10-minute recommendation and site assessment. We will review tank count, wireless signal, internet needs, pump operation, source tank needs and add-ons before you choose.</p>
                 <div class="cta-row">
-                    <a class="button js-book-plan" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Free Demo</a>
+                    <a class="button js-book-plan book-demo-button" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Demo</a>
                     <a class="button-secondary" href="#find-my-plan">Find My Kit</a>
                     <a class="ghost-link" href="https://wa.me/918796452878">WhatsApp</a>
                     <a class="ghost-link" href="tel:+918796452878">Call Now</a>
@@ -2113,7 +2115,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         <button class="modal-close" type="button" aria-label="Close booking form" data-close-enquiry>&times;</button>
 
         <div class="modal-header">
-            <div class="eyebrow">Book Free Demo</div>
+            <div class="eyebrow">Book Demo</div>
             <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
             <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
         </div>
@@ -2216,7 +2218,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
-                <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
+                <button class="button-secondary is-primary-cta book-demo-button" id="enquirySubmitButton" type="submit" disabled>Book Demo</button>
             </div>
             <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
