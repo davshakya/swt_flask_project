@@ -1324,9 +1324,19 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .wizard-question .option-row{gap:9px}
 .wizard-question .option-chip{overflow:hidden;min-height:43px;padding:10px 15px;border:1px solid color-mix(in srgb,var(--wizard-color,var(--brand)) 24%,var(--line));border-radius:999px;background:rgba(255,255,255,.54);box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 6px 16px rgba(12,56,66,.06);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease,background .2s ease}
 .wizard-question .option-chip:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--wizard-color,var(--brand)) 58%,var(--line));box-shadow:0 10px 22px color-mix(in srgb,var(--wizard-color,var(--brand)) 18%,transparent)}
-.wizard-question .option-chip:has(input:checked){border-color:rgba(20,163,201,.72);background:linear-gradient(135deg,rgba(116,224,248,.52),rgba(54,169,221,.3));color:#076b88;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 10px 26px rgba(23,151,193,.24);backdrop-filter:blur(14px) saturate(145%)}
+.wizard-question .option-chip:has(input:checked){border-color:#1285a1;background:linear-gradient(135deg,#bceef5,#8bd8e8);color:#064b5c;box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 10px 26px rgba(23,151,193,.24);backdrop-filter:blur(14px) saturate(145%)}
 .wizard-question .option-chip:has(input:checked)::before{content:"✓";display:inline-grid;place-items:center;width:20px;height:20px;margin-right:7px;border-radius:999px;background:linear-gradient(145deg,#22b8db,#0a8eb9);color:#fff;font-size:12px;font-weight:900;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 4px 10px rgba(8,126,163,.25)}
 .wizard-question input[type="number"]{min-height:44px;border-radius:14px!important;background:rgba(255,255,255,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.8)}
+@media (prefers-color-scheme:dark){
+.wizard-form{background:linear-gradient(145deg,rgba(10,38,47,.96),rgba(8,31,39,.94));border-color:rgba(116,205,221,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 18px 45px rgba(0,0,0,.24)}
+.wizard-question{background:linear-gradient(135deg,color-mix(in srgb,var(--wizard-color,var(--brand)) 10%,#102a33),#102830);border-color:color-mix(in srgb,var(--wizard-color,var(--brand)) 42%,#294650);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.wizard-part:first-child .wizard-question:nth-child(1),.wizard-part:first-child .wizard-question:nth-child(4){--wizard-color:#65d9ed}.wizard-part:first-child .wizard-question:nth-child(2),.wizard-part:last-child .wizard-question:nth-child(2){--wizard-color:#67d9a5}.wizard-part:first-child .wizard-question:nth-child(3),.wizard-part:last-child .wizard-question:nth-child(3){--wizard-color:#ffc071}.wizard-part:last-child .wizard-question:nth-child(1){--wizard-color:#c39aef}
+.wizard-question legend{color:color-mix(in srgb,var(--wizard-color,var(--brand)) 78%,#fff)}
+.wizard-question .option-chip{background:#203b44;color:#edf8fa;border-color:#58727a;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 6px 16px rgba(0,0,0,.16)}
+.wizard-question .option-chip:hover{background:#294852;border-color:var(--wizard-color,var(--brand))}
+.wizard-question .option-chip:has(input:checked){border-color:#70d9ed;background:linear-gradient(135deg,#9de5f1,#66c7dc);color:#063f4e;box-shadow:inset 0 1px 0 rgba(255,255,255,.48),0 10px 26px rgba(22,156,190,.25)}
+.wizard-question input[type="number"]{background:#0b2029!important;border-color:#607b85!important;color:#f1fafb!important;-webkit-text-fill-color:#f1fafb!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+}
 .wizard-result{border:1px solid rgba(120,230,235,.28);background:radial-gradient(circle at 100% 0,rgba(40,202,168,.18),transparent 38%),linear-gradient(145deg,rgba(15,53,63,.96),rgba(7,37,47,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 24px 55px rgba(6,48,58,.24);backdrop-filter:blur(20px)}
 .wizard-result{background:var(--surface-dark);color:#effcff;position:static;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(340px,1.3fr) auto;gap:18px 28px;align-items:center;width:100%}
 .wizard-result-summary,.wizard-result-details{min-width:0}
