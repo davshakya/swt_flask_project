@@ -173,6 +173,17 @@ color:var(--muted);
 margin-top:3px;
 line-height:1.35;
 }
+.company-wordmark{display:grid;gap:3px;line-height:1;white-space:nowrap}
+.company-wordmark .company-name{font-size:18px;font-weight:1000;letter-spacing:-.035em;text-transform:none}
+.company-wordmark .sale{color:#0969c7}
+.company-wordmark .well{color:#087d46}
+.company-wordmark .company-type{display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.company-wordmark .company-type::before,.company-wordmark .company-type::after{content:"";width:16px;height:1px;background:currentColor;opacity:.72}
+@media (prefers-color-scheme:dark){
+.company-wordmark .sale{color:#39a7ff}
+.company-wordmark .well{color:#3be187}
+.company-wordmark .company-type{color:#e8f7f8}
+}
 .nav-links{
 display:flex;
 gap:16px;
@@ -846,11 +857,14 @@ text-transform:uppercase;
 margin-top:16px;
 padding:16px 18px;
 border-radius:22px;
-background:rgba(255,255,255,.58);
+background:rgba(255,255,255,.82);
 border:1px solid var(--line);
 font-weight:800;
 line-height:1.6;
-color:var(--muted);
+color:var(--text);
+}
+@media (prefers-color-scheme:dark){
+.install-note{background:rgba(13,37,47,.96);border-color:rgba(166,224,235,.2);color:var(--text)}
 }
 .cta-panel{
 display:grid;
@@ -1414,9 +1428,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <div class="brand-mark" aria-hidden="true">
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
-            <div class="brand-copy">
-                <strong>SaleWell Smart Tank</strong>
-                <span>Pricing plans by SaleWell IoT Solutions Pvt. Ltd.</span>
+            <div class="brand-copy company-wordmark" aria-label="SaleWell IoT Solutions">
+                <strong class="company-name"><span class="sale">Sale</span><span class="well">Well</span></strong>
+                <span class="company-type">IoT Solutions</span>
             </div>
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
