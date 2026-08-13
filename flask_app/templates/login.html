@@ -7447,6 +7447,9 @@ if (mobileChatbotButton) {
 
 if (new URLSearchParams(window.location.search).get("chat") === "open") {
     setChatbotOpen(true);
+    if (document.body.classList.contains("chat-only") && window.parent !== window) {
+        requestAnimationFrame(() => requestAnimationFrame(() => window.parent.postMessage({type:"salewell-chat-ready"}, window.location.origin)));
+    }
 }
 
 if (chatbotClose) {
