@@ -226,8 +226,7 @@
     if(devices)$('mobileAppDetail').textContent=devices.cloud?'Remote cloud access':'Local phone access';
   }
   async function loadSelectedPlan(){
-    const params=new URLSearchParams(location.search),requested=params.get('plan');
-    if(!requested)return;
+    const params=new URLSearchParams(location.search),requested=params.get('plan')||'Home Basic';
     const response=await fetch('water_flow_plan_catalog.json',{cache:'no-cache'});
     if(!response.ok)throw new Error(`Plan catalog HTTP ${response.status}`);
     const catalog=await response.json(),config=catalog.plans?.[requested];

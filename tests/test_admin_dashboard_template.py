@@ -80,7 +80,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', embed='1', v='20260813-2'" in login_template
+    assert "water_flow_animation.html', embed='1', v='20260813-3'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
@@ -202,6 +202,7 @@ def test_setup_wizard_uses_submersible_pump_as_default_source():
     assert 'name="water_source" value="submersible" checked' in pricing
     assert "submersible:supplies.has('submersible')" in animation
     assert "submersible?'UNDERGROUND SOURCE':'BOREWELL'" in animation
+    assert "params.get('plan')||'Home Basic'" in animation
 
 
 def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
