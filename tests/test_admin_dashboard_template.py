@@ -222,7 +222,10 @@ def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
     assert 'id="pricingChatForm"' not in pricing
     assert 'fetch("/chatbot/ask"' not in pricing
     assert 'chat-only' in homepage
+    assert '.chat-only .chatbot-title>div:last-child>span{display:block!important' in homepage
+    assert '.chat-only .chatbot-suggestions{display:flex!important' in homepage
     assert 'postMessage({type:"salewell-chat-close"}' in homepage
+    assert '.pricing-chat-panel{width:min(420px,calc(100vw - 28px));height:min(620px,calc(100vh - 118px))' in pricing
 
 
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
