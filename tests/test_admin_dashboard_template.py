@@ -203,6 +203,10 @@ def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
     assert 'id="pricingChatPanel"' in pricing
     assert 'fetch("/chatbot/ask"' in pricing
     assert "function setPricingChatOpen(open)" in pricing
+    assert 'class="pricing-chat-launcher-icon"' in pricing
+    assert '.pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}' in pricing
+    assert '.page-jump-controls{position:fixed;right:12px;bottom:150px' in pricing
+    assert '.pricing-support-floats.is-open + .page-jump-controls{display:none}' in pricing
 
 
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
