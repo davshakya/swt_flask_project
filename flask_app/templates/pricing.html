@@ -1338,7 +1338,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .wizard-question input[type="number"]{background:#0b2029!important;border-color:#607b85!important;color:#f1fafb!important;-webkit-text-fill-color:#f1fafb!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 }
 .wizard-result{border:1px solid rgba(120,230,235,.28);background:radial-gradient(circle at 100% 0,rgba(40,202,168,.18),transparent 38%),linear-gradient(145deg,rgba(15,53,63,.96),rgba(7,37,47,.94));box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 24px 55px rgba(6,48,58,.24);backdrop-filter:blur(20px)}
-.wizard-result{background:var(--surface-dark);color:#effcff;position:static;display:grid;grid-template-columns:minmax(220px,.7fr) minmax(340px,1.3fr) auto;gap:18px 28px;align-items:center;width:100%}
+.wizard-result{background:var(--surface-dark);color:#effcff;position:static;display:grid;grid-column:1/-1;grid-template-columns:minmax(220px,.7fr) minmax(340px,1.3fr) auto;gap:18px 28px;align-items:center;width:100%}
 .wizard-result-summary,.wizard-result-details{min-width:0}
 .wizard-result span{display:block;color:#abd2d9;font-size:.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.12em}
 .wizard-result strong{display:block;font-size:1.7rem;margin:8px 0}
@@ -1529,7 +1529,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <label class="option-chip"><input type="radio" name="maintenance" value="annual">Annual maintenance quote</label>
                 </div></fieldset>
                 </div>
-            </form>
             <aside class="wizard-result" aria-live="polite">
                 <div class="wizard-result-summary">
                     <span>Recommended starting plan</span><strong id="wizardPlan">Home Basic</strong>
@@ -1545,6 +1544,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                     <button class="button-secondary wizard-animation-button" id="wizardAnimation" type="button">See How It Works</button>
                 </div>
             </aside>
+            </form>
         </div>
     </section>
 

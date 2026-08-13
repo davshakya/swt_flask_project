@@ -88,12 +88,11 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'class="preview-dashboard-frame"' in login_template
-    assert 'title="Interactive Smart Water Tank Flow dashboard"' in login_template
+    assert 'title="Animated Smart Water Tank Flow diagram"' in login_template
     assert 'id="dashboardPreviewFrame"' in login_template
-    assert 'src="about:blank"' in login_template
-    assert 'data-dashboard-src="{{ url_for(' in login_template
-    assert 'fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})' in login_template
-    assert "frame.srcdoc = documentSource" in login_template
+    assert 'src="{{ url_for(\'static\', filename=\'marketing/water_flow_animation.html\', embed=\'1\'' in login_template
+    assert 'src="about:blank"' not in login_template
+    assert "frame.srcdoc = documentSource" not in login_template
     assert 'new ResizeObserver(fitDashboardPreview).observe(viewport)' in login_template
     assert 'id="waterPlanSlider"' not in login_template
     assert "data-plan-slide" not in login_template
