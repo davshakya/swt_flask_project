@@ -212,7 +212,7 @@
     document.body.classList.toggle('no-source-tank',!hasSourceTank);
     document.body.classList.toggle('no-valves',!hasValves);
     document.body.classList.toggle('no-water-quality',!hasWaterQuality);
-    const hasCheckValve=devices?devices.checkValve===true:hasMunicipal;
+    const hasCheckValve=hasMunicipal&&hasSourceTank;
     setInstalled($('municipalHardware'),hasMunicipal);setInstalled($('checkValve'),hasMunicipal&&hasCheckValve);
     setInstalled($('municipalPipe'),hasMunicipal);setInstalled($('municipalPumpPipe'),hasMunicipal);setInstalled($('municipalSupplyLabel'),hasMunicipal);setInstalled($('gravityFillLabel'),hasMunicipal);
     setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled);setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled);

@@ -77,7 +77,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', embed='1', v='20260812-1'" in login_template
+    assert "water_flow_animation.html', embed='1', plan='Home Basic', v='20260813-1'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
@@ -172,6 +172,17 @@ def test_homepage_how_it_works_links_to_full_water_flow_animation():
     assert '>See Water Flow Animation</a>' in template
 
 
+def test_public_headers_share_brand_spacing_and_equal_title_text_size():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    assert ".brand-copy strong span{display:inline;margin-top:0;font-size:inherit;line-height:inherit}" in homepage
+    assert ".brand-copy strong span{display:inline;margin-top:0;font-size:inherit;line-height:inherit}" in pricing
+    assert "padding:9px 12px;" in homepage
+    assert "padding:9px 12px;" in pricing
+    assert "width:48px;\nheight:48px;\nborder-radius:16px;" in pricing
+
+
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 
@@ -215,7 +226,7 @@ def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
     assert "const hasWaterQuality=devices?.waterQuality===true" in animation
     assert "setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality)" in animation
     assert "document.body.classList.toggle('no-water-quality',!hasWaterQuality)" in animation
-    assert "const hasCheckValve=devices?devices.checkValve===true:hasMunicipal" in animation
+    assert "const hasCheckValve=hasMunicipal&&hasSourceTank" in animation
 
 
 def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
@@ -233,8 +244,11 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     catalog_path = PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_plan_catalog.json"
     catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
 
-    assert "addPlanAnimationLinks" in pricing
-    assert "if (!config?.animation) return" in pricing
+    assert "addPlanCustomizeLinks" in pricing
+    assert 'link.href = "#find-my-plan"' in pricing
+    assert 'link.textContent = "Customize Your Setup"' in pricing
+    assert 'separator.textContent = "OR"' in pricing
+    assert "js-view-animation" not in pricing
     assert 'url.searchParams.set("plan", planName)' in pricing
     assert 'id="animationModal"' in pricing
     assert 'id="planAnimationFrame"' in pricing
