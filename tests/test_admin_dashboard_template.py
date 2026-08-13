@@ -356,6 +356,14 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     assert 'cleaned["source_configuration"] not in valid_source_configurations' in server_source
     assert 'cleaned["pump_type"] not in valid_pump_types' in server_source
     assert 'Water configuration:' in server_source
+    validator = server_source[server_source.index("def validate_sales_enquiry_payload(form):"):server_source.index("def build_sales_enquiry_email", server_source.index("def validate_sales_enquiry_payload(form):"))]
+    for allowed_values in (
+        "valid_upper_layouts = {",
+        "valid_source_configurations = {",
+        "valid_pump_types = {",
+        "valid_maintenance_preferences = {",
+    ):
+        assert allowed_values in validator
 
     for template_name in ("login.html", "pricing.html"):
         template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")

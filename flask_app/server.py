@@ -2719,28 +2719,6 @@ def sales_form_from_pricing_query():
         "Dealer / Installer",
         "Commercial Site",
     }
-    valid_source_configurations = {
-        "Upper tank only",
-        "Underground / source tank",
-        "Borewell",
-        "Municipal supply",
-        "Multiple sources",
-    }
-    valid_pump_types = {
-        "Not sure / site check needed",
-        "Surface / monoblock pump",
-        "Submersible pump",
-        "No pump control needed",
-    }
-    valid_upper_layouts = {
-        "Same level and interconnected",
-        "Separate levels or not interconnected",
-    }
-    valid_maintenance_preferences = {
-        "No maintenance contract",
-        "Monthly maintenance quote",
-        "Annual maintenance quote",
-    }
     if selected_segment not in valid_segments:
         selected_segment = "Commercial Site" if selected_plan == "Enterprise" or "Commercial" in selected_plan else "Home / Villa"
 
@@ -2813,6 +2791,28 @@ def validate_sales_enquiry_payload(form):
         "Hotel / Institution",
         "Dealer / Installer",
         "Commercial Site",
+    }
+    valid_source_configurations = {
+        "Upper tank only",
+        "Underground / source tank",
+        "Borewell",
+        "Municipal supply",
+        "Multiple sources",
+    }
+    valid_pump_types = {
+        "Not sure / site check needed",
+        "Surface / monoblock pump",
+        "Submersible pump",
+        "No pump control needed",
+    }
+    valid_upper_layouts = {
+        "Same level and interconnected",
+        "Separate levels or not interconnected",
+    }
+    valid_maintenance_preferences = {
+        "No maintenance contract",
+        "Monthly maintenance quote",
+        "Annual maintenance quote",
     }
     cleaned = {
         "name": str(form.get("name", "")).strip(),
