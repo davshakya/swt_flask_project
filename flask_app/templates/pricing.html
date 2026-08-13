@@ -1386,6 +1386,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .plan-card .assurance-bar::after{content:"Free consultation \2022 Remote support \2022 Supported firmware updates";display:block;margin-top:6px;color:var(--brand-deep)}
 .plan-card.is-wizard-match{outline:3px solid var(--brand);box-shadow:0 24px 56px rgba(13,147,168,.24);transform:translateY(-3px)}
 .mobile-contact-bar{display:none}
+.pricing-support-floats{position:fixed;left:14px;right:14px;bottom:14px;z-index:88;display:flex;justify-content:space-between;align-items:end;pointer-events:none}.pricing-support-floats>*{pointer-events:auto}.pricing-whatsapp,.pricing-chat-launcher{display:flex;align-items:center;justify-content:center;min-height:54px;border:1px solid rgba(255,255,255,.3);border-radius:999px;color:#fff;text-decoration:none;font-weight:900;box-shadow:0 18px 42px rgba(8,55,65,.25)}.pricing-whatsapp{width:54px;padding:0;background:linear-gradient(135deg,#22c55e,#128c7e);font-size:25px}.pricing-chat-launcher{gap:9px;padding:9px 17px;background:linear-gradient(135deg,#159eb4,#137d90);cursor:pointer}.pricing-chat-panel{position:absolute;right:0;bottom:66px;display:none;width:min(390px,calc(100vw - 28px));height:min(500px,calc(100vh - 120px));overflow:hidden;border:1px solid var(--line-strong);border-radius:22px;background:var(--surface-strong);box-shadow:0 28px 75px rgba(7,44,54,.3)}.pricing-support-floats.is-open .pricing-chat-panel{display:flex;flex-direction:column}.pricing-support-floats.is-open .pricing-chat-launcher{display:none}.pricing-chat-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:linear-gradient(135deg,var(--brand-soft),var(--surface-strong));font-weight:950}.pricing-chat-close{width:34px;height:34px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--text);font-size:20px;cursor:pointer}.pricing-chat-messages{flex:1;overflow:auto;padding:14px;display:grid;align-content:start;gap:10px}.pricing-chat-message{max-width:88%;padding:10px 12px;border-radius:15px;background:var(--surface);border:1px solid var(--line);line-height:1.45;white-space:pre-wrap}.pricing-chat-message.is-user{justify-self:end;background:var(--brand-soft)}.pricing-chat-form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}.pricing-chat-form input{flex:1;min-width:0}.pricing-chat-form button{width:auto;min-width:70px}.pricing-chat-status{color:var(--muted);font-size:12px}
+@media(max-width:680px){.pricing-support-floats{display:none}}
 @media(max-width:1000px){.value-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.use-case-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.progression{grid-template-columns:1fr}.progress-step:not(:last-child)::after{content:"\2193";right:50%;top:auto;bottom:-14px}.wizard-result{grid-template-columns:repeat(2,minmax(0,1fr))}.wizard-result .wizard-actions{grid-column:1/-1}}
 @media(max-width:760px){.wizard-form,.wizard-result{grid-template-columns:1fr}.wizard-result .wizard-actions{grid-column:auto}}
 @media(max-width:680px){.decision-grid,.value-grid,.process-grid,.trust-grid,.faq-grid,.problem-split{grid-template-columns:1fr}.use-case-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.page{padding-bottom:62px}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;left:10px;right:10px;bottom:6px;z-index:90;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(244,252,252,.96);box-shadow:0 6px 20px rgba(9,47,58,.18);backdrop-filter:blur(14px)}.mobile-contact-bar a,.mobile-contact-bar button{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;height:38px;min-height:38px;max-height:38px;margin:0;padding:4px 2px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:linear-gradient(135deg,#159eb4,#137d90);color:#fff;font-family:inherit;font-size:9px;font-weight:800;line-height:1;text-align:center;text-decoration:none;white-space:nowrap;overflow:hidden;box-shadow:none;cursor:pointer}.mobile-contact-bar .contact-tab,.mobile-contact-bar .contact-tab:link,.mobile-contact-bar .contact-tab:visited,.mobile-contact-bar .contact-tab:hover,.mobile-contact-bar .contact-tab:focus,.mobile-contact-bar .contact-tab:active{background:linear-gradient(135deg,#159eb4,#137d90);color:#fff!important;-webkit-text-fill-color:#fff;text-decoration:none;transform:none}.mobile-contact-bar a span,.mobile-contact-bar button span{display:block;min-width:0;margin:0;color:inherit;font:inherit;line-height:1;letter-spacing:0;white-space:nowrap}.mobile-contact-bar .contact-icon{display:block;flex:0 0 13px;width:13px;height:13px;fill:currentColor;color:inherit}.enquiry-modal{z-index:120}}
@@ -2158,6 +2160,16 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     </footer>
 </div>
 
+<div class="pricing-support-floats" id="pricingSupportFloats">
+    <a class="pricing-whatsapp" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" aria-label="Contact SaleWell on WhatsApp">&#9742;</a>
+    <section class="pricing-chat-panel" id="pricingChatPanel" aria-label="SaleWell pricing assistant" hidden>
+        <div class="pricing-chat-head"><span>Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></span><button class="pricing-chat-close" id="pricingChatClose" type="button" aria-label="Close chat">&times;</button></div>
+        <div class="pricing-chat-messages" id="pricingChatMessages" aria-live="polite"><div class="pricing-chat-message">Ask about plans, pricing, pump control, overflow protection, or installation.</div></div>
+        <form class="pricing-chat-form" id="pricingChatForm"><input id="pricingChatInput" type="search" placeholder="Ask a question" aria-label="Ask SaleWell"><button class="button" type="submit">Ask</button></form>
+    </section>
+    <button class="pricing-chat-launcher" id="pricingChatLauncher" type="button" aria-controls="pricingChatPanel" aria-expanded="false"><strong>?</strong> Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></button>
+</div>
+
 <nav class="page-jump-controls" aria-label="Page navigation">
     <button class="page-jump-button" type="button" data-page-jump="top" aria-label="Go to start of page" title="Start of page">&#8593;</button>
     <button class="page-jump-button" type="button" data-page-jump="bottom" aria-label="Go to end of page" title="End of page">&#8595;</button>
@@ -2696,6 +2708,50 @@ document.querySelectorAll("[data-page-jump]").forEach((button) => {
         const top = button.dataset.pageJump === "top" ? 0 : document.documentElement.scrollHeight;
         window.scrollTo({ top, behavior: "smooth" });
     });
+});
+
+const pricingSupportFloats = document.getElementById("pricingSupportFloats");
+const pricingChatPanel = document.getElementById("pricingChatPanel");
+const pricingChatLauncher = document.getElementById("pricingChatLauncher");
+const pricingChatClose = document.getElementById("pricingChatClose");
+const pricingChatForm = document.getElementById("pricingChatForm");
+const pricingChatInput = document.getElementById("pricingChatInput");
+const pricingChatMessages = document.getElementById("pricingChatMessages");
+function setPricingChatOpen(open) {
+    pricingSupportFloats?.classList.toggle("is-open", open);
+    if (pricingChatPanel) pricingChatPanel.hidden = !open;
+    pricingChatLauncher?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) window.setTimeout(() => pricingChatInput?.focus(), 30);
+}
+function appendPricingChat(text, user = false) {
+    if (!pricingChatMessages) return;
+    const message = document.createElement("div");
+    message.className = `pricing-chat-message${user ? " is-user" : ""}`;
+    message.textContent = text;
+    pricingChatMessages.appendChild(message);
+    pricingChatMessages.scrollTop = pricingChatMessages.scrollHeight;
+}
+pricingChatLauncher?.addEventListener("click", () => setPricingChatOpen(true));
+pricingChatClose?.addEventListener("click", () => setPricingChatOpen(false));
+pricingChatForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const question = String(pricingChatInput?.value || "").trim();
+    if (!question) return;
+    appendPricingChat(question, true);
+    pricingChatInput.value = "";
+    const waiting = document.createElement("div");
+    waiting.className = "pricing-chat-message pricing-chat-status";
+    waiting.textContent = "Checking SaleWell information…";
+    pricingChatMessages.appendChild(waiting);
+    try {
+        const response = await fetch("/chatbot/ask", {method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({question})});
+        const payload = await response.json().catch(() => ({}));
+        waiting.remove();
+        appendPricingChat(response.ok && payload.answer ? payload.answer : "I could not load that answer. Please use WhatsApp or book a demo and the SaleWell team will help.");
+    } catch (error) {
+        waiting.remove();
+        appendPricingChat("The assistant is temporarily unavailable. Please use WhatsApp or book a demo.");
+    }
 });
 
 const textSizeButton = document.querySelector("[data-text-size-button]");

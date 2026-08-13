@@ -195,6 +195,16 @@ def test_setup_wizard_uses_submersible_pump_as_default_source():
     assert "submersible?'UNDERGROUND SOURCE':'BOREWELL'" in animation
 
 
+def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    assert 'class="pricing-whatsapp" href="https://wa.me/918796452878' in pricing
+    assert 'id="pricingChatLauncher"' in pricing
+    assert 'id="pricingChatPanel"' in pricing
+    assert 'fetch("/chatbot/ask"' in pricing
+    assert "function setPricingChatOpen(open)" in pricing
+
+
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 
@@ -310,7 +320,8 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
         "Home Basic", "Home Control", "Home Cloud Pro", "RWA Standard", "Commercial AI Pro"
     ))
     for name in ("Home Basic", "Home Control", "Home Cloud Pro", "Dealer / Installer Kit"):
-        assert catalog["plans"][name]["initialMode"] == "pump-only"
+        assert catalog["plans"][name]["initialMode"] == "borewell"
+        assert catalog["plans"][name]["devices"]["submersible"] is True
         assert catalog["plans"][name]["devices"]["sourceTank"] is False
         assert catalog["plans"][name]["devices"]["municipal"] is False
         assert catalog["plans"][name]["devices"]["motorizedValves"] is False
