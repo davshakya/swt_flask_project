@@ -3065,7 +3065,7 @@ def build_sales_enquiry_confirmation_email(cleaned):
         "3. If needed, we will suggest a better-fit plan before final pricing or installation.\n\n"
         "For urgent questions, reply to this email or contact support@salewell.co.in.\n\n"
         "Welcome to SaleWell Smart Tank.\n"
-        "SaleWell IoT Solutions Pvt. Ltd.\n"
+        "SaleWell IoT Solutions\n"
     )
     return subject, body
 

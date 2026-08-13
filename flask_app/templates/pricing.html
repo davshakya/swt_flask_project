@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
 <meta name="description" content="Compare SaleWell Smart Tank pricing plans for homes, apartments, hotels, schools, and commercial properties.">
-<title>Pricing Plans | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
+<title>Pricing Plans | SaleWell Smart Tank by SaleWell IoT Solutions</title>
 {% include '_pwa_head.html' %}
 <style>
 :root{
@@ -160,12 +160,17 @@ width:42px;
 height:42px;
 }
 .brand-copy strong{
-display:block;
+display:flex;
+align-items:baseline;
+gap:0;
+white-space:nowrap;
 font-size:14px;
 letter-spacing:.14em;
 text-transform:uppercase;
 line-height:1.1;
 }
+.brand-copy strong>.brand-well{margin-right:.35em}
+.brand-copy strong span{display:inline;margin-top:0;line-height:inherit}
 .brand-copy .brand-sale{color:#0969c7}
 .brand-copy .brand-well{color:#087d46}
 @media (prefers-color-scheme:dark){
@@ -1424,8 +1429,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
             <div class="brand-copy">
-                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span> Smart Tank</strong>
-                <span>Pricing plans by <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions Pvt. Ltd.</span>
+                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span>Smart Tank</strong>
+                <span>Pricing plans</span>
             </div>
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
@@ -2127,7 +2132,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     </section>
 
     <footer class="footer surface">
-        <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank by <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions Pvt. Ltd.</strong> offers wireless water monitoring, included automatic pump control, source tank logic and smart water insights for homes and managed properties.</div>
+        <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank by <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions.</strong> offers wireless water monitoring, included automatic pump control, source tank logic and smart water insights for homes and managed properties.</div>
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
     </footer>
 </div>

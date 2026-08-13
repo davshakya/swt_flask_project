@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.">
+<meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions.">
 <link rel="preload" as="image" type="image/webp" href="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }}" imagesrcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" imagesizes="(max-width: 900px) 100vw, 48vw">
-<title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
+<title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions</title>
 {% include '_pwa_head.html' %}
 <style>
 :root{
@@ -208,12 +208,17 @@ transform-origin:center;
 will-change:transform;
 }
 .brand-copy strong{
-display:block;
+display:flex;
+align-items:baseline;
+gap:0;
+white-space:nowrap;
 font-size:13px;
 letter-spacing:.12em;
 text-transform:uppercase;
 line-height:1.1;
 }
+.brand-copy strong>.brand-well{margin-right:.35em}
+.brand-copy strong span{display:inline;margin-top:0;line-height:inherit}
 .brand-copy .brand-sale{color:#0969c7}
 .brand-copy .brand-well{color:#087d46}
 @media (prefers-color-scheme:dark){
@@ -4598,7 +4603,7 @@ caret-color:#67e8f9!important;
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
             <div class="brand-copy">
-                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span> Smart Tank</strong>
+                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span>Smart Tank</strong>
                 <span>Smart monitoring and automation for water, power, and property systems.</span>
             </div>
         </a>
