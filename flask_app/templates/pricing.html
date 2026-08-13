@@ -1402,6 +1402,20 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--brand) 14%,transparent),color-mix(in srgb,var(--accent) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
 .nav .nav-links a:hover,.nav .nav-links a:focus-visible{color:var(--brand-deep);border-color:color-mix(in srgb,var(--brand) 38%,var(--line));background:var(--surface-strong);box-shadow:0 8px 18px rgba(12,56,66,.13);text-shadow:none;transform:translateY(-2px)}
 .nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
+/* Keep the public-page header identical to the compact homepage header. */
+@media(min-width:1321px){
+  .nav{grid-template-columns:minmax(240px,.72fr) minmax(560px,1.45fr) max-content;gap:8px;min-height:66px;padding:9px 12px}
+  .brand{gap:10px}
+  .brand-mark{width:48px;height:48px;border-radius:16px}
+  .brand-mark img{width:38px;height:38px}
+  .brand-copy strong{font-size:13px;letter-spacing:.12em}
+  .brand-copy span{font-size:11px}
+  .nav .nav-links{gap:7px}
+  .nav .nav-links a{min-height:38px;padding:9px 13px;font-size:12px}
+  .nav-actions{gap:7px}
+  .nav-actions .ghost-link,.nav-actions .button-secondary{min-height:48px;padding:12px 18px;border-radius:16px;font-size:14px}
+  .text-size-button{width:42px;min-width:42px;min-height:42px;font-size:16px}
+}
 @media(min-width:721px){
   .plans-carousel-track .plan-card{font-size:15px;line-height:1.42;gap:11px;padding:18px}
   .plans-carousel-track .plan-card h3{font-size:1.5rem;line-height:1.15}
