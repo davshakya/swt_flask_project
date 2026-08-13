@@ -197,16 +197,23 @@ def test_setup_wizard_uses_submersible_pump_as_default_source():
 
 def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
     pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'class="pricing-whatsapp" href="https://wa.me/918796452878' in pricing
     assert 'id="pricingChatLauncher"' in pricing
     assert 'id="pricingChatPanel"' in pricing
-    assert 'fetch("/chatbot/ask"' in pricing
+    assert 'id="sharedChatbotFrame"' in pricing
+    assert "url_for('dashboard', chat='open', chat_embed='1')" in pricing
     assert "function setPricingChatOpen(open)" in pricing
     assert 'class="pricing-chat-launcher-icon"' in pricing
     assert '.pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}' in pricing
     assert '.page-jump-controls{position:fixed;right:12px;bottom:150px' in pricing
     assert '.pricing-support-floats.is-open + .page-jump-controls{display:none}' in pricing
+    assert 'id="pricingChatMessages"' not in pricing
+    assert 'id="pricingChatForm"' not in pricing
+    assert 'fetch("/chatbot/ask"' not in pricing
+    assert 'chat-only' in homepage
+    assert 'postMessage({type:"salewell-chat-close"}' in homepage
 
 
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():

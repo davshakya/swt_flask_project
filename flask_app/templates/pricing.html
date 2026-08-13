@@ -1443,6 +1443,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .pricing-chat-launcher{min-height:58px;gap:12px;padding:10px 16px 10px 10px;border-color:rgba(13,147,168,.24);background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(226,248,250,.92));color:#173238}
 .pricing-chat-launcher-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:999px;background:linear-gradient(135deg,var(--brand),var(--brand-deep));color:#fff;font-size:22px;font-weight:950}
 .pricing-chat-launcher-label{white-space:nowrap;font-size:15px}
+.shared-chatbot-frame{display:block;width:100%;height:100%;border:0;background:transparent}
 .page-jump-controls{position:fixed;right:12px;bottom:150px;z-index:89;display:grid;gap:8px}
 .pricing-support-floats.is-open + .page-jump-controls{display:none}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface-strong);color:var(--brand-deep);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
@@ -2169,10 +2170,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 
 <div class="pricing-support-floats" id="pricingSupportFloats">
     <a class="pricing-whatsapp" href="https://wa.me/918796452878?text=Hi%20SaleWell%2C%20I%20want%20to%20discuss%20smart%20water%20tank%20installation." target="_blank" rel="noopener" aria-label="Contact SaleWell on WhatsApp"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M16.03 4.2c-6.42 0-11.64 5.14-11.64 11.46 0 2.17.62 4.28 1.78 6.1l-1.2 5.84 5.98-1.54a11.83 11.83 0 0 0 5.08 1.15c6.42 0 11.64-5.14 11.64-11.46S22.45 4.2 16.03 4.2Zm0 20.98c-1.72 0-3.4-.46-4.86-1.33l-.35-.21-3.55.91.71-3.46-.23-.36a9.27 9.27 0 0 1-1.42-4.97c0-5.2 4.35-9.43 9.7-9.43s9.7 4.23 9.7 9.43-4.35 9.42-9.7 9.42Zm5.32-7.06c-.29-.14-1.72-.84-1.99-.93-.27-.1-.46-.14-.65.14-.19.28-.75.93-.92 1.12-.17.19-.34.21-.63.07-.29-.14-1.23-.45-2.34-1.42-.86-.75-1.45-1.68-1.62-1.96-.17-.28-.02-.43.13-.57.13-.13.29-.34.43-.5.14-.17.19-.28.29-.47.1-.19.05-.35-.02-.5-.07-.14-.65-1.55-.89-2.13-.23-.56-.47-.48-.65-.49h-.56c-.19 0-.5.07-.77.35-.27.28-1.01.98-1.01 2.38s1.04 2.76 1.18 2.95c.14.19 2.05 3.08 4.97 4.32.69.29 1.24.47 1.66.6.7.22 1.33.19 1.83.12.56-.08 1.72-.7 1.96-1.37.24-.68.24-1.26.17-1.37-.07-.13-.26-.2-.55-.34Z"/></svg></a>
-    <section class="pricing-chat-panel" id="pricingChatPanel" aria-label="SaleWell pricing assistant" hidden>
-        <div class="pricing-chat-head"><span>Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></span><button class="pricing-chat-close" id="pricingChatClose" type="button" aria-label="Close chat">&times;</button></div>
-        <div class="pricing-chat-messages" id="pricingChatMessages" aria-live="polite"><div class="pricing-chat-message">Ask about plans, pricing, pump control, overflow protection, or installation.</div></div>
-        <form class="pricing-chat-form" id="pricingChatForm"><input id="pricingChatInput" type="search" placeholder="Ask a question" aria-label="Ask SaleWell"><button class="button" type="submit">Ask</button></form>
+    <section class="pricing-chat-panel" id="pricingChatPanel" aria-label="SaleWell Tank Advisor" hidden>
+        <iframe class="shared-chatbot-frame" id="sharedChatbotFrame" title="SaleWell Tank Advisor" src="about:blank" data-chat-src="{{ url_for('dashboard', chat='open', chat_embed='1') }}" allow="clipboard-write"></iframe>
     </section>
     <button class="pricing-chat-launcher" id="pricingChatLauncher" type="button" aria-controls="pricingChatPanel" aria-expanded="false"><span class="pricing-chat-launcher-icon" aria-hidden="true">?</span><span class="pricing-chat-launcher-label">Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></span></button>
 </div>
@@ -2720,47 +2719,20 @@ document.querySelectorAll("[data-page-jump]").forEach((button) => {
 const pricingSupportFloats = document.getElementById("pricingSupportFloats");
 const pricingChatPanel = document.getElementById("pricingChatPanel");
 const pricingChatLauncher = document.getElementById("pricingChatLauncher");
-const pricingChatClose = document.getElementById("pricingChatClose");
-const pricingChatForm = document.getElementById("pricingChatForm");
-const pricingChatInput = document.getElementById("pricingChatInput");
-const pricingChatMessages = document.getElementById("pricingChatMessages");
+const sharedChatbotFrame = document.getElementById("sharedChatbotFrame");
 function setPricingChatOpen(open) {
     pricingSupportFloats?.classList.toggle("is-open", open);
     if (pricingChatPanel) pricingChatPanel.hidden = !open;
     pricingChatLauncher?.setAttribute("aria-expanded", open ? "true" : "false");
-    if (open) window.setTimeout(() => pricingChatInput?.focus(), 30);
-}
-function appendPricingChat(text, user = false) {
-    if (!pricingChatMessages) return;
-    const message = document.createElement("div");
-    message.className = `pricing-chat-message${user ? " is-user" : ""}`;
-    message.textContent = text;
-    pricingChatMessages.appendChild(message);
-    pricingChatMessages.scrollTop = pricingChatMessages.scrollHeight;
+    if (open && sharedChatbotFrame?.src === "about:blank") sharedChatbotFrame.src = sharedChatbotFrame.dataset.chatSrc;
 }
 pricingChatLauncher?.addEventListener("click", () => setPricingChatOpen(true));
-pricingChatClose?.addEventListener("click", () => setPricingChatOpen(false));
-pricingChatForm?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const question = String(pricingChatInput?.value || "").trim();
-    if (!question) return;
-    appendPricingChat(question, true);
-    pricingChatInput.value = "";
-    const waiting = document.createElement("div");
-    waiting.className = "pricing-chat-message pricing-chat-status";
-    waiting.textContent = "Checking SaleWell information…";
-    pricingChatMessages.appendChild(waiting);
-    try {
-        const response = await fetch("/chatbot/ask", {method:"POST",headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({question})});
-        const payload = await response.json().catch(() => ({}));
-        waiting.remove();
-        appendPricingChat(response.ok && payload.answer ? payload.answer : "I could not load that answer. Please use WhatsApp or book a demo and the SaleWell team will help.");
-    } catch (error) {
-        waiting.remove();
-        appendPricingChat("The assistant is temporarily unavailable. Please use WhatsApp or book a demo.");
-    }
+window.addEventListener("message", (event) => {
+    if (event.origin === window.location.origin && event.data?.type === "salewell-chat-close") setPricingChatOpen(false);
 });
-
+window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && pricingSupportFloats?.classList.contains("is-open")) setPricingChatOpen(false);
+});
 const textSizeButton = document.querySelector("[data-text-size-button]");
 const textSizeModes = [
     { name: "small", label: "Small", size: "14px" },

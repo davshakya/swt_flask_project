@@ -4596,12 +4596,13 @@ caret-color:#67e8f9!important;
 .user-login-menu{z-index:60}.user-login-dropdown{z-index:1000}
 .page-jump-controls{position:fixed;right:12px;bottom:150px;z-index:89;display:grid;gap:8px}
 body.chatbot-open .page-jump-controls{display:none}
+.chat-only{margin:0!important;padding:0!important;overflow:hidden;background:transparent!important}.chat-only .page,.chat-only .page-jump-controls,.chat-only .mobile-contact-bar,.chat-only .whatsapp-float,.chat-only .enquiry-modal,.chat-only .modal:not(#chatbotPanel){display:none!important}.chat-only .site-chatbot{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;transform:none!important}.chat-only .chatbot-panel{display:flex!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}.chat-only .chatbot-launcher{display:none!important}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--primary);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
 @media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
 </head>
-<body data-default-login-mode="{{ login_mode }}">
+<body class="{% if request.args.get('chat_embed') == '1' %}chat-only{% endif %}" data-default-login-mode="{{ login_mode }}">
 <div class="page">
     <header class="nav surface">
         <a class="brand" href="{{ url_for('dashboard') }}">
@@ -6450,6 +6451,9 @@ function setChatbotOpen(isOpen) {
         scrollChatToBottom();
     } else {
         chatbotFloatDrag?.applySavedPosition();
+        if (document.body.classList.contains("chat-only") && window.parent !== window) {
+            window.parent.postMessage({type:"salewell-chat-close"}, window.location.origin);
+        }
     }
 }
 
