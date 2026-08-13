@@ -4594,7 +4594,8 @@ caret-color:#67e8f9!important;
 .nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
 @media(min-width:1321px){.nav{min-height:66px}}
 .user-login-menu{z-index:60}.user-login-dropdown{z-index:1000}
-.page-jump-controls{position:fixed;right:12px;bottom:18px;z-index:89;display:grid;gap:8px}
+.page-jump-controls{position:fixed;right:12px;bottom:150px;z-index:89;display:grid;gap:8px}
+body.chatbot-open .page-jump-controls{display:none}
 .page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--primary);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
 @media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
@@ -4657,7 +4658,7 @@ caret-color:#67e8f9!important;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual" aria-label="Animated smart water tank dashboard">
-                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html', embed='1', plan='Home Basic', v='20260813-1') }}" title="Animated Smart Water Tank Flow diagram" loading="eager" sandbox="allow-scripts"></iframe>
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html', embed='1', v='20260813-2') }}" title="Live animated Smart Water Tank flow with complete device configuration" loading="eager" sandbox="allow-scripts"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -5781,7 +5782,7 @@ caret-color:#67e8f9!important;
                 </div>
                 <div class="group">
                     <label for="lead_email">Email</label>
-                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning" required>
+                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning">
                     <div class="field-warning" id="lead_email_warning" aria-live="polite"></div>
                 </div>
             </div>
@@ -5799,13 +5800,13 @@ caret-color:#67e8f9!important;
                 </div>
                 <div class="group">
                     <label for="lead_device_count">Estimated Devices Needed</label>
-                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '1') or '1' }}" aria-describedby="lead_device_count_warning" required>
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
-                <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ sales_form.get('message', '') }}</textarea>
+                <textarea id="lead_message" name="message" maxlength="800" aria-describedby="lead_message_warning" placeholder="Optional: overflow, pump control, dry-run, leak, or installation details">{{ sales_form.get('message', '') }}</textarea>
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
@@ -6032,7 +6033,7 @@ const enquiryFieldRules = {
         label: "Email",
         validate(value, field) {
             const text = value.trim();
-            if (!text) return "Email address is required.";
+            if (!text) return "";
             if (text.length > 120) return "Email must stay under 120 characters.";
             if (field.validity.typeMismatch || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(text)) return "Enter a valid email address.";
             return "";
@@ -6062,8 +6063,7 @@ const enquiryFieldRules = {
         label: "Project notes",
         validate(value) {
             const text = value.trim();
-            if (!text) return "Project notes are required.";
-            if (text.length < 10) return "Project notes must be at least 10 characters.";
+            if (!text) return "";
             if (text.length > 800) return "Project notes must stay under 800 characters.";
             return "";
         },
@@ -6686,10 +6686,10 @@ const chatBookingFields = [
     },
     {
         key: "email",
-        question: "What email should we send the confirmation to?",
-        normalize: (value) => value.trim().toLowerCase(),
-        validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
-        error: "Please enter a valid email address.",
+        question: "What email should we send the confirmation to? Type 'skip' to continue with WhatsApp only.",
+        normalize: (value) => value.trim().toLowerCase() === "skip" ? "" : value.trim().toLowerCase(),
+        validate: (value) => value.trim().toLowerCase() === "skip" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
+        error: "Please enter a valid email address or type 'skip'.",
     },
     {
         key: "city",
@@ -6901,7 +6901,7 @@ function completeChatBooking() {
     if (data.plan) noteLines.push(`Selected pricing plan: ${data.plan}`);
     if (data.baseNote) noteLines.push(data.baseNote);
     if (data.note) noteLines.push(`Visitor requirement: ${data.note}`);
-    const finalNote = noteLines.join("\n");
+    const finalNote = noteLines.join("\n") || "Demo booking requested via SaleWell chatbot.";
     chatCompletedBooking = {
         name: data.name,
         phone: data.phone,
@@ -6936,6 +6936,7 @@ async function submitCompletedEnquiry() {
     const formData = new FormData();
     formData.set("csrf_token", form.querySelector('[name="csrf_token"]')?.value || "");
     formData.set("landing_mode", document.getElementById("landingModeInput")?.value || "customer");
+    formData.set("return_to", "homepage");
     formData.set("name", chatCompletedBooking.name || "");
     formData.set("phone", chatCompletedBooking.phone || "");
     formData.set("email", chatCompletedBooking.email || "");

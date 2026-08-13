@@ -2836,11 +2836,9 @@ def validate_sales_enquiry_payload(form):
     elif len(cleaned["name"]) > 80 or not re.fullmatch(r"[A-Za-z][A-Za-z .'-]*", cleaned["name"]):
         errors.append("Name can use letters, spaces, dot, apostrophe or hyphen only.")
 
-    if not cleaned["email"]:
-        errors.append("Please enter your email address.")
-    elif len(cleaned["email"]) > 120:
+    if len(cleaned["email"]) > 120:
         errors.append("Email address must stay under 120 characters.")
-    else:
+    elif cleaned["email"]:
         try:
             cleaned["email"] = normalize_customer_email(cleaned["email"])
         except ValueError:
@@ -2905,11 +2903,7 @@ def validate_sales_enquiry_payload(form):
     if cleaned["maintenance_preference"] not in valid_maintenance_preferences:
         errors.append("Please choose a valid maintenance preference.")
 
-    if not cleaned["message"]:
-        errors.append("Please enter project notes.")
-    elif len(cleaned["message"]) < 10:
-        errors.append("Project notes must be at least 10 characters.")
-    elif len(cleaned["message"]) > 800:
+    if len(cleaned["message"]) > 800:
         errors.append("Project notes must stay under 800 characters.")
 
     if not errors:
@@ -2921,7 +2915,8 @@ def validate_sales_enquiry_payload(form):
             f"source: {cleaned['source_configuration']}; pump: {cleaned['pump_type']}."
         )
         maintenance = f"Maintenance preference: {cleaned['maintenance_preference']}."
-        cleaned["message"] = f"{configuration}\n{maintenance}\n{cleaned['message']}"
+        visitor_note = cleaned["message"] or "Demo booking requested; project details will be confirmed during follow-up."
+        cleaned["message"] = f"{configuration}\n{maintenance}\n{visitor_note}"
 
     return cleaned, errors
 

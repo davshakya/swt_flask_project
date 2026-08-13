@@ -207,7 +207,7 @@
     const hasMunicipal=devices?devices.municipal:!m.sourceOnly;
     const hasSourceTank=devices?devices.sourceTank:!m.municipalDirect&&!m.borewell;
     const hasValves=devices?devices.motorizedValves:!m.sourceOnly&&!m.municipalDirect;
-    const hasWaterQuality=devices?.waterQuality===true;
+    const hasWaterQuality=devices?devices.waterQuality===true:true;
     document.body.classList.toggle('no-municipal',!hasMunicipal);
     document.body.classList.toggle('no-source-tank',!hasSourceTank);
     document.body.classList.toggle('no-valves',!hasValves);

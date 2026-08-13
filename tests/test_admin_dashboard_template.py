@@ -62,7 +62,10 @@ def test_booking_form_requires_typed_client_side_validation():
     assert 'id="lead_email" name="email" type="email"' in template
     assert 'autocomplete="email" maxlength="120"' in template
     assert 'id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric"' in template
-    assert 'textarea id="lead_message" name="message" minlength="10" maxlength="800"' in template
+    assert 'textarea id="lead_message" name="message" maxlength="800"' in template
+    assert 'What email should we send the confirmation to? Type \'skip\'' in template
+    assert 'const finalNote = noteLines.join("\\n") || "Demo booking requested via SaleWell chatbot."' in template
+    assert 'formData.set("return_to", "homepage")' in template
     assert "field.setCustomValidity(message)" in template
     assert "enquirySubmitButton.disabled = !isReady" in template
     assert 'class="field-warning" id="lead_phone_warning"' in template
@@ -77,7 +80,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', embed='1', plan='Home Basic', v='20260813-1'" in login_template
+    assert "water_flow_animation.html', embed='1', v='20260813-2'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
     assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
@@ -88,7 +91,7 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'class="preview-dashboard-frame"' in login_template
-    assert 'title="Animated Smart Water Tank Flow diagram"' in login_template
+    assert 'title="Live animated Smart Water Tank flow with complete device configuration"' in login_template
     assert 'id="dashboardPreviewFrame"' in login_template
     assert 'src="{{ url_for(\'static\', filename=\'marketing/water_flow_animation.html\', embed=\'1\'' in login_template
     assert 'src="about:blank"' not in login_template
@@ -232,7 +235,7 @@ def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
     assert "setInstalled($('sourceLevelControllerWire'),hasSourceTank)" in animation
     assert "setInstalled($('threeWayValve'),hasValves)" in animation
     assert "setInstalled($('outletValveControlWire'),hasValves)" in animation
-    assert "const hasWaterQuality=devices?.waterQuality===true" in animation
+    assert "const hasWaterQuality=devices?devices.waterQuality===true:true" in animation
     assert "setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality)" in animation
     assert "document.body.classList.toggle('no-water-quality',!hasWaterQuality)" in animation
     assert "const hasCheckValve=hasMunicipal&&hasSourceTank" in animation
@@ -349,7 +352,7 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     assert 're.fullmatch(r"\\+?[0-9][0-9 ()-]*[0-9]", cleaned["phone"])' in server_source
     assert 'len(phone_digits) > 15' in server_source
     assert 'cleaned["segment"] not in valid_segments' in server_source
-    assert 'len(cleaned["message"]) < 10' in server_source
+    assert 'visitor_note = cleaned["message"] or "Demo booking requested;' in server_source
     assert 'cleaned["source_configuration"] not in valid_source_configurations' in server_source
     assert 'cleaned["pump_type"] not in valid_pump_types' in server_source
     assert 'Water configuration:' in server_source
@@ -381,6 +384,10 @@ def test_demo_booking_uses_waf_safe_canonical_route():
     for template_name in ("login.html", "pricing.html"):
         template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
         assert 'action="{{ url_for(\'sales_enquiry\') }}"' in template
+        email_tag = template.split('id="lead_email"', 1)[1].split(">", 1)[0]
+        assert " required" not in email_tag
+        assert 'name="message" maxlength="800"' in template
+        assert 'name="message" minlength="10"' not in template
 
 
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():

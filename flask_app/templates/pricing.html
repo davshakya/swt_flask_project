@@ -2236,7 +2236,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
                 <div class="group">
                     <label for="lead_email">Email</label>
-                    <input id="lead_email" name="email" type="email" value="{{ (sales_form|default({})).get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning" required>
+                    <input id="lead_email" name="email" type="email" value="{{ (sales_form|default({})).get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning">
                     <div class="field-warning" id="lead_email_warning" aria-live="polite"></div>
                 </div>
             </div>
@@ -2254,13 +2254,13 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
                 </div>
                 <div class="group">
                     <label for="lead_device_count">Estimated Devices Needed</label>
-                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ (sales_form|default({})).get('device_count', '1') or '1' }}" aria-describedby="lead_device_count_warning" required>
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
-                <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ (sales_form|default({})).get('message', '') }}</textarea>
+                <textarea id="lead_message" name="message" maxlength="800" aria-describedby="lead_message_warning" placeholder="Optional: overflow, pump control, dry-run, leak, or installation details">{{ (sales_form|default({})).get('message', '') }}</textarea>
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
