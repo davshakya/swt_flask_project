@@ -1192,6 +1192,8 @@ color:var(--section-accent-deep);
 #how-it-works .animation-page-link{
 margin-top:18px;
 }
+#how-it-works .guide-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+#how-it-works .guide-actions .animation-page-link{margin-top:0}
 .section-copy{
 margin:0;
 line-height:1.68;
@@ -5431,7 +5433,10 @@ body.chatbot-open .page-jump-controls{display:none}
             <div>
                 <div class="eyebrow">How It Works</div>
                 <h2>From installation to daily use in 4 practical steps.</h2>
-                <a class="button animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See Water Flow Animation</a>
+                <div class="guide-actions">
+                    <a class="button animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See Water Flow Animation</a>
+                    <a class="button-secondary animation-page-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+                </div>
             </div>
         </div>
 
@@ -7104,42 +7109,48 @@ function getChatbotResponse(rawInput) {
     if (pumpDoesNotStart) {
         return {
             text: "The pump may be blocked by a full destination tank, unavailable source water, missing sensor data, manual mode, or a safety lockout. Check the displayed alert and physical pump panel; do not bypass protection to force a start.",
-            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            useRag: true,
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
     if (pumpDoesNotStop) {
         return {
             text: "Use the physical OFF control or isolate power safely, then contact a qualified electrician. Check the level sensor, stop threshold, relay/contactor feedback, and wiring before restoring automatic operation.",
-            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            useRag: true,
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
     if (appCannotConnect) {
         return {
             text: "Confirm the controller is powered, the phone is using the intended local connection, local-network permissions are allowed, and the correct device is selected. Local controller access and cloud login are different connection modes.",
-            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            useRag: true,
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
     if (remoteDataStale) {
         return {
             text: "Check controller power, site internet, cloud connectivity, and the device's last-seen time. Local automation may continue, but remote updates require the controller to reconnect to the cloud.",
-            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            useRag: true,
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
     if (tankLevelIncorrect) {
         return {
             text: "Check sensor angle, obstruction, condensation, tank-height calibration, inlet flow, and whether the wireless reading is fresh. Do not change automation thresholds until the level is verified safely.",
-            actions: [{ label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
+            useRag: true,
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
         };
     }
 
     if (deviceOffline) {
         return {
+            useRag: true,
             text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
-            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7262,7 +7273,9 @@ function getChatbotResponse(rawInput) {
     if (wantsInstall) {
         return {
             text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, wireless signal, power access and electrician approval for relay/contactor wiring. Home Wi-Fi and internet are required only for cloud features.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
+            useRag: true,
             actions: [
+                { label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" },
                 {
                     label: "Fill setup details",
                     fill: {

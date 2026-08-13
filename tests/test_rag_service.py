@@ -199,3 +199,21 @@ def test_troubleshooting_intents_run_before_sales_recommendations():
         assert template.index(f"if ({signal})") < template.index("if (mentionedPlan && !wantsCompare)")
     assert '"stale"' in template
     assert '"cannot connect"' in template
+
+
+def test_public_rag_indexes_customer_and_technical_installation_guides():
+    roots = public_configured_roots()
+    assert project_root() / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html" in roots
+    assert project_root() / "docs" / "INSTALLATION_GUIDE_EN_HI.md" in roots
+    results = RagIndex([project_root() / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html"]).search("How should the tank sensor be installed?", limit=3)
+    assert results
+    assert any(result.source.endswith("CUSTOMER_INSTALLATION_GUIDE_EN_HI.html") for result in results)
+
+
+def test_installation_and_troubleshooting_chat_intents_use_rag_and_offer_guide():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    for signal in ("pumpDoesNotStart", "pumpDoesNotStop", "appCannotConnect", "remoteDataStale", "tankLevelIncorrect", "deviceOffline", "wantsInstall"):
+        block_start = template.index(f"if ({signal})")
+        block_end = template.index("\n    }", block_start)
+        assert "useRag: true" in template[block_start:block_end]
+    assert template.count('label: "Download installation guide"') >= 7

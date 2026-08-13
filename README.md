@@ -2,6 +2,10 @@
 
 Last refreshed: `2026-08-11`
 
+## Documentation map
+
+Start with [`docs/README.md`](docs/README.md). It separates customer and installer guidance from development, deployment, and production operations. The public bilingual customer guide is [`docs/SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf`](docs/SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf); the detailed internal guide remains [`docs/INSTALLATION_GUIDE_EN_HI.md`](docs/INSTALLATION_GUIDE_EN_HI.md).
+
 The complete product control, client, data, deployment, and test boundaries are
 defined in [`../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md).
 

@@ -4,6 +4,8 @@ Last refreshed: `2026-08-11`
 
 Use this runbook to keep installations, handovers, and first-line support consistent across the current SaleWell IoT Solutions stack.
 
+Give customers the [simple English/Hindi PDF guide](SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf). Use the [technical bilingual guide](INSTALLATION_GUIDE_EN_HI.md) and this runbook for installation, commissioning, and support work.
+
 ## 1. Pre-Install Preparation
 
 Before traveling to site:

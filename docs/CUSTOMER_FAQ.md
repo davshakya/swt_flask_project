@@ -119,6 +119,15 @@ cloud availability. The cloud adds remote visibility and command routing.
 A high-current pump must not run directly through a small controller relay.
 A correctly rated contactor safely switches the pump load.
 
+### How does SaleWell connect to my existing starter panel?
+
+For a compatible latch-style panel, two isolated relays simulate short button
+presses. The START contact closes briefly in parallel with the green START
+button. The STOP contact opens briefly in series with the red STOP and overload
+chain. Each pulse is normally 500 ms and configurable from 300 to 1000 ms. The
+existing contactor holding contact, physical buttons, overload, and safety
+interlocks continue to operate normally.
+
 ### What happens when sensor data is missing?
 
 The controller should use fail-safe behavior instead of assuming the pump is

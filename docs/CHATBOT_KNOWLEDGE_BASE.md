@@ -56,6 +56,14 @@ plan features are installed. High-current pumps must use an appropriately
 rated contactor or power relay; a small controller relay must not directly
 carry a load beyond its rating.
 
+For an existing latch-style starter panel, SaleWell uses two independent
+momentary dry-contact outputs. START `COM–NO` closes in parallel with the
+physical green START button for 300–1000 ms (500 ms default). STOP `COM–NC`
+opens in series with the physical red STOP, overload, and interlock chain for
+300–1000 ms, then returns closed. The panel's auxiliary holding contact keeps
+the contactor ON after START. Neither IoT relay stays energized, and no physical
+safety or interlock is bypassed.
+
 Dry-run protection depends on the installed source-water sensing or configured
 water-availability logic. The controller can stop or prevent pumping when the
 source is unavailable or when required safety data is not trustworthy. The

@@ -2,6 +2,8 @@
 
 Last refreshed: `2026-08-11`
 
+> Documentation map: use [`docs/README.md`](docs/README.md) to find customer, installer, support, development, and production documents. This file is only for cPanel/Passenger deployment.
+
 This guide is specifically for deploying the `swt_flask_project` backend from the wider SaleWell IoT Solutions workspace on cPanel with Passenger WSGI.
 
 The backend is only the remote dashboard and command layer. Field devices keep their local control loops on the ESP32 master (or a supported legacy ESP8266 master), so they continue working if this Flask deployment is offline.

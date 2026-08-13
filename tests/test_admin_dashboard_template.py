@@ -101,6 +101,49 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     assert "data-plan-slide" not in login_template
 
 
+def test_homepage_offers_bilingual_installation_guide_download():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    guide = (PROJECT_ROOT / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html").read_text(encoding="utf-8")
+
+    assert "url_for('installation_guide_download')" in login_template
+    assert "Download Installation Guide (English + हिन्दी)" in login_template
+    assert "Easy Customer Installation Guide" in guide
+    assert "आसान ग्राहक इंस्टॉलेशन गाइड" in guide
+    assert "Important / जरूरी" in guide
+    assert "Electrical panel connection" in guide
+    assert "Sensors and valves" in guide
+    assert "Mobile App / Cloud" in guide
+    assert "Pump Starter Panel" in guide
+    assert "Standard components / सामान्य उपकरण" in guide
+    assert "Depending on selected plan / चुने हुए प्लान के अनुसार" in guide
+    assert "Correct Upper Level Sensor position" in guide
+    assert "Auto mode tested" in guide
+    assert "3-Way Motorized Valve tested" in guide
+    assert 'd="M225 264C290 264 300 190 345 180"' not in guide
+    assert "Plan-based Devices" in guide
+    assert "For qualified electrician only" in guide
+    assert "Municipal Water Sensor" in guide
+    assert "Wi-Fi/mobile internet availability" in guide
+    assert "salewell-website-qr.png" in guide
+    assert "IoT START (COM–NO)" in guide
+    assert "IoT STOP (COM–NC)" in guide
+    assert "500 ms CLOSE pulse" in guide
+    assert "500 ms OPEN pulse" in guide
+
+
+def test_installation_guide_download_is_public_attachment():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    response = server.app.test_client().get("/downloads/installation-guide")
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"].startswith("attachment;")
+    assert response.mimetype == "application/pdf"
+    assert "SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf" in response.headers["Content-Disposition"]
+    assert response.data.startswith(b"%PDF-")
+
+
 def test_embedded_dashboard_allows_only_same_origin_framing():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
@@ -258,7 +301,7 @@ def test_water_flow_animation_removes_optional_municipal_hardware_from_source_on
     assert "body.source-only #valveMetricCard" in animation
     assert "body.source-only #valveSensorCard" in animation
     assert "No municipal inlet or motorized valves are installed" in animation
-    assert "independent OPEN / CLOSE pair for each installed valve" in animation
+    assert "each installed valve keeps its independent OPEN / CLOSE pair" in animation
 
 
 def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
