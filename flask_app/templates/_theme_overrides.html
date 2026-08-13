@@ -2,6 +2,9 @@
 /* Loaded after page styles so every Flask surface follows the same contrast rules. */
 html{color-scheme:light dark;font-size:15px}
 body{color:var(--text,#12303a)}
+.salewell-brand{display:inline;white-space:nowrap;font-weight:inherit}
+.salewell-brand .salewell-sale{color:#0969c7}
+.salewell-brand .salewell-well{color:#087d46}
 button,input,select,textarea{font:inherit}
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
@@ -56,6 +59,8 @@ code,pre{
 
 @media (prefers-color-scheme:dark){
   body{color:var(--text,#e6f4f7)}
+  .salewell-brand .salewell-sale{color:#39a7ff}
+  .salewell-brand .salewell-well{color:#3be187}
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   select,
   textarea{
@@ -176,3 +181,52 @@ code,pre{
   }
 }
 </style>
+<script id="swt-salewell-wordmark-renderer">
+(() => {
+  const SELECTOR = ".site-chatbot, .enquiry-modal";
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+
+  function colorSaleWell(root) {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE || !root.matches(SELECTOR) && !root.closest(SELECTOR)) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const matches = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!SKIP.has(node.parentElement?.tagName) && node.data.includes("SaleWell")) matches.push(node);
+    }
+    matches.forEach((node) => {
+      const fragment = document.createDocumentFragment();
+      node.data.split("SaleWell").forEach((part, index, parts) => {
+        fragment.append(document.createTextNode(part));
+        if (index < parts.length - 1) {
+          const brand = document.createElement("span");
+          brand.className = "salewell-brand";
+          const sale = document.createElement("span");
+          sale.className = "salewell-sale";
+          sale.textContent = "Sale";
+          const well = document.createElement("span");
+          well.className = "salewell-well";
+          well.textContent = "Well";
+          brand.append(sale, well);
+          fragment.append(brand);
+        }
+      });
+      node.replaceWith(fragment);
+    });
+  }
+
+  function initialize() {
+    document.querySelectorAll(SELECTOR).forEach(colorSaleWell);
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) colorSaleWell(node.parentElement);
+        else if (node.nodeType === Node.ELEMENT_NODE) colorSaleWell(node);
+      }));
+    });
+    observer.observe(document.body, {childList:true, subtree:true});
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, {once:true});
+  else initialize();
+})();
+</script>

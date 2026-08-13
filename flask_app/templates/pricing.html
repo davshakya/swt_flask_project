@@ -166,23 +166,18 @@ letter-spacing:.14em;
 text-transform:uppercase;
 line-height:1.1;
 }
+.brand-copy .brand-sale{color:#0969c7}
+.brand-copy .brand-well{color:#087d46}
+@media (prefers-color-scheme:dark){
+.brand-copy .brand-sale{color:#39a7ff}
+.brand-copy .brand-well{color:#3be187}
+}
 .brand-copy span{
 display:block;
 font-size:12px;
 color:var(--muted);
 margin-top:3px;
 line-height:1.35;
-}
-.company-wordmark{display:grid;gap:3px;line-height:1;white-space:nowrap}
-.company-wordmark .company-name{font-size:18px;font-weight:1000;letter-spacing:-.035em;text-transform:none}
-.company-wordmark .sale{color:#0969c7}
-.company-wordmark .well{color:#087d46}
-.company-wordmark .company-type{display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
-.company-wordmark .company-type::before,.company-wordmark .company-type::after{content:"";width:16px;height:1px;background:currentColor;opacity:.72}
-@media (prefers-color-scheme:dark){
-.company-wordmark .sale{color:#39a7ff}
-.company-wordmark .well{color:#3be187}
-.company-wordmark .company-type{color:#e8f7f8}
 }
 .nav-links{
 display:flex;
@@ -1428,9 +1423,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <div class="brand-mark" aria-hidden="true">
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
-            <div class="brand-copy company-wordmark" aria-label="SaleWell IoT Solutions">
-                <strong class="company-name"><span class="sale">Sale</span><span class="well">Well</span></strong>
-                <span class="company-type">IoT Solutions</span>
+            <div class="brand-copy">
+                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span> Smart Tank</strong>
+                <span>Pricing plans by <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions Pvt. Ltd.</span>
             </div>
         </a>
         <nav class="nav-links" aria-label="Pricing sections">
@@ -1498,7 +1493,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <article class="info-card"><strong>&#10003; Firmware and OTA support</strong><p>Supported firmware updates are provided when improvements are available.</p></article>
             <article class="info-card"><strong>&#10003; Pump safety</strong><p>The controller can stop the pump safely when tank readings are unavailable.</p></article>
             <article class="info-card"><strong>&#10003; Clear final quotation</strong><p>Equipment, installation, warranty and service terms are confirmed before purchase.</p></article>
-            <article class="info-card"><strong>&#10003; SaleWell support</strong><p>Contact the team for setup, upgrade and service help.</p></article>
+            <article class="info-card"><strong>&#10003; <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> support</strong><p>Contact the team for setup, upgrade and service help.</p></article>
         </div>
     </section>
 
@@ -1982,8 +1977,8 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     <section class="section surface" id="benefits">
         <div class="section-head"><div><div class="eyebrow">Why It Pays Back</div><h2>Protect water, electricity and your pump.</h2></div><p>The right setup can prevent avoidable loss and reduce the time spent checking tanks manually.</p></div>
         <div class="problem-split">
-            <article class="problem-panel"><h3>Without SaleWell</h3><ul><li>&#10060; Overflow discovered too late</li><li>&#10060; Dry-run and motor damage risk</li><li>&#10060; Repeated rooftop checks</li><li>&#10060; Unnoticed water and electricity waste</li><li>&#10060; No clear usage history</li></ul></article>
-            <article class="problem-panel"><h3>With the right SaleWell plan</h3><ul><li>&#9989; Tank status when and where your plan allows</li><li>&#9989; Included automatic pump protection</li><li>&#9989; Alerts and reports on supported plans</li><li>&#9989; Less overflow and unnecessary pump runtime</li><li>&#9989; Upgrade without replacing the full system</li></ul></article>
+            <article class="problem-panel"><h3>Without <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></h3><ul><li>&#10060; Overflow discovered too late</li><li>&#10060; Dry-run and motor damage risk</li><li>&#10060; Repeated rooftop checks</li><li>&#10060; Unnoticed water and electricity waste</li><li>&#10060; No clear usage history</li></ul></article>
+            <article class="problem-panel"><h3>With the right <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> plan</h3><ul><li>&#9989; Tank status when and where your plan allows</li><li>&#9989; Included automatic pump protection</li><li>&#9989; Alerts and reports on supported plans</li><li>&#9989; Less overflow and unnecessary pump runtime</li><li>&#9989; Upgrade without replacing the full system</li></ul></article>
         </div>
         <div class="install-note">A &#8377;4,999-&#8377;13,999 setup is an investment in preventing overflow, reducing manual checks and protecting pump equipment. Actual savings depend on tank size, pump use and the selected automation features.</div>
     </section>
@@ -2098,7 +2093,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <details><summary>Can apartments, schools and factories use it?</summary><p>Yes. RWA Standard, Commercial AI Pro and Enterprise Modular are intended for shared tanks, multiple users, reports and larger deployments.</p></details>
             <details><summary>What power and sensors are required?</summary><p>The tank sensor node and controller require suitable power. Sensor selection depends on tank type, mounting position and site conditions and is confirmed during the setup review.</p></details>
             <details><summary>What are delivery and return terms?</summary><p>Dispatch timing, delivery scope, cancellation and return terms are provided with the final quotation because custom-configured and installed equipment may have different conditions.</p></details>
-            <details><summary>When is support available?</summary><p>Contact SaleWell at support@salewell.co.in or +91-8796452878. The support window and response commitment for managed projects are defined in the selected service scope.</p></details>
+            <details><summary>When is support available?</summary><p>Contact <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> at support@salewell.co.in or +91-8796452878. The support window and response commitment for managed projects are defined in the selected service scope.</p></details>
         </div>
     </section>
 
@@ -2132,7 +2127,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
     </section>
 
     <footer class="footer surface">
-        <div><strong>SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</strong> offers wireless water monitoring, included automatic pump control, source tank logic and smart water insights for homes and managed properties.</div>
+        <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank by <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions Pvt. Ltd.</strong> offers wireless water monitoring, included automatic pump control, source tank logic and smart water insights for homes and managed properties.</div>
         <div>Support and sales: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
     </footer>
 </div>
@@ -2182,7 +2177,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         <div class="modal-header">
             <div class="eyebrow">Book Demo</div>
             <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
-            <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
+            <p id="enquiryModalDescription">Share basic site details and the <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> team will follow up.</p>
         </div>
 
         <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">

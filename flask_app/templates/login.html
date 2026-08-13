@@ -214,23 +214,18 @@ letter-spacing:.12em;
 text-transform:uppercase;
 line-height:1.1;
 }
+.brand-copy .brand-sale{color:#0969c7}
+.brand-copy .brand-well{color:#087d46}
+@media (prefers-color-scheme:dark){
+.brand-copy .brand-sale{color:#39a7ff}
+.brand-copy .brand-well{color:#3be187}
+}
 .brand-copy span{
 display:block;
 font-size:11px;
 color:var(--muted);
 margin-top:3px;
 line-height:1.35;
-}
-.company-wordmark{display:grid;gap:3px;line-height:1;white-space:nowrap}
-.company-wordmark .company-name{font-size:18px;font-weight:1000;letter-spacing:-.035em;text-transform:none}
-.company-wordmark .sale{color:#0969c7}
-.company-wordmark .well{color:#087d46}
-.company-wordmark .company-type{display:flex;align-items:center;gap:7px;margin:0;color:var(--text);font-size:9px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
-.company-wordmark .company-type::before,.company-wordmark .company-type::after{content:"";width:16px;height:1px;background:currentColor;opacity:.72}
-@media (prefers-color-scheme:dark){
-.company-wordmark .sale{color:#39a7ff}
-.company-wordmark .well{color:#3be187}
-.company-wordmark .company-type{color:#e8f7f8}
 }
 .nav-links{
 display:flex;
@@ -4602,9 +4597,9 @@ caret-color:#67e8f9!important;
             <div class="brand-mark" aria-hidden="true">
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
-            <div class="brand-copy company-wordmark" aria-label="SaleWell IoT Solutions">
-                <strong class="company-name"><span class="sale">Sale</span><span class="well">Well</span></strong>
-                <span class="company-type">IoT Solutions</span>
+            <div class="brand-copy">
+                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span> Smart Tank</strong>
+                <span>Smart monitoring and automation for water, power, and property systems.</span>
             </div>
         </a>
         <nav class="nav-links" aria-label="Page sections">
@@ -4631,7 +4626,7 @@ caret-color:#67e8f9!important;
 
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
-            <div class="eyebrow">SaleWell Smart Tank</div>
+            <div class="eyebrow"><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</div>
             <p class="hero-kicker">Smart water tank automation for homes, apartments and managed properties.</p>
             <h1 class="hero-title">Prevent overflow, protect your motor and control your pump from anywhere.</h1>
             <p class="hero-text">Monitor water levels in real time, automate pump decisions and receive reliable alerts from one mobile and web dashboard.</p>
@@ -4886,7 +4881,7 @@ caret-color:#67e8f9!important;
                         </picture>
                         <div class="demo-scene-copy">
                             <strong>Stop Water Overflow Automatically</strong>
-                            <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
+                            <p>Water overflow and motor damage can cost thousands. <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> helps you catch the risk early and protect the pump automatically.</p>
                             <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Real-time monitoring</span>
                                 <span>AI leak detection</span>
@@ -5169,7 +5164,7 @@ caret-color:#67e8f9!important;
                                     <div class="demo-dark-topbar">
                                         <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                                         <div class="demo-dark-topbar-title">
-                                            <strong>SaleWell Smart Tank</strong>
+                                            <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong>
                                             <span>Updated 9:53 PM</span>
                                         </div>
                                         <div class="demo-logout-pill">Logout</div>
@@ -5271,7 +5266,7 @@ caret-color:#67e8f9!important;
                                         <div class="demo-mobile-top">
                                             <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                                             <div>
-                                                <strong>SaleWell Smart Tank</strong>
+                                                <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong>
                                                 <span>Updated 9:53 PM</span>
                                             </div>
                                             <div class="demo-mobile-pill">Logout</div>
@@ -5381,7 +5376,7 @@ caret-color:#67e8f9!important;
 
                 <div class="demo-scene-caption" id="demoSceneCaption" aria-live="polite">
                     <strong>Stop Water Overflow Automatically</strong>
-                    <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
+                    <p>Water overflow and motor damage can cost thousands. <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> helps you catch the risk early and protect the pump automatically.</p>
                     <div class="demo-feature-list" aria-label="System highlights">
                         <span>Real-time monitoring</span>
                         <span>AI leak detection</span>
@@ -5617,7 +5612,7 @@ caret-color:#67e8f9!important;
                     </figcaption>
                 </figure>
                 <div class="contact-card">
-                    <strong>Talk To SaleWell IoT</strong>
+                    <strong>Talk To <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT</strong>
                     <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918796452878">+91-8796452878</a> for pricing, demo or installation planning.</p>
                 </div>
             </div>
@@ -5634,7 +5629,7 @@ caret-color:#67e8f9!important;
                 <a class="button-secondary is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
             </div>
         </div>
-        <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
+        <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
         <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Us</a></nav>
         <div class="visitor-count" aria-label="Homepage visitor count">
@@ -5649,7 +5644,7 @@ caret-color:#67e8f9!important;
                 <span>Download Android App</span>
             </a>
         </div>
-        <div class="footer-note">&copy; SaleWell IoT Solutions - All rights reserved.</div>
+        <div class="footer-note">&copy; <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions - All rights reserved.</div>
     </footer>
 </div>
 
@@ -5692,7 +5687,7 @@ caret-color:#67e8f9!important;
                     <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                 </div>
                 <div>
-                    <strong>SaleWell Tank Advisor</strong>
+                    <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Tank Advisor</strong>
                     <span>Answers plan, pump, installation and pricing questions.</span>
                 </div>
             </div>
@@ -5702,7 +5697,7 @@ caret-color:#67e8f9!important;
             </div>
         </div>
         <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
-            <div class="chatbot-message is-bot">Hi, I can suggest the right SaleWell plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
+            <div class="chatbot-message is-bot">Hi, I can suggest the right <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
         </div>
         <div class="chatbot-suggestions" aria-label="Quick questions">
             <button class="chatbot-chip" type="button" data-chat-prompt="Which plan fits my home?">Home plan</button>
@@ -5725,7 +5720,7 @@ caret-color:#67e8f9!important;
     <button class="chatbot-launcher" id="chatbotLauncher" type="button" aria-label="Ask SaleWell" aria-controls="chatbotPanel" aria-expanded="false">
         <span class="chatbot-launcher-icon" aria-hidden="true">?</span>
         <span aria-hidden="true">
-            <strong>Ask SaleWell</strong>
+            <strong>Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></strong>
         </span>
     </button>
 </div>
@@ -5742,7 +5737,7 @@ caret-color:#67e8f9!important;
         <div class="modal-header">
             <div class="eyebrow">Book Demo</div>
             <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
-            <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
+            <p id="enquiryModalDescription">Share basic site details and the <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> team will follow up.</p>
         </div>
 
         <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
