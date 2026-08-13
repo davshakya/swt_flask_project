@@ -15,6 +15,8 @@
     .tank{fill:#0a1d40;stroke:#6984aa;stroke-width:3}.water{fill:url(#waterGradient);transition:y .8s,height .8s}.wave{fill:none;stroke:#83eaff;stroke-width:2;opacity:.7}.device{fill:#183766;stroke:#597cae;stroke-width:2}.device-on{stroke:var(--green)}.valve{fill:#142b53;stroke:#ffcf73;stroke-width:3}.valve-branches{fill:none;stroke:#d9b85e;stroke-width:6;stroke-linecap:round;stroke-linejoin:round;opacity:.68}.valve-selector{transform-origin:350px 205px;transition:transform .75s cubic-bezier(.4,0,.2,1)}.valve-selector.source-route{transform:rotate(180deg)}.outlet-valve-selector{transform-origin:570px 205px;transition:transform .75s cubic-bezier(.4,0,.2,1)}.outlet-valve-selector.source-route{transform:rotate(180deg)}.pump-spin{transform-origin:460px 205px;animation:spin .85s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.hidden{display:none}.sim{fill:#8f5dff}.label{fill:#f5f9ff;font-weight:750}.label,.route{paint-order:stroke;stroke:#0a2148;stroke-width:4px;stroke-linejoin:round}.small{fill:#a9bdd9;font-size:13px}.small.compact{font-size:11px}.route{fill:#72e7ff;font-weight:800}.danger{fill:#ff7d8d}.droplet{fill:#8ceaff;opacity:0}.droplet.on{animation:drop 1.1s linear infinite}@keyframes drop{0%{opacity:0;transform:translateY(-5px)}20%{opacity:1}100%{opacity:0;transform:translateY(28px)}}
     #municipalHardware,#municipalSensor,#checkValve,#municipalPipe,#municipalPumpPipe,#sourceValvePipe,#municipalSupplyLabel,#gravityFillLabel,#threeWayValve,#outletValve,#municipalWire,#valveControlWire,#outletValveControlWire{transition:opacity .3s ease,filter .3s ease}#sourceOnlyPipe,#sourceOnlyLabel,#municipalOnlyPipe,#municipalOnlyLabel{opacity:0;transition:opacity .3s ease}body.source-only #municipalHardware,body.source-only #municipalSensor,body.source-only #checkValve,body.source-only #municipalPipe,body.source-only #municipalPumpPipe,body.source-only #sourceValvePipe,body.source-only #municipalSupplyLabel,body.source-only #gravityFillLabel,body.source-only #threeWayValve,body.source-only #outletValve,body.source-only #municipalWire,body.source-only #valveControlWire,body.source-only #outletValveControlWire{opacity:0;visibility:hidden;pointer-events:none}body.source-only #sourceOnlyPipe,body.source-only #sourceOnlyLabel{opacity:1;visibility:visible}body.source-only #municipalSimLabel,body.source-only #valveSimLabel,body.source-only .municipal-option,body.source-only #municipalSensorCard,body.source-only #valveMetricCard,body.source-only #valveSensorCard{display:none}
     body.municipal-direct #sourceTankHardware,body.municipal-direct #sourceTankSensorHardware,body.municipal-direct #sourceQualityHardware,body.municipal-direct #sourceLevelControllerWire,body.municipal-direct #sourceQualityControllerWire,body.municipal-direct #municipalPipe,body.municipal-direct #municipalPumpPipe,body.municipal-direct #sourceValvePipe,body.municipal-direct #sourceOnlyPipe,body.municipal-direct #sourceOnlyLabel,body.municipal-direct #pumpSourcePipe,body.municipal-direct #pumpSourceLabel,body.municipal-direct #gravityFillLabel,body.municipal-direct #threeWayValve,body.municipal-direct #outletValve,body.municipal-direct #valveControlWire,body.municipal-direct #outletValveControlWire{opacity:0;visibility:hidden;pointer-events:none}body.municipal-direct #municipalOnlyPipe,body.municipal-direct #municipalOnlyLabel{opacity:1;visibility:visible}body.municipal-direct #gravityAvailableLabel,body.municipal-direct #sourceTankCountLabel,body.municipal-direct #valveSimLabel,body.municipal-direct #valveMetricCard,body.municipal-direct #valveSensorCard,body.municipal-direct #sourceSensorCard,body.municipal-direct #lowerQualityCard{display:none}
+    body.pump-only #sourceTankHardware,body.pump-only #sourceTankSensorHardware,body.pump-only #sourceQualityHardware,body.pump-only #sourceLevelControllerWire,body.pump-only #sourceQualityControllerWire,body.pump-only #municipalHardware,body.pump-only #municipalSensor,body.pump-only #checkValve,body.pump-only #municipalPipe,body.pump-only #municipalPumpPipe,body.pump-only #sourceValvePipe,body.pump-only #sourceOnlyPipe,body.pump-only #sourceOnlyLabel,body.pump-only #pumpSourcePipe,body.pump-only #pumpSourceLabel,body.pump-only #gravityFillLabel,body.pump-only #threeWayValve,body.pump-only #outletValve,body.pump-only #municipalWire,body.pump-only #valveControlWire,body.pump-only #outletValveControlWire{opacity:0;visibility:hidden;pointer-events:none}body.pump-only #municipalOnlyPipe,body.pump-only #municipalOnlyLabel{opacity:1;visibility:visible}body.pump-only .municipal-option,body.pump-only #sourceTankCountLabel,body.pump-only #municipalSimLabel,body.pump-only #valveSimLabel,body.pump-only #municipalSensorCard,body.pump-only #sourceSensorCard,body.pump-only #valveMetricCard,body.pump-only #valveSensorCard,body.pump-only #lowerQualityCard{display:none}
+    body.no-municipal .municipal-option,body.no-municipal #municipalSimLabel,body.no-municipal #municipalSensorCard{display:none}body.no-source-tank #sourceTankCountLabel,body.no-source-tank #sourceSensorCard,body.no-source-tank #lowerQualityCard{display:none}body.no-valves #valveSimLabel,body.no-valves #valveMetricCard,body.no-valves #valveSensorCard{display:none}body.no-water-quality #lowerQualityCard,body.no-water-quality #upperQualityCard{display:none}
     #borewellHardware{display:none}body.borewell #sourceTankHardware,body.borewell #sourceTankSensorHardware,body.borewell #sourceQualityHardware,body.borewell #sourceLevelControllerWire,body.borewell #sourceQualityControllerWire{display:none}body.borewell #borewellHardware{display:block}body.borewell #sourceOnlyLabel{display:none}
     #pumpSourceLabel,#pumpSourcePipe{opacity:0;transition:opacity .3s ease}body.pump-source-fill #pumpSourceLabel,body.pump-source-fill #pumpSourcePipe{opacity:1}body.pump-source-fill #gravityFillLabel{opacity:.2}
     .sensor-panel{margin-top:14px;padding:16px 18px}.sensor-panel h2{margin:0 0 12px}.sensor-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.sensor-item{background:#091f43;border:1px solid #315580;border-radius:13px;padding:11px;min-width:0}.sensor-item span{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}.sensor-item strong{display:block;margin-top:3px;color:#5fe3ad;overflow-wrap:anywhere;line-height:1.3}.sensor-item strong.bad{color:#ff7d8d}.sensor-item strong.optional{color:#ffcf73}.sidebar .controls{padding:13px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .controls>h2,.sidebar .switches,.sidebar .legend{grid-column:1/-1}.sidebar .controls>h2{margin:0 0 4px}.sidebar .mode{margin:0;padding:8px;font-size:12px;white-space:normal;overflow-wrap:anywhere;line-height:1.2}.sidebar .switches{margin-top:7px;padding-top:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px 12px}.sidebar .switches h2{margin:2px 0;font-size:15px;grid-column:1/-1}.sidebar .switches label{margin:2px 0;font-size:12px;min-width:0}.sidebar .switches label:first-of-type{grid-column:1/-1}.sidebar .legend{margin:4px 0 0;font-size:11px}.sidebar .status{margin:0;padding:9px;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .metric{padding:7px}.sidebar .metric strong{font-size:12px}.sidebar .sensor-panel{margin:0;padding:10px}.sidebar .sensor-panel h2{font-size:16px;margin-bottom:7px}.sidebar .sensor-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.sidebar .sensor-item{padding:7px}.sidebar .sensor-item span,.sidebar .sensor-item strong{font-size:11px}
@@ -115,6 +117,7 @@
       <button class="mode" data-mode="municipal-source">Municipal → Source · Gravity</button>
       <button class="mode" data-mode="municipal-upper">Municipal → Pump → Upper</button>
       <button class="mode" data-mode="municipal-direct">Municipal → Pump → Upper · No source / valves</button>
+      <button class="mode" data-mode="pump-only">Existing supply → Pump → Upper</button>
       <button class="mode" data-mode="source-pump-fill">Municipal → Pump → Source</button>
       <button class="mode" data-mode="source-upper">Source → Pump → Upper</button>
       <button class="mode" data-mode="source-only">Source only · No municipal feature</button>
@@ -127,7 +130,7 @@
   <section class="card status">
     <div class="metric"><span>Current plan</span><strong id="planText">Municipal → Pump → Source</strong></div>
     <div id="valveMetricCard" class="metric"><span id="valveMetricLabel">Motorized valve position</span><strong id="valveText" class="good">Source → Pump · standby</strong></div>
-    <div class="metric"><span>Source pump</span><strong id="pumpText">ON</strong></div>
+    <div class="metric"><span id="pumpMetricLabel">Source pump</span><strong id="pumpText">ON</strong></div>
     <div class="metric"><span>System reason</span><strong id="reasonText">Source below 95%</strong></div>
   </section>
   <section class="card sensor-panel" aria-labelledby="sensorStatusTitle">
@@ -138,7 +141,7 @@
       <div class="sensor-item"><span>Upper-tank water level</span><strong id="upperSensorStatus">Healthy · 70%</strong></div>
       <div id="valveSensorCard" class="sensor-item"><span id="valveSensorLabel">Motorized valve feedback</span><strong id="valveSensorStatus">Source → Pump · standby</strong></div>
       <div id="lowerQualityCard" class="sensor-item"><span id="lowerQualityLabel">Source-tank water quality</span><strong id="lowerTurbidityStatus" class="optional">Optional · not configured</strong></div>
-      <div class="sensor-item"><span>Upper-tank water quality</span><strong id="upperTurbidityStatus" class="optional">Optional · not configured</strong></div>
+      <div id="upperQualityCard" class="sensor-item"><span>Upper-tank water quality</span><strong id="upperTurbidityStatus" class="optional">Optional · not configured</strong></div>
     </div>
   </section>
     </div>
@@ -171,6 +174,7 @@
     'municipal-upper': {flows:['municipalToPump','pumpToUpper','houseOutlet'],upper:30,source:95,route:'MUNICIPAL → PUMP',valve:'Municipal → Pump',pump:true,plan:'Municipal → Pump → Upper',reason:'Upper tank reached 30% (300 L); pumping municipal water toward 95% (950 L)',municipal:true},
     'municipal-direct': {flows:['municipalOnlyBypass','pumpToUpper','houseOutlet'],upper:30,source:30,route:'DIRECT MUNICIPAL → PUMP',valve:'Not installed · direct municipal plumbing',pump:true,plan:'Municipal → Pump → Upper',reason:'No source tank or motorized valves are installed; municipal water feeds the pump directly',municipal:true,municipalDirect:true},
     'municipal-direct-blocked': {flows:['houseOutlet'],upper:30,source:30,route:'DIRECT MUNICIPAL → PUMP',valve:'Not installed · direct municipal plumbing',pump:false,plan:'Municipal supply unavailable',reason:'Direct municipal setup requires a healthy water-availability input before the pump can run',municipal:false,municipalDirect:true,blocked:true},
+    'pump-only': {flows:['municipalOnlyBypass','pumpToUpper','houseOutlet'],upper:30,source:30,route:'EXISTING SUPPLY → PUMP',valve:'Not installed · direct pump plumbing',pump:true,plan:'Existing Supply → Pump → Upper',reason:'The base plan controls the existing pump from the upper-tank level; source-tank and municipal add-on hardware are not installed',municipal:false,pumpOnly:true},
     'source-pump-fill': {flows:['municipalToPump','pumpToSource','houseOutlet'],upper:70,source:30,route:'MUNICIPAL → PUMP',valve:'Inlet: municipal · Outlet: source',pump:true,plan:'Municipal → Pump → Source',reason:'Source tank reached 30%; pump-assisted filling uses the shared source inlet',municipal:true,sourcePumpFill:true},
     'source-upper': {flows:['sourceToPump','pumpToUpper','houseOutlet'],upper:30,source:70,route:'SOURCE → PUMP',valve:'Source → Pump',pump:true,plan:'Source → Pump → Upper',reason:'Upper tank reached 30% (300 L); pumping from the 2,000 L source tank',municipal:false},
     'source-only': {flows:['sourceOnlyBypass','pumpToUpper','houseOutlet'],upper:30,source:82,route:'DIRECT SOURCE → PUMP',valve:'Not installed · direct pump plumbing',pump:true,plan:'Source Tank → Pump → Upper',reason:'Municipal feature is disabled; automatic tank thresholds control the source pump directly',municipal:false,sourceOnly:true},
@@ -186,7 +190,7 @@
   };
   let autoTimer, fallbackTimer, levelTimer, autoIndex=0, activeMode='auto', currentScenario='municipal-source', currentMode, levelsInitialized=false;
   let activeFlowSet=new Set(), tankCounts={source:1,upper:1}, tankVolumes={source:600,upper:700};
-  const autoSequence=['municipal-source','source-pump-fill','municipal-upper','municipal-direct','source-upper','source-only','borewell'];
+  const autoSequence=['municipal-source','source-pump-fill','municipal-upper','municipal-direct','pump-only','source-upper','source-only','borewell'];
   const fallbackSequence=()=>['no-sensor-trial',$('municipalDetected').checked?'no-sensor-confirmed':'no-sensor-source-lock','idle'];
   function capacity(type){return tanks[type].unitCapacity*tankCounts[type]}
   function boundedLevel(type,level){const config=tanks[type];return Math.max(config.minPercent,Math.min(config.maxPercent,level))}
@@ -203,15 +207,21 @@
     const hasMunicipal=devices?devices.municipal:!m.sourceOnly;
     const hasSourceTank=devices?devices.sourceTank:!m.municipalDirect&&!m.borewell;
     const hasValves=devices?devices.motorizedValves:!m.sourceOnly&&!m.municipalDirect;
-    setInstalled($('municipalHardware'),hasMunicipal);setInstalled($('checkValve'),hasMunicipal);
+    const hasWaterQuality=devices?.waterQuality===true;
+    document.body.classList.toggle('no-municipal',!hasMunicipal);
+    document.body.classList.toggle('no-source-tank',!hasSourceTank);
+    document.body.classList.toggle('no-valves',!hasValves);
+    document.body.classList.toggle('no-water-quality',!hasWaterQuality);
+    const hasCheckValve=devices?devices.checkValve===true:hasMunicipal;
+    setInstalled($('municipalHardware'),hasMunicipal);setInstalled($('checkValve'),hasMunicipal&&hasCheckValve);
     setInstalled($('municipalPipe'),hasMunicipal);setInstalled($('municipalPumpPipe'),hasMunicipal);setInstalled($('municipalSupplyLabel'),hasMunicipal);setInstalled($('gravityFillLabel'),hasMunicipal);
     setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled);setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled);
     setInstalled($('sourceTankHardware'),hasSourceTank);setInstalled($('sourceTankSensorHardware'),hasSourceTank);setInstalled($('sourceLevelControllerWire'),hasSourceTank);
-    setInstalled($('sourceQualityHardware'),false);setInstalled($('sourceQualityControllerWire'),false);
+    setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality);setInstalled($('sourceQualityControllerWire'),hasSourceTank&&hasWaterQuality);
     setInstalled($('threeWayValve'),hasValves);setInstalled($('outletValve'),hasValves);setInstalled($('valveControlWire'),hasValves);setInstalled($('outletValveControlWire'),hasValves);
     const upperQualityLabel=[...document.querySelectorAll('text')].find(el=>el.textContent.includes('UPPER WATER QUALITY'));
-    setInstalled(upperQualityLabel?.parentElement,false);
-    document.querySelectorAll('path.turbidity-wire').forEach(path=>setInstalled(path,false));
+    setInstalled(upperQualityLabel?.parentElement,hasWaterQuality);
+    document.querySelectorAll('path.turbidity-wire').forEach(path=>setInstalled(path,hasWaterQuality));
     setInstalled($('mobileAppHardware'),devices?.mobileApp!==false);setInstalled($('mobileAppConnection'),devices?.mobileApp!==false);
     if(devices)$('mobileAppDetail').textContent=devices.cloud?'Remote cloud access':'Local phone access';
   }
@@ -233,11 +243,11 @@
       if(hasMunicipal&&hasSourceTank)configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper');
       else if(hasMunicipal)configuredModes.push('municipal-direct');
       if(hasBorewell)configuredModes.push('borewell');
-      if(!hasMunicipal&&!hasBorewell)configuredModes.push('source-only');
+      if(!hasMunicipal&&!hasBorewell)configuredModes.push(hasSourceTank?'source-only':'pump-only');
       configuredModes.push('idle','failsafe');
-      const initialMode=hasMunicipal?(hasSourceTank?'municipal-source':'municipal-direct'):hasBorewell?'borewell':'source-only';
+      const initialMode=hasMunicipal?(hasSourceTank?'municipal-source':'municipal-direct'):hasBorewell?'borewell':hasSourceTank?'source-only':'pump-only';
       planSetup.modes=configuredModes;planSetup.initialMode=initialMode;
-      Object.assign(planSetup.devices,{upperTanks,sourceTanks:Math.max(1,sourceTanks),sourceTank:hasSourceTank||!supplies.size,municipal:hasMunicipal,municipalSensor:hasMunicipal,motorizedValves:hasMunicipal&&hasSourceTank});
+      Object.assign(planSetup.devices,{upperTanks,sourceTanks:Math.max(1,sourceTanks),sourceTank:hasSourceTank,municipal:hasMunicipal,municipalSensor:hasMunicipal,motorizedValves:hasMunicipal&&hasSourceTank});
       planSetup.deviceSummary=`${upperTanks} upper tank${upperTanks===1?'':'s'} · ${sourceTanks} configured source tank${sourceTanks===1?'':'s'} · ${supplies.size?[...supplies].join(' + '):'direct source supply'}`;
     }
     document.title=`${requested} — SaleWell Water Flow`;
@@ -290,15 +300,19 @@
     const scenarioChanged=currentScenario!==name||!levelsInitialized;currentScenario=name;const m=modes[name];currentMode=m;if(scenarioChanged)setScenarioVolumes(m);
     document.body.classList.toggle('source-only',Boolean(m.sourceOnly));
     document.body.classList.toggle('municipal-direct',Boolean(m.municipalDirect));
+    const pumpOnly=Boolean(m.pumpOnly||(planSetup?.devices&&!planSetup.devices.sourceTank&&!planSetup.devices.municipal&&!m.borewell));
+    document.body.classList.toggle('pump-only',pumpOnly);
     document.body.classList.toggle('borewell',Boolean(m.borewell));
     document.body.classList.toggle('pump-source-fill',Boolean(m.sourcePumpFill));
     applyDeviceSetup(m,sensorInstalled);
     $('valveMetricLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valves':'Motorized valve position';
     $('valveSensorLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valve hardware':'Motorized valve feedback';
-    $('municipalControlsTitle').textContent=m.sourceOnly?'Municipal feature · not installed':m.municipalDirect?'Direct municipal supply':'Municipal-water detection';
+    $('municipalControlsTitle').textContent=pumpOnly?'Optional supply hardware · not installed':m.sourceOnly?'Municipal feature · not installed':m.municipalDirect?'Direct municipal supply':'Municipal-water detection';
     $('sourceSensorLabel').textContent=m.borewell?'Borewell water availability':'Source-tank water level';
     $('lowerQualityLabel').textContent=m.borewell?'Borewell water quality':'Source-tank water quality';
     $('pumpLabel').textContent=m.borewell?'BOREWELL PUMP':'WATER PUMP';
+    $('pumpMetricLabel').textContent=pumpOnly?'Existing supply pump':m.borewell?'Borewell pump':'Source pump';
+    $('municipalOnlyLabel').textContent=pumpOnly?'EXISTING SUPPLY → PUMP':'DIRECT MUNICIPAL → PUMP';
     const municipalAvailable=$('municipalDetected').checked;
     const activeFlows=[...m.flows];
     const gravityAvailable=$('gravityAvailable').checked&&(!sensorInstalled||municipalAvailable);
@@ -312,11 +326,12 @@
     if(name==='municipal-source')reason=`Gravity-fill source bank from ${volumeText(capacity('source')*.30)} minimum toward ${volumeText(capacity('source')*.95)} maximum`;
     if(name==='municipal-upper')reason=`Upper bank reached ${volumeText(capacity('upper')*.30)}; pump toward ${volumeText(capacity('upper')*.95)} maximum`;
     if(name==='municipal-direct')reason=`No source tank or motorized valves are installed; municipal water pumps directly to the upper tank from ${volumeText(capacity('upper')*.30)} toward ${volumeText(capacity('upper')*.95)}`;
+    if(name==='pump-only')reason=`Only the upper-tank sensor and pump controller are included; the existing supply pump starts at ${volumeText(capacity('upper')*.30)} and stops at ${volumeText(capacity('upper')*.95)}`;
     if(name==='source-pump-fill')reason=`Source bank reached ${volumeText(capacity('source')*.30)}; pump through the confirmed outlet valve toward ${volumeText(capacity('source')*.95)}`;
     if(name==='source-upper')reason=`Upper bank reached ${volumeText(capacity('upper')*.30)}; pumping from the ${volumeText(capacity('source'))} source bank`;
     if(name==='source-only')reason=`No municipal inlet or motorized valves are installed; the source pump starts at ${volumeText(capacity('upper')*.30)} and stops at ${volumeText(capacity('upper')*.95)}`;
     if(name==='borewell')reason=`Upper bank reached ${volumeText(capacity('upper')*.30)}; submersible pump fills toward ${volumeText(capacity('upper')*.95)} with dry-run protection`;
-    if(name==='idle')reason=`Upper maximum ${volumeText(capacity('upper')*.95)}; source maximum ${volumeText(capacity('source')*.95)}`;
+    if(name==='idle')reason=planSetup?.devices?.sourceTank===false?`Upper tank reached its ${volumeText(capacity('upper')*.95)} stop level; pump is idle`:`Upper maximum ${volumeText(capacity('upper')*.95)}; source maximum ${volumeText(capacity('source')*.95)}`;
     if(simultaneousGravity){plan='Municipal → Source + Source → Pump → Upper';reason=name==='no-sensor-source-lock'?'Municipal pump test failed; source route stays locked while the separate gravity line refills the source tank':'Source supplies the pump while available municipal water gravity-fills the source tank'}
     if(name==='no-sensor-trial-flow'||name==='no-sensor-trial-dry') reason=`Sensor not installed; test municipal water for ${$('flowTimeout').value} s and require at least ${$('minimumRise').value}% level rise`;
     if(name==='no-sensor-source-lock') reason=`Less than ${$('minimumRise').value}% rise after ${$('flowTimeout').value} s; use source for this entire cycle—do not retry municipal`;

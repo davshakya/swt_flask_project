@@ -3,39 +3,39 @@
   "plans": {
     "Home Basic": {
       "animation": true,
-      "initialMode": "source-only",
-      "modes": ["source-only", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": false, "cloud": false, "waterQuality": false}
+      "initialMode": "pump-only",
+      "modes": ["pump-only", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": false, "cloud": false, "waterQuality": false}
     },
     "Home Control": {
       "animation": true,
-      "initialMode": "source-only",
-      "modes": ["source-only", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": false, "waterQuality": false}
+      "initialMode": "pump-only",
+      "modes": ["pump-only", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": true, "cloud": false, "waterQuality": false}
     },
     "Home Cloud Pro": {
       "animation": true,
-      "initialMode": "source-only",
-      "modes": ["source-only", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
+      "initialMode": "pump-only",
+      "modes": ["pump-only", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
     },
     "RWA Standard": {
       "animation": true,
-      "initialMode": "source-upper",
-      "modes": ["source-upper", "source-only", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "motorizedValves": true, "mobileApp": true, "cloud": true, "waterQuality": false}
+      "initialMode": "source-only",
+      "modes": ["source-only", "idle", "failsafe"],
+      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
     },
     "Commercial AI Pro": {
       "animation": true,
-      "initialMode": "municipal-source",
-      "modes": ["municipal-source", "municipal-upper", "source-pump-fill", "source-upper", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 2, "sourceTanks": 2, "municipal": true, "municipalSensor": true, "motorizedValves": true, "mobileApp": true, "cloud": true, "waterQuality": false}
+      "initialMode": "source-only",
+      "modes": ["source-only", "idle", "failsafe"],
+      "devices": {"sourceTank": true, "upperTanks": 2, "sourceTanks": 2, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
     },
     "Dealer / Installer Kit": {
       "animation": true,
-      "initialMode": "municipal-source",
-      "modes": ["municipal-source", "municipal-upper", "municipal-direct", "source-pump-fill", "source-upper", "source-only", "borewell", "idle", "failsafe"],
-      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": true, "municipalSensor": true, "motorizedValves": true, "mobileApp": true, "cloud": false, "waterQuality": false}
+      "initialMode": "pump-only",
+      "modes": ["pump-only", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "checkValve": false, "motorizedValves": false, "mobileApp": true, "cloud": false, "waterQuality": false}
     },
     "Enterprise Modular": {"animation": false, "reason": "Device configuration is defined after the site survey and approved rollout scope."}
   }

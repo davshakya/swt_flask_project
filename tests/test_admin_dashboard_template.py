@@ -151,6 +151,7 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
         "municipal-source",
         "municipal-upper",
         "municipal-direct",
+        "pump-only",
         "source-pump-fill",
         "source-upper",
         "source-only",
@@ -161,6 +162,14 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
     rendered_modes = {part.split('"', 1)[0] for part in animation.split('data-mode="')[1:]}
 
     assert rendered_modes == expected_modes
+
+
+def test_homepage_how_it_works_links_to_full_water_flow_animation():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'class="button animation-page-link"' in template
+    assert "url_for('static', filename='marketing/water_flow_animation.html')" in template
+    assert '>See Water Flow Animation</a>' in template
 
 
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
@@ -203,7 +212,10 @@ def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
     assert "setInstalled($('sourceLevelControllerWire'),hasSourceTank)" in animation
     assert "setInstalled($('threeWayValve'),hasValves)" in animation
     assert "setInstalled($('outletValveControlWire'),hasValves)" in animation
-    assert "setInstalled($('sourceQualityHardware'),false)" in animation
+    assert "const hasWaterQuality=devices?.waterQuality===true" in animation
+    assert "setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality)" in animation
+    assert "document.body.classList.toggle('no-water-quality',!hasWaterQuality)" in animation
+    assert "const hasCheckValve=devices?devices.checkValve===true:hasMunicipal" in animation
 
 
 def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
@@ -265,10 +277,21 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper')" in animation
     assert "configuredModes.push('municipal-direct')" in animation
     assert "configuredModes.push('borewell')" in animation
+    assert "configuredModes.push(hasSourceTank?'source-only':'pump-only')" in animation
+    assert "sourceTank:hasSourceTank" in animation
     assert catalog["plans"]["Enterprise Modular"]["animation"] is False
     assert all(catalog["plans"][name]["animation"] for name in (
         "Home Basic", "Home Control", "Home Cloud Pro", "RWA Standard", "Commercial AI Pro"
     ))
+    for name in ("Home Basic", "Home Control", "Home Cloud Pro", "Dealer / Installer Kit"):
+        assert catalog["plans"][name]["initialMode"] == "pump-only"
+        assert catalog["plans"][name]["devices"]["sourceTank"] is False
+        assert catalog["plans"][name]["devices"]["municipal"] is False
+        assert catalog["plans"][name]["devices"]["motorizedValves"] is False
+    for name in ("RWA Standard", "Commercial AI Pro"):
+        assert catalog["plans"][name]["devices"]["sourceTank"] is True
+        assert catalog["plans"][name]["devices"]["municipal"] is False
+        assert catalog["plans"][name]["devices"]["motorizedValves"] is False
 
 
 def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
