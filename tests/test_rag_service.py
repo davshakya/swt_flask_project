@@ -210,10 +210,11 @@ def test_public_rag_indexes_customer_and_technical_installation_guides():
     assert any(result.source.endswith("CUSTOMER_INSTALLATION_GUIDE_EN_HI.html") for result in results)
 
 
-def test_installation_and_troubleshooting_chat_intents_use_rag_and_offer_guide():
+def test_installation_and_troubleshooting_chat_intents_use_rag_without_public_guide_link():
     template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
     for signal in ("pumpDoesNotStart", "pumpDoesNotStop", "appCannotConnect", "remoteDataStale", "tankLevelIncorrect", "deviceOffline", "wantsInstall"):
         block_start = template.index(f"if ({signal})")
         block_end = template.index("\n    }", block_start)
         assert "useRag: true" in template[block_start:block_end]
-    assert template.count('label: "Download installation guide"') >= 7
+    assert 'label: "Download installation guide"' not in template
+    assert "installation_guide_download" not in template

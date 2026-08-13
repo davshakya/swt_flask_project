@@ -27,6 +27,7 @@ color:var(--link-blue-hover);
 text-decoration-color:currentColor;
 }
 .shell{width:min(1380px,calc(100% - 28px));margin:0 auto;padding:28px 0 44px}
+.customer-footer{margin-top:18px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}.customer-footer p{color:var(--muted);line-height:1.5}.customer-footer .action-link{background:var(--button-lite-bg);border:1px solid var(--button-outline);color:var(--link-blue)}
 .panel{background:var(--panel);backdrop-filter:blur(14px);border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow);transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
 .panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}
 .hero,.split,.charts{display:grid;gap:18px;align-items:stretch}.hero{grid-template-columns:minmax(320px,390px) minmax(0,1fr)}.split,.charts{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{display:grid;gap:16px;align-items:stretch}.metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
@@ -660,6 +661,13 @@ canvas{height:260px!important}
             <section class="water-issue-panel" aria-labelledby="waterIssueHeading"><h3 id="waterIssueHeading">System assessment</h3><div id="waterIssueList" class="water-issue-list"><div class="water-visual-normal">System is operating normally.</div></div><div id="waterIssueDetail" class="water-issue-detail" hidden></div></section>
         </div>
     </dialog>
+
+    {% if not is_admin %}
+    <footer class="panel customer-footer" aria-label="Customer support resources">
+        <div><strong>Customer resources</strong><p>Installation and safety information for your activated SaleWell Smart Tank account.</p></div>
+        <a class="action-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+    </footer>
+    {% endif %}
 
 </div>
 

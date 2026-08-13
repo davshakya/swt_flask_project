@@ -20431,6 +20431,7 @@ def admin_device_detail_configuration(device_id):
 
 
 @app.route("/downloads/installation-guide")
+@customer_required
 def installation_guide_download():
     guide_path = Path(__file__).resolve().parents[1] / "docs" / "SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf"
     if not guide_path.is_file():

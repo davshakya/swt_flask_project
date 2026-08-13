@@ -5043,7 +5043,7 @@ body.chatbot-open .page-jump-controls{display:none}
                                     <div class="demo-kpi-row">
                                         <div class="demo-kpi is-featured">
                                             <span>Pump Status</span>
-                                            <strong>OFF · Auto</strong>
+                                            <strong>OFF Â· Auto</strong>
                                             <p>Starts at the configured low threshold.</p>
                                         </div>
                                         <div class="demo-kpi">
@@ -5062,7 +5062,7 @@ body.chatbot-open .page-jump-controls{display:none}
                                             <p>Local Wi-Fi and cloud sync are healthy.</p>
                                         </div>
                                     </div>
-                                    <div class="demo-dashboard-banner">Source Tank → Pump → Main Tank · Automatic threshold protection active.</div>
+                                    <div class="demo-dashboard-banner">Source Tank â†’ Pump â†’ Main Tank Â· Automatic threshold protection active.</div>
                                 </div>
                             </div>
                         </div>
@@ -5435,7 +5435,6 @@ body.chatbot-open .page-jump-controls{display:none}
                 <h2>From installation to daily use in 4 practical steps.</h2>
                 <div class="guide-actions">
                     <a class="button animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See Water Flow Animation</a>
-                    <a class="button-secondary animation-page-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
                 </div>
             </div>
         </div>
@@ -5650,7 +5649,7 @@ body.chatbot-open .page-jump-controls{display:none}
         </div>
         <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
-        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Us</a></nav>
+        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Us</a></nav>
         <div class="visitor-count" aria-label="Homepage visitor count">
             <span>Visitors</span>
             <strong>{{ homepage_visitor_count|default("0") }}</strong>
@@ -7110,7 +7109,7 @@ function getChatbotResponse(rawInput) {
         return {
             text: "The pump may be blocked by a full destination tank, unavailable source water, missing sensor data, manual mode, or a safety lockout. Check the displayed alert and physical pump panel; do not bypass protection to force a start.",
             useRag: true,
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7118,7 +7117,7 @@ function getChatbotResponse(rawInput) {
         return {
             text: "Use the physical OFF control or isolate power safely, then contact a qualified electrician. Check the level sensor, stop threshold, relay/contactor feedback, and wiring before restoring automatic operation.",
             useRag: true,
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7126,7 +7125,7 @@ function getChatbotResponse(rawInput) {
         return {
             text: "Confirm the controller is powered, the phone is using the intended local connection, local-network permissions are allowed, and the correct device is selected. Local controller access and cloud login are different connection modes.",
             useRag: true,
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7134,7 +7133,7 @@ function getChatbotResponse(rawInput) {
         return {
             text: "Check controller power, site internet, cloud connectivity, and the device's last-seen time. Local automation may continue, but remote updates require the controller to reconnect to the cloud.",
             useRag: true,
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7142,15 +7141,15 @@ function getChatbotResponse(rawInput) {
         return {
             text: "Check sensor angle, obstruction, condensation, tank-height calibration, inlet flow, and whether the wireless reading is fresh. Do not change automation thresholds until the level is verified safely.",
             useRag: true,
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
+            actions: [{ label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
         };
     }
 
     if (deviceOffline) {
         return {
             useRag: true,
-            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
-            actions: [{ label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" }, { label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
+            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed statusâ€”never share its API key.",
+            actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
 
@@ -7275,7 +7274,6 @@ function getChatbotResponse(rawInput) {
             text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, wireless signal, power access and electrician approval for relay/contactor wiring. Home Wi-Fi and internet are required only for cloud features.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
             useRag: true,
             actions: [
-                { label: "Download installation guide", href: "{{ url_for('installation_guide_download') }}" },
                 {
                     label: "Fill setup details",
                     fill: {
@@ -7323,7 +7321,7 @@ function getChatbotResponse(rawInput) {
         chatbotGreetingCount += 1;
         return {
             text: chatbotGreetingCount === 1
-                ? "Hi! Welcome to SaleWell. What would you like help with—tank monitoring, pump control, overflow prevention, pricing, or installation?"
+                ? "Hi! Welcome to SaleWell. What would you like help withâ€”tank monitoring, pump control, overflow prevention, pricing, or installation?"
                 : "Hello again! Tell me what you would like to know, or choose one of the topics below.",
             actions: [
                 { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },

@@ -101,12 +101,15 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     assert "data-plan-slide" not in login_template
 
 
-def test_homepage_offers_bilingual_installation_guide_download():
+def test_installation_guide_is_available_only_from_customer_dashboard():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    dashboard_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
     guide = (PROJECT_ROOT / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html").read_text(encoding="utf-8")
 
-    assert "url_for('installation_guide_download')" in login_template
-    assert "Download Installation Guide (English + हिन्दी)" in login_template
+    assert "url_for('installation_guide_download')" not in login_template
+    assert "Download installation guide" not in login_template
+    assert "url_for('installation_guide_download')" in dashboard_template
+    assert "Download Installation Guide (English + हिन्दी)" in dashboard_template
     assert "Easy Customer Installation Guide" in guide
     assert "आसान ग्राहक इंस्टॉलेशन गाइड" in guide
     assert "Important / जरूरी" in guide
@@ -131,12 +134,19 @@ def test_homepage_offers_bilingual_installation_guide_download():
     assert "500 ms OPEN pulse" in guide
 
 
-def test_installation_guide_download_is_public_attachment():
+def test_installation_guide_download_requires_customer_login(monkeypatch):
     if str(PROJECT_ROOT / "flask_app") not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
     import server
 
-    response = server.app.test_client().get("/downloads/installation-guide")
+    client = server.app.test_client()
+    anonymous_response = client.get("/downloads/installation-guide")
+    assert anonymous_response.status_code == 302
+    assert "/login/customer" in anonymous_response.headers["Location"]
+
+    monkeypatch.setattr(server, "activate_dashboard_identity", lambda role: role == "customer")
+    monkeypatch.setattr(server, "current_user_role", lambda: "customer")
+    response = client.get("/downloads/installation-guide")
     assert response.status_code == 200
     assert response.headers["Content-Disposition"].startswith("attachment;")
     assert response.mimetype == "application/pdf"
