@@ -73,7 +73,7 @@
 
         <!-- Source tank and local master-side sensors. -->
         <g id="sourceTankHardware"><rect x="55" y="365" width="235" height="205" rx="22" class="tank"/><rect id="sourceWater" x="55" y="415" width="235" height="155" class="water" clip-path="url(#sourceClip)"/><path d="M55 417q30-8 59 0t59 0t59 0t58 0" class="wave"/><text x="112" y="395" class="label">SOURCE TANK</text><text id="sourceCapacity" x="121" y="413" class="small compact">CAPACITY 2000 L</text><text id="sourceLevel" x="137" y="482" class="label" font-size="30">30%</text><text id="sourceVolume" x="137" y="507" class="small">600 L</text><text id="sourceLimits" x="69" y="558" class="small compact">MIN 30%=600 L · MAX 95%=1,900 L</text><text x="76" y="355" class="route">FILL INLET</text><text x="194" y="532" class="small">PUMP OUTLET</text><text id="sourceSim" class="hidden"></text></g>
-        <g id="borewellHardware"><rect x="90" y="350" width="150" height="225" rx="28" fill="#0b2146" stroke="#6984aa" stroke-width="3"/><rect x="111" y="390" width="108" height="165" rx="22" fill="#087ee8" opacity=".5"/><path d="M111 420q27-9 54 0t54 0" class="wave"/><path d="M165 370V515" stroke="#72e7ff" stroke-width="10"/><path d="M188 519H250V540H290" class="pipe"/><rect x="142" y="500" width="46" height="38" rx="12" fill="#123cc7" stroke="#8befff" stroke-width="3"/><circle cx="165" cy="519" r="10" fill="#8befff"/><text x="102" y="378" class="label">BOREWELL</text><text x="108" y="450" class="small">GROUNDWATER</text><text x="77" y="603" class="route">SUBMERSIBLE PUMP</text></g>
+        <g id="borewellHardware"><rect x="90" y="350" width="150" height="225" rx="28" fill="#0b2146" stroke="#6984aa" stroke-width="3"/><rect x="111" y="390" width="108" height="165" rx="22" fill="#087ee8" opacity=".5"/><path d="M111 420q27-9 54 0t54 0" class="wave"/><path d="M165 370V515" stroke="#72e7ff" stroke-width="10"/><path d="M188 519H250V540H290" class="pipe"/><rect x="142" y="500" width="46" height="38" rx="12" fill="#123cc7" stroke="#8befff" stroke-width="3"/><circle cx="165" cy="519" r="10" fill="#8befff"/><text id="undergroundSourceLabel" x="102" y="378" class="label">BOREWELL</text><text x="108" y="450" class="small">GROUNDWATER</text><text x="77" y="603" class="route">SUBMERSIBLE PUMP</text></g>
         <g id="sourceTankSensorHardware"><path class="connection ultrasonic-wire" d="M290 394H340"/><g><rect x="340" y="365" width="190" height="58" rx="11" class="device device-on"/><text x="355" y="389" class="label">SOURCE LEVEL SENSOR</text><text x="374" y="411" class="small">water level sensing</text></g></g>
         <g id="sourceQualityHardware"><path class="connection turbidity-wire" d="M170 570V600"/><g><rect x="55" y="600" width="190" height="50" rx="12" class="device"/><text x="69" y="622" class="label">LOWER WATER QUALITY</text><text x="84" y="641" class="small">turbidity sensor</text></g></g>
 
@@ -247,7 +247,7 @@
       configuredModes.push('idle','failsafe');
       const initialMode=hasMunicipal?(hasSourceTank?'municipal-source':'municipal-direct'):hasBorewell?'borewell':hasSourceTank?'source-only':'pump-only';
       planSetup.modes=configuredModes;planSetup.initialMode=initialMode;
-      Object.assign(planSetup.devices,{upperTanks,sourceTanks:Math.max(1,sourceTanks),sourceTank:hasSourceTank,municipal:hasMunicipal,municipalSensor:hasMunicipal,motorizedValves:hasMunicipal&&hasSourceTank});
+      Object.assign(planSetup.devices,{upperTanks,sourceTanks:Math.max(1,sourceTanks),sourceTank:hasSourceTank,municipal:hasMunicipal,municipalSensor:hasMunicipal,motorizedValves:hasMunicipal&&hasSourceTank,submersible:supplies.has('submersible')});
       planSetup.deviceSummary=`${upperTanks} upper tank${upperTanks===1?'':'s'} · ${sourceTanks} configured source tank${sourceTanks===1?'':'s'} · ${supplies.size?[...supplies].join(' + '):'direct source supply'}`;
     }
     document.title=`${requested} — SaleWell Water Flow`;
@@ -308,10 +308,12 @@
     $('valveMetricLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valves':'Motorized valve position';
     $('valveSensorLabel').textContent=m.sourceOnly||m.municipalDirect?'Motorized valve hardware':'Motorized valve feedback';
     $('municipalControlsTitle').textContent=pumpOnly?'Optional supply hardware · not installed':m.sourceOnly?'Municipal feature · not installed':m.municipalDirect?'Direct municipal supply':'Municipal-water detection';
-    $('sourceSensorLabel').textContent=m.borewell?'Borewell water availability':'Source-tank water level';
-    $('lowerQualityLabel').textContent=m.borewell?'Borewell water quality':'Source-tank water quality';
-    $('pumpLabel').textContent=m.borewell?'BOREWELL PUMP':'WATER PUMP';
-    $('pumpMetricLabel').textContent=pumpOnly?'Existing supply pump':m.borewell?'Borewell pump':'Source pump';
+    const submersible=Boolean(m.borewell&&planSetup?.devices?.submersible);
+    $('undergroundSourceLabel').textContent=submersible?'UNDERGROUND SOURCE':'BOREWELL';
+    $('sourceSensorLabel').textContent=m.borewell?(submersible?'Submersible source availability':'Borewell water availability'):'Source-tank water level';
+    $('lowerQualityLabel').textContent=m.borewell?(submersible?'Underground-source water quality':'Borewell water quality'):'Source-tank water quality';
+    $('pumpLabel').textContent=m.borewell?'SUBMERSIBLE PUMP':'WATER PUMP';
+    $('pumpMetricLabel').textContent=pumpOnly?'Existing supply pump':m.borewell?(submersible?'Submersible pump':'Borewell pump'):'Source pump';
     $('municipalOnlyLabel').textContent=pumpOnly?'EXISTING SUPPLY → PUMP':'DIRECT MUNICIPAL → PUMP';
     const municipalAvailable=$('municipalDetected').checked;
     const activeFlows=[...m.flows];

@@ -183,6 +183,15 @@ def test_public_headers_share_brand_spacing_and_equal_title_text_size():
     assert "width:48px;\nheight:48px;\nborder-radius:16px;" in pricing
 
 
+def test_setup_wizard_uses_submersible_pump_as_default_source():
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'name="water_source" value="submersible" checked' in pricing
+    assert "submersible:supplies.has('submersible')" in animation
+    assert "submersible?'UNDERGROUND SOURCE':'BOREWELL'" in animation
+
+
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
     animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
 
