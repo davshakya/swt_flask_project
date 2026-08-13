@@ -447,9 +447,11 @@ def apply_security_headers(response):
             response.status_code,
             (time.perf_counter() - request_started_at) * 1000.0,
         )
-    if request.path == "/static/marketing/water_flow_animation.html":
-        # The public homepage embeds this first-party dashboard preview. Keep it
-        # protected from cross-site framing while allowing the same origin iframe.
+    if request.path == "/static/marketing/water_flow_animation.html" or (
+        request.path == "/" and request.args.get("chat_embed") == "1"
+    ):
+        # These first-party embeds are protected from cross-site framing while
+        # remaining available inside SaleWell pages on the same origin.
         response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     else:
         response.headers.setdefault("X-Frame-Options", "DENY")

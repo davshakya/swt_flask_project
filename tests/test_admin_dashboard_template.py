@@ -105,8 +105,17 @@ def test_embedded_dashboard_allows_only_same_origin_framing():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
     assert 'request.path == "/static/marketing/water_flow_animation.html"' in server_source
+    assert 'request.args.get("chat_embed") == "1"' in server_source
     assert 'response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")' in server_source
     assert 'response.headers.setdefault("X-Frame-Options", "DENY")' in server_source
+
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    client = server.app.test_client()
+    assert client.get("/").headers["X-Frame-Options"] == "DENY"
+    assert client.get("/?chat=open&chat_embed=1").headers["X-Frame-Options"] == "SAMEORIGIN"
 
 
 def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
