@@ -4931,12 +4931,17 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                 if not acquired:
                     with telemetry_postprocess_lock:
                         telemetry_postprocess_pending[normalized_device_id] = pending
-                    logger.warning(
-                        "Telemetry postprocess deferred for %s because the "
+                    # Keep the coalesced newest payload queued and let this
+                    # device worker retry. Returning here made processing rely
+                    # on another telemetry request to create a replacement
+                    # thread, which caused stale summaries during busy bursts.
+                    logger.debug(
+                        "Telemetry postprocess queued for %s while the "
                         "background worker is busy.",
                         normalized_device_id,
                     )
-                    return
+                    time.sleep(0.5)
+                    continue
 
                 try:
                     # Passenger runs several independent Python processes, so
@@ -5714,8 +5719,9 @@ def connect_mysql_unpooled():
         if error_code is None:
             pass
         elif error_code != 1049:
+            error_message = str(exc or "MySQL connection failed").strip()
             raise RuntimeError(
-                "MySQL is required but the server is not reachable or credentials are invalid. "
+                f"MySQL connection failed (error {error_code}): {error_message}. "
                 f"Check MYSQL_HOST={config['host']!r}, MYSQL_PORT={config['port']}, "
                 f"MYSQL_USER={config['user']!r}, and make sure the MySQL service is running."
             ) from exc
@@ -5778,8 +5784,11 @@ def get_db():
     return connect_mysql()
 
 
+DB_SCHEMA_REVISION = "2026-08-14-capacity-latest-state-v1"
+
+
 def init_db_serialized():
-    """Prevent multiple Passenger/Gunicorn workers from racing schema DDL."""
+    """Run schema work once per revision across all Passenger workers."""
     database_name = mysql_connection_config().get("database") or "swt"
     lock_name = f"swt_schema_init_{database_name}"[:64]
     with get_db() as lock_db:
@@ -5787,7 +5796,34 @@ def init_db_serialized():
         if int((row or {}).get("acquired") or 0) != 1:
             raise RuntimeError("Timed out waiting for the database schema initialization lock")
         try:
+            table_row = lock_db.execute(
+                """
+                SELECT 1 AS present
+                FROM information_schema.tables
+                WHERE table_schema = DATABASE()
+                  AND table_name = 'app_settings'
+                LIMIT 1
+                """
+            ).fetchone()
+            marker_row = lock_db.execute(
+                "SELECT value FROM app_settings WHERE `key` = 'db_schema_revision' LIMIT 1"
+            ).fetchone() if table_row else None
+            if str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION:
+                logger.info("MySQL schema already current at revision %s", DB_SCHEMA_REVISION)
+                return
             init_db()
+            lock_db.execute(
+                """
+                INSERT INTO app_settings(`key`, value, updated_at)
+                VALUES ('db_schema_revision', ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(`key`) DO UPDATE SET
+                    value=excluded.value,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (DB_SCHEMA_REVISION,),
+            )
+            lock_db.commit()
+            logger.info("MySQL schema revision recorded as %s", DB_SCHEMA_REVISION)
         finally:
             lock_db.execute("SELECT RELEASE_LOCK(?) AS released", (lock_name,))
 
@@ -6977,10 +7013,11 @@ def ensure_app_secret_key_persisted():
     persisted_secret = str(get_app_setting(APP_SECRET_KEY_SETTING, "") or "").strip()
     if persisted_secret:
         if APP_SECRET_KEY_SOURCE == "env" and persisted_secret != app.secret_key:
-            logger.warning(
-                "APP_SECRET_KEY from environment differs from the database-persisted secret. "
-                "Existing browser and mobile sessions from previous deploys may be invalidated."
-            )
+            # A stable deployment environment is authoritative. Persist it so
+            # every future worker (and a later env-file recovery) sees the same
+            # session-signing key instead of repeating a misleading warning.
+            set_app_setting(APP_SECRET_KEY_SETTING, app.secret_key)
+            logger.info("Database-persisted APP_SECRET_KEY synchronized with the environment.")
         return
     set_app_setting(APP_SECRET_KEY_SETTING, app.secret_key)
 
