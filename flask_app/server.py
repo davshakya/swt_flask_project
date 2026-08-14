@@ -12687,6 +12687,17 @@ def build_dashboard_analytics(start_dt, end_exclusive, label, device_id=None):
             selected[key] = copy_analytics_payload(ai_payload[key])
     selected["ai_daily"] = copy_analytics_payload((ai_payload or {}).get("daily") or {})
     selected["analytics_version"] = analytics_payload_version(selected)
+    # Bind analytics to the physical device whose firmware telemetry produced
+    # it so every client can reject stale data after an account/device switch.
+    selected["device_id"] = str(device_id or "").strip()
+    selected["sync_contract"] = {
+        "version": 1,
+        "device_id": str(device_id or "").strip(),
+        "telemetry_authority": "firmware",
+        "analytics_authority": "flask",
+        "control_authority": "firmware",
+        "analytics_generated_at": selected.get("analytics_generated_at"),
+    }
     return selected
 
 
