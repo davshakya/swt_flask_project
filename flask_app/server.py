@@ -10881,12 +10881,9 @@ def build_daily_usage_forecast(daily_history, quality):
     history = [float(value) for value in (daily_history or []) if value is not None and math.isfinite(float(value)) and float(value) >= 0]
     quality_score = int(safe_float((quality or {}).get("score"), 0))
     sufficient_quality = bool((quality or {}).get("sufficient_for_forecast", quality_score >= 60))
-    if len(history) < 2 or not sufficient_quality:
+    if len(history) < 2:
         reasons = []
-        if len(history) < 2:
-            reasons.append("At least two complete days are required.")
-        if not sufficient_quality:
-            reasons.append("Telemetry coverage is insufficient for a reliable forecast.")
+        reasons.append("At least two complete days are required.")
         return {
             "value": None,
             "lower": None,
@@ -10905,15 +10902,21 @@ def build_daily_usage_forecast(daily_history, quality):
     relative_variability = (mad / median) if median > 0 else (1.0 if mad > 0 else 0.0)
     uncertainty_fraction = max(0.10, min(0.60, 0.12 + relative_variability * 1.5 + (0.12 if len(history) < 4 else 0.0)))
     confidence = int(round(max(0.0, min(95.0, quality_score - relative_variability * 35.0 - (12 if len(history) < 4 else 0)))))
+    limitations = []
+    if not sufficient_quality:
+        confidence = min(confidence, 45)
+        limitations.append("Provisional estimate: telemetry validation is limited.")
+    if confidence < 60:
+        limitations.append("Recent daily usage varies substantially.")
     return {
         "value": round(float(value), 2),
         "lower": round(max(0.0, float(value) * (1.0 - uncertainty_fraction)), 2),
         "upper": round(float(value) * (1.0 + uncertainty_fraction), 2),
         "confidence": confidence,
         "sample_days": len(history),
-        "status": "ready" if confidence >= 60 else "low_confidence",
+        "status": "ready" if confidence >= 60 and sufficient_quality else "low_confidence",
         "method": "robust_weighted_daily_baseline_v2",
-        "limitations": [] if confidence >= 60 else ["Recent daily usage varies substantially."],
+        "limitations": limitations,
     }
 
 
@@ -12423,8 +12426,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         analytics_quality.setdefault("limitations", []).append(
             "At least two complete days are required for average daily usage."
         )
-    if not analytics_quality.get("sufficient_for_anomaly"):
-        usage_change_pct = None
+    # Keep the observed day-over-day estimate available for display even when
+    # validation is limited. Reliability remains explicit in the quality and
+    # comparison flags, and alert generation still uses the quality gates.
     usage_forecast = build_daily_usage_forecast(comparison_values, analytics_quality)
     leakage_model = build_leakage_ai_model(
         leak_events=leak_events,
@@ -12494,14 +12498,14 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
             "motor_cycles": motor_cycles,
             "consumption_rate": round(float(consumption_rate), 2),
             "leak_events": leak_events,
-            "avg_daily_usage": round(avg_daily_usage, 2) if daily_usage_reliable else None,
-            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage) if daily_usage_reliable else None,
-            "peak_usage_day": peak_day if daily_usage_reliable else "--",
-            "peak_usage_value": round(peak_value, 2) if daily_usage_reliable else None,
-            "peak_usage_liters": percent_to_liters(peak_value) if daily_usage_reliable else None,
-            "lowest_usage_day": lowest_day if daily_usage_reliable else "--",
-            "lowest_usage_value": round(lowest_value, 2) if daily_usage_reliable else None,
-            "lowest_usage_liters": percent_to_liters(lowest_value) if daily_usage_reliable else None,
+            "avg_daily_usage": round(avg_daily_usage, 2),
+            "avg_daily_usage_liters": percent_to_liters(avg_daily_usage),
+            "peak_usage_day": peak_day,
+            "peak_usage_value": round(peak_value, 2),
+            "peak_usage_liters": percent_to_liters(peak_value),
+            "lowest_usage_day": lowest_day,
+            "lowest_usage_value": round(lowest_value, 2),
+            "lowest_usage_liters": percent_to_liters(lowest_value),
             "latest_day_usage": round(latest_day_usage, 2),
             "latest_day_usage_liters": percent_to_liters(latest_day_usage),
             "previous_day_usage": round(previous_day_usage, 2),
@@ -12512,7 +12516,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "daily": {
             "dates": daily_dates,
             "values": [round(float(value), 2) for value in daily_values],
-            "liters": daily_liters if daily_usage_reliable else [None for _ in daily_liters],
+            "liters": daily_liters,
             "unit": "L",
             "measurement": "estimated_from_level_change",
             "complete": daily_complete,
@@ -12521,7 +12525,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         "pattern": {
             "time": pattern_times,
             "values": [round(float(value), 2) for value in pattern_values],
-            "liters": pattern_liters if usage_rate_reliable else [None for _ in pattern_liters],
+            "liters": pattern_liters,
             "unit": "L",
             "measurement": "estimated_from_level_change",
             "aggregation": "hourly_selected_range",
@@ -12538,13 +12542,14 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         },
         "pump_activity": pump_activity_metrics,
         "comparison": {
-            "latest_day": latest_day if daily_usage_reliable else "--",
-            "latest_day_usage": round(latest_day_usage, 2) if daily_usage_reliable else None,
-            "latest_day_usage_liters": percent_to_liters(latest_day_usage) if daily_usage_reliable else None,
-            "previous_day": previous_day if daily_usage_reliable else "--",
-            "previous_day_usage": round(previous_day_usage, 2) if daily_usage_reliable else None,
-            "previous_day_usage_liters": percent_to_liters(previous_day_usage) if daily_usage_reliable else None,
-            "change_pct": round(float(usage_change_pct), 2) if daily_usage_reliable and usage_change_pct is not None else None,
+            "latest_day": latest_day,
+            "latest_day_usage": round(latest_day_usage, 2),
+            "latest_day_usage_liters": percent_to_liters(latest_day_usage),
+            "previous_day": previous_day,
+            "previous_day_usage": round(previous_day_usage, 2),
+            "previous_day_usage_liters": percent_to_liters(previous_day_usage),
+            "change_pct": round(float(usage_change_pct), 2) if usage_change_pct is not None else None,
+            "reliable": daily_usage_reliable,
         },
         "prediction": {
             "tomorrow_usage": usage_forecast["value"],

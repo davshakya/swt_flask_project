@@ -119,6 +119,15 @@ def test_daily_forecast_requires_complete_history_and_reports_interval():
     assert forecast["lower"] < forecast["value"] < forecast["upper"]
     assert forecast["sample_days"] == 5
 
+    provisional = server.build_daily_usage_forecast(
+        [10.0, 11.0, 10.5, 12.0, 11.5],
+        {"score": 88, "sufficient_for_forecast": False},
+    )
+    assert provisional["status"] == "low_confidence"
+    assert provisional["value"] is not None
+    assert provisional["confidence"] <= 45
+    assert "telemetry validation is limited" in provisional["limitations"][0]
+
 
 def test_motor_activity_metrics_use_actual_time_gaps():
     metrics = server.build_motor_activity_metrics(

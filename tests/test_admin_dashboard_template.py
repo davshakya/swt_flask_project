@@ -829,7 +829,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -900,7 +900,7 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
     assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
     assert 'function isCustomerWaterEvent(event)' in customer_template
-    assert 'Hidden because sensor changes exceed the water supported by observed refill cycles.' in customer_template
+    assert 'Provisional estimate from tank-level changes; telemetry validation is limited.' in customer_template
     assert 'label==="Today"?"Today’s water activity":"Water activity over the selected period"' in customer_template
 
 
@@ -921,7 +921,8 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert 'id="dashboardSettings"' in customer_template
     assert '<details id="dashboardSettings"' not in customer_template
     assert '<div id="dashboardSettings" class="customer-settings-pane">' in customer_template
-    assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
+    assert 'id="eventTimeline"' not in customer_template
+    assert "Recent water events" not in customer_template
     assert 'class="panel customer-only customer-tools-panel"' in customer_template
     assert 'class="customer-tools-grid"' in customer_template
     assert 'class="customer-guidance-panel"' in customer_template
@@ -949,7 +950,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'setText("usage_change",displayedLiters!==null?' in usage_body
     assert "usage_physically_plausible!==false" in usage_body
     assert 'setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use")' in usage_body
-    assert "Hidden because sensor changes exceed the water supported by observed refill cycles." in usage_body
+    assert "Provisional estimate from tank-level changes; telemetry validation is limited." in usage_body
     assert 'Number(snapshot.tomorrow_prediction)' in usage_body
     assert 'Number(snapshot.ai_usage_rate)' in usage_body
     assert '"Live device estimate; historical confidence is still building."' in usage_body
@@ -960,7 +961,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'Savings insight appears after two complete days of reliable usage history.' in customer_template
     assert 'value:"0.0 L"' not in customer_template
     assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 

@@ -109,7 +109,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-control-card .controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard .customer-control-card .controls button{width:100%;min-width:0;white-space:normal;line-height:1.2}
 .customer-dashboard .customer-control-card #commandBanner,.customer-dashboard .customer-control-card #warningBanner{margin-top:12px}
-.customer-dashboard .customer-summary-panel h3,.customer-dashboard .customer-group-panel h3,.customer-dashboard .customer-guidance-panel h3,.customer-dashboard .customer-timeline-panel h3{font-size:1.42rem;letter-spacing:-.03em}
+.customer-dashboard .customer-summary-panel h3,.customer-dashboard .customer-group-panel h3,.customer-dashboard .customer-guidance-panel h3{font-size:1.42rem;letter-spacing:-.03em}
 .customer-dashboard .customer-status-row{margin-top:18px}
 .customer-dashboard .customer-section-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 .customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}
@@ -175,7 +175,6 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-section-grid{align-items:start}
 .customer-dashboard .system-health-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .customer-dashboard #dashboardSettings{margin-top:0}
-.customer-dashboard .customer-timeline-panel:has(#eventTimeline:empty){min-height:0}
 .customer-dashboard .panel{padding:18px}
 .customer-dashboard{font-size:1rem;line-height:1.5}.customer-dashboard h1{font-size:clamp(2rem,4vw,3.1rem)}.customer-dashboard h2{font-size:clamp(1.45rem,2.4vw,2rem)}.customer-dashboard h3{font-size:clamp(1.2rem,1.8vw,1.5rem)}
 .customer-dashboard .system-health-grid .card:nth-child(2){background:linear-gradient(145deg,color-mix(in srgb,var(--good) 12%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(3){background:linear-gradient(145deg,color-mix(in srgb,var(--primary) 12%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(4){background:linear-gradient(145deg,color-mix(in srgb,#7c3aed 10%,var(--card-bg)),var(--card-bg))}.customer-dashboard .system-health-grid .card:nth-child(5){background:linear-gradient(145deg,color-mix(in srgb,var(--warn) 10%,var(--card-bg)),var(--card-bg))}
@@ -609,12 +608,6 @@ canvas{height:260px!important}
         </div>
     </section>
 
-    <div class="panel customer-only customer-timeline-panel" style="margin-top:18px">
-        <div class="eyebrow">Timeline</div>
-        <h3>Recent water events</h3>
-        <ul id="eventTimeline" class="list timeline" style="margin-top:16px"></ul>
-    </div>
-
     <dialog id="motorConfirmDialog" class="confirm-dialog">
         <div class="confirm-dialog-body">
             <div class="eyebrow">⚡ Manual Pump Control</div>
@@ -690,7 +683,7 @@ const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=30000;
 const ANALYTICS_CACHE_MAX_AGE_MS=300000;
-const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";
+const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";
 const DEFAULT_ANALYTICS_RANGE_DAYS=7;
 const READY_ANALYTICS_RANGE_DAYS=[1,7];
 const ANALYTICS_PREFETCH_DELAY_MS=750;
@@ -1695,7 +1688,7 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         :estimateUsageLiters(percent,capacity)
     ).filter((value)=>value!==null&&Number.isFinite(value)).map(Math.abs);
     const todayRange=analyticsRangeIsToday();
-    const displayedLiters=usagePlausible&&observedLiters.length
+    const displayedLiters=observedLiters.length
         ?todayRange
             ?observedLiters[observedLiters.length-1]
             :observedLiters.reduce((total,value)=>total+value,0)
@@ -1704,12 +1697,14 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     setText("usage_change",displayedLiters!==null?`~${displayedLiters.toFixed(1)} L`:"--");
     setText("customerKpiUsage",displayedLiters!==null?`~${displayedLiters.toFixed(1)} L`:readiness);
     setText("usage_change_text",displayedLiters!==null
-        ?todayRange
-            ?"Current-day estimate from validated tank drawdown."
-            :`${observedLiters.length} observed day${observedLiters.length===1?"":"s"} within ${selectedAnalyticsRangeLabel().toLowerCase()}.`
+        ?usagePlausible
+            ?todayRange
+                ?"Current-day estimate from validated tank drawdown."
+                :`${observedLiters.length} observed day${observedLiters.length===1?"":"s"} within ${selectedAnalyticsRangeLabel().toLowerCase()}.`
+            :"Provisional estimate from tank-level changes; telemetry validation is limited."
         :usagePlausible
             ?"A usage estimate will appear after enough validated level change is recorded."
-            :"Hidden because sensor changes exceed the water supported by observed refill cycles.");
+            :"No measurable tank drawdown is available yet.");
 
     const analyticsForecastRaw=analytics?.prediction?.tomorrow_usage_liters;
     const analyticsForecast=analytics?.prediction?.status!=="insufficient_data"&&hasDisplayNumber(analyticsForecastRaw)
@@ -1734,7 +1729,7 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         ?analyticsRatePercent*capacity/100
         :null;
     const deviceRate=hasDisplayNumber(snapshot.ai_usage_rate)?Number(snapshot.ai_usage_rate):NaN;
-    const rate=analytics?.analysis?.quality?.usage_rate_reliable===true&&analyticsRate!==null
+    const rate=analyticsRate!==null
         ?Math.abs(analyticsRate)
         :Number.isFinite(deviceRate)?Math.abs(deviceRate):null;
     setText("consumption_rate",rate!==null?`${rate.toFixed(1)} L/hr`:readiness);
@@ -1742,6 +1737,8 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     const rateNote=rateNode?.parentElement?.querySelector(".subvalue");
     if(rateNote)rateNote.textContent=analytics?.analysis?.quality?.usage_rate_reliable===true&&analyticsRate!==null
         ?"Average estimated from reliable tank history."
+        :analyticsRate!==null
+            ?"Provisional rate from tank-level changes; telemetry validation is limited."
         :rate!==null
             ?"Live device usage-rate estimate."
             :"Usage rate will appear after the device reports consumption.";
@@ -2154,15 +2151,15 @@ function drawAnalyticsCharts(data){
     const dailyUsageSeries=usageLiters(data.daily?.liters,data.daily?.values);
     const completeDays=Number(chartQuality.complete_day_count||0);
     const rowCount=Number(chartQuality.row_count||0);
-    const reliableDaily=chartQuality.usage_physically_plausible!==false&&((data.daily?.reliable===true&&completeDays>=2)||(todayAxis&&chartQuality.usage_rate_reliable===true));
-    if(reliableDaily&&getFiniteChartValues(dailyUsageSeries).some((value)=>value>0)){
+    const hasDailyUsage=getFiniteChartValues(dailyUsageSeries).some((value)=>value>0);
+    if(hasDailyUsage){
         drawCanvasSeries(charts.daily.canvas,"Estimated daily use (L)",dailyLabels,dailyUsageSeries,{kind:"bar",color:themeVar("--chart-daily"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,showValues:true});
     }else{
         drawCanvasEmpty(charts.daily.canvas,"Estimated daily use (L)",`Collecting reliable water-use telemetry | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | ${analyticsReadinessText(data,2)}`);
     }
     const patternSeries=usageLiters(data.pattern?.liters,data.pattern?.values);
     const patternTimeline={labels:data.pattern?.time||[],values:patternSeries};
-    if(chartQuality.usage_physically_plausible!==false&&getFiniteChartValues(patternSeries).some((value)=>value>0)){
+    if(getFiniteChartValues(patternSeries).some((value)=>value>0)){
         drawCanvasSeries(charts.pattern.canvas,"Estimated hourly use (L)",patternTimeline.labels,patternTimeline.values,{kind:"line",color:themeVar("--chart-pattern"),minValue:0,tickFormatter:(value)=>`${Math.round(value)} L`,highlightPeak:true,xScale:"time",xLabelMode:todayAxis?"time":"auto"});
     }else{
         drawCanvasEmpty(charts.pattern.canvas,"Estimated hourly use (L)",`Building hourly usage for the selected range | ${rowCount} validated reading${rowCount===1?"":"s"} in this range | Usage appears after measurable drawdown is confirmed`);
@@ -2586,20 +2583,21 @@ function renderAnalytics(data){
     data=chartData;
     const analyticsReady=hasMeaningfulAnalyticsData(chartData);
     const dailyUsageReliable=data.daily?.reliable===true&&Number(data.analysis?.quality?.complete_day_count)>=2;
+    const hasDailyEstimate=hasDisplayNumber(data.insights?.avg_daily_usage_liters??data.insights?.avg_daily_usage);
     const effectiveEmpty=data.guidance?.time_to_empty_hours??data.insights?.empty_prediction;
     updateAnalyticsRangeContext(data);
-    setText("avg_daily_usage",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--");
+    setText("avg_daily_usage",analyticsReady&&hasDailyEstimate?fmtUsageLiters(data.insights?.avg_daily_usage_liters,data.insights?.avg_daily_usage):"--");
     const coverage=Number(data.analysis?.quality?.coverage_percent);
     const sampleDays=Number(data.prediction?.sample_days);
     setText("avg_daily_usage_text",dailyUsageReliable
         ?`${Number(data.analysis?.quality?.complete_day_count)} complete days${Number.isFinite(coverage)?` | ${coverage.toFixed(0)}% device-reading coverage`:""}`
-        :(data.analysis?.quality?.usage_physically_plausible===false
-            ?"Hidden because level changes conflict with observed refill cycles."
+        :(hasDailyEstimate
+            ?"Provisional estimate; telemetry validation is limited."
             :analyticsRangeIsToday()?"Today is still in progress; daily averages appear in the 7 Days view.":"At least two complete days of reliable readings are required."));
-    setText("peak_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.peak_usage_day):"--");
-    setText("peak_usage_value",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--");
-    setText("lowest_usage_day",analyticsReady&&dailyUsageReliable?formatLocaleDate(data.insights?.lowest_usage_day):"--");
-    setText("lowest_usage_value",analyticsReady&&dailyUsageReliable?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--");
+    setText("peak_usage_day",analyticsReady&&hasDailyEstimate?formatLocaleDate(data.insights?.peak_usage_day):"--");
+    setText("peak_usage_value",analyticsReady&&hasDailyEstimate?fmtUsageLiters(data.insights?.peak_usage_liters,data.insights?.peak_usage_value):"--");
+    setText("lowest_usage_day",analyticsReady&&hasDailyEstimate?formatLocaleDate(data.insights?.lowest_usage_day):"--");
+    setText("lowest_usage_value",analyticsReady&&hasDailyEstimate?fmtUsageLiters(data.insights?.lowest_usage_liters,data.insights?.lowest_usage_value):"--");
     const changeRaw=data.comparison?.change_pct;
     const changeNumber=Number(changeRaw);
     const hasChange=analyticsReady&&changeRaw!==null&&changeRaw!==undefined&&!Number.isNaN(changeNumber);
@@ -2622,7 +2620,7 @@ function renderAnalytics(data){
     const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
     const ratePercent=Number(data.insights?.consumption_rate);
     const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
-    setText("consumption_rate",analyticsReady&&data.analysis?.quality?.usage_rate_reliable===true&&rateLiters!==null
+    setText("consumption_rate",analyticsReady&&rateLiters!==null
         ?`${rateLiters.toFixed(0)} L/hr`
         :(VIEWER_ROLE==="customer"?"Collecting":"--"));
     const forecastReady=analyticsReady&&data.prediction?.status!=="insufficient_data"&&hasDisplayNumber(data.prediction?.tomorrow_usage_liters??data.prediction?.tomorrow_usage);
