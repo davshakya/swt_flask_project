@@ -20481,21 +20481,6 @@ def admin_device_detail_configuration(device_id):
         key in snapshot
         for key in ("simulator", "upper_tank_simulator", "lower_tank_simulator")
     )
-
-
-@app.route("/downloads/installation-guide")
-@customer_required
-def installation_guide_download():
-    guide_path = Path(__file__).resolve().parents[1] / "docs" / "SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf"
-    if not guide_path.is_file():
-        abort(404)
-    return send_file(
-        guide_path,
-        mimetype="application/pdf",
-        as_attachment=True,
-        download_name="SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf",
-        max_age=0,
-    )
     if simulator_firmware_detected and setup_features is not None:
         for command in automatic_simulator_commands_for_setup(setup_type, updated_config):
             result, error = safe_queue_device_detail_command(
@@ -20571,6 +20556,21 @@ def installation_guide_download():
         service_config=updated_config,
         queued_command=queued_command,
         queue_result=queue_result,
+    )
+
+
+@app.route("/downloads/installation-guide")
+@customer_required
+def installation_guide_download():
+    guide_path = Path(__file__).resolve().parents[1] / "docs" / "SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf"
+    if not guide_path.is_file():
+        abort(404)
+    return send_file(
+        guide_path,
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf",
+        max_age=0,
     )
 
 
