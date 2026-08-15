@@ -52,7 +52,7 @@ def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
     server = SERVER_SOURCE.read_text(encoding="utf-8")
 
     assert 'name="device_setup_type"' in template
-    for setup_type in ("source_only", "municipal_direct", "dual_source_gravity", "dual_source_pumped", "custom"):
+    for setup_type in ("source_only", "municipal_direct", "dual_source_pumped", "custom"):
         assert f'value="{setup_type}"' in template
     assert "const DEVICE_SETUP_PRESETS=" in template
     assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template

@@ -9332,9 +9332,6 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         data.get("municipal_detection_mode") or
         ("sensor" if data.get("municipal_sensor_enabled") else "upper_level_rise")
     ).strip().lower()
-    data["source_gravity_fill_active"] = boolish_enabled(
-        data.get("source_gravity_fill_active"), default=False
-    )
     if data["lower_tank_level"] is not None:
         lower_liters = round((data["lower_tank_level"] / 100) * lower_capacity_liters, 1)
         data["lower_water_available_label"] = f"{lower_liters:.1f} L / {lower_capacity_liters:.1f} L"
@@ -12776,7 +12773,6 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "inlet_valve_state",
     "municipal_detection_mode",
     "municipal_trial_locked_to_source",
-    "source_gravity_fill_active",
     "upper_tank_count",
     "source_tank_count",
     "water_supply_plan",
@@ -20283,26 +20279,6 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "source_outlet_valve_enabled": False,
         "simulator_route": "municipal_direct",
         "simulator_upper_level": 20,
-        "auto_mode_enabled": True,
-    },
-    "municipal_source_gravity": {
-        "source_tank_monitoring_enabled": True,
-        "municipal_sensor_enabled": True,
-        "municipal_valve_enabled": False,
-        "source_outlet_valve_enabled": False,
-        "simulator_route": "municipal_source_gravity",
-        "simulator_upper_level": 70,
-        "simulator_source_level": 20,
-        "auto_mode_enabled": True,
-    },
-    "dual_source_gravity": {
-        "source_tank_monitoring_enabled": True,
-        "municipal_sensor_enabled": True,
-        "municipal_valve_enabled": True,
-        "source_outlet_valve_enabled": False,
-        "simulator_route": "dual_source_gravity",
-        "simulator_upper_level": 20,
-        "simulator_source_level": 70,
         "auto_mode_enabled": True,
     },
     "dual_source_pumped": {

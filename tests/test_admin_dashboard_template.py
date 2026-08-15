@@ -213,7 +213,6 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
 
     expected_modes = {
         "auto",
-        "municipal-source",
         "municipal-upper",
         "municipal-direct",
         "pump-only",
@@ -389,7 +388,7 @@ def test_pricing_and_animation_share_plan_configuration_catalog():
     assert "get('embed')==='1'" in animation
     assert "body.embedded .diagram-header,body.embedded .sidebar{display:none!important}" in animation
     assert "aspect-ratio:1050/790" in pricing
-    assert "configuredModes.push('municipal-source','municipal-upper','source-pump-fill','source-upper')" in animation
+    assert "configuredModes.push('municipal-upper','source-pump-fill','source-upper')" in animation
     assert "configuredModes.push('municipal-direct')" in animation
     assert "configuredModes.push('borewell')" in animation
     assert "configuredModes.push(hasSourceTank?'source-only':'pump-only')" in animation
@@ -1751,8 +1750,7 @@ def test_combined_fill_status_uses_firmware_active_fill_flags():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
     assert "const sourcePumpActive=flagEnabled(snapshot.source_pump_fill_active,false);" in customer_template
-    assert "const sourceGravityActive=flagEnabled(snapshot.source_gravity_fill_active,false);" in customer_template
-    assert "const filling=sourceGravityActive||pumpActive||valveFlowActive;" in customer_template
+    assert "const filling=pumpActive||valveFlowActive;" in customer_template
 
 
 def test_event_log_explains_motorized_valve_state_and_water_path():

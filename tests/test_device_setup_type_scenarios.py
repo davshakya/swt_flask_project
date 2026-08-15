@@ -13,8 +13,6 @@ EXPECTED_SETUPS = {
     "source_only",
     "borewell_upper",
     "municipal_direct",
-    "municipal_source_gravity",
-    "dual_source_gravity",
     "dual_source_pumped",
 }
 

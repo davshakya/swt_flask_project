@@ -135,18 +135,15 @@ body{font-size:16px}
     {% set master_upper_checked = ((not slave_upper_checked) and service_config.get("master_upper_sensor_enabled", not slave_device_checked)) or not slave_upper_checked %}
     {% set upper_setup_label = "Slave Upper" if slave_upper_checked else "Master Upper" %}
     {% set stored_setup_type = service_config.get("device_setup_type", "custom") %}
-    {% set configured_setup_type = stored_setup_type %}
-    {% if stored_setup_type == "custom" %}
+    {% set supported_setup_types = ("source_only", "borewell_upper", "municipal_direct", "dual_source_pumped", "custom") %}
+    {% set configured_setup_type = stored_setup_type if stored_setup_type in supported_setup_types else "custom" %}
+    {% if configured_setup_type == "custom" %}
         {% if service_config.get("municipal_sensor_enabled") and not service_config.get("source_tank_monitoring_enabled") %}
             {% set configured_setup_type = "municipal_direct" %}
         {% elif service_config.get("source_tank_monitoring_enabled") and not service_config.get("municipal_sensor_enabled") %}
             {% set configured_setup_type = "source_only" %}
         {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") and service_config.get("source_outlet_valve_enabled") %}
             {% set configured_setup_type = "dual_source_pumped" %}
-        {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled") %}
-            {% set configured_setup_type = "dual_source_gravity" %}
-        {% elif service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") %}
-            {% set configured_setup_type = "municipal_source_gravity" %}
         {% endif %}
     {% endif %}
     {% set upper_tank_height_value = current_saved_config.get("upper_tank_height_cm") or current_saved_config.get("tank_height_cm") or service_config.get("upper_tank_height_cm") or service_config.get("tank_height_cm") or live_snapshot.get("tank_height_cm") or "" %}
@@ -306,8 +303,6 @@ body{font-size:16px}
                         <option value="source_only" {% if configured_setup_type == "source_only" %}selected{% endif %}>Source Tank → Pump → Upper Tank</option>
                         <option value="borewell_upper" {% if configured_setup_type == "borewell_upper" %}selected{% endif %}>Borewell / Submersible Pump → Upper Tank</option>
                         <option value="municipal_direct" {% if configured_setup_type == "municipal_direct" %}selected{% endif %}>Municipal Water → Pump → Upper Tank (No Source)</option>
-                        <option value="municipal_source_gravity" {% if configured_setup_type == "municipal_source_gravity" %}selected{% endif %}>Municipal Gravity → Source → Pump → Upper</option>
-                        <option value="dual_source_gravity" {% if configured_setup_type == "dual_source_gravity" %}selected{% endif %}>Municipal Gravity → Source + Municipal/Source → Pump → Upper</option>
                         <option value="dual_source_pumped" {% if configured_setup_type == "dual_source_pumped" %}selected{% endif %}>Municipal/Source → Pump → Upper or Source (Inlet + Outlet Valves)</option>
                         <option value="custom" {% if configured_setup_type == "custom" %}selected{% endif %}>Custom Configuration</option>
                     </select>
@@ -818,8 +813,6 @@ const DEVICE_SETUP_PRESETS={
   source_only:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
   borewell_upper:{source:false,municipal:false,inlet:false,outlet:false,auto:true},
   municipal_direct:{source:false,municipal:true,inlet:false,outlet:false,auto:true},
-  municipal_source_gravity:{source:true,municipal:true,inlet:false,outlet:false,auto:true},
-  dual_source_gravity:{source:true,municipal:true,inlet:true,outlet:false,auto:true},
   dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true,auto:true},
 };
 function currentDeviceSetupType(){
