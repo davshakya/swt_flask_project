@@ -33,6 +33,15 @@ def test_every_setup_has_complete_features_and_automatic_scenario_levels():
         assert preset["simulator_route"]
 
 
+def test_borewell_setup_has_no_source_tank_or_municipal_hardware():
+    preset = server.DEVICE_SETUP_TYPE_FEATURES["borewell_upper"]
+
+    assert preset["source_tank_monitoring_enabled"] is False
+    assert preset["municipal_sensor_enabled"] is False
+    assert preset["municipal_valve_enabled"] is False
+    assert preset["source_outlet_valve_enabled"] is False
+
+
 def test_automatic_commands_reset_faults_and_enable_only_installed_features():
     for setup_type, preset in server.DEVICE_SETUP_TYPE_FEATURES.items():
         commands = server.automatic_simulator_commands_for_setup(setup_type, preset)
@@ -65,6 +74,7 @@ def test_device_detail_lists_every_setup_and_enables_auto_mode_on_selection():
         assert f'value="{setup_type}"' in template
         assert f"{setup_type}:" in template
     assert 'setChecked("autoModeOption",preset.auto);' in template
+    assert "borewell_upper:{source:false,municipal:false,inlet:false,outlet:false,auto:true}" in template
 
 
 def test_configuration_route_persists_setup_and_queues_scenario_for_test_firmware():

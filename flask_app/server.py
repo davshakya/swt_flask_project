@@ -20266,13 +20266,14 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "auto_mode_enabled": True,
     },
     "borewell_upper": {
-        "source_tank_monitoring_enabled": True,
+        # A borewell/submersible pump feeds the upper tank directly. It has no
+        # separate lower/source tank to monitor.
+        "source_tank_monitoring_enabled": False,
         "municipal_sensor_enabled": False,
         "municipal_valve_enabled": False,
         "source_outlet_valve_enabled": False,
         "simulator_route": "borewell",
         "simulator_upper_level": 20,
-        "simulator_source_level": 80,
         "auto_mode_enabled": True,
     },
     "municipal_direct": {
