@@ -337,8 +337,9 @@ def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
     assert "municipal availability" in animation
     assert 'id="waterFlowSensorHardware"' in animation
     assert 'id="motorCurrentSensorHardware"' in animation
-    assert 'id="contactorAuxSensorHardware"' in animation
-    assert "setInstalled($('contactorAuxSensorHardware'),hasContactorAux)" in animation
+    assert 'id="contactorAuxSensorHardware"' not in animation
+    assert "AUX CONTACT" not in animation
+    assert "contactor feedback" not in animation
     assert "setInstalled($('motorCurrentSensorHardware'),hasMotorCurrent)" in animation
     assert "setInstalled($('waterFlowSensorHardware'),hasWaterFlow)" in animation
     assert "configuredFlag('waterPressureSensor',true)" in animation
@@ -361,9 +362,10 @@ def test_water_flow_animation_pipe_topology_matches_every_supported_setup():
     assert '<path id="sourceOnlyBypass" class="flow" d="M290 540H390V205H414"/>' in animation
     assert '<path class="pipe" d="M80 105H390V205H414"/>' in animation
     assert '<path id="municipalOnlyBypass" class="flow" d="M80 105H390V205H414"/>' in animation
-    assert '<path class="pipe outlet-pipe" d="M890 275H690V305"/>' in animation
-    assert '<path id="houseOutlet" class="flow" d="M890 275H690V305"/>' in animation
-    assert "M780 245H735V275H690" not in animation
+    assert '<path class="pipe outlet-pipe" d="M780 235H700V275"/>' in animation
+    assert '<path id="houseOutlet" class="flow" d="M780 235H700V275"/>' in animation
+    assert 'id="flowSensorControllerWire"' in animation
+    assert 'd="M890 275H690V305"' not in animation
     assert ".outlet-pipe{stroke-linecap:butt;stroke-linejoin:miter}" in animation
     assert 'id="sourceLevelControllerWire" class="connection ultrasonic-wire" d="M435 423V565H455V590"' in animation
 

@@ -49,7 +49,7 @@
         <g id="municipalOnlyPipe"><path class="pipe" d="M80 105H390V205H414"/><path id="municipalOnlyBypass" class="flow" d="M80 105H390V205H414"/></g>
         <path class="pipe" d="M506 205H570V145H750V35H890V55"/><path id="pumpToUpper" class="flow" d="M506 205H570V145H750V35H890V55"/>
         <g id="pumpSourcePipe"><path class="pipe" d="M506 205H570V340H145V365"/><path id="pumpToSource" class="flow" d="M506 205H570V340H145V365"/></g>
-        <path class="pipe outlet-pipe" d="M890 275H690V305"/><path id="houseOutlet" class="flow" d="M890 275H690V305"/>
+        <path class="pipe outlet-pipe" d="M780 235H700V275"/><path id="houseOutlet" class="flow" d="M780 235H700V275"/>
         <text id="municipalSupplyLabel" x="390" y="94" class="route">MUNICIPAL SUPPLY</text><text id="pumpSourceLabel" x="280" y="327" class="route caption">PUMP FILL → SOURCE</text><text id="sourceOnlyLabel" x="292" y="327" class="route caption">DIRECT SOURCE → PUMP</text><text id="municipalOnlyLabel" x="245" y="165" class="route caption">DIRECT MUNICIPAL → PUMP</text><text x="625" y="132" class="route caption">PUMP → UPPER</text>
 
         <!-- Municipal inlet and presence sensor. -->
@@ -65,9 +65,9 @@
         <path id="valveToPump" class="flow" d="M378 205H414"/>
 
         <!-- Upper tank and its local sensing node. -->
-        <g><rect x="780" y="55" width="220" height="220" rx="22" class="tank"/><rect id="upperWater" x="780" y="110" width="220" height="165" class="water" clip-path="url(#upperClip)"/><text x="838" y="84" class="label">UPPER TANK</text><text id="upperCapacity" x="851" y="102" class="small compact">CAPACITY 1000 L</text><text id="upperLevel" x="858" y="180" class="label" font-size="30">70%</text><text id="upperVolume" x="851" y="204" class="small">700 L</text><text id="upperLimits" x="796" y="252" class="small compact">MIN 30%=300 L · MAX 95%=950 L</text><text x="890" y="48" class="route caption">FILL INLET</text><text x="690" y="267" class="route caption">HOUSE OUTLET</text><text id="upperSim" class="hidden"></text></g>
-        <path class="connection ultrasonic-wire" d="M890 275V312"/><g><rect x="790" y="312" width="200" height="48" rx="11" class="device device-on"/><text x="812" y="333" class="label">UPPER LEVEL SENSOR</text><text x="835" y="351" class="small">water level sensing</text></g>
-        <path class="connection turbidity-wire" d="M1000 235H1060V394H990"/><g><rect x="790" y="372" width="200" height="44" rx="11" class="device"/><text x="807" y="391" class="label">UPPER WATER QUALITY</text><text x="829" y="408" class="small">turbidity sensor</text></g>
+        <g><rect x="780" y="55" width="220" height="220" rx="22" class="tank"/><rect id="upperWater" x="780" y="110" width="220" height="165" class="water" clip-path="url(#upperClip)"/><text x="838" y="84" class="label">UPPER TANK</text><text id="upperCapacity" x="851" y="102" class="small compact">CAPACITY 1000 L</text><text id="upperLevel" x="858" y="180" class="label" font-size="30">70%</text><text id="upperVolume" x="851" y="204" class="small">700 L</text><text id="upperLimits" x="796" y="252" class="small compact">MIN 30%=300 L · MAX 95%=950 L</text><text x="890" y="48" class="route caption">FILL INLET</text><text x="700" y="296" class="route caption">HOUSE OUTLET</text><text id="upperSim" class="hidden"></text></g>
+        <path class="connection ultrasonic-wire" d="M890 275V325"/><g><rect x="790" y="325" width="200" height="48" rx="11" class="device device-on"/><text x="812" y="346" class="label">UPPER LEVEL SENSOR</text><text x="835" y="364" class="small">water level sensing</text></g>
+        <path class="connection turbidity-wire" d="M1000 235H1060V412H990"/><g><rect x="790" y="390" width="200" height="44" rx="11" class="device"/><text x="807" y="409" class="label">UPPER WATER QUALITY</text><text x="829" y="426" class="small">turbidity sensor</text></g>
 
         <!-- Source tank and local master-side sensors. -->
         <g id="sourceTankHardware"><rect x="55" y="365" width="235" height="205" rx="22" class="tank"/><rect id="sourceWater" x="55" y="415" width="235" height="155" class="water" clip-path="url(#sourceClip)"/><text x="112" y="395" class="label">SOURCE TANK</text><text id="sourceCapacity" x="121" y="413" class="small compact">CAPACITY 2000 L</text><text id="sourceLevel" x="137" y="482" class="label" font-size="30">30%</text><text id="sourceVolume" x="137" y="507" class="small">600 L</text><text id="sourceLimits" x="69" y="558" class="small compact">MIN 30%=600 L · MAX 95%=1,900 L</text><text x="76" y="355" class="route">FILL INLET</text><text x="194" y="532" class="small">PUMP OUTLET</text><text id="sourceSim" class="hidden"></text></g>
@@ -76,24 +76,24 @@
         <g id="sourceQualityHardware"><path class="connection turbidity-wire" d="M170 570V600"/><g><rect x="55" y="600" width="190" height="50" rx="12" class="device"/><text x="69" y="622" class="label">LOWER WATER QUALITY</text><text x="84" y="641" class="small">turbidity sensor</text></g></g>
 
         <!-- One simplified cable per ultrasonic sensor; conductor details are intentionally omitted. -->
-        <path class="connection ultrasonic-wire" d="M990 336H1025V610H1000V590"/>
+        <path class="connection ultrasonic-wire" d="M990 349H1025V610H1000V590"/>
         <path id="sourceLevelControllerWire" class="connection ultrasonic-wire" d="M435 423V565H455V590"/>
 
         <!-- One simplified cable per turbidity sensor. -->
         <path id="sourceQualityControllerWire" class="connection turbidity-wire" d="M245 625H365"/>
-        <path class="connection turbidity-wire" d="M990 395H1045V635H1000"/>
+        <path class="connection turbidity-wire" d="M990 412H1045V635H1000"/>
 
         <!-- Network and control wiring. -->
         <path class="wifi-wire" d="M900 662V700H500V662"/><text x="675" y="694" class="network-tag">CONTROLLER LINK</text>
         <path id="municipalWire" class="connection municipal-wire" d="M212 132V330H310V575H415V590"/>
+        <path id="flowSensorControllerWire" class="connection municipal-wire" d="M690 160V295H530V565H520V590"/>
         <g><rect x="365" y="590" width="185" height="72" rx="14" class="device" id="masterBox"/><text x="392" y="618" class="label">MAIN CONTROLLER</text><text x="388" y="642" class="small">safety · sensors · control</text></g>
         <path class="control-wire" d="M550 626H580"/><path id="valveControlCasing" class="wire-casing" d="M620 590V550H325V285H350V233"/><path id="valveControlWire" class="control-wire" d="M620 590V550H325V285H350V233"/><path id="outletValveControlCasing" class="wire-casing" d="M745 590V530H775V285H600V233H570"/><path id="outletValveControlWire" class="control-wire" d="M745 590V530H775V285H600V233H570"/>
         <!-- Independent momentary START/STOP dry contacts simulate the existing panel buttons. -->
-        <path id="relayToStarter" class="control-wire" d="M700 590L665 403"/>
-        <path id="starterToPump" class="field-power-wire" d="M565 380H540V255H490"/>
-        <g><rect id="starterBox" x="565" y="345" width="200" height="58" rx="12" class="device"/><text x="665" y="366" class="label caption">PUMP STARTER PANEL</text><text x="665" y="383" class="small panel-detail"><tspan x="665">START / STOP pulse</tspan><tspan x="665" dy="13">contactor · overload</tspan></text></g>
+        <path id="relayToStarter" class="control-wire" d="M700 590L665 418"/>
+        <path id="starterToPump" class="field-power-wire" d="M565 389H540V255H490"/>
+        <g><rect id="starterBox" x="565" y="360" width="200" height="58" rx="12" class="device"/><text x="665" y="381" class="label caption">PUMP STARTER PANEL</text><text x="665" y="398" class="small panel-detail"><tspan x="665">START / STOP pulse</tspan><tspan x="665" dy="13">contactor · overload</tspan></text></g>
         <g id="motorCurrentSensorHardware"><circle cx="540" cy="300" r="13" fill="#102b57" stroke="#ff6174" stroke-width="3"/><circle cx="540" cy="300" r="5" fill="#0a2148"/><text x="472" y="326" class="label" font-size="11">CURRENT SENSOR</text></g>
-        <g id="contactorAuxSensorHardware"><path class="connection municipal-wire" d="M665 345V335"/><rect x="600" y="305" width="130" height="30" rx="9" class="device device-on"/><text x="614" y="318" class="label" font-size="10">AUX CONTACT</text><text x="619" y="330" class="small compact">contactor feedback</text></g>
         <g><rect x="580" y="590" width="205" height="72" rx="14" class="device device-on"/><text x="615" y="618" class="label">PUMP CONTROL</text><text x="610" y="643" class="small">pump · valve control</text></g>
         <g><rect x="820" y="590" width="180" height="72" rx="13" class="device"/><text x="842" y="618" class="label">TANK CONTROLLER</text><text x="858" y="642" class="small">upper tank sensing</text></g>
 
@@ -205,7 +205,6 @@
     const hasSourceTank=devices?devices.sourceTank:!m.municipalDirect&&!m.borewell;
     const hasValves=devices?devices.motorizedValves:!m.sourceOnly&&!m.municipalDirect;
     const hasWaterQuality=devices?devices.waterQuality===true:true;
-    const hasContactorAux=devices?devices.contactorAuxSensor===true:true;
     const hasMotorCurrent=devices?devices.motorCurrentSensor===true:true;
     const hasWaterFlow=devices?devices.waterFlowSensor===true:true;
     document.body.classList.toggle('no-municipal',!hasMunicipal);
@@ -221,7 +220,7 @@
     setInstalled($('sourceTankHardware'),hasSourceTank);setInstalled($('sourceTankSensorHardware'),hasSourceTank);setInstalled($('sourceLevelControllerWire'),hasSourceTank);
     setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality);setInstalled($('sourceQualityControllerWire'),hasSourceTank&&hasWaterQuality);
     setInstalled($('threeWayValve'),hasValves);setInstalled($('outletValve'),hasValves);setInstalled($('valveControlCasing'),hasValves);setInstalled($('valveControlWire'),hasValves);setInstalled($('outletValveControlCasing'),hasValves);setInstalled($('outletValveControlWire'),hasValves);
-    setInstalled($('contactorAuxSensorHardware'),hasContactorAux);setInstalled($('motorCurrentSensorHardware'),hasMotorCurrent);setInstalled($('waterFlowSensorHardware'),hasWaterFlow);
+    setInstalled($('motorCurrentSensorHardware'),hasMotorCurrent);setInstalled($('waterFlowSensorHardware'),hasWaterFlow);setInstalled($('flowSensorControllerWire'),hasWaterFlow);
     const upperQualityLabel=[...document.querySelectorAll('text')].find(el=>el.textContent.includes('UPPER WATER QUALITY'));
     setInstalled(upperQualityLabel?.parentElement,hasWaterQuality);
     document.querySelectorAll('path.turbidity-wire').forEach(path=>setInstalled(path,hasWaterQuality));
