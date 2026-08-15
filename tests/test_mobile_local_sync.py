@@ -275,6 +275,36 @@ def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
     assert '"START_FIRMWARE_UPGRADE"' in android_source
 
 
+def test_android_firmware_upgrade_action_is_queued_with_a_complete_result():
+    device_id = "swt-test-mobile-ota-queue-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
+
+    try:
+        result = server.queue_device_mobile_action(
+            server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
+            device_id,
+            payload={"source": "device_detail"},
+        )
+
+        assert not isinstance(result, tuple)
+        assert result["status"] == "queued"
+        assert result["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+        assert result["target_device"] == device_id
+        assert isinstance(result["queue_id"], int)
+        with server.get_db() as db:
+            queued = db.execute(
+                "SELECT action, payload_json FROM device_mobile_action_queue WHERE id = ?",
+                (result["queue_id"],),
+            ).fetchone()
+        assert queued is not None
+        assert queued["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+        assert '"source":"device_detail"' in queued["payload_json"]
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
+
+
 def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():
     server_source = SERVER_SOURCE.read_text(encoding="utf-8")
     route_start = server_source.index("def mobile_bootstrap():")

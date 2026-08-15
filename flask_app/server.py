@@ -16809,7 +16809,7 @@ def queue_device_mobile_action(action, target_device, payload=None):
             """,
             (normalized_target_device, normalized_action),
         )
-        db.execute(
+        insert_cursor = db.execute(
             """
             INSERT INTO device_mobile_action_queue (target_device, action, payload_json)
             VALUES (?, ?, ?)
@@ -16823,10 +16823,11 @@ def queue_device_mobile_action(action, target_device, payload=None):
               AND delivered_at < datetime('now', '-7 day')
             """
         )
-        return cursor.lastrowid
+        queue_id = insert_cursor.lastrowid
 
     return {
         "status": "queued",
+        "queue_id": queue_id,
         "action": normalized_action,
         "target_device": normalized_target_device,
         "payload": payload or {},
