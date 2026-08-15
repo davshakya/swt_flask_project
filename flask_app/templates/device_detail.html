@@ -321,8 +321,8 @@ body{font-size:16px}
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
-                        <label id="municipalValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') or not service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("municipal_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Inlet Motorized Valve</label>
-                        <label id="sourceOutletValveOptionRow" class="service-option{% if not service_config.get('municipal_sensor_enabled') or not service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") and service_config.get("source_tank_monitoring_enabled") and service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Outlet Motorized Valve</label>
+                        <label id="municipalValveOptionRow" class="service-option"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Inlet Motorized Valve</label>
+                        <label id="sourceOutletValveOptionRow" class="service-option"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Outlet Motorized Valve</label>
                         <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Lower Turbidity</label>
                         <label class="service-option"><input id="relayOption" type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
@@ -352,11 +352,11 @@ body{font-size:16px}
                     </div>
                     <div class="config-section" id="pumpConfirmationSensors">
                         <h4>Pump Confirmation Sensors</h4>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
-                        <label class="service-option"><input type="checkbox" disabled {% if live_snapshot.get('water_pressure_sensor_enabled') %}checked{% endif %}> Water-pressure sensor</label>
-                        <div class="helper-text">These are optional hardware/build settings. Checked means the installed firmware reports that sensor as enabled. Configure its firmware flag and GPIO/ADC pin, rebuild, and flash the controller to change it.</div>
+                        <label class="service-option"><input type="checkbox" name="starter_contactor_sensor_enabled" value="1" {% if service_config.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
+                        <label class="service-option"><input type="checkbox" name="motor_current_sensor_enabled" value="1" {% if service_config.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
+                        <label class="service-option"><input type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
+                        <label class="service-option"><input type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') %}checked{% endif %}> Municipal water pressure/availability sensor</label>
+                        <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. A disabled sensor is ignored by pump confirmation and safety logic.</div>
                     </div>
                 </div>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
@@ -866,14 +866,8 @@ function syncRuntimeConfigurationOptions(){
   const municipalValve=document.getElementById("municipalValveOption");
   const outletValve=document.getElementById("sourceOutletValveOption");
   const municipalEnabled=Boolean(municipalFeature?.checked);
-  const municipalValvesApplicable=municipalEnabled&&Boolean(sourceFeature?.checked);
-  document.getElementById("municipalValveOptionRow")?.classList.toggle("hidden-section",!municipalValvesApplicable);
-  document.getElementById("sourceOutletValveOptionRow")?.classList.toggle("hidden-section",!municipalValvesApplicable);
+  const municipalValvesApplicable=Boolean(sourceFeature?.checked);
   document.getElementById("municipalDirectUpperHint")?.classList.toggle("hidden-section",!(municipalEnabled&&!sourceFeature?.checked));
-  if(!municipalValvesApplicable){
-    if(municipalValve)municipalValve.checked=false;
-    if(outletValve)outletValve.checked=false;
-  }
   syncSimulatorControlsWithRuntimeForm();
   if(!slaveDevice||!slaveUpper||!masterUpper)return;
   const slaveEnabled=slaveDevice.checked;

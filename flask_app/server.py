@@ -5784,7 +5784,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-14-capacity-latest-state-v1"
+DB_SCHEMA_REVISION = "2026-08-15-optional-sensors-valves-v1"
 
 
 def init_db_serialized():
@@ -6359,6 +6359,10 @@ def ensure_device_service_configs_table(cursor):
             municipal_sensor_enabled INTEGER NOT NULL DEFAULT 0,
             municipal_valve_enabled INTEGER NOT NULL DEFAULT 0,
             source_outlet_valve_enabled INTEGER NOT NULL DEFAULT 0,
+            starter_contactor_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            motor_current_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            water_flow_sensor_enabled INTEGER NOT NULL DEFAULT 0,
+            water_pressure_sensor_enabled INTEGER NOT NULL DEFAULT 0,
             turbidity_monitoring_enabled INTEGER NOT NULL DEFAULT 0,
             master_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
             slave_turbidity_enabled INTEGER NOT NULL DEFAULT 0,
@@ -6409,6 +6413,10 @@ def ensure_device_service_configs_columns(cursor):
         "municipal_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
         "municipal_valve_enabled": "INTEGER NOT NULL DEFAULT 0",
         "source_outlet_valve_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "starter_contactor_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "motor_current_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "water_flow_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
+        "water_pressure_sensor_enabled": "INTEGER NOT NULL DEFAULT 0",
         "turbidity_monitoring_enabled": "INTEGER NOT NULL DEFAULT 0",
         "master_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
         "slave_turbidity_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -7566,6 +7574,10 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
     municipal_valve_enabled = boolish_enabled(payload.get("municipal_valve_enabled"), default=False)
     source_outlet_valve_enabled = boolish_enabled(payload.get("source_outlet_valve_enabled"), default=False)
+    starter_contactor_sensor_enabled = boolish_enabled(payload.get("starter_contactor_sensor_enabled"), default=False)
+    motor_current_sensor_enabled = boolish_enabled(payload.get("motor_current_sensor_enabled"), default=False)
+    water_flow_sensor_enabled = boolish_enabled(payload.get("water_flow_sensor_enabled"), default=False)
+    water_pressure_sensor_enabled = boolish_enabled(payload.get("water_pressure_sensor_enabled"), default=False)
     turbidity_monitoring_enabled = boolish_enabled(payload.get("turbidity_monitoring_enabled"), default=False)
     master_turbidity_enabled = boolish_enabled(payload.get("master_turbidity_enabled"), default=turbidity_monitoring_enabled)
     slave_turbidity_enabled = boolish_enabled(payload.get("slave_turbidity_enabled"), default=turbidity_monitoring_enabled)
@@ -7635,6 +7647,10 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "municipal_sensor_enabled": municipal_sensor_enabled,
         "municipal_valve_enabled": municipal_valve_enabled,
         "source_outlet_valve_enabled": source_outlet_valve_enabled,
+        "starter_contactor_sensor_enabled": starter_contactor_sensor_enabled,
+        "motor_current_sensor_enabled": motor_current_sensor_enabled,
+        "water_flow_sensor_enabled": water_flow_sensor_enabled,
+        "water_pressure_sensor_enabled": water_pressure_sensor_enabled,
         "turbidity_monitoring_enabled": turbidity_monitoring_enabled,
         "master_turbidity_enabled": master_turbidity_enabled,
         "slave_turbidity_enabled": slave_turbidity_enabled,
@@ -7705,6 +7721,10 @@ def default_device_service_config(device_id=None, account=None):
             "municipal_sensor_enabled": False,
             "municipal_valve_enabled": False,
             "source_outlet_valve_enabled": False,
+            "starter_contactor_sensor_enabled": False,
+            "motor_current_sensor_enabled": False,
+            "water_flow_sensor_enabled": False,
+            "water_pressure_sensor_enabled": False,
             "turbidity_monitoring_enabled": False,
             "master_turbidity_enabled": False,
             "slave_turbidity_enabled": False,
@@ -7806,6 +7826,10 @@ def snapshot_device_service_config(snapshot, device_id=None, account=None, exist
         ("local_firmware_upload_service", "local_firmware_upload_enabled"),
         ("municipal_valve_feature_enabled", "municipal_valve_enabled"),
         ("source_pump_fill_feature_enabled", "source_outlet_valve_enabled"),
+        ("starter_contactor_sensor_enabled", "starter_contactor_sensor_enabled"),
+        ("motor_current_sensor_enabled", "motor_current_sensor_enabled"),
+        ("water_flow_sensor_enabled", "water_flow_sensor_enabled"),
+        ("water_pressure_sensor_enabled", "water_pressure_sensor_enabled"),
     ):
         live_flag = snapshot_device_service_flag(snapshot, snapshot_key)
         if live_flag is not None:
@@ -7872,7 +7896,9 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             """
             SELECT device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                    slave_device_enabled, slave_upper_sensor_enabled,
-                   source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+                   source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled,
+                   starter_contactor_sensor_enabled, motor_current_sensor_enabled,
+                   water_flow_sensor_enabled, water_pressure_sensor_enabled, turbidity_monitoring_enabled,
                    master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                    cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                    buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -7914,7 +7940,9 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         """
         SELECT device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                slave_device_enabled, slave_upper_sensor_enabled,
-               source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+               source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled,
+               starter_contactor_sensor_enabled, motor_current_sensor_enabled,
+               water_flow_sensor_enabled, water_pressure_sensor_enabled, turbidity_monitoring_enabled,
                master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -7994,6 +8022,10 @@ def upsert_device_service_config(
     municipal_sensor_enabled=None,
     municipal_valve_enabled=None,
     source_outlet_valve_enabled=None,
+    starter_contactor_sensor_enabled=None,
+    motor_current_sensor_enabled=None,
+    water_flow_sensor_enabled=None,
+    water_pressure_sensor_enabled=None,
     turbidity_monitoring_enabled=None,
     master_turbidity_enabled=None,
     slave_turbidity_enabled=None,
@@ -8076,6 +8108,22 @@ def upsert_device_service_config(
     resolved_source_outlet_valve_enabled = boolish_enabled(
         source_outlet_valve_enabled,
         default=existing.get("source_outlet_valve_enabled", False),
+    )
+    resolved_starter_contactor_sensor_enabled = boolish_enabled(
+        starter_contactor_sensor_enabled,
+        default=existing.get("starter_contactor_sensor_enabled", False),
+    )
+    resolved_motor_current_sensor_enabled = boolish_enabled(
+        motor_current_sensor_enabled,
+        default=existing.get("motor_current_sensor_enabled", False),
+    )
+    resolved_water_flow_sensor_enabled = boolish_enabled(
+        water_flow_sensor_enabled,
+        default=existing.get("water_flow_sensor_enabled", False),
+    )
+    resolved_water_pressure_sensor_enabled = boolish_enabled(
+        water_pressure_sensor_enabled,
+        default=existing.get("water_pressure_sensor_enabled", False),
     )
     resolved_turbidity_monitoring_enabled = boolish_enabled(
         turbidity_monitoring_enabled,
@@ -8198,7 +8246,9 @@ def upsert_device_service_config(
             INSERT INTO device_service_configs(
                 device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
-                source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled, turbidity_monitoring_enabled,
+                source_tank_monitoring_enabled, municipal_sensor_enabled, municipal_valve_enabled, source_outlet_valve_enabled,
+                starter_contactor_sensor_enabled, motor_current_sensor_enabled,
+                water_flow_sensor_enabled, water_pressure_sensor_enabled, turbidity_monitoring_enabled,
                 master_turbidity_enabled, slave_turbidity_enabled, relay_enabled, ai_analysis_enabled,
                 cloud_feed_mode, ota_enabled, local_firmware_upload_enabled,
                 buzzer_enabled, led_display_enabled, auto_mode_enabled, android_sso_session_limit,
@@ -8212,7 +8262,7 @@ def upsert_device_service_config(
                 lower_tank_service_state, slave_device_service_state,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             ON CONFLICT(device_id) DO UPDATE SET
                 device_setup_type=excluded.device_setup_type,
                 main_sensor_enabled=excluded.main_sensor_enabled,
@@ -8223,6 +8273,10 @@ def upsert_device_service_config(
                 municipal_sensor_enabled=excluded.municipal_sensor_enabled,
                 municipal_valve_enabled=excluded.municipal_valve_enabled,
                 source_outlet_valve_enabled=excluded.source_outlet_valve_enabled,
+                starter_contactor_sensor_enabled=excluded.starter_contactor_sensor_enabled,
+                motor_current_sensor_enabled=excluded.motor_current_sensor_enabled,
+                water_flow_sensor_enabled=excluded.water_flow_sensor_enabled,
+                water_pressure_sensor_enabled=excluded.water_pressure_sensor_enabled,
                 turbidity_monitoring_enabled=excluded.turbidity_monitoring_enabled,
                 master_turbidity_enabled=excluded.master_turbidity_enabled,
                 slave_turbidity_enabled=excluded.slave_turbidity_enabled,
@@ -8266,6 +8320,10 @@ def upsert_device_service_config(
                 1 if resolved_municipal_sensor_enabled else 0,
                 1 if resolved_municipal_valve_enabled else 0,
                 1 if resolved_source_outlet_valve_enabled else 0,
+                1 if resolved_starter_contactor_sensor_enabled else 0,
+                1 if resolved_motor_current_sensor_enabled else 0,
+                1 if resolved_water_flow_sensor_enabled else 0,
+                1 if resolved_water_pressure_sensor_enabled else 0,
                 1 if resolved_turbidity_monitoring_enabled else 0,
                 1 if resolved_master_turbidity_enabled else 0,
                 1 if resolved_slave_turbidity_enabled else 0,
@@ -8332,7 +8390,7 @@ def build_device_service_command(service_config):
     slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG10:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}".format(
+    return "SERVICECFG11:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -8347,6 +8405,10 @@ def build_device_service_command(service_config):
         slave_turbidity=1 if slave_turbidity_enabled else 0,
         municipal_valve=1 if municipal_valve_enabled else 0,
         source_outlet_valve=1 if source_outlet_valve_enabled else 0,
+        starter_aux=1 if bool(config.get("starter_contactor_sensor_enabled")) else 0,
+        motor_current=1 if bool(config.get("motor_current_sensor_enabled")) else 0,
+        water_flow=1 if bool(config.get("water_flow_sensor_enabled")) else 0,
+        water_pressure=1 if bool(config.get("water_pressure_sensor_enabled")) else 0,
     )
 
 
@@ -15216,7 +15278,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = [
             "master upper",
@@ -15229,14 +15291,16 @@ def describe_command_activity(command):
             "local upload",
             "auto mode",
         ]
-        if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
+        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
-        if normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
+        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
             labels.extend(("lower turbidity", "upper turbidity"))
         elif normalized.startswith("SERVICECFG7:"):
             labels.append("turbidity monitoring")
-        if normalized.startswith("SERVICECFG10:"):
+        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:"):
             labels.extend(("inlet motorized valve", "outlet motorized valve"))
+            if normalized.startswith("SERVICECFG11:"):
+                labels.extend(("starter auxiliary sensor", "motor current sensor", "water flow sensor", "water pressure sensor"))
         elif normalized.startswith("SERVICECFG9:"):
             labels.append("inlet motorized valve")
 
@@ -20381,15 +20445,16 @@ def admin_device_detail_configuration(device_id):
     setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
     municipal_feature_enabled = "municipal_sensor_enabled" in request.form
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
-    municipal_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("municipal_valve_enabled" in request.form)
-    source_outlet_valve_enabled = municipal_feature_enabled and source_tank_enabled and ("source_outlet_valve_enabled" in request.form)
+    municipal_valve_enabled = "municipal_valve_enabled" in request.form
+    source_outlet_valve_enabled = "source_outlet_valve_enabled" in request.form
     auto_mode_enabled = "auto_mode_enabled" in request.form
     if setup_features is not None:
         source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
-        municipal_feature_enabled = setup_features["municipal_sensor_enabled"]
-        municipal_valve_enabled = setup_features["municipal_valve_enabled"]
-        source_outlet_valve_enabled = setup_features["source_outlet_valve_enabled"]
-        auto_mode_enabled = setup_features["auto_mode_enabled"]
+        if setup_type not in {"municipal_direct", "dual_source_pumped"}:
+            municipal_feature_enabled = False
+        if setup_type != "dual_source_pumped":
+            municipal_valve_enabled = False
+            source_outlet_valve_enabled = False
     try:
         updated_config = upsert_device_service_config(
             scoped_device_id,
@@ -20402,6 +20467,10 @@ def admin_device_detail_configuration(device_id):
             municipal_sensor_enabled=municipal_feature_enabled,
             municipal_valve_enabled=municipal_valve_enabled,
             source_outlet_valve_enabled=source_outlet_valve_enabled,
+            starter_contactor_sensor_enabled=("starter_contactor_sensor_enabled" in request.form),
+            motor_current_sensor_enabled=("motor_current_sensor_enabled" in request.form),
+            water_flow_sensor_enabled=("water_flow_sensor_enabled" in request.form),
+            water_pressure_sensor_enabled=("water_pressure_sensor_enabled" in request.form),
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),

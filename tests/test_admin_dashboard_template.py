@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import sys
 
 
@@ -326,7 +327,75 @@ def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
     assert "const hasWaterQuality=devices?devices.waterQuality===true:true" in animation
     assert "setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality)" in animation
     assert "document.body.classList.toggle('no-water-quality',!hasWaterQuality)" in animation
-    assert "const hasCheckValve=hasMunicipal&&hasSourceTank" in animation
+    assert "ONE-WAY CHECK VALVE" not in animation
+    assert 'id="checkValve"' not in animation
+    assert "setInstalled($('municipalPumpPipe'),hasMunicipal&&hasValves)" in animation
+    assert "setInstalled($('sourceValvePipe'),hasSourceTank&&hasValves)" in animation
+    assert "setInstalled($('pumpSourcePipe'),hasValves&&supportsSourceFill)" in animation
+    assert 'id="municipalSensor"' in animation
+    assert "PRESSURE SENSOR" in animation
+    assert "municipal availability" in animation
+    assert 'id="waterFlowSensorHardware"' in animation
+    assert 'id="motorCurrentSensorHardware"' in animation
+    assert 'id="contactorAuxSensorHardware"' in animation
+    assert "setInstalled($('contactorAuxSensorHardware'),hasContactorAux)" in animation
+    assert "setInstalled($('motorCurrentSensorHardware'),hasMotorCurrent)" in animation
+    assert "setInstalled($('waterFlowSensorHardware'),hasWaterFlow)" in animation
+    assert "configuredFlag('waterPressureSensor',true)" in animation
+    assert "configuredFlag('contactorAuxSensor',false)" in animation
+
+
+def test_water_flow_animation_pipe_topology_matches_every_supported_setup():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+    catalog = json.loads(
+        (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_plan_catalog.json").read_text(encoding="utf-8")
+    )
+
+    # Every animated route has an underlying grey pipe over the same endpoints;
+    # animation dots must never be the only visible representation of a pipe.
+    assert '<path class="pipe" d="M80 105H350V177M378 205H414"/>' in animation
+    assert '<path id="municipalToPump" class="flow" d="M80 105H350V177"/>' in animation
+    assert '<path class="pipe" d="M290 540H350V233M378 205H414"/>' in animation
+    assert '<path id="sourceToPump" class="flow" d="M290 540H350V233"/>' in animation
+    assert '<path class="pipe" d="M290 540H390V205H414"/>' in animation
+    assert '<path id="sourceOnlyBypass" class="flow" d="M290 540H390V205H414"/>' in animation
+    assert '<path class="pipe" d="M80 105H390V205H414"/>' in animation
+    assert '<path id="municipalOnlyBypass" class="flow" d="M80 105H390V205H414"/>' in animation
+    assert '<path class="pipe outlet-pipe" d="M890 275H690V305"/>' in animation
+    assert '<path id="houseOutlet" class="flow" d="M890 275H690V305"/>' in animation
+    assert "M780 245H735V275H690" not in animation
+    assert ".outlet-pipe{stroke-linecap:butt;stroke-linejoin:miter}" in animation
+    assert 'id="sourceLevelControllerWire" class="connection ultrasonic-wire" d="M435 423V565H455V590"' in animation
+
+    # Control and municipal sensor wiring use separate, explicit lanes instead
+    # of overlapping curves through the centre of the device diagram.
+    assert 'id="municipalWire" class="connection municipal-wire" d="M212 132V330H310V575H415V590"' in animation
+    assert 'id="valveControlWire" class="control-wire" d="M620 590V550H325V285H350V233"' in animation
+    assert 'id="outletValveControlWire" class="control-wire" d="M745 590V530H775V285H600V233H570"' in animation
+    assert 'id="valveControlCasing" class="wire-casing" d="M620 590V550H325V285H350V233"' in animation
+    assert 'id="outletValveControlCasing" class="wire-casing" d="M745 590V530H775V285H600V233H570"' in animation
+    assert "setInstalled($('valveControlCasing'),hasValves)" in animation
+    assert "setInstalled($('outletValveControlCasing'),hasValves)" in animation
+    assert "M630 590C560 430" not in animation
+    assert "M680 590C680 440" not in animation
+
+    # Fixed plans use exactly one supported inlet topology. Optional dual-route
+    # plumbing is only exposed when its matching devices and modes are present.
+    for name, plan in catalog["plans"].items():
+        if not plan.get("animation"):
+            continue
+        devices = plan["devices"]
+        modes = set(plan["modes"])
+        assert "checkValve" not in devices, name
+        if "borewell" in modes:
+            assert devices["submersible"] is True
+            assert devices["sourceTank"] is False
+            assert devices["municipal"] is False
+            assert devices["motorizedValves"] is False
+        if "source-only" in modes:
+            assert devices["sourceTank"] is True
+            assert devices["municipal"] is False
+            assert devices["motorizedValves"] is False
 
 
 def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
