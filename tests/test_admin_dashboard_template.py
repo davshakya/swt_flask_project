@@ -1788,3 +1788,18 @@ def test_login_modal_has_scoped_high_contrast_theme():
     assert "-webkit-text-fill-color:#f4fcfd!important" in login_template
     assert '#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill' in login_template
     assert "-webkit-box-shadow:0 0 0 1000px #102f39 inset!important" in login_template
+
+
+def test_device_detail_uses_real_page_views_and_keeps_admin_actions_intact():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    for page in ("overview", "diagnostics", "configuration", "firmware", "logs"):
+        assert f'data-device-tab="{page}"' in device_template
+        assert f'data-device-page="{page}"' in device_template
+    assert "function activateDevicePage" in device_template
+    assert 'id="deviceCommandsCard"' in device_template
+    assert 'id="deviceSimulatorsSection"' in device_template
+    assert 'id="diagnosticTools"' in device_template
+    assert "Danger Zone" in device_template
+    assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
+    assert 'action="/admin/customers/{{ device_id }}/simulator"' in device_template
