@@ -6,8 +6,14 @@ import re
 import secrets
 import time
 
-FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
-FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b")
+# Accept the current vYY.M.increment format and legacy YY.train.increment
+# artifacts so previously built firmware can still be inspected or restored.
+FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(
+    r"^(?:v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*|\d{2}\.[1-9]\d*\.[1-9]\d*)$"
+)
+FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(
+    rb"(?<![A-Za-z0-9])(?:v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*|\d{2}\.[1-9]\d*\.[1-9]\d*)(?![A-Za-z0-9])"
+)
 FIRMWARE_ARTIFACT_ROLES = ("master", "slave")
 FIRMWARE_BINARY_ROLE_MARKERS = {
     "master": (
@@ -69,12 +75,12 @@ def extract_firmware_version_label(payload):
     matches = FIRMWARE_RELEASE_VERSION_BYTES_PATTERN.findall(payload)
     if not matches:
         raise ValueError(
-            "Firmware version in YY.n.n format was not found inside the uploaded binary. "
-            "Build the firmware first and upload .pio/build/nodemcuv2/firmware.bin."
+            "Firmware version in vYY.M.increment format was not found inside the uploaded binary. "
+            "Build the firmware first and upload the generated environment-specific firmware.bin."
         )
     version_label = matches[-1].decode("ascii")
     if not FIRMWARE_RELEASE_VERSION_PATTERN.match(version_label):
-        raise ValueError("Firmware version must use YY.n.n format, for example 26.1.276.")
+        raise ValueError("Firmware version must use vYY.M.increment format, for example v26.8.276.")
     return version_label
 
 

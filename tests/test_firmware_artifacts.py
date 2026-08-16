@@ -7,9 +7,20 @@ from flask_app.firmware_artifacts import (
     build_firmware_artifact_file_response,
     detect_firmware_binary_build_flags,
     detect_firmware_binary_role,
+    extract_firmware_version_label,
     validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
 )
+
+
+def test_extract_firmware_version_accepts_current_and_legacy_formats():
+    assert extract_firmware_version_label(b"demo v26.8.614 SWT_FIRMWARE_ROLE=master") == "v26.8.614"
+    assert extract_firmware_version_label(b"demo 26.1.613 SWT_FIRMWARE_ROLE=master") == "26.1.613"
+
+
+def test_extract_firmware_version_rejects_invalid_current_month():
+    with pytest.raises(ValueError, match=r"vYY\.M\.increment"):
+        extract_firmware_version_label(b"demo v26.13.614 SWT_FIRMWARE_ROLE=master")
 
 
 class FakeResponse:

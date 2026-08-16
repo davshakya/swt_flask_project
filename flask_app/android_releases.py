@@ -22,7 +22,11 @@ ANDROID_TYPED_VALUE_BOOLEAN = 0x12
 ANDROID_STRING_POOL_UTF8_FLAG = 0x00000100
 ANDROID_VERSION_CODE_RESOURCE_ID = 0x0101021B
 ANDROID_VERSION_NAME_RESOURCE_ID = 0x0101021C
-ANDROID_RELEASE_VERSION_PATTERN = re.compile(r"^\d{2}\.[1-9]\d*\.[1-9]\d*$")
+# New releases use vYY.M.increment. Keep the previous YY.train.increment form
+# readable so existing uploaded APKs remain manageable during migration.
+ANDROID_RELEASE_VERSION_PATTERN = re.compile(
+    r"^(?:v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*|\d{2}\.[1-9]\d*\.[1-9]\d*)$"
+)
 
 
 def sanitize_android_apk_filename(filename):
@@ -81,7 +85,7 @@ def normalize_android_version_name(value):
     if not text:
         raise ValueError("Android version name is required.")
     if not ANDROID_RELEASE_VERSION_PATTERN.match(text):
-        raise ValueError("Android version name must use YY.n.n format, for example 26.1.34.")
+        raise ValueError("Android version name must use vYY.M.increment format, for example v26.8.453.")
     return text
 
 

@@ -52,6 +52,7 @@ Within the wider workspace:
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
+- APK update availability is determined from the uploaded APK's embedded numeric `versionCode`; release names use `vYY.M.<increment>`, and uploading the same code again does not create an update
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
@@ -435,6 +436,8 @@ Important tables include:
 - `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
+
+The public homepage visitor count is incremented atomically in `app_settings` and the database-confirmed value is rendered with no-store cache headers. This avoids stale per-process counts when Passenger or Gunicorn runs multiple workers.
 
 Important production notes:
 

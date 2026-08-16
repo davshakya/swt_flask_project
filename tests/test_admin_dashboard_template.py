@@ -1622,7 +1622,7 @@ def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
     assert "binding.cloudPumpActivityChart.setChart" not in android_source
 
 
-def test_release_versions_use_year_train_increment_syntax():
+def test_release_versions_use_year_month_increment_syntax():
     android_build = (PROJECT_ROOT.parent / "swt_android_app_project" / "app" / "build.gradle.kts").read_text(
         encoding="utf-8"
     )
@@ -1632,10 +1632,10 @@ def test_release_versions_use_year_train_increment_syntax():
     android_release_helper = (PROJECT_ROOT / "flask_app" / "android_releases.py").read_text(encoding="utf-8")
     firmware_release_helper = (PROJECT_ROOT / "flask_app" / "firmware_artifacts.py").read_text(encoding="utf-8")
 
-    assert 'return "${releaseVersionYearPrefix()}.$train.$patch"' in android_build
-    assert 'return f"{current_version_year_prefix()}.{train}.{patch}"' in firmware_loader
-    assert r"^\d{2}\.[1-9]\d*\.[1-9]\d*$" in android_release_helper
-    assert rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b".decode("ascii") in firmware_release_helper
+    assert '"v${releaseVersionYearPrefix()}.${releaseVersionMonth()}.${versionCode.coerceAtLeast(1)}"' in android_build
+    assert 'return f"v{current_version_year_prefix()}.{current_version_month()}.{patch}"' in firmware_loader
+    assert r"v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*" in android_release_helper
+    assert r"v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*" in firmware_release_helper
 
 
 def test_register_device_modal_is_detached_and_shows_progress():
