@@ -869,7 +869,7 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
 def test_customer_graphs_refresh_after_live_telemetry_changes():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert "const ANALYTICS_LIVE_REFRESH_MS=30000;" in customer_template
+    assert "const ANALYTICS_LIVE_REFRESH_MS=300000;" in customer_template
     assert "Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS" in customer_template
     assert "loadAnalytics({force:true})" in customer_template
 
@@ -898,6 +898,7 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
+    assert "const ANALYTICS_LIVE_REFRESH_MS=300000;" in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
     assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template

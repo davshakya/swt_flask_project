@@ -773,6 +773,8 @@ DEFAULT_DEVICE_SOURCE_MODE = (
 MOBILE_TOKEN_MAX_AGE_SECONDS = max(3600, env_int("MOBILE_TOKEN_MAX_AGE_HOURS", 168) * 3600)
 MOBILE_TOKEN_SERIALIZER = URLSafeTimedSerializer(app.secret_key, salt=MOBILE_TOKEN_SALT)
 analytics_cache = {}
+analytics_build_locks = {}
+analytics_build_locks_guard = threading.Lock()
 fixed_ai_dashboard_cache = {}
 dashboard_snapshot_cache = {}
 dashboard_summary_cache = {}
@@ -810,7 +812,7 @@ ANALYTICS_MAX_DAILY_TANK_TURNOVERS = max(
 )
 ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR = env_float("ANALYTICS_MIN_CONSUMPTION_RATE_PCT_PER_HOUR", 0.05)
 AI_LEAK_ALERT_MIN_CONFIDENCE = max(90.0, min(99.0, env_float("AI_LEAK_ALERT_MIN_CONFIDENCE", 90.0)))
-ANALYTICS_CACHE_TTL_SECONDS = max(0.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 30.0))
+ANALYTICS_CACHE_TTL_SECONDS = max(30.0, env_float("ANALYTICS_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_SYNC_EVENTS_ON_REQUEST = env_flag("ANALYTICS_SYNC_EVENTS_ON_REQUEST", default=False)
 FIXED_AI_CACHE_TTL_SECONDS = max(30.0, env_float("FIXED_AI_CACHE_TTL_SECONDS", 300.0))
 ANALYTICS_CACHE_MAX_ENTRIES = max(1, env_int("ANALYTICS_CACHE_MAX_ENTRIES", 8 if IS_RENDER else 24))
@@ -9610,7 +9612,10 @@ def analytics_row_has_valid_level(row):
 
 
 def filter_valid_analytics_rows(rows):
-    return [dict(row) for row in (rows or []) if analytics_row_has_valid_level(row)]
+    # ``build_analytics`` already materializes database rows as dictionaries.
+    # Reusing those objects avoids a second full copy of large telemetry
+    # histories, which is significant on memory-limited application workers.
+    return [row if isinstance(row, dict) else dict(row) for row in (rows or []) if analytics_row_has_valid_level(row)]
 
 
 def fetch_event_analytics_rows(start_dt, end_exclusive, device_id=None, existing_source_row_ids=None):
@@ -10373,6 +10378,16 @@ def build_analytics_cache_key(start_dt, end_exclusive, device_id=None):
         get_device_source_mode(),
         ANALYTICS_ALGORITHM_VERSION,
     )
+
+
+def analytics_build_lock(cache_key):
+    """Return the per-window lock used to collapse concurrent analytics work."""
+    with analytics_build_locks_guard:
+        lock = analytics_build_locks.get(cache_key)
+        if lock is None:
+            lock = threading.Lock()
+            analytics_build_locks[cache_key] = lock
+        return lock
 
 
 def copy_analytics_payload(payload):
@@ -12758,6 +12773,15 @@ def build_dashboard_analytics(start_dt, end_exclusive, label, device_id=None):
         "analytics_generated_at": selected.get("analytics_generated_at"),
     }
     return selected
+
+
+def build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=None):
+    """Serialize expensive builds for the same device and date window."""
+    cache_key = build_analytics_cache_key(start_dt, end_exclusive, device_id)
+    with analytics_build_lock(cache_key):
+        # build_analytics re-checks its cache after this lock is acquired, so
+        # queued requests reuse the first request's result.
+        return build_dashboard_analytics(start_dt, end_exclusive, label, device_id=device_id)
 
 
 def analytics_csv_filename_token(value, fallback):
@@ -17696,7 +17720,7 @@ def mobile_analytics():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     try:
-        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Mobile analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -21785,7 +21809,7 @@ def analytics():
     if TELEMETRY_HISTORY_ENABLED:
         logger.info("Running analytics engine for %s", label)
     try:
-        payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+        payload = build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
         logger.exception("Dashboard analytics fallback used for %s: %s", scoped_device_id, exc)
         payload = build_analytics_fallback_payload(
@@ -21814,7 +21838,7 @@ def analytics_csv_export():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
 
-    payload = build_dashboard_analytics(start_dt, end_exclusive, label, device_id=scoped_device_id)
+    payload = build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=scoped_device_id)
     csv_payload = build_analytics_csv_payload(payload, device_id=scoped_device_id)
     filename = build_analytics_csv_filename(payload, device_id=scoped_device_id)
     return Response(
