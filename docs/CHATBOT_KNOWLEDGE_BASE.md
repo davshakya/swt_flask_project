@@ -1,5 +1,10 @@
 # SaleWell Smart Water Tank — Public Chatbot Knowledge Base
 
+Last refreshed: `2026-08-11`
+
+Answers must stay within the shipped capabilities in
+[`../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md); future or unshipped clients must not be presented as available.
+
 This document is written for website visitors, homeowners, apartment managers,
 installers, dealers, and commercial customers. Prices and availability should
 be confirmed with SaleWell before purchase because the final quote depends on
@@ -8,7 +13,7 @@ modules.
 
 ## What the SaleWell system does
 
-SaleWell monitors water-tank level and can add pump automation, alerts, local
+SaleWell monitors water-tank level and includes automatic pump control, alerts, local
 phone access, remote cloud access, history, reports, and water-usage insights,
 depending on the selected plan and installed hardware.
 
@@ -51,6 +56,14 @@ plan features are installed. High-current pumps must use an appropriately
 rated contactor or power relay; a small controller relay must not directly
 carry a load beyond its rating.
 
+For an existing latch-style starter panel, SaleWell uses two independent
+momentary dry-contact outputs. START `COM–NO` closes in parallel with the
+physical green START button for 300–1000 ms (500 ms default). STOP `COM–NC`
+opens in series with the physical red STOP, overload, and interlock chain for
+300–1000 ms, then returns closed. The panel's auxiliary holding contact keeps
+the contactor ON after START. Neither IoT relay stays energized, and no physical
+safety or interlock is bypassed.
+
 Dry-run protection depends on the installed source-water sensing or configured
 water-availability logic. The controller can stop or prevent pumping when the
 source is unavailable or when required safety data is not trustworthy. The
@@ -72,15 +85,16 @@ local pump safety and automation logic.
 
 ### Home Basic
 
-- Published price: Rs. 3,999 one-time equipment price; no monthly fee.
+- Published price: Rs. 4,999 one-time equipment price.
 - Intended for one home tank and controller setup at the lowest entry price.
 - Includes the wireless tank sensor node and main controller.
+- Includes automatic pump start/stop control and overflow cut-off.
 - Does not include the phone app or cloud access.
 - Home Wi-Fi and internet are not required.
 
 ### Home Control
 
-- Published price: Rs. 4,999 one-time equipment and app price; no monthly fee.
+- Published price: Rs. 5,999 one-time equipment and app price.
 - Includes Home Basic capabilities plus live tank information on a phone while
   the customer is at the property.
 - Uses a direct/local connection to the controller.
@@ -88,7 +102,7 @@ local pump safety and automation logic.
 
 ### Home Cloud Pro
 
-- Published price: Rs. 7,499 one-time hardware price plus Rs. 149 per month.
+- Published price: Rs. 8,499 one-time equipment, app, and cloud-feature price.
 - Intended for families, rental homes, and owners who want remote access.
 - Includes remote access, family sharing, cloud history, usage trends, AI
   insights, and monthly water reporting.
@@ -96,7 +110,7 @@ local pump safety and automation logic.
 
 ### RWA Standard
 
-- Published starting price: Rs. 9,999 per setup plus Rs. 299 per month.
+- Published starting price: Rs. 10,999 per setup.
 - Intended for apartments, RWAs, hostels, small hotels, schools, and shared
   buildings.
 - Supports managed visibility, pump control, source-tank monitoring, supported
@@ -104,14 +118,16 @@ local pump safety and automation logic.
 
 ### Commercial AI Pro
 
-- Published starting price: Rs. 12,999 per setup plus Rs. 599 per month.
+- Published starting price: Rs. 13,999 per setup.
 - Intended for large apartments, hotels, factories, and institutions.
 - Adds multi-tank visibility, advanced reports, AI analytics, leak insight,
   source-to-destination logic, and priority support to eligible installations.
+- Customers may optionally request a separately quoted monthly or annual
+  maintenance contract. It is not a mandatory subscription.
 
 ### Dealer / Installer Kit
 
-- Published starter-kit price: Rs. 11,999; volume pricing is discussed
+- Published starter-kit price: Rs. 12,999; volume pricing is discussed
   separately.
 - Intended for dealers, plumbers, electricians, resellers, and local
   installation partners.
@@ -120,11 +136,13 @@ local pump safety and automation logic.
 
 ### Enterprise Modular
 
-- Custom pricing, usually starting from Rs. 24,999.
+- Custom one-time pricing, usually starting from Rs. 25,999,.
 - Intended for builders, townships, industrial customers, multi-site
   deployments, and large rollouts.
 - Can include custom dashboards, integrations, reports, user roles, rollout
   support, and bulk device planning.
+- Customers may optionally request a separately quoted monthly or annual
+  maintenance contract. It is not a mandatory subscription.
 
 ## Optional additions
 
@@ -133,6 +151,21 @@ automatic pump control, cloud access, AI analytics, source-tank monitoring,
 extra tank/sensor nodes, wireless range extension, custom reports, dealer
 branding, and installation services. These are not automatically included in
 every base plan.
+
+The Municipal Water Kit is Rs. 7,999 one-time. It includes two motorized
+valves, one municipal-water availability sensor, and controller integration.
+Installation, plumbing modifications, and non-standard valve sizes are charged
+separately according to the actual work.
+
+Every plan price is an equipment or service-package price. Installation and
+plumbing are additional and depend on wiring, pipe size, valve size, pump and
+starter panel, access, civil work, and installation location.
+
+Overhead-tank quantity and upper-MCU quantity are not always the same. When
+overhead tanks are on the same surface, interconnected, and operate as one main
+tank group, one upper MCU can monitor that group. Tanks on separate levels or
+not interconnected require independently scoped upper sensor nodes. Source
+tanks are counted separately and normally require their own source sensors.
 
 ## Information needed for a quote or site check
 

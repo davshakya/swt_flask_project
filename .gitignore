@@ -12,7 +12,7 @@ env/
 .pytest_cache/
 .pytest-temp/
 .pytest-tmp/
-.tmp/
+.tmp*/
 sandbox-tmp/
 # Passenger watches this tracked file for zero-touch production reloads.
 !tmp/

@@ -1,6 +1,13 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-08`
+Last refreshed: `2026-08-11`
+
+## Documentation map
+
+Start with [`docs/README.md`](docs/README.md). It separates customer and installer guidance from development, deployment, and production operations. The public bilingual customer guide is [`docs/SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf`](docs/SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf); the detailed internal guide remains [`docs/INSTALLATION_GUIDE_EN_HI.md`](docs/INSTALLATION_GUIDE_EN_HI.md).
+
+The complete product control, client, data, deployment, and test boundaries are
+defined in [`../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md`](../docs/PROJECT_DESIGN_AND_ARCHITECTURE.md).
 
 ## Developer Setup
 
@@ -54,9 +61,30 @@ Within the wider workspace:
 - Automatic preset scenarios for simulator-enabled firmware: reset injected faults and overrides, seed route-appropriate tank levels, and enable only the installed tank, municipal, valve, and turbidity simulators. Production firmware is detected from telemetry and does not receive simulator-only commands.
 - The Motorized Valve status reports `ON`/`OFF` separately from its selected path (`Municipal Water` or `Source Tank`). Motion states remain available for diagnostics.
 - Master Configuration keeps the optional municipal-water sensor independent from the motorized inlet valve. Sensor-free installations use firmware level-rise detection instead of disabling valve routing.
+- Flask queues logical inlet/outlet valve settings but does not own physical GPIO assignments. The firmware mapping currently reserves inlet OPEN/CLOSE on ESP32 `G25/G26`, outlet SOURCE/UPPER on `G27/G21`, and outlet feedback on `G22/G23`; both valve features remain disabled until hardware commissioning. See [`GPIO_POINT_TO_POINT_MAPPING.md`](../swt_firmware_project/docs/GPIO_POINT_TO_POINT_MAPPING.md).
 - The public homepage keeps the original rooftop preview image. Its **Dashboard Preview** link opens `static/marketing/water_flow_animation.html`; regenerate that deployed asset with `python ../scripts/sync_water_flow_animation.py` after changing the source animation.
+- Public login and pricing pages provide corrected chatbot/footer actions, municipal-package pricing, and a chatbot-assisted demo/device-booking path backed by the maintained customer FAQ and chatbot knowledge base.
 
 Simulator prerequisites, workflows, transitions, and troubleshooting are in [`../docs/SIMULATOR_GUIDE.md`](../docs/SIMULATOR_GUIDE.md).
+
+### Optional Capacity Path
+
+The backend includes a default-off, staged path for scaling beyond the legacy
+wide `tank_data` workflow. It provides the combined `POST /api/device/sync`
+endpoint, latest-state and narrow-history tables, adaptive sampling, hourly and
+daily aggregation, bounded retention, conservative database pooling, request
+and replay protection, durable notification jobs, operational health records,
+staged device rollout, legacy telemetry archival, and a read-only hosting
+migration assessment.
+
+Keep `FEATURE_LEGACY_TANK_DATA_WRITES=true` until the replacement write and read
+paths have passed the documented gates. Start with
+[`../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md`](../docs/CPANEL_CAPACITY_DEPLOYMENT_GUIDE.md)
+for the rollout procedure and
+[`../docs/CAPACITY_FEATURE_FLAGS.md`](../docs/CAPACITY_FEATURE_FLAGS.md) for the
+flag dependencies and safe defaults. Capacity scripts live in `scripts/`, and
+effective feature state and bounded process metrics are exposed to authenticated
+operators through `/system/status`.
 
 ## Customer and Sales Features
 
@@ -497,6 +525,62 @@ Before deploying:
 - decide whether relay URLs should be enabled in that environment
 - deploy both `server.py` and `flask_app/server.py` together on cPanel / Passenger so the root wrapper and the main app stay aligned
 - `requirements.txt` already includes the ML dependency set used by `/ml/predict`
+
+### Live Production `stderr.log` over FTPS
+
+The cPanel Passenger log is stored at:
+
+```text
+/home/salewellco/repositories/swt_flask_project/stderr.log
+```
+
+Create a dedicated cPanel FTP account for read/diagnostic access:
+
+```text
+Login: logviewer@salewell.co.in
+Directory: repositories/swt_flask_project
+FTP server: ftp.salewell.co.in
+Explicit FTPS port: 21
+```
+
+Enter the FTP login name before the directory because cPanel may update the
+directory automatically when the login changes. The resulting full directory
+must be `/home/salewellco/repositories/swt_flask_project`. Creating an FTP
+account for this existing directory does not delete its contents. Do not store
+the FTP password in the repository.
+
+From the workspace root, follow the end of the production log with:
+
+```powershell
+python .\swt_flask_project\scripts\watch_stderr_ftps.py --user logviewer@salewell.co.in --remote-file stderr.log --insecure-ftps
+```
+
+The watcher prompts for the password, initially displays the last 64 KiB,
+prints newly appended data, reconnects after temporary failures, and detects
+log truncation or rotation. To display only entries written after the watcher
+starts, use:
+
+```powershell
+python .\swt_flask_project\scripts\watch_stderr_ftps.py --user logviewer@salewell.co.in --remote-file stderr.log --insecure-ftps --tail-bytes 0
+```
+
+The hosting server currently presents a TLS certificate whose hostname does
+not match `ftp.salewell.co.in`. `--insecure-ftps` keeps the connection encrypted
+but disables server identity verification; it is a temporary workaround. The
+hosting provider should install a certificate valid for the FTP hostname.
+
+If FTP login succeeds but only `.ftpquota` appears, the account is jailed in an
+empty directory. Recreate it with `repositories/swt_flask_project` as its cPanel
+Directory. A `421 Home directory not available` error also indicates an invalid
+FTP account home and occurs before the requested log path is evaluated.
+
+Operational messages seen in this log include:
+
+- `Telemetry postprocess skipped ... background worker is busy`: raw telemetry
+  was saved, but optional derived/background processing was skipped.
+- `Dashboard summary refresh failed ... MySQL ... not reachable or credentials
+  are invalid`: verify `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`,
+  `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in the production environment.
 
 ## Operational Docs
 

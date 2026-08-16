@@ -1,6 +1,7 @@
 """Local-document retrieval and optional grounded answer generation."""
 from dataclasses import asdict, dataclass
 import hashlib
+import html
 import os
 from pathlib import Path
 import re
@@ -22,7 +23,7 @@ except Exception:  # Keep Passenger online when optional ML wheels are unavailab
     TfidfVectorizer = None
     cosine_similarity = None
 
-SUPPORTED_SUFFIXES = {".md", ".txt", ".rst", ".docx"}
+SUPPORTED_SUFFIXES = {".md", ".txt", ".rst", ".docx", ".html"}
 DEFAULT_EXCLUDES = {".git", ".venv", "node_modules", "mysql-data", "data"}
 
 
@@ -72,6 +73,8 @@ def public_configured_roots():
     return [
         project / "docs" / "CHATBOT_KNOWLEDGE_BASE.md",
         project / "docs" / "CUSTOMER_FAQ.md",
+        project / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html",
+        project / "docs" / "INSTALLATION_GUIDE_EN_HI.md",
         project / "docs" / "customer_sources",
         workspace / "docs" / "SALEWELL_FEATURES_EN.md",
         workspace / "docs" / "SALEWELL_FEATURES_HI.md",
@@ -139,12 +142,22 @@ def normalize_search_query(query):
         expansions.append("highest price plan Enterprise Modular")
     if "stale" in lowered:
         expansions.append("remote data stale cloud last seen connectivity")
+    if re.search(r"\b(install|installation|sensor|valve|contactor|panel|wiring|setup)\b", lowered):
+        expansions.append("customer installation guide easy safe installation sensors valves electrical panel contactor")
+    if re.search(r"\b(troubleshoot|problem|wrong|incorrect|not start|not stop|offline|cannot connect|can't connect)\b", lowered):
+        expansions.append("installation guide troubleshooting customer safety checks")
     return " ".join([value] + expansions)
 
 
 def read_document(path):
     if path.suffix.lower() != ".docx":
-        return path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix.lower() == ".html":
+            text = re.sub(r"<(script|style)\b[^>]*>.*?</\1>", " ", text, flags=re.IGNORECASE | re.DOTALL)
+            text = re.sub(r"<[^>]+>", "\n", text)
+            text = html.unescape(text)
+            text = re.sub(r"\n{3,}", "\n\n", text)
+        return text
     with zipfile.ZipFile(path) as archive:
         xml = archive.read("word/document.xml")
     root = ElementTree.fromstring(xml)

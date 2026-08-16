@@ -136,6 +136,19 @@ def test_admin_runtime_configuration_save_preserves_android_sessions():
     assert "Android app sessions were signed out" not in function_source
 
 
+def test_admin_runtime_configuration_returns_before_installation_download_route():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = source.index('@app.route("/devices/<device_id>/configuration", methods=["POST"])')
+    download_route_start = source.index('@app.route("/downloads/installation-guide")', route_start)
+    function_source = source[route_start:download_route_start]
+
+    assert "if simulator_firmware_detected and setup_features is not None:" in function_source
+    assert "automatic_simulator_commands" in function_source
+    assert "log_audit_event(" in function_source
+    assert "queue_result=queue_result" in function_source
+    assert function_source.rstrip().endswith(")")
+
+
 def test_android_session_validation_does_not_trim_existing_sessions():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = source.index("def active_platform_sessions(")

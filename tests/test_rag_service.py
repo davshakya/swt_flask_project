@@ -121,10 +121,19 @@ def test_chatbot_handles_price_extremes_and_questions_during_booking():
     assert '"max plan"' in template
     assert "The lowest published plan price" in template
     assert "the highest published starting tier" in template
-    assert "chatBookingState && chatLooksLikeQuestion" in template
+    assert 'chatBookingState && pendingField?.key !== "note" && chatLooksLikeQuestion' in template
     assert "Your booking is still saved" in template
     assert template.index("if (wantsMinimumPrice)") < template.index("if (wantsCompare || wantsPrice)")
     assert template.index("if (wantsMaximumPrice)") < template.index("if (wantsCompare || wantsPrice)")
+
+
+def test_chatbot_accepts_requirement_keywords_and_skip_as_final_booking_answer():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    booking_answer = 'if (handleChatBookingAnswer(trimmed)) {'
+    general_skip = 'if (trimmed.toLowerCase() === "skip") {'
+
+    assert 'pendingField?.key !== "note"' in template
+    assert template.index(booking_answer) < template.index(general_skip, template.index(booking_answer))
 
 
 def test_chatbot_explains_how_the_product_works_without_raw_rag_docs():
@@ -190,3 +199,22 @@ def test_troubleshooting_intents_run_before_sales_recommendations():
         assert template.index(f"if ({signal})") < template.index("if (mentionedPlan && !wantsCompare)")
     assert '"stale"' in template
     assert '"cannot connect"' in template
+
+
+def test_public_rag_indexes_customer_and_technical_installation_guides():
+    roots = public_configured_roots()
+    assert project_root() / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html" in roots
+    assert project_root() / "docs" / "INSTALLATION_GUIDE_EN_HI.md" in roots
+    results = RagIndex([project_root() / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html"]).search("How should the tank sensor be installed?", limit=3)
+    assert results
+    assert any(result.source.endswith("CUSTOMER_INSTALLATION_GUIDE_EN_HI.html") for result in results)
+
+
+def test_installation_and_troubleshooting_chat_intents_use_rag_without_public_guide_link():
+    template = (project_root() / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    for signal in ("pumpDoesNotStart", "pumpDoesNotStop", "appCannotConnect", "remoteDataStale", "tankLevelIncorrect", "deviceOffline", "wantsInstall"):
+        block_start = template.index(f"if ({signal})")
+        block_end = template.index("\n    }", block_start)
+        assert "useRag: true" in template[block_start:block_end]
+    assert 'label: "Download installation guide"' not in template
+    assert "installation_guide_download" not in template

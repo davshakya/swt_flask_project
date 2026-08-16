@@ -1,7 +1,10 @@
 <style id="swt-global-theme-overrides">
 /* Loaded after page styles so every Flask surface follows the same contrast rules. */
-html{color-scheme:light dark}
+html{color-scheme:light dark;font-size:15px}
 body{color:var(--text,#12303a)}
+.salewell-brand{display:inline;white-space:nowrap;font-weight:inherit}
+.salewell-brand .salewell-sale{color:#0969c7}
+.salewell-brand .salewell-well{color:#087d46}
 button,input,select,textarea{font:inherit}
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
@@ -56,6 +59,8 @@ code,pre{
 
 @media (prefers-color-scheme:dark){
   body{color:var(--text,#e6f4f7)}
+  .salewell-brand .salewell-sale{color:#39a7ff}
+  .salewell-brand .salewell-well{color:#3be187}
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
   select,
   textarea{
@@ -90,4 +95,138 @@ code,pre{
     color:var(--text,#e6f4f7);
   }
 }
+
+/* The booking dialog deliberately combines a dark header with a light form.
+   Keep those two surfaces independent from the page's preferred color scheme. */
+.enquiry-modal .modal-panel[role="dialog"]{
+  background:linear-gradient(180deg,#12323c 0%,#08252e 100%);
+  border-color:rgba(157,220,232,.3);
+  color:#f2fbfd;
+}
+.enquiry-modal .modal-header h2{
+  color:#f2fbfd;
+  text-shadow:0 1px 1px rgba(0,0,0,.18);
+  max-width:calc(100% - 58px);
+  white-space:nowrap;
+}
+.enquiry-modal .modal-panel .eyebrow{
+  background:rgba(67,206,226,.14);
+  color:#68d9ea;
+}
+.enquiry-modal .modal-close{
+  background:#1d3d47;
+  border-color:rgba(185,229,237,.24);
+  color:#f2fbfd;
+}
+.enquiry-modal .modal-close:hover,
+.enquiry-modal .modal-close:focus-visible{
+  background:#28515d;
+  color:#fff;
+}
+.enquiry-modal .enquiry-form{
+  --text:#173238;
+  --muted:#587078;
+  --line:rgba(25,77,88,.18);
+  --input-bg:#f8fcfa;
+  --surface:#f4f9f8;
+  background:rgba(244,249,248,.96);
+  color:#173238;
+}
+.enquiry-modal .group label{
+  color:#526d75;
+}
+.enquiry-modal .enquiry-form input,
+.enquiry-modal .enquiry-form select,
+.enquiry-modal .enquiry-form textarea{
+  color-scheme:light;
+  background-color:#f8fcfa!important;
+  border-color:rgba(25,77,88,.18)!important;
+  color:#173238!important;
+  caret-color:#0d7f95;
+  -webkit-text-fill-color:#173238!important;
+}
+.enquiry-modal .enquiry-form input::placeholder,
+.enquiry-modal .enquiry-form textarea::placeholder{
+  color:#667c82!important;
+  -webkit-text-fill-color:#667c82!important;
+}
+.enquiry-modal .form-actions{
+  background:linear-gradient(180deg,rgba(238,248,248,.94),#e6f1f0);
+  color:#173238;
+}
+.enquiry-modal .form-actions .action-separator{
+  color:#587078;
+}
+.enquiry-modal .form-actions .custom-device-button{
+  color:#075d70;
+  -webkit-text-fill-color:#075d70;
+}
+.enquiry-modal .field-warning{
+  color:#a52f47;
+}
+.enquiry-modal .banner.success{
+  background:#e2f2eb;
+  border-color:#acd9c6;
+  color:#126847;
+}
+.enquiry-modal .banner.error{
+  background:#f9e7ea;
+  border-color:#e8b8c1;
+  color:#982f43;
+}
+@media (max-width:600px){
+  .enquiry-modal .modal-header h2{
+    max-width:calc(100% - 48px);
+    white-space:normal;
+  }
+}
 </style>
+<script id="swt-salewell-wordmark-renderer">
+(() => {
+  const SELECTOR = ".site-chatbot, .enquiry-modal";
+  const SKIP = new Set(["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "OPTION"]);
+
+  function colorSaleWell(root) {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE || !root.matches(SELECTOR) && !root.closest(SELECTOR)) return;
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const matches = [];
+    while (walker.nextNode()) {
+      const node = walker.currentNode;
+      if (!SKIP.has(node.parentElement?.tagName) && node.data.includes("SaleWell")) matches.push(node);
+    }
+    matches.forEach((node) => {
+      const fragment = document.createDocumentFragment();
+      node.data.split("SaleWell").forEach((part, index, parts) => {
+        fragment.append(document.createTextNode(part));
+        if (index < parts.length - 1) {
+          const brand = document.createElement("span");
+          brand.className = "salewell-brand";
+          const sale = document.createElement("span");
+          sale.className = "salewell-sale";
+          sale.textContent = "Sale";
+          const well = document.createElement("span");
+          well.className = "salewell-well";
+          well.textContent = "Well";
+          brand.append(sale, well);
+          fragment.append(brand);
+        }
+      });
+      node.replaceWith(fragment);
+    });
+  }
+
+  function initialize() {
+    document.querySelectorAll(SELECTOR).forEach(colorSaleWell);
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE) colorSaleWell(node.parentElement);
+        else if (node.nodeType === Node.ELEMENT_NODE) colorSaleWell(node);
+      }));
+    });
+    observer.observe(document.body, {childList:true, subtree:true});
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initialize, {once:true});
+  else initialize();
+})();
+</script>

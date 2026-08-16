@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "plans": {
+    "Home Basic": {
+      "animation": true,
+      "initialMode": "borewell",
+      "modes": ["borewell", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": false, "cloud": false, "waterQuality": false, "submersible": true}
+    },
+    "Home Control": {
+      "animation": true,
+      "initialMode": "borewell",
+      "modes": ["borewell", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": false, "waterQuality": false, "submersible": true}
+    },
+    "Home Cloud Pro": {
+      "animation": true,
+      "initialMode": "borewell",
+      "modes": ["borewell", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false, "submersible": true}
+    },
+    "RWA Standard": {
+      "animation": true,
+      "initialMode": "source-only",
+      "modes": ["source-only", "idle", "failsafe"],
+      "devices": {"sourceTank": true, "upperTanks": 1, "sourceTanks": 1, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
+    },
+    "Commercial AI Pro": {
+      "animation": true,
+      "initialMode": "source-only",
+      "modes": ["source-only", "idle", "failsafe"],
+      "devices": {"sourceTank": true, "upperTanks": 2, "sourceTanks": 2, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": true, "waterQuality": false}
+    },
+    "Dealer / Installer Kit": {
+      "animation": true,
+      "initialMode": "borewell",
+      "modes": ["borewell", "idle", "failsafe"],
+      "devices": {"sourceTank": false, "upperTanks": 1, "sourceTanks": 0, "municipal": false, "municipalSensor": false, "motorizedValves": false, "mobileApp": true, "cloud": false, "waterQuality": false, "submersible": true}
+    },
+    "Enterprise Modular": {"animation": false, "reason": "Device configuration is defined after the site survey and approved rollout scope."}
+  }
+}

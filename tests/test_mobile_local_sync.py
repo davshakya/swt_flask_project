@@ -50,6 +50,29 @@ def test_mobile_local_sync_preserves_scope_and_transport_markers():
     assert 'transport="android_local_wifi"' in server_source
 
 
+def test_mobile_local_sync_defers_database_heavy_postprocessing():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    route_start = server_source.index("def mobile_local_sync():")
+    route_body = server_source[route_start : server_source.index("\n\n@app.route", route_start)]
+
+    assert "defer_postprocess=True" in route_body
+    assert "refresh_operational_alerts(" not in route_body
+
+
+def test_telemetry_worker_debounces_before_taking_permit_and_uses_cross_process_lease():
+    server_source = SERVER_SOURCE.read_text(encoding="utf-8")
+    worker_start = server_source.index("def schedule_telemetry_postprocess(")
+    worker_body = server_source[worker_start : server_source.index("\n\ndef process_telemetry_payload", worker_start)]
+
+    assert worker_body.index("time.sleep(remaining)") < worker_body.index(
+        "telemetry_background_semaphore.acquire"
+    )
+    assert "fcntl.LOCK_EX | fcntl.LOCK_NB" in worker_body
+    assert "fcntl.LOCK_UN" in worker_body
+    assert "lease_db = get_db()" not in worker_body
+    assert "telemetry_postprocess_pending[normalized_device_id] = pending" in worker_body
+
+
 def test_android_local_sync_duplicate_payload_is_deduplicated():
     device_id = "swt-android-sync-dedupe-001"
     payload = {
@@ -250,6 +273,36 @@ def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
     assert "local_firmware_upgrade_requested_from_flask" in android_source
     assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true)" in android_source
     assert '"START_FIRMWARE_UPGRADE"' in android_source
+
+
+def test_android_firmware_upgrade_action_is_queued_with_a_complete_result():
+    device_id = "swt-test-mobile-ota-queue-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
+
+    try:
+        result = server.queue_device_mobile_action(
+            server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
+            device_id,
+            payload={"source": "device_detail"},
+        )
+
+        assert not isinstance(result, tuple)
+        assert result["status"] == "queued"
+        assert result["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+        assert result["target_device"] == device_id
+        assert isinstance(result["queue_id"], int)
+        with server.get_db() as db:
+            queued = db.execute(
+                "SELECT action, payload_json FROM device_mobile_action_queue WHERE id = ?",
+                (result["queue_id"],),
+            ).fetchone()
+        assert queued is not None
+        assert queued["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+        assert '"source":"device_detail"' in queued["payload_json"]
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
 
 
 def test_mobile_bootstrap_returns_fast_cloud_and_ai_payload_for_android():

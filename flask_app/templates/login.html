@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.">
+<meta name="description" content="Stop water overflow, reduce motor damage risk, and monitor tank level from your phone with SaleWell Smart Tank by SaleWell IoT Solutions.">
 <link rel="preload" as="image" type="image/webp" href="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }}" imagesrcset="{{ url_for('static', filename='marketing/smart-water-tank-hero-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-hero-ai-1280.webp') }} 1280w" imagesizes="(max-width: 900px) 100vw, 48vw">
-<title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions Pvt. Ltd.</title>
+<title>Stop Water Overflow | SaleWell Smart Tank by SaleWell IoT Solutions</title>
 {% include '_pwa_head.html' %}
 <style>
 :root{
@@ -194,9 +194,9 @@ height:48px;
 border-radius:16px;
 display:grid;
 place-items:center;
-background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(204,242,246,.82));
-border:1px solid rgba(255,255,255,.56);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 16px 30px rgba(13,75,89,.16);
+background:transparent;
+border:0;
+box-shadow:none;
 overflow:hidden;
 }
 .brand-mark img{
@@ -208,11 +208,22 @@ transform-origin:center;
 will-change:transform;
 }
 .brand-copy strong{
-display:block;
+display:flex;
+align-items:baseline;
+gap:0;
+white-space:nowrap;
 font-size:13px;
 letter-spacing:.12em;
 text-transform:uppercase;
 line-height:1.1;
+}
+.brand-copy strong>.brand-well{margin-right:.35em}
+.brand-copy strong span{display:inline;margin-top:0;font-size:inherit;line-height:inherit}
+.brand-copy .brand-sale{color:#0969c7}
+.brand-copy .brand-well{color:#087d46}
+@media (prefers-color-scheme:dark){
+.brand-copy .brand-sale{color:#39a7ff}
+.brand-copy .brand-well{color:#3be187}
 }
 .brand-copy span{
 display:block;
@@ -384,6 +395,10 @@ display:none;
 width:100%;
 justify-content:flex-start;
 }
+.user-menu-account-row{display:flex;align-items:center;gap:8px;padding-bottom:9px;margin-bottom:2px;border-bottom:1px solid var(--line)}
+.user-menu-account-row>span{min-width:0;flex:1;overflow-wrap:anywhere;color:var(--brand-deep);font-weight:900}
+.user-menu-account-row .logout-form{flex:0 0 auto}
+.user-menu-account-row .nav-button{width:auto;min-height:38px;padding:8px 12px}
 .nav-button,
 .button,
 .button-secondary,
@@ -1174,6 +1189,11 @@ letter-spacing:-.04em;
 max-width:100%;
 color:var(--section-accent-deep);
 }
+#how-it-works .animation-page-link{
+margin-top:18px;
+}
+#how-it-works .guide-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:18px}
+#how-it-works .guide-actions .animation-page-link{margin-top:0}
 .section-copy{
 margin:0;
 line-height:1.68;
@@ -3266,6 +3286,12 @@ border:0;
 }
 }
 .site-chatbot{
+--chat-text:#173238;
+--chat-muted:#526d75;
+--chat-bot-bg:#fff;
+--chat-control-bg:#f7f0ff;
+--chat-control-text:#51338f;
+--chat-control-hover:#3f277b;
 position:fixed;
 right:24px;
 bottom:14px;
@@ -3294,7 +3320,7 @@ border:1px solid rgba(13,147,168,.24);
 border-radius:999px;
 background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(226,248,250,.92));
 box-shadow:0 20px 44px rgba(9,72,80,.22);
-color:var(--text);
+color:var(--chat-text);
 cursor:pointer;
 transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
 }
@@ -3317,7 +3343,7 @@ box-shadow:inset 0 1px 0 rgba(255,255,255,.35);
 }
 .chatbot-launcher strong{
 display:block;
-font-size:14px;
+font-size:15px;
 line-height:1.1;
 text-align:left;
 white-space:nowrap;
@@ -3333,7 +3359,7 @@ background:
     radial-gradient(circle at 15% 0%,rgba(126,87,194,.18),transparent 32%),
     linear-gradient(180deg,#fbf7ff 0%,#fffaf0 100%);
 box-shadow:0 34px 90px rgba(69,37,110,.3);
-color:var(--text);
+color:var(--chat-text);
 }
 .site-chatbot.is-open .chatbot-panel{
 display:flex;
@@ -3368,11 +3394,11 @@ place-items:center;
 flex:0 0 auto;
 width:38px;
 height:38px;
-border-radius:14px;
-background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(244,233,255,.9));
-border:1px solid rgba(255,255,255,.56);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 10px 26px rgba(126,87,194,.24);
-overflow:hidden;
+border-radius:0;
+background:none!important;
+border:0!important;
+box-shadow:none!important;
+overflow:visible;
 }
 .chatbot-avatar img{
 display:block;
@@ -3385,16 +3411,18 @@ animation:chatbotIconSpinUp 1.4s linear infinite;
 }
 .chatbot-title strong{
 display:block;
-font-size:16px;
+font-size:17px;
 line-height:1.08;
 letter-spacing:-.03em;
+color:var(--chat-text);
+white-space:nowrap;
 }
-.chatbot-title span{
+.chatbot-title>div:last-child>span{
 display:block;
 margin-top:2px;
-font-size:12px;
+font-size:13px;
 line-height:1.35;
-color:var(--muted);
+color:var(--chat-muted);
 font-weight:800;
 }
 .chatbot-header-actions{
@@ -3410,7 +3438,7 @@ place-items:center;
 border-radius:12px;
 border:1px solid var(--line);
 background:rgba(255,255,255,.58);
-color:var(--text);
+color:var(--chat-text);
 cursor:pointer;
 }
 .chatbot-skip{
@@ -3447,14 +3475,15 @@ width:fit-content;
 max-width:88%;
 padding:11px 13px;
 border-radius:16px;
-font-size:13px;
+font-size:15px;
 line-height:1.5;
 box-shadow:0 10px 22px rgba(9,72,80,.08);
 white-space:pre-line;
 }
 .chatbot-message.is-bot{
 justify-self:start;
-background:rgba(255,255,255,.94);
+background:var(--chat-bot-bg);
+color:var(--chat-text);
 border:1px solid rgba(126,87,194,.14);
 border-top-left-radius:6px;
 }
@@ -3478,15 +3507,15 @@ min-height:34px;
 padding:8px 10px;
 border-radius:999px;
 border:1px solid rgba(126,87,194,.22);
-background:rgba(246,239,255,.92);
-color:#5b3aa0;
-font-size:12px;
+background:var(--chat-control-bg);
+color:var(--chat-control-text);
+font-size:13px;
 font-weight:1000;
 text-decoration:none;
 cursor:pointer;
 }
 .chatbot-action:hover{
-color:#3f277b;
+color:var(--chat-control-hover);
 border-color:rgba(239,155,65,.38);
 background:rgba(255,244,226,.92);
 }
@@ -3505,15 +3534,15 @@ min-height:34px;
 padding:8px 11px;
 border-radius:999px;
 border:1px solid rgba(126,87,194,.2);
-background:rgba(255,255,255,.78);
-color:var(--text);
-font-size:12px;
+background:var(--chat-control-bg);
+color:var(--chat-control-text);
+font-size:13px;
 font-weight:900;
 cursor:pointer;
 }
 .chatbot-chip:hover{
 background:rgba(246,239,255,.95);
-color:#5b3aa0;
+color:var(--chat-control-hover);
 }
 .chatbot-form{
 display:grid;
@@ -3530,7 +3559,8 @@ padding:10px 13px;
 border-radius:14px;
 border:1px solid var(--line-strong);
 background:var(--input-bg);
-color:var(--text);
+color:var(--chat-text);
+font-size:16px;
 }
 .chatbot-form button{
 min-height:42px;
@@ -3544,6 +3574,14 @@ cursor:pointer;
 box-shadow:0 12px 22px rgba(239,155,65,.2);
 }
 @media (prefers-color-scheme: dark){
+.site-chatbot{
+--chat-text:#f1fbfd;
+--chat-muted:#bdd7dd;
+--chat-bot-bg:#152f38;
+--chat-control-bg:#183c49;
+--chat-control-text:#dff8fc;
+--chat-control-hover:#fff3df;
+}
 .chatbot-launcher{
 background:linear-gradient(135deg,rgba(8,31,39,.96),rgba(10,50,61,.96));
 border-color:rgba(150,207,218,.16);
@@ -3555,21 +3593,31 @@ border-color:rgba(150,207,218,.16);
 .chatbot-header{
 background:linear-gradient(135deg,rgba(89,211,230,.13),rgba(255,187,97,.11));
 }
+.chatbot-skip,
 .chatbot-close,
 .chatbot-message.is-bot,
 .chatbot-chip{
-background:rgba(255,255,255,.06);
+background:var(--chat-bot-bg);
+color:var(--chat-text);
 }
 .chatbot-suggestions,
 .chatbot-form{
 background:rgba(255,255,255,.03);
 }
 .chatbot-action{
-background:rgba(89,211,230,.12);
+background:var(--chat-control-bg);
 border-color:rgba(150,207,218,.18);
+color:var(--chat-control-text);
 }
 .chatbot-action:hover{
 background:rgba(255,187,97,.12);
+color:var(--chat-control-hover);
+}
+.chatbot-skip:hover,
+.chatbot-close:hover,
+.chatbot-chip:hover{
+background:#244651;
+color:var(--chat-control-hover);
 }
 }
 .modal{
@@ -3662,6 +3710,25 @@ margin:2px -16px -14px;
 padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));
 background:linear-gradient(180deg,rgba(238,248,248,.9),var(--surface));
 border-radius:0 0 20px 20px;
+}
+.enquiry-modal .form-actions .action-separator{
+color:#587078;
+font-size:12px;
+font-weight:800;
+text-transform:uppercase;
+letter-spacing:.12em;
+}
+.enquiry-modal .form-actions .custom-device-button{
+min-height:42px;
+padding:10px 18px;
+border:1px solid rgba(10,156,181,.34);
+background:linear-gradient(135deg,rgba(82,205,232,.18),rgba(79,221,174,.22));
+color:#075d70;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 8px 22px rgba(8,112,132,.12);
+}
+.enquiry-modal .form-actions .custom-device-button:hover{
+background:linear-gradient(135deg,rgba(82,205,232,.28),rgba(79,221,174,.34));
+transform:translateY(-1px);
 }
 .modal-close{
 position:absolute;
@@ -4302,10 +4369,10 @@ width:25px;
 height:25px;
 }
 .chatbot-title strong{
-font-size:14px;
+font-size:16px;
 line-height:1.1;
 }
-.chatbot-title span{
+.chatbot-title>div:last-child>span{
 display:none;
 }
 .chatbot-close{
@@ -4320,8 +4387,8 @@ padding:10px 12px;
 .chatbot-message{
 max-width:94%;
 padding:9px 11px;
-font-size:12px;
-line-height:1.38;
+font-size:14px;
+line-height:1.48;
 border-radius:14px;
 }
 .chatbot-suggestions{
@@ -4330,7 +4397,7 @@ display:none;
 .chatbot-chip{
 min-height:30px;
 padding:6px 9px;
-font-size:11px;
+font-size:13px;
 }
 .chatbot-launcher{
 width:max-content;
@@ -4440,7 +4507,16 @@ display:none;
 min-width:0;
 }
 }
-.conversion-strip{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:22px;background:linear-gradient(135deg,rgba(24,157,180,.12),rgba(41,196,132,.09));border:1px solid var(--line)}.conversion-strip strong{display:block;font-size:clamp(18px,2vw,25px)}.conversion-actions{display:flex;gap:9px;flex-wrap:wrap;flex:0 0 auto}.feature-icon{display:grid;place-items:center;width:42px;height:42px;margin-bottom:10px;border-radius:13px;background:rgba(24,157,180,.12);font-size:22px}.confidence-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}.trust-grid,.price-preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.trust-item,.price-preview{padding:14px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.42)}.trust-item span{font-size:21px}.trust-item strong,.price-preview strong{display:block;margin:6px 0 3px}.price-preview .price-from{color:var(--primary);font-size:20px;font-weight:950}.faq-list{display:grid;gap:8px;margin-top:14px}.faq-list details{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.38)}.faq-list summary{cursor:pointer;font-weight:900}.faq-list p{margin:8px 0 0;color:var(--muted);line-height:1.55}.comparison-table th:last-child,.comparison-table td:last-child{background:rgba(41,196,132,.1);font-weight:900}.mobile-contact-bar{display:none}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:inherit;font-weight:800}
+.conversion-strip{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 20px;border-radius:22px;background:linear-gradient(135deg,rgba(24,157,180,.12),rgba(41,196,132,.09));border:1px solid var(--line)}.conversion-strip strong{display:block;font-size:clamp(18px,2vw,25px)}.conversion-actions{display:flex;gap:9px;flex-wrap:wrap;flex:0 0 auto}.feature-icon{display:grid;place-items:center;width:42px;height:42px;margin-bottom:10px;border-radius:13px;background:rgba(24,157,180,.12);font-size:22px}.confidence-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}.trust-grid,.price-preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.trust-item,.price-preview{padding:14px;border:1px solid var(--line);border-radius:17px;background:rgba(255,255,255,.72);color:var(--text)}.trust-item span{font-size:21px}.trust-item strong,.price-preview strong{display:block;margin:6px 0 3px;color:var(--text)}.trust-item p,.price-preview span,.price-preview small{color:var(--muted)}.price-preview .price-from{color:var(--brand-deep);font-size:20px;font-weight:950}.faq-list{display:grid;gap:8px;margin-top:14px}.faq-list details{padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.72);color:var(--text)}.faq-list summary{cursor:pointer;font-weight:900;color:var(--text)}.faq-list p{margin:8px 0 0;color:var(--muted);line-height:1.55}.comparison-table th:last-child,.comparison-table td:last-child{background:rgba(41,196,132,.1);font-weight:900}.mobile-contact-bar{display:none}.footer-links{display:flex;gap:12px;flex-wrap:wrap}.footer-links a{color:inherit;font-weight:800}
+.support-check{background:rgba(255,255,255,.78);color:var(--text)}
+.support-check strong{color:var(--text)}
+.support-check p{color:var(--muted)}
+@media (prefers-color-scheme:dark){
+.trust-item,.price-preview,.faq-list details,.support-check{background:rgba(13,37,47,.96);border-color:rgba(166,224,235,.2);color:var(--text)}
+.trust-item strong,.price-preview strong,.faq-list summary,.support-check strong{color:var(--text)}
+.trust-item p,.price-preview span,.price-preview small,.faq-list p,.support-check p{color:var(--muted)}
+.price-preview .price-from{color:var(--brand)}
+}
 @media(max-width:760px){body{padding-bottom:54px}.confidence-grid{grid-template-columns:1fr}.trust-grid,.price-preview-grid{grid-template-columns:1fr}.conversion-strip{align-items:stretch;flex-direction:column}.conversion-actions>*{flex:1}.mobile-contact-bar{position:fixed;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;left:10px;right:10px;bottom:6px;z-index:90;padding:3px;border:1px solid var(--line);border-radius:12px;background:rgba(244,252,252,.96);box-shadow:0 6px 20px rgba(9,47,58,.18);backdrop-filter:blur(14px)}body.chatbot-open .mobile-contact-bar{display:none}.mobile-contact-bar a,.mobile-contact-bar button{box-sizing:border-box;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:3px;width:100%;min-width:0;height:38px;min-height:38px;max-height:38px;margin:0;padding:4px 2px;border:1px solid rgba(255,255,255,.22);border-radius:8px;background:linear-gradient(135deg,#159eb4,#137d90);color:#fff;font-family:inherit;font-size:9px;font-weight:800;line-height:1;text-align:center;text-decoration:none;white-space:nowrap;overflow:hidden;box-shadow:none;cursor:pointer}.mobile-contact-bar .contact-tab,.mobile-contact-bar .contact-tab:link,.mobile-contact-bar .contact-tab:visited,.mobile-contact-bar .contact-tab:hover,.mobile-contact-bar .contact-tab:focus,.mobile-contact-bar .contact-tab:active{background:linear-gradient(135deg,#159eb4,#137d90);color:#fff!important;-webkit-text-fill-color:#fff;text-decoration:none;transform:none}.mobile-contact-bar a span,.mobile-contact-bar button span{display:block;min-width:0;margin:0;color:inherit;font:inherit;line-height:1;letter-spacing:0;white-space:nowrap}.mobile-contact-bar .contact-icon{display:block;flex:0 0 13px;width:13px;height:13px;fill:currentColor;color:inherit}.mobile-contact-bar .whatsapp-icon{color:inherit}.whatsapp-float{display:none}.site-chatbot:not(.is-open) .chatbot-launcher{display:none}.enquiry-modal{z-index:120}.comparison-table th:first-child,.comparison-table td:first-child{position:sticky;left:0;z-index:1;background:var(--surface)}.comparison-table th:first-child{z-index:2}.hero-actions>*{flex:1;min-width:140px}}
 </style>
 {% include '_theme_overrides.html' %}
@@ -4486,9 +4562,50 @@ caret-color:#67e8f9!important;
 #loginModal .password-toggle:hover,
 #loginModal .password-toggle:focus-visible{background:#1b4652;color:#e7fbff;}
 #loginModal .modal-close{background:#173842;color:#f1fbfd;border-color:rgba(157,220,232,.22);}
+#loginModal .modal-panel{width:min(92vw,560px);padding:20px;border:1px solid rgba(111,224,235,.3);border-radius:24px;background:radial-gradient(circle at 90% 0,rgba(39,188,205,.18),transparent 34%),linear-gradient(145deg,rgba(13,48,59,.98),rgba(5,28,37,.98));box-shadow:0 32px 90px rgba(0,20,28,.52),inset 0 1px 0 rgba(255,255,255,.08);backdrop-filter:blur(24px)}
+#loginModal .modal-close{top:14px;right:14px;width:38px;height:38px;border-radius:12px}
+#loginModal .modal-header h2{font-size:clamp(1.55rem,3vw,2rem);margin-top:10px}
+#loginModal .modal-header p{font-size:12px;line-height:1.4}
+#loginModal .login-toggle{padding:4px;border:1px solid rgba(157,220,232,.16);border-radius:16px;background:rgba(3,23,31,.38)}
+#loginModal .toggle-button{min-height:42px;border-radius:12px;font-size:13px}
+#loginModal .toggle-button.is-active{background:linear-gradient(135deg,#1aa8bd,#147b91);box-shadow:0 10px 24px rgba(10,142,164,.25)}
+#loginModal .login-pane{padding:13px;margin-top:9px;border:1px solid rgba(157,220,232,.14);border-radius:16px;background:rgba(9,39,49,.55)}
+#loginModal .modal-panel .portal-form{gap:6px;margin-top:0}
+#loginModal .portal-form input:not([type="hidden"]){min-height:44px;padding:8px 11px;border-radius:12px!important}
+#loginModal .portal-form .button{min-height:42px;padding:8px 12px;border-radius:12px;background:linear-gradient(135deg,#1eb3c8,#137f96);box-shadow:0 10px 24px rgba(12,139,162,.22)}
+.login-account-panel{display:grid;gap:8px;margin:11px 0 3px;padding:11px;border:1px solid rgba(111,224,235,.22);border-radius:16px;background:linear-gradient(135deg,rgba(37,169,184,.14),rgba(73,207,151,.08))}
+.login-account-panel[hidden]{display:none}
+.login-account-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.login-account-identity{min-width:0;flex:1}.login-account-identity small{display:block;color:#8fb8c1;font-size:10px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.login-account-identity strong{display:block;margin-top:3px;color:#f3fcfd;overflow-wrap:anywhere}
+.login-account-actions{display:flex;gap:8px;flex-wrap:wrap}.login-account-actions .nav-button{min-height:40px;padding:8px 13px}.login-account-actions .logout-button{background:linear-gradient(135deg,#ffc46c,#ef9840);border-color:rgba(255,201,119,.5);color:#173238}
+@media(max-width:600px){
+#loginModal .modal-panel{width:calc(100vw - 16px);padding:20px 14px;border-radius:22px}
+.login-account-row{align-items:stretch;flex-direction:column}
+.login-account-actions>*{flex:1}
+}
+:root{--page-text-size:15px;font-size:var(--page-text-size)}
+.page{width:min(1380px,calc(100% - 8px));padding-top:4px}
+.nav{position:relative;top:auto;z-index:50}
+.hero{margin-top:10px}
+.text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
+.book-demo-button,.book-demo-button:link,.book-demo-button:visited{color:#073d2d!important;-webkit-text-fill-color:#073d2d;background:linear-gradient(135deg,rgba(119,238,179,.9),rgba(42,190,129,.78))!important;border:1px solid rgba(26,145,97,.48)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 9px 24px rgba(25,138,97,.2)!important;backdrop-filter:blur(14px) saturate(145%)}
+.book-demo-button:hover,.book-demo-button:focus-visible{color:#032c20!important;-webkit-text-fill-color:#032c20;background:linear-gradient(135deg,rgba(145,248,198,.96),rgba(53,205,141,.88))!important;border-color:rgba(17,122,79,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 13px 30px rgba(25,138,97,.3)!important;transform:translateY(-2px)}
+.nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
+.nav .nav-links a,.nav .nav-links a:nth-child(n){position:relative;isolation:isolate;min-height:38px;padding:9px 13px;border:1px solid transparent;border-radius:13px;color:var(--brand-deep);background:transparent;font-size:12px;font-weight:900;letter-spacing:.01em;text-shadow:none;transition:color .2s ease,transform .2s ease,border-color .2s ease,background .2s ease,box-shadow .2s ease}
+.nav .nav-links a::after{inset:0;z-index:-1;height:auto;border-radius:12px;background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 15%,transparent),color-mix(in srgb,var(--success) 12%,transparent));animation:none;opacity:0;transform:scale(.92);transform-origin:center;transition:opacity .2s ease,transform .2s ease}
+.nav .nav-links a:hover,.nav .nav-links a:focus-visible{color:var(--brand-deep);border-color:color-mix(in srgb,var(--primary) 38%,var(--line));background:var(--surface);box-shadow:0 8px 18px rgba(12,56,66,.13);text-shadow:none;transform:translateY(-2px)}
+.nav .nav-links a:hover::after,.nav .nav-links a:focus-visible::after{opacity:1;transform:scale(1)}
+@media(min-width:1321px){.nav{min-height:66px}}
+.user-login-menu{z-index:60}.user-login-dropdown{z-index:1000}
+.page-jump-controls{position:fixed;right:12px;bottom:150px;z-index:89;display:grid;gap:8px}
+body.chatbot-open .page-jump-controls{display:none}
+.chat-only{margin:0!important;padding:0!important;overflow:hidden;background:transparent!important}.chat-only .page,.chat-only .page-jump-controls,.chat-only .mobile-contact-bar,.chat-only .whatsapp-float,.chat-only .enquiry-modal,.chat-only .modal:not(#chatbotPanel){display:none!important}.chat-only .site-chatbot{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;display:block!important;transform:none!important}.chat-only .chatbot-panel{display:flex!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}.chat-only .chatbot-launcher{display:none!important}
+.chat-only .chatbot-header{padding:16px!important;gap:14px!important}.chat-only .chatbot-avatar{width:38px!important;height:38px!important;border-radius:0!important}.chat-only .chatbot-avatar img{width:30px!important;height:30px!important}.chat-only .chatbot-title strong{font-size:17px!important;line-height:1.08!important}.chat-only .chatbot-title>div:last-child>span{display:block!important;font-size:13px!important;line-height:1.35!important}.chat-only .chatbot-close{width:34px!important;height:34px!important;border-radius:12px!important}.chat-only .chatbot-messages{gap:10px!important;padding:16px!important}.chat-only .chatbot-message{max-width:88%!important;padding:11px 13px!important;font-size:15px!important;line-height:1.5!important;border-radius:16px!important}.chat-only .chatbot-message.is-bot{border-top-left-radius:6px!important}.chat-only .chatbot-message.is-user{border-top-right-radius:6px!important}.chat-only .chatbot-suggestions{display:flex!important;padding:12px 16px 0!important}.chat-only .chatbot-chip{min-height:34px!important;padding:8px 11px!important;font-size:13px!important}.chat-only .chatbot-form{gap:8px!important;padding:10px 12px 12px!important}.chat-only .chatbot-form input{min-height:42px!important;padding:10px 13px!important;font-size:16px!important}.chat-only .chatbot-form button{min-width:auto!important;min-height:42px!important;padding:10px 16px!important;font-size:inherit!important}
+.page-jump-button{display:grid;place-items:center;width:42px;height:42px;padding:0;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);color:var(--primary);box-shadow:0 8px 24px rgba(12,56,66,.24);font-size:20px;font-weight:900;line-height:1;cursor:pointer}
+.page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
+@media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
 </head>
-<body data-default-login-mode="{{ login_mode }}">
+<body class="{% if request.args.get('chat_embed') == '1' %}chat-only{% endif %}" data-default-login-mode="{{ login_mode }}">
 <div class="page">
     <header class="nav surface">
         <a class="brand" href="{{ url_for('dashboard') }}">
@@ -4496,7 +4613,7 @@ caret-color:#67e8f9!important;
                 <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
             </div>
             <div class="brand-copy">
-                <strong>SaleWell Smart Tank</strong>
+                <strong><span class="brand-sale">Sale</span><span class="brand-well">Well</span>Smart Tank</strong>
                 <span>Smart monitoring and automation for water, power, and property systems.</span>
             </div>
         </a>
@@ -4506,61 +4623,25 @@ caret-color:#67e8f9!important;
             <a href="#solutions">Property Types</a>
             <a href="#proof">Setup Check</a>
             <a href="{{ url_for('pricing_page') }}">Pricing</a>
-            <a href="#enquiry">Contact Sales</a>
+            <a href="#enquiry">Contact Us</a>
         </nav>
         <div class="nav-actions">
             {% set nav_auth = homepage_auth|default({}) %}
             {% set active_homepage_user = nav_auth.active_user|default(homepage_user) %}
             {% set nav_admin_logged_in = nav_auth.admin_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'admin') %}
             {% set nav_customer_logged_in = nav_auth.customer_logged_in|default(false) or (active_homepage_user and active_homepage_user.role == 'customer') %}
-            {% if active_homepage_user %}
-            <div class="login-status">
-                <span>Logged in as - {{ active_homepage_user.display_name }}</span>
-                <form class="logout-form" method="post" action="/logout">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <button class="nav-button is-secondary" type="submit">Logout</button>
-                </form>
-            </div>
-            {% endif %}
-            <a class="nav-button is-secondary is-demo" href="#enquiry">Book Free Demo</a>
-            <details class="user-login-menu">
-                <summary class="nav-button is-primary user-login-trigger">
-                    <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
-                    <span>User Login</span>
-                </summary>
-                <div class="user-login-dropdown" aria-label="User login options">
-                    {% if nav_customer_logged_in %}
-                    <a
-                        class="nav-button"
-                        href="{{ url_for('customer_dashboard') }}"
-                    >Customer Dashboard</a>
-                    {% else %}
-                    <a
-                        class="nav-button js-open-login {% if login_mode != 'admin' %}is-current{% endif %}"
-                        href="{{ url_for('customer_login', next=next_url) }}"
-                        data-role="customer"
-                    >Customer Login</a>
-                    {% endif %}
-                    {% if nav_admin_logged_in %}
-                    <a
-                        class="nav-button"
-                        href="{{ url_for('admin_customers') }}"
-                    >Admin Dashboard</a>
-                    {% else %}
-                    <a
-                        class="nav-button js-open-login {% if login_mode == 'admin' %}is-current{% endif %}"
-                        href="{{ url_for('admin_login', next=next_url) }}"
-                        data-role="admin"
-                    >Admin Login</a>
-                    {% endif %}
-                </div>
-            </details>
+            <a class="nav-button is-secondary is-demo book-demo-button" href="#enquiry">Book Demo</a>
+            <button class="nav-button is-primary user-login-trigger js-open-login" type="button" data-role="{{ 'admin' if login_mode == 'admin' else 'customer' }}" aria-haspopup="dialog" aria-controls="loginModal">
+                <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
+                <span>Login</span>
+            </button>
+            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
 
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
-            <div class="eyebrow">SaleWell Smart Tank</div>
+            <div class="eyebrow"><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</div>
             <p class="hero-kicker">Smart water tank automation for homes, apartments and managed properties.</p>
             <h1 class="hero-title">Prevent overflow, protect your motor and control your pump from anywhere.</h1>
             <p class="hero-text">Monitor water levels in real time, automate pump decisions and receive reliable alerts from one mobile and web dashboard.</p>
@@ -4573,7 +4654,7 @@ caret-color:#67e8f9!important;
             </div>
 
             <div class="hero-actions">
-                <a class="button is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
                 <a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">Buy Now</a>
                 <a class="button-secondary is-primary-cta" href="#demo">Watch 2-Min Video</a>
             </div>
@@ -4581,7 +4662,7 @@ caret-color:#67e8f9!important;
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
             <div class="preview-visual" aria-label="Animated smart water tank dashboard">
-                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="about:blank" data-dashboard-src="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260802-1') }}" title="Interactive Smart Water Tank Flow dashboard" loading="eager" sandbox="allow-scripts"></iframe>
+                <iframe id="dashboardPreviewFrame" class="preview-dashboard-frame" src="{{ url_for('static', filename='marketing/water_flow_animation.html', embed='1', v='20260813-2') }}" title="Live animated Smart Water Tank flow with complete device configuration" loading="eager" sandbox="allow-scripts"></iframe>
             </div>
             <div class="preview-body">
             <a class="eyebrow" href="{{ url_for('static', filename='marketing/water_flow_animation.html', v='20260731-1') }}" aria-label="Open the full interactive water-flow dashboard">Dashboard Preview</a>
@@ -4787,7 +4868,7 @@ caret-color:#67e8f9!important;
                     {% if show_pricing_links|default(false) %}
                     <a class="button-secondary" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
                     {% else %}
-                    <a class="button-secondary" href="#enquiry">Book Free Demo</a>
+                    <a class="button-secondary book-demo-button" href="#enquiry">Book Demo</a>
                     {% endif %}
                 </div>
             </div>
@@ -4815,7 +4896,7 @@ caret-color:#67e8f9!important;
                         </picture>
                         <div class="demo-scene-copy">
                             <strong>Stop Water Overflow Automatically</strong>
-                            <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
+                            <p>Water overflow and motor damage can cost thousands. <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> helps you catch the risk early and protect the pump automatically.</p>
                             <div class="demo-feature-list" aria-label="System highlights">
                                 <span>Real-time monitoring</span>
                                 <span>AI leak detection</span>
@@ -4962,7 +5043,7 @@ caret-color:#67e8f9!important;
                                     <div class="demo-kpi-row">
                                         <div class="demo-kpi is-featured">
                                             <span>Pump Status</span>
-                                            <strong>OFF · Auto</strong>
+                                            <strong>OFF Â· Auto</strong>
                                             <p>Starts at the configured low threshold.</p>
                                         </div>
                                         <div class="demo-kpi">
@@ -4981,7 +5062,7 @@ caret-color:#67e8f9!important;
                                             <p>Local Wi-Fi and cloud sync are healthy.</p>
                                         </div>
                                     </div>
-                                    <div class="demo-dashboard-banner">Source Tank → Pump → Main Tank · Automatic threshold protection active.</div>
+                                    <div class="demo-dashboard-banner">Source Tank â†’ Pump â†’ Main Tank Â· Automatic threshold protection active.</div>
                                 </div>
                             </div>
                         </div>
@@ -5098,7 +5179,7 @@ caret-color:#67e8f9!important;
                                     <div class="demo-dark-topbar">
                                         <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                                         <div class="demo-dark-topbar-title">
-                                            <strong>SaleWell Smart Tank</strong>
+                                            <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong>
                                             <span>Updated 9:53 PM</span>
                                         </div>
                                         <div class="demo-logout-pill">Logout</div>
@@ -5200,7 +5281,7 @@ caret-color:#67e8f9!important;
                                         <div class="demo-mobile-top">
                                             <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                                             <div>
-                                                <strong>SaleWell Smart Tank</strong>
+                                                <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong>
                                                 <span>Updated 9:53 PM</span>
                                             </div>
                                             <div class="demo-mobile-pill">Logout</div>
@@ -5310,7 +5391,7 @@ caret-color:#67e8f9!important;
 
                 <div class="demo-scene-caption" id="demoSceneCaption" aria-live="polite">
                     <strong>Stop Water Overflow Automatically</strong>
-                    <p>Water overflow and motor damage can cost thousands. SaleWell helps you catch the risk early and protect the pump automatically.</p>
+                    <p>Water overflow and motor damage can cost thousands. <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> helps you catch the risk early and protect the pump automatically.</p>
                     <div class="demo-feature-list" aria-label="System highlights">
                         <span>Real-time monitoring</span>
                         <span>AI leak detection</span>
@@ -5352,6 +5433,9 @@ caret-color:#67e8f9!important;
             <div>
                 <div class="eyebrow">How It Works</div>
                 <h2>From installation to daily use in 4 practical steps.</h2>
+                <div class="guide-actions">
+                    <a class="button animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See Water Flow Animation</a>
+                </div>
             </div>
         </div>
 
@@ -5484,13 +5568,13 @@ caret-color:#67e8f9!important;
                     <article class="trust-item"><span aria-hidden="true">&#128260;</span><strong>OTA updates</strong><p>Supported devices receive managed firmware improvements without replacement.</p></article>
                 </div>
                 <div class="price-preview-grid" aria-label="Pricing preview" style="margin-top:10px">
-                    <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;3,999</strong><small>No monthly fee on the starter plan.</small></article>
-                    <article class="price-preview"><span>Phone access at home</span><strong class="price-from">From &#8377;4,999</strong><small>Connect directly at the property; no home Wi-Fi required.</small></article>
-                    <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;9,999</strong><small>Final scope depends on tanks and site layout.</small></article>
+                    <article class="price-preview"><span>Home monitoring</span><strong class="price-from">From &#8377;4,999</strong><small>One-time equipment price.</small></article>
+                    <article class="price-preview"><span>Phone access at home</span><strong class="price-from">From &#8377;5,999</strong><small>Connect directly at the property; no home Wi-Fi required.</small></article>
+                    <article class="price-preview"><span>Apartment / RWA</span><strong class="price-from">From &#8377;10,999</strong><small>One-time starting price; final scope depends on the site.</small></article>
                 </div>
                 <div class="conversion-strip" style="margin-top:10px">
                     <div><strong>See the exact kit and recurring cost.</strong><span class="muted">Compare inclusions before booking installation.</span></div>
-                    <div class="conversion-actions"><a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">View Pricing &amp; Buy</a><a class="button is-primary-cta" href="#enquiry">Book Free Demo</a></div>
+                    <div class="conversion-actions"><a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">View Pricing &amp; Buy</a><a class="button is-primary-cta book-demo-button" href="#enquiry">Book Demo</a></div>
                 </div>
             </div>
             <div>
@@ -5546,7 +5630,7 @@ caret-color:#67e8f9!important;
                     </figcaption>
                 </figure>
                 <div class="contact-card">
-                    <strong>Talk To SaleWell IoT</strong>
+                    <strong>Talk To <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT</strong>
                     <p>Email <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> or call <a href="tel:+918796452878">+91-8796452878</a> for pricing, demo or installation planning.</p>
                 </div>
             </div>
@@ -5560,12 +5644,12 @@ caret-color:#67e8f9!important;
                 <p>Free site assessment &bull; 10 minutes. Tank setup, pump risk and best plan reviewed.</p>
             </div>
             <div class="final-cta-actions">
-                <a class="button-secondary is-primary-cta" href="#enquiry">Book Free Demo</a>
+                <a class="button-secondary is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
             </div>
         </div>
-        <div><strong>SaleWell Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
+        <div><strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</strong> helps homes and facilities monitor water level, reduce overflow risk, and simplify support after installation.</div>
         <div>Support: <a href="mailto:support@salewell.co.in">support@salewell.co.in</a> | <a href="tel:+918796452878">+91-8796452878</a></div>
-        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#how-it-works">Installation Guide</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Sales</a></nav>
+        <nav class="footer-links" aria-label="Support links"><a href="{{ url_for('pricing_page') }}">Pricing</a><a href="{{ url_for('android_app_download') }}">Android App</a><a href="#buyer-confidence">Warranty &amp; FAQ</a><a href="#enquiry">Contact Us</a></nav>
         <div class="visitor-count" aria-label="Homepage visitor count">
             <span>Visitors</span>
             <strong>{{ homepage_visitor_count|default("0") }}</strong>
@@ -5578,9 +5662,14 @@ caret-color:#67e8f9!important;
                 <span>Download Android App</span>
             </a>
         </div>
-        <div class="footer-note">&copy; SaleWell IoT Solutions - All rights reserved.</div>
+        <div class="footer-note">&copy; <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> IoT Solutions - All rights reserved.</div>
     </footer>
 </div>
+
+<nav class="page-jump-controls" aria-label="Page navigation">
+    <button class="page-jump-button" type="button" data-page-jump="top" aria-label="Go to start of page" title="Start of page">&#8593;</button>
+    <button class="page-jump-button" type="button" data-page-jump="bottom" aria-label="Go to end of page" title="End of page">&#8595;</button>
+</nav>
 
 <nav class="mobile-contact-bar" aria-label="Quick contact options">
     <a class="contact-tab" href="tel:+918796452878" aria-label="Call SaleWell">
@@ -5616,7 +5705,7 @@ caret-color:#67e8f9!important;
                     <img src="{{ url_for('static', filename='pwa/brand-logo.svg') }}" alt="">
                 </div>
                 <div>
-                    <strong>SaleWell Tank Advisor</strong>
+                    <strong><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Tank Advisor</strong>
                     <span>Answers plan, pump, installation and pricing questions.</span>
                 </div>
             </div>
@@ -5626,7 +5715,7 @@ caret-color:#67e8f9!important;
             </div>
         </div>
         <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
-            <div class="chatbot-message is-bot">Hi, I can suggest the right SaleWell plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
+            <div class="chatbot-message is-bot">Hi, I can suggest the right <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> plan in seconds. Ask about price, pump control, overflow, leakage, or installation.</div>
         </div>
         <div class="chatbot-suggestions" aria-label="Quick questions">
             <button class="chatbot-chip" type="button" data-chat-prompt="Which plan fits my home?">Home plan</button>
@@ -5649,7 +5738,7 @@ caret-color:#67e8f9!important;
     <button class="chatbot-launcher" id="chatbotLauncher" type="button" aria-label="Ask SaleWell" aria-controls="chatbotPanel" aria-expanded="false">
         <span class="chatbot-launcher-icon" aria-hidden="true">?</span>
         <span aria-hidden="true">
-            <strong>Ask SaleWell</strong>
+            <strong>Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></strong>
         </span>
     </button>
 </div>
@@ -5664,9 +5753,9 @@ caret-color:#67e8f9!important;
         <button class="modal-close" type="button" aria-label="Close booking form" data-close-enquiry>&times;</button>
 
         <div class="modal-header">
-            <div class="eyebrow">Book Free Demo</div>
+            <div class="eyebrow">Book Demo</div>
             <h2 id="enquiryModalTitle">Book your free demo and tank setup check.</h2>
-            <p id="enquiryModalDescription">Share basic site details and the SaleWell team will follow up.</p>
+            <p id="enquiryModalDescription">Share basic site details and the <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> team will follow up.</p>
         </div>
 
         <form class="enquiry-form" id="enquiryForm" method="post" action="{{ url_for('sales_enquiry') }}">
@@ -5699,7 +5788,7 @@ caret-color:#67e8f9!important;
                 </div>
                 <div class="group">
                     <label for="lead_email">Email</label>
-                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning" required>
+                    <input id="lead_email" name="email" type="email" value="{{ sales_form.get('email', '') }}" autocomplete="email" maxlength="120" aria-describedby="lead_email_warning">
                     <div class="field-warning" id="lead_email_warning" aria-live="polite"></div>
                 </div>
             </div>
@@ -5717,17 +5806,19 @@ caret-color:#67e8f9!important;
                 </div>
                 <div class="group">
                     <label for="lead_device_count">Estimated Devices Needed</label>
-                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '') }}" aria-describedby="lead_device_count_warning" required>
+                    <input id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric" value="{{ sales_form.get('device_count', '1') or '1' }}" aria-describedby="lead_device_count_warning" required>
                     <div class="field-warning" id="lead_device_count_warning" aria-live="polite"></div>
                 </div>
             </div>
             <div class="group">
                 <label for="lead_message">Project Notes</label>
-                <textarea id="lead_message" name="message" minlength="10" maxlength="800" aria-describedby="lead_message_warning" required>{{ sales_form.get('message', '') }}</textarea>
+                <textarea id="lead_message" name="message" maxlength="800" aria-describedby="lead_message_warning" placeholder="Optional: overflow, pump control, dry-run, leak, or installation details">{{ sales_form.get('message', '') }}</textarea>
                 <div class="field-warning" id="lead_message_warning" aria-live="polite"></div>
             </div>
             <div class="form-actions">
-                <button class="button-secondary is-primary-cta" id="enquirySubmitButton" type="submit" disabled>Book Free Demo</button>
+                <button class="button-secondary is-primary-cta book-demo-button" id="enquirySubmitButton" type="submit" disabled>Book Demo</button>
+                <span class="action-separator" aria-hidden="true">or</span>
+                <a class="button custom-device-button" href="{{ url_for('pricing_page') }}#find-my-plan">Select Customized Device</a>
             </div>
             <div class="form-note">Send this form for pricing, demo scheduling or a quick tank setup recommendation.</div>
         </form>
@@ -5740,13 +5831,12 @@ caret-color:#67e8f9!important;
     aria-hidden="{% if show_login_modal|default(false) %}false{% else %}true{% endif %}"
 >
     <div class="modal-backdrop" data-close-modal></div>
-    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle" aria-describedby="loginModalDescription">
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="loginModalTitle">
         <button class="modal-close" type="button" aria-label="Close login" data-close-modal>&times;</button>
 
         <div class="modal-header">
             <div class="eyebrow">Sign In</div>
             <h2 id="loginModalTitle">{{ login_title }}</h2>
-            <p id="loginModalDescription">{{ login_description }}</p>
         </div>
 
         <div class="modal-banners">
@@ -5774,11 +5864,19 @@ caret-color:#67e8f9!important;
         </div>
 
         <section class="login-pane {% if login_mode != 'admin' %}is-active{% endif %}" data-login-pane="customer">
-            <h3>Customer Login</h3>
-            <p>Use your registered tank credentials.</p>
-            <div class="login-help">Use your assigned device ID as the username.</div>
+            {% if active_homepage_user and active_homepage_user.role == 'customer' %}
+            <div class="login-account-panel" aria-label="Signed-in customer account">
+                <div class="login-account-row">
+                    <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
+                    <div class="login-account-actions">
+                        <a class="nav-button" href="{{ url_for('customer_dashboard') }}">Customer Dashboard</a>
+                        <form class="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button logout-button" type="submit">Logout</button></form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
             <form method="post" action="{{ url_for('customer_login') }}" class="portal-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
+                <input type="hidden" name="next" value="{{ url_for('customer_dashboard') }}">
                 <div class="group">
                     <label for="customer_username">Device ID</label>
                     <input id="customer_username" name="username" type="text" autocomplete="username" value="{% if login_mode != 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
@@ -5793,17 +5891,26 @@ caret-color:#67e8f9!important;
                         </button>
                     </div>
                 </div>
-                <button class="button" type="submit">Open Customer Dashboard</button>
+                <button class="button" type="submit">Login</button>
             </form>
             <div class="login-help"><a href="{{ url_for('customer_forgot_password') }}">Forgot customer password?</a></div>
+            {% endif %}
         </section>
 
         <section class="login-pane {% if login_mode == 'admin' %}is-active{% endif %}" data-login-pane="admin">
-            <h3>Admin Login</h3>
-            <p>For installer and service access.</p>
-            <div class="login-help">Use your admin username and password.</div>
+            {% if active_homepage_user and active_homepage_user.role == 'admin' %}
+            <div class="login-account-panel" aria-label="Signed-in admin account">
+                <div class="login-account-row">
+                    <div class="login-account-identity"><small>Signed in</small><strong>{{ active_homepage_user.display_name }}</strong></div>
+                    <div class="login-account-actions">
+                        <a class="nav-button" href="{{ url_for('admin_customers') }}">Admin Dashboard</a>
+                        <form class="logout-form" method="post" action="/logout"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="nav-button logout-button" type="submit">Logout</button></form>
+                    </div>
+                </div>
+            </div>
+            {% else %}
             <form method="post" action="{{ url_for('admin_login') }}" class="portal-form">
-                <input type="hidden" name="next" value="{{ next_url }}">
+                <input type="hidden" name="next" value="{{ url_for('admin_customers') }}">
                 <div class="group">
                     <label for="admin_username">Username</label>
                     <input id="admin_username" name="username" type="text" autocomplete="username" value="{% if login_mode == 'admin' %}{{ request.form.get('username', '') }}{% endif %}" required>
@@ -5818,8 +5925,9 @@ caret-color:#67e8f9!important;
                         </button>
                     </div>
                 </div>
-                <button class="button" type="submit">Open Admin Dashboard</button>
+                <button class="button" type="submit">Login</button>
             </form>
+            {% endif %}
         </section>
     </div>
 </div>
@@ -5836,7 +5944,6 @@ const closeEnquiryButtons = document.querySelectorAll("[data-close-enquiry]");
 const toggleButtons = document.querySelectorAll("[data-login-role]");
 const loginPanes = document.querySelectorAll("[data-login-pane]");
 const openLoginButtons = document.querySelectorAll(".js-open-login");
-const userLoginMenus = document.querySelectorAll(".user-login-menu");
 const landingModeInput = document.getElementById("landingModeInput");
 const enquiryForm = document.getElementById("enquiryForm");
 const enquirySubmitButton = document.getElementById("enquirySubmitButton");
@@ -5932,7 +6039,7 @@ const enquiryFieldRules = {
         label: "Email",
         validate(value, field) {
             const text = value.trim();
-            if (!text) return "Email address is required.";
+            if (!text) return "";
             if (text.length > 120) return "Email must stay under 120 characters.";
             if (field.validity.typeMismatch || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(text)) return "Enter a valid email address.";
             return "";
@@ -5962,8 +6069,7 @@ const enquiryFieldRules = {
         label: "Project notes",
         validate(value) {
             const text = value.trim();
-            if (!text) return "Project notes are required.";
-            if (text.length < 10) return "Project notes must be at least 10 characters.";
+            if (!text) return "";
             if (text.length > 800) return "Project notes must stay under 800 characters.";
             return "";
         },
@@ -6093,9 +6199,6 @@ toggleButtons.forEach((button) => {
 openLoginButtons.forEach((button) => {
     button.addEventListener("click", (event) => {
         event.preventDefault();
-        userLoginMenus.forEach((menu) => {
-            menu.removeAttribute("open");
-        });
         openLoginModal(button.dataset.role);
     });
 });
@@ -6353,6 +6456,9 @@ function setChatbotOpen(isOpen) {
         scrollChatToBottom();
     } else {
         chatbotFloatDrag?.applySavedPosition();
+        if (document.body.classList.contains("chat-only") && window.parent !== window) {
+            window.parent.postMessage({type:"salewell-chat-close"}, window.location.origin);
+        }
     }
 }
 
@@ -6468,30 +6574,30 @@ const chatPlanCatalog = [
         name: "Home Basic",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 3,999 one-time equipment price, no monthly fee",
-        shortPrice: "Rs. 3,999",
+        price: "Rs. 4,999 one-time equipment price; installation and plumbing charged separately by work type",
+        shortPrice: "Rs. 4,999",
         bestFor: "customers who want the tank sensor and controller at the lowest one-time price",
-        includes: ["wireless tank sensor node and main controller", "ready-to-use wireless connection", "no home Wi-Fi or internet needed", "phone app and live screen not included"],
-        strengths: ["lowest entry cost", "simple wireless equipment", "no monthly fee"],
+        includes: ["wireless tank sensor node and main controller", "automatic pump start/stop control and overflow cut-off", "ready-to-use wireless connection", "no home Wi-Fi or internet needed", "phone app and live screen not included"],
+        strengths: ["lowest entry cost", "simple wireless equipment", "one-time purchase"],
         keywords: ["starter wi-fi", "starter wifi", "home basic", "basic", "hardware only", "no app", "no monthly"],
     },
     {
         name: "Home Control",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 4,999 one-time equipment and app price, no monthly fee",
-        shortPrice: "Rs. 4,999, phone access at home",
+        price: "Rs. 5,999 one-time equipment and app price; installation and plumbing charged separately by work type",
+        shortPrice: "Rs. 5,999, phone access at home",
         bestFor: "homes and villas that want to see live tank information on a phone while at the property",
         includes: ["everything in Home Basic", "mobile app included", "live tank level on your phone", "direct connection to the controller", "no home Wi-Fi or internet needed", "works only at the property"],
-        strengths: ["phone app at home", "live tank information", "no monthly fee"],
+        strengths: ["phone app at home", "live tank information", "one-time purchase"],
         keywords: ["home control", "home smart", "smart", "local app", "mobile app", "live monitoring", "local wifi", "same network"],
     },
     {
         name: "Home Cloud Pro",
         segment: "Home / Villa",
         devices: "1",
-        price: "Rs. 7,499 one-time wireless hardware price + Rs. 149/month",
-        shortPrice: "Rs. 7,499 + Rs. 149/mo",
+        price: "Rs. 8,499 one-time equipment, app and cloud-feature price; installation and plumbing charged separately by work type",
+        shortPrice: "Rs. 8,499",
         bestFor: "families, rental homes and owners who want to check their tank from anywhere",
         includes: ["everything in Home Control", "remote access from anywhere", "family sharing", "cloud history and usage trends", "AI analytics and insights", "monthly water report"],
         strengths: ["cloud access from anywhere", "AI analytics", "history and reports"],
@@ -6501,8 +6607,8 @@ const chatPlanCatalog = [
         name: "RWA Standard",
         segment: "Apartment / Hostel",
         devices: "6",
-        price: "Rs. 9,999 starting wireless hardware price per setup + Rs. 299/month cloud service",
-        shortPrice: "Rs. 9,999 + Rs. 299/mo",
+        price: "Rs. 10,999 starting wireless hardware and cloud-feature price per setup; installation and plumbing charged separately by work type",
+        shortPrice: "Rs. 10,999",
         bestFor: "apartments, RWAs, small hotels, schools and shared buildings",
         includes: ["remote monitoring over Internet", "wireless tank sensor nodes and pump controller", "pump control", "source tank monitoring", "overhead and underground tank support", "admin dashboard", "alerts and reports"],
         strengths: ["built for shared tanks", "admin visibility", "good RWA starting plan"],
@@ -6512,10 +6618,10 @@ const chatPlanCatalog = [
         name: "Commercial AI Pro",
         segment: "Commercial Site",
         devices: "10",
-        price: "Rs. 12,999 starting wireless hardware price per setup + Rs. 599/month cloud and reports",
-        shortPrice: "Rs. 12,999 + Rs. 599/mo",
+        price: "Rs. 13,999 starting wireless hardware, cloud and reports price per setup; installation and plumbing charged separately by work type; optional monthly or annual maintenance is quote-based on request",
+        shortPrice: "Rs. 13,999",
         bestFor: "large apartments, hotels, factories and institutions that need multi-tank insight",
-        includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support"],
+        includes: ["everything in RWA Standard", "AI analytics", "leak detection", "multi-tank dashboard", "source-to-destination tank logic", "advanced reports", "priority support", "optional monthly or annual maintenance contract on request"],
         strengths: ["best for multi-tank sites", "advanced reporting", "water movement between tanks"],
         keywords: ["commercial ai pro", "ai pro", "large apartment", "factory", "institution", "hotel", "multi tank", "advanced report"],
     },
@@ -6523,8 +6629,8 @@ const chatPlanCatalog = [
         name: "Dealer / Installer Kit",
         segment: "Dealer / Installer",
         devices: "1",
-        price: "Rs. 11,999 starter partner kit, reseller pricing by volume",
-        shortPrice: "Rs. 11,999 partner kit",
+        price: "Rs. 12,999 starter partner kit; installation and plumbing charged separately by work type; reseller pricing by volume",
+        shortPrice: "Rs. 12,999 partner kit",
         bestFor: "dealers, plumbers, electricians and local installers who need a working starter kit",
         includes: ["complete wireless demo kit", "installer checklist", "customer setup support", "plan and add-on menu", "partner follow-up support", "bulk pricing discussion"],
         strengths: ["partner-ready kit", "installer setup flow", "volume pricing discussion"],
@@ -6534,8 +6640,8 @@ const chatPlanCatalog = [
         name: "Enterprise Modular",
         segment: "Commercial Site",
         devices: "25",
-        price: "custom pricing, usually starts from Rs. 24,999",
-        shortPrice: "Custom, usually from Rs. 24,999",
+        price: "custom one-time pricing, usually starts from Rs. 25,999; installation and plumbing charged separately by work type; optional monthly or annual maintenance is quote-based on request",
+        shortPrice: "Custom, usually from Rs. 25,999",
         bestFor: "builders, townships, industrial clients and large rollouts needing custom dashboard or integrations",
         includes: ["multiple wireless sensor and controller roles", "custom dashboards", "multi-site deployment", "API and custom integrations", "custom reports and user roles", "dedicated rollout support", "bulk device pricing"],
         strengths: ["custom rollout planning", "multi-site support", "API and role-based access"],
@@ -6545,11 +6651,11 @@ const chatPlanCatalog = [
 
 const chatAddOns = [
     "Local mobile app and live monitoring: Rs. 1,000 one-time Home Basic upgrade",
-    "Automatic pump control: Rs. 1,500 to Rs. 2,500 for home plans",
-    "Cloud dashboard and remote access: Rs. 99 to Rs. 299/month for Home Control or managed plans; external Wi-Fi and internet required",
-    "AI analytics and leak insight: Rs. 149 to Rs. 499/month for cloud-capable plans",
+    "Cloud dashboard and remote access: one-time quote for Home Control or managed plans; external Wi-Fi and internet required",
+    "AI analytics and leak insight: one-time quote for cloud-capable plans",
     "Source tank monitoring: Rs. 2,000 to Rs. 3,500 for Home Control or Home Cloud Pro",
     "Extra tank or sensor node: Rs. 2,500 to Rs. 4,500 for monitoring and managed plans",
+    "Municipal Water Kit: Rs. 7,999 one-time for two motorized valves, one municipal-water sensor and controller integration; installation and plumbing extra",
     "Wireless range extension node: quoted after site survey",
     "Installation and site survey: quoted by city and project size for every plan",
     "Custom reporting: quote-based for RWA, commercial and enterprise plans",
@@ -6589,10 +6695,10 @@ const chatBookingFields = [
     },
     {
         key: "email",
-        question: "What email should we send the confirmation to?",
-        normalize: (value) => value.trim().toLowerCase(),
-        validate: (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
-        error: "Please enter a valid email address.",
+        question: "What email should we send the confirmation to? Type 'skip' to continue with WhatsApp only.",
+        normalize: (value) => value.trim().toLowerCase() === "skip" ? "" : value.trim().toLowerCase(),
+        validate: (value) => value.trim().toLowerCase() === "skip" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()),
+        error: "Please enter a valid email address or type 'skip'.",
     },
     {
         key: "city",
@@ -6804,7 +6910,7 @@ function completeChatBooking() {
     if (data.plan) noteLines.push(`Selected pricing plan: ${data.plan}`);
     if (data.baseNote) noteLines.push(data.baseNote);
     if (data.note) noteLines.push(`Visitor requirement: ${data.note}`);
-    const finalNote = noteLines.join("\n");
+    const finalNote = noteLines.join("\n") || "Demo booking requested via SaleWell chatbot.";
     chatCompletedBooking = {
         name: data.name,
         phone: data.phone,
@@ -6839,6 +6945,7 @@ async function submitCompletedEnquiry() {
     const formData = new FormData();
     formData.set("csrf_token", form.querySelector('[name="csrf_token"]')?.value || "");
     formData.set("landing_mode", document.getElementById("landingModeInput")?.value || "customer");
+    formData.set("return_to", "homepage");
     formData.set("name", chatCompletedBooking.name || "");
     formData.set("phone", chatCompletedBooking.phone || "");
     formData.set("email", chatCompletedBooking.email || "");
@@ -6917,7 +7024,7 @@ function describeInstallationTypes() {
 function productInfoText() {
     return (
         "SaleWell Smart Tank is a modular Wi-Fi water monitoring and pump-control system for homes, RWAs, hotels, institutions, dealers and commercial sites.\n" +
-        "Core capabilities: tank level monitoring, local/mobile dashboard, alerts, pump relay control, auto cut-off support, cloud access, source tank logic, multi-tank dashboard, AI usage/leak insights and reports depending on plan/add-ons.\n" +
+        "Core capabilities: every device plan includes tank level monitoring, automatic pump relay control and overflow cut-off. Eligible plans add local/mobile dashboard, cloud access, source tank logic, multi-tank dashboard, AI usage/leak insights and reports.\n" +
         `Installation types:\n${describeInstallationTypes()}\n` +
         `Common add-ons: ${chatAddOns.join("; ")}.`
     );
@@ -6926,7 +7033,6 @@ function productInfoText() {
 function recommendPlan(input) {
     const count = Number(extractRequirementCount(input) || 0);
     const wantsAI = chatHasAny(input, ["ai", "analytics", "leak", "usage", "trend", "report", "saving", "intelligence"]);
-    const wantsPump = chatHasAny(input, ["pump", "motor", "dry run", "dry-run", "remote", "control", "automation", "internet"]);
     const wantsNoMonthly = chatHasAny(input, ["no monthly", "without monthly", "one time", "one-time", "local only", "offline"]);
     const commercial = chatHasAny(input, ["apartment", "rwa", "society", "hostel", "hotel", "school", "factory", "institution", "commercial", "office", "hospital", "builder", "township", "industrial", "managed", "source tank", "underground tank", "multiple tanks"]) || count >= 3;
     const enterprise = chatHasAny(input, ["enterprise", "builder", "township", "multi site", "multi-site", "api", "custom dashboard", "industrial"]) || count >= 25;
@@ -6935,7 +7041,6 @@ function recommendPlan(input) {
     if (commercial && (wantsAI || count >= 10)) return chatPlanCatalog.find((plan) => plan.name === "Commercial AI Pro");
     if (commercial) return chatPlanCatalog.find((plan) => plan.name === "RWA Standard");
     if (wantsAI) return chatPlanCatalog.find((plan) => plan.name === "Home Cloud Pro");
-    if (wantsPump) return chatPlanCatalog.find((plan) => plan.name === "Home Control");
     if (wantsNoMonthly) return chatPlanCatalog.find((plan) => plan.name === "Home Basic");
     return chatPlanCatalog.find((plan) => plan.name === "Home Control");
 }
@@ -7003,6 +7108,7 @@ function getChatbotResponse(rawInput) {
     if (pumpDoesNotStart) {
         return {
             text: "The pump may be blocked by a full destination tank, unavailable source water, missing sensor data, manual mode, or a safety lockout. Check the displayed alert and physical pump panel; do not bypass protection to force a start.",
+            useRag: true,
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7010,6 +7116,7 @@ function getChatbotResponse(rawInput) {
     if (pumpDoesNotStop) {
         return {
             text: "Use the physical OFF control or isolate power safely, then contact a qualified electrician. Check the level sensor, stop threshold, relay/contactor feedback, and wiring before restoring automatic operation.",
+            useRag: true,
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7017,6 +7124,7 @@ function getChatbotResponse(rawInput) {
     if (appCannotConnect) {
         return {
             text: "Confirm the controller is powered, the phone is using the intended local connection, local-network permissions are allowed, and the correct device is selected. Local controller access and cloud login are different connection modes.",
+            useRag: true,
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7024,6 +7132,7 @@ function getChatbotResponse(rawInput) {
     if (remoteDataStale) {
         return {
             text: "Check controller power, site internet, cloud connectivity, and the device's last-seen time. Local automation may continue, but remote updates require the controller to reconnect to the cloud.",
+            useRag: true,
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7031,13 +7140,15 @@ function getChatbotResponse(rawInput) {
     if (tankLevelIncorrect) {
         return {
             text: "Check sensor angle, obstruction, condensation, tank-height calibration, inlet flow, and whether the wireless reading is fresh. Do not change automation thresholds until the level is verified safely.",
+            useRag: true,
             actions: [{ label: "Installation help", action: "ask-prompt", fill: { prompt: "What precautions are required when installing the tank sensor?" } }],
         };
     }
 
     if (deviceOffline) {
         return {
-            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
+            useRag: true,
+            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed statusâ€”never share its API key.",
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7085,7 +7196,7 @@ function getChatbotResponse(rawInput) {
 
     if (wantsHowItWorks) {
         return {
-            text: "SaleWell uses a sensor node near the water tank to measure the level and send it wirelessly to the main controller near the pump panel. The controller shows the level and, when pump automation is installed, applies configured start, stop, overflow, and source-water safety rules. Local control continues without cloud access. Eligible app and cloud plans add phone monitoring, remote access, history, alerts, reports, and analytics.",
+            text: "SaleWell uses a sensor node near the water tank to measure the level and send it wirelessly to the main controller near the pump panel. Every device plan includes automatic pump control, which applies configured start, stop, overflow, and source-water safety rules after approved relay/contactor wiring. Local control continues without cloud access. Eligible app and cloud plans add phone monitoring, remote access, history, alerts, reports, and analytics.",
             actions: [
                 { label: "Compare plans", href: `${pricingPageUrl}#comparison` },
                 { label: "Installation details", action: "ask-prompt", fill: { prompt: "What details are needed for installation?" } },
@@ -7161,6 +7272,7 @@ function getChatbotResponse(rawInput) {
     if (wantsInstall) {
         return {
             text: `Installation is confirmed after a site check.\nWe need property type, city, tank count, pump location, wireless signal, power access and electrician approval for relay/contactor wiring. Home Wi-Fi and internet are required only for cloud features.\n${describeInstallationTypes()}\n${friendlyNextStepText(recommendedPlan)}`,
+            useRag: true,
             actions: [
                 {
                     label: "Fill setup details",
@@ -7209,7 +7321,7 @@ function getChatbotResponse(rawInput) {
         chatbotGreetingCount += 1;
         return {
             text: chatbotGreetingCount === 1
-                ? "Hi! Welcome to SaleWell. What would you like help with—tank monitoring, pump control, overflow prevention, pricing, or installation?"
+                ? "Hi! Welcome to SaleWell. What would you like help withâ€”tank monitoring, pump control, overflow prevention, pricing, or installation?"
                 : "Hello again! Tell me what you would like to know, or choose one of the topics below.",
             actions: [
                 { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },
@@ -7261,13 +7373,9 @@ async function submitChatbotPrompt(prompt) {
     // click over the launcher after Send. Ignore that click briefly.
     chatbotSubmitGuardUntil = Date.now() + 1800;
     setChatbotOpen(true);
-    if (trimmed.toLowerCase() === "skip") {
-        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
-        return;
-    }
     appendChatMessage(trimmed, "user");
-    if (chatBookingState && chatLooksLikeQuestion(trimmed.toLowerCase())) {
-        const pendingField = chatBookingNextField();
+    const pendingField = chatBookingNextField();
+    if (chatBookingState && pendingField?.key !== "note" && chatLooksLikeQuestion(trimmed.toLowerCase())) {
         const response = getChatbotResponse(trimmed);
         if (response.useRag) {
             try {
@@ -7288,6 +7396,10 @@ async function submitChatbotPrompt(prompt) {
     }
     if (handleChatBookingAnswer(trimmed)) {
         if (chatbotInput) chatbotInput.value = "";
+        return;
+    }
+    if (trimmed.toLowerCase() === "skip") {
+        resetChatbotDiscussion("Of course. I have skipped that discussion and opened a fresh chat. You can ask anything from the beginning.");
         return;
     }
     if (isChatBookingIntent(trimmed.toLowerCase())) {
@@ -7342,6 +7454,13 @@ if (mobileChatbotButton) {
         event.stopPropagation();
         setChatbotOpen(true);
     });
+}
+
+if (new URLSearchParams(window.location.search).get("chat") === "open") {
+    setChatbotOpen(true);
+    if (document.body.classList.contains("chat-only") && window.parent !== window) {
+        requestAnimationFrame(() => requestAnimationFrame(() => window.parent.postMessage({type:"salewell-chat-ready"}, window.location.origin)));
+    }
 }
 
 if (chatbotClose) {
@@ -7674,18 +7793,6 @@ if (demoStoryboard && demoScenes.length) {
     const frame = document.getElementById("dashboardPreviewFrame");
     const viewport = frame?.parentElement;
     if (!frame || !viewport) return;
-    const dashboardSource = frame.dataset.dashboardSrc;
-    if (dashboardSource) {
-        fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})
-            .then((response) => {
-                if (!response.ok) throw new Error(`Dashboard preview returned ${response.status}`);
-                return response.text();
-            })
-            .then((documentSource) => { frame.srcdoc = documentSource; })
-            .catch(() => {
-                frame.srcdoc = "<style>body{margin:0;background:#071a34;color:#d7efff;font:700 28px system-ui;display:grid;place-items:center;text-align:center;height:100vh}a{color:#72e7ff}</style><a href='" + dashboardSource + "' target='_blank'>Open dashboard preview</a>";
-            });
-    }
     const fitDashboardPreview = () => {
         const scale = Math.min(viewport.clientWidth / 1400, viewport.clientHeight / 1050);
         frame.style.setProperty("--dashboard-preview-scale", String(scale));
@@ -7694,6 +7801,33 @@ if (demoStoryboard && demoScenes.length) {
     window.addEventListener("resize", fitDashboardPreview, {passive:true});
     fitDashboardPreview();
 })();
+</script>
+<script>
+document.querySelectorAll("[data-page-jump]").forEach((button) => {
+    button.addEventListener("click", () => {
+        const top = button.dataset.pageJump === "top" ? 0 : document.documentElement.scrollHeight;
+        window.scrollTo({ top, behavior: "smooth" });
+    });
+});
+const textSizeButton = document.querySelector("[data-text-size-button]");
+const textSizeModes = [
+    { name: "small", label: "Small", size: "14px" },
+    { name: "normal", label: "Normal", size: "15px" },
+    { name: "large", label: "Large", size: "17px" }
+];
+let textSizeIndex = Math.max(0, textSizeModes.findIndex((mode) => mode.name === localStorage.getItem("salewellTextSize")));
+const applyTextSize = () => {
+    const mode = textSizeModes[textSizeIndex];
+    document.documentElement.style.setProperty("--page-text-size", mode.size);
+    textSizeButton?.querySelector("[data-text-size-label]")?.replaceChildren(mode.label);
+    textSizeButton?.setAttribute("aria-label", `Text size: ${mode.label}. Click to change.`);
+};
+textSizeButton?.addEventListener("click", () => {
+    textSizeIndex = (textSizeIndex + 1) % textSizeModes.length;
+    localStorage.setItem("salewellTextSize", textSizeModes[textSizeIndex].name);
+    applyTextSize();
+});
+applyTextSize();
 </script>
 </body>
 </html>

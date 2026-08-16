@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import sys
 
 
@@ -62,7 +63,10 @@ def test_booking_form_requires_typed_client_side_validation():
     assert 'id="lead_email" name="email" type="email"' in template
     assert 'autocomplete="email" maxlength="120"' in template
     assert 'id="lead_device_count" name="device_count" type="number" min="1" max="10000" step="1" inputmode="numeric"' in template
-    assert 'textarea id="lead_message" name="message" minlength="10" maxlength="800"' in template
+    assert 'textarea id="lead_message" name="message" maxlength="800"' in template
+    assert 'What email should we send the confirmation to? Type \'skip\'' in template
+    assert 'const finalNote = noteLines.join("\\n") || "Demo booking requested via SaleWell chatbot."' in template
+    assert 'formData.set("return_to", "homepage")' in template
     assert "field.setCustomValidity(message)" in template
     assert "enquirySubmitButton.disabled = !isReady" in template
     assert 'class="field-warning" id="lead_phone_warning"' in template
@@ -77,10 +81,10 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert '"Cache-Control", "public, max-age=2592000, immutable"' in server_source
     assert 'response.mimetype == "text/html"' in server_source
     assert '"no-store, no-cache, must-revalidate, max-age=0"' in server_source
-    assert "water_flow_animation.html', v='20260802-1'" in login_template
+    assert "water_flow_animation.html', embed='1', v='20260813-2'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
-    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
@@ -88,23 +92,84 @@ def test_landing_hero_embeds_animated_dashboard_instead_of_picture_slider():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
     assert 'class="preview-dashboard-frame"' in login_template
-    assert 'title="Interactive Smart Water Tank Flow dashboard"' in login_template
+    assert 'title="Live animated Smart Water Tank flow with complete device configuration"' in login_template
     assert 'id="dashboardPreviewFrame"' in login_template
-    assert 'src="about:blank"' in login_template
-    assert 'data-dashboard-src="{{ url_for(' in login_template
-    assert 'fetch(dashboardSource, {credentials:"same-origin", cache:"no-store"})' in login_template
-    assert "frame.srcdoc = documentSource" in login_template
+    assert 'src="{{ url_for(\'static\', filename=\'marketing/water_flow_animation.html\', embed=\'1\'' in login_template
+    assert 'src="about:blank"' not in login_template
+    assert "frame.srcdoc = documentSource" not in login_template
     assert 'new ResizeObserver(fitDashboardPreview).observe(viewport)' in login_template
     assert 'id="waterPlanSlider"' not in login_template
     assert "data-plan-slide" not in login_template
+
+
+def test_installation_guide_is_available_only_from_customer_dashboard():
+    login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    dashboard_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+    guide = (PROJECT_ROOT / "docs" / "CUSTOMER_INSTALLATION_GUIDE_EN_HI.html").read_text(encoding="utf-8")
+
+    assert "url_for('installation_guide_download')" not in login_template
+    assert "Download installation guide" not in login_template
+    assert "url_for('installation_guide_download')" in dashboard_template
+    assert "Download Installation Guide (English + हिन्दी)" in dashboard_template
+    assert "Easy Customer Installation Guide" in guide
+    assert "आसान ग्राहक इंस्टॉलेशन गाइड" in guide
+    assert "Important / जरूरी" in guide
+    assert "Electrical panel connection" in guide
+    assert "Sensors and valves" in guide
+    assert "Mobile App / Cloud" in guide
+    assert "Pump Starter Panel" in guide
+    assert "Standard components / सामान्य उपकरण" in guide
+    assert "Depending on selected plan / चुने हुए प्लान के अनुसार" in guide
+    assert "Correct Upper Level Sensor position" in guide
+    assert "Auto mode tested" in guide
+    assert "3-Way Motorized Valve tested" in guide
+    assert 'd="M225 264C290 264 300 190 345 180"' not in guide
+    assert "Plan-based Devices" in guide
+    assert "For qualified electrician only" in guide
+    assert "Municipal Water Sensor" in guide
+    assert "Wi-Fi/mobile internet availability" in guide
+    assert "salewell-website-qr.png" in guide
+    assert "IoT START (COM–NO)" in guide
+    assert "IoT STOP (COM–NC)" in guide
+    assert "500 ms CLOSE pulse" in guide
+    assert "500 ms OPEN pulse" in guide
+
+
+def test_installation_guide_download_requires_customer_login(monkeypatch):
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    client = server.app.test_client()
+    anonymous_response = client.get("/downloads/installation-guide")
+    assert anonymous_response.status_code == 302
+    assert "/login/customer" in anonymous_response.headers["Location"]
+
+    monkeypatch.setattr(server, "activate_dashboard_identity", lambda role: role == "customer")
+    monkeypatch.setattr(server, "current_user_role", lambda: "customer")
+    response = client.get("/downloads/installation-guide")
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"].startswith("attachment;")
+    assert response.mimetype == "application/pdf"
+    assert "SaleWell-Smart-Tank-Customer-Installation-Guide-English-Hindi.pdf" in response.headers["Content-Disposition"]
+    assert response.data.startswith(b"%PDF-")
 
 
 def test_embedded_dashboard_allows_only_same_origin_framing():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
 
     assert 'request.path == "/static/marketing/water_flow_animation.html"' in server_source
+    assert 'request.args.get("chat_embed") == "1"' in server_source
     assert 'response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")' in server_source
     assert 'response.headers.setdefault("X-Frame-Options", "DENY")' in server_source
+
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    client = server.app.test_client()
+    assert client.get("/").headers["X-Frame-Options"] == "DENY"
+    assert client.get("/?chat=open&chat_embed=1").headers["X-Frame-Options"] == "SAMEORIGIN"
 
 
 def test_water_flow_animation_includes_optional_pump_assisted_source_fill():
@@ -149,9 +214,9 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
 
     expected_modes = {
         "auto",
-        "municipal-source",
         "municipal-upper",
         "municipal-direct",
+        "pump-only",
         "source-pump-fill",
         "source-upper",
         "source-only",
@@ -162,6 +227,61 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
     rendered_modes = {part.split('"', 1)[0] for part in animation.split('data-mode="')[1:]}
 
     assert rendered_modes == expected_modes
+
+
+def test_homepage_how_it_works_links_to_full_water_flow_animation():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'class="button animation-page-link"' in template
+    assert "url_for('static', filename='marketing/water_flow_animation.html')" in template
+    assert '>See Water Flow Animation</a>' in template
+
+
+def test_public_headers_share_brand_spacing_and_equal_title_text_size():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    assert ".brand-copy strong span{display:inline;margin-top:0;font-size:inherit;line-height:inherit}" in homepage
+    assert ".brand-copy strong span{display:inline;margin-top:0;font-size:inherit;line-height:inherit}" in pricing
+    assert "padding:9px 12px;" in homepage
+    assert "padding:9px 12px;" in pricing
+    assert "width:48px;\nheight:48px;\nborder-radius:16px;" in pricing
+
+
+def test_setup_wizard_uses_submersible_pump_as_default_source():
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert 'name="water_source" value="submersible" checked' in pricing
+    assert "submersible:supplies.has('submersible')" in animation
+    assert "submersible?'UNDERGROUND SOURCE':'BOREWELL'" in animation
+
+
+def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+
+    assert 'class="pricing-whatsapp" href="https://wa.me/918796452878' in pricing
+    assert 'id="pricingChatLauncher"' in pricing
+    assert 'id="pricingChatPanel"' in pricing
+    assert 'id="sharedChatbotFrame"' in pricing
+    assert "url_for('dashboard', chat='open', chat_embed='1')" in pricing
+    assert "function setPricingChatOpen(open)" in pricing
+    assert 'class="pricing-chat-launcher-icon"' in pricing
+    assert '.pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}' in pricing
+    assert '.page-jump-controls{position:fixed;right:12px;bottom:150px' in pricing
+    assert '.pricing-support-floats.is-open + .page-jump-controls{display:none}' in pricing
+    assert 'id="pricingChatMessages"' not in pricing
+    assert 'id="pricingChatForm"' not in pricing
+    assert 'fetch("/chatbot/ask"' not in pricing
+    assert 'chat-only' in homepage
+    assert '.chat-only .chatbot-title>div:last-child>span{display:block!important' in homepage
+    assert '.chat-only .chatbot-suggestions{display:flex!important' in homepage
+    assert 'postMessage({type:"salewell-chat-close"}' in homepage
+    assert 'postMessage({type:"salewell-chat-ready"}' in homepage
+    assert '.pricing-chat-panel{right:0;bottom:0;width:min(420px,calc(100vw - 28px));height:min(620px,calc(100vh - 118px))' in pricing
+    assert 'class="shared-chatbot-loading"' in pricing
+    assert 'event.data?.type === "salewell-chat-ready"' in pricing
 
 
 def test_water_flow_animation_labels_plan_and_aligns_connection_indicators():
@@ -191,7 +311,173 @@ def test_water_flow_animation_removes_optional_municipal_hardware_from_source_on
     assert "body.source-only #valveMetricCard" in animation
     assert "body.source-only #valveSensorCard" in animation
     assert "No municipal inlet or motorized valves are installed" in animation
-    assert "independent OPEN / CLOSE pair for each installed valve" in animation
+    assert "each installed valve keeps its independent OPEN / CLOSE pair" in animation
+
+
+def test_water_flow_animation_reconciles_hardware_and_wires_with_device_setup():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "function applyDeviceSetup(m,sensorInstalled)" in animation
+    assert "setInstalled($('municipalSensor'),hasMunicipal&&sensorInstalled)" in animation
+    assert "setInstalled($('municipalWire'),hasMunicipal&&sensorInstalled)" in animation
+    assert "setInstalled($('sourceTankHardware'),hasSourceTank)" in animation
+    assert "setInstalled($('sourceLevelControllerWire'),hasSourceTank)" in animation
+    assert "setInstalled($('threeWayValve'),hasValves)" in animation
+    assert "setInstalled($('outletValveControlWire'),hasValves)" in animation
+    assert "const hasWaterQuality=devices?devices.waterQuality===true:true" in animation
+    assert "setInstalled($('sourceQualityHardware'),hasSourceTank&&hasWaterQuality)" in animation
+    assert "document.body.classList.toggle('no-water-quality',!hasWaterQuality)" in animation
+    assert "ONE-WAY CHECK VALVE" not in animation
+    assert 'id="checkValve"' not in animation
+    assert "setInstalled($('municipalPumpPipe'),hasMunicipal&&hasValves)" in animation
+    assert "setInstalled($('sourceValvePipe'),hasSourceTank&&hasValves)" in animation
+    assert "setInstalled($('pumpSourcePipe'),hasValves&&supportsSourceFill)" in animation
+    assert 'id="municipalSensor"' in animation
+    assert "PRESSURE SENSOR" in animation
+    assert "municipal availability" in animation
+    assert 'id="waterFlowSensorHardware"' in animation
+    assert 'id="motorCurrentSensorHardware"' in animation
+    assert 'id="contactorAuxSensorHardware"' not in animation
+    assert "AUX CONTACT" not in animation
+    assert "contactor feedback" not in animation
+    assert "setInstalled($('motorCurrentSensorHardware'),hasMotorCurrent)" in animation
+    assert "setInstalled($('waterFlowSensorHardware'),hasWaterFlow)" in animation
+    assert "configuredFlag('waterPressureSensor',true)" in animation
+    assert "configuredFlag('contactorAuxSensor',false)" in animation
+
+
+def test_water_flow_animation_pipe_topology_matches_every_supported_setup():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+    catalog = json.loads(
+        (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_plan_catalog.json").read_text(encoding="utf-8")
+    )
+
+    # Every animated route has an underlying grey pipe over the same endpoints;
+    # animation dots must never be the only visible representation of a pipe.
+    assert '<path class="pipe" d="M80 105H350V177M378 205H414"/>' in animation
+    assert '<path id="municipalToPump" class="flow" d="M80 105H350V177"/>' in animation
+    assert '<path class="pipe" d="M290 540H350V233M378 205H414"/>' in animation
+    assert '<path id="sourceToPump" class="flow" d="M290 540H350V233"/>' in animation
+    assert '<path class="pipe" d="M290 540H390V205H414"/>' in animation
+    assert '<path id="sourceOnlyBypass" class="flow" d="M290 540H390V205H414"/>' in animation
+    assert '<path class="pipe" d="M80 105H390V205H414"/>' in animation
+    assert '<path id="municipalOnlyBypass" class="flow" d="M80 105H390V205H414"/>' in animation
+    assert '<path class="pipe outlet-pipe" d="M780 235H700V275"/>' in animation
+    assert '<path id="houseOutlet" class="flow" d="M780 235H700V275"/>' in animation
+    assert 'id="flowSensorControllerWire"' in animation
+    assert 'd="M890 275H690V305"' not in animation
+    assert ".outlet-pipe{stroke-linecap:butt;stroke-linejoin:miter}" in animation
+    assert 'id="sourceLevelControllerWire" class="connection ultrasonic-wire" d="M435 423V565H455V590"' in animation
+
+    # Control and municipal sensor wiring use separate, explicit lanes instead
+    # of overlapping curves through the centre of the device diagram.
+    assert 'id="municipalWire" class="connection municipal-wire" d="M212 132V330H310V575H415V590"' in animation
+    assert 'id="valveControlWire" class="control-wire" d="M620 590V550H325V285H350V233"' in animation
+    assert 'id="outletValveControlWire" class="control-wire" d="M745 590V530H775V285H600V233H570"' in animation
+    assert 'id="valveControlCasing" class="wire-casing" d="M620 590V550H325V285H350V233"' in animation
+    assert 'id="outletValveControlCasing" class="wire-casing" d="M745 590V530H775V285H600V233H570"' in animation
+    assert "setInstalled($('valveControlCasing'),hasValves)" in animation
+    assert "setInstalled($('outletValveControlCasing'),hasValves)" in animation
+    assert "M630 590C560 430" not in animation
+    assert "M680 590C680 440" not in animation
+
+    # Fixed plans use exactly one supported inlet topology. Optional dual-route
+    # plumbing is only exposed when its matching devices and modes are present.
+    for name, plan in catalog["plans"].items():
+        if not plan.get("animation"):
+            continue
+        devices = plan["devices"]
+        modes = set(plan["modes"])
+        assert "checkValve" not in devices, name
+        if "borewell" in modes:
+            assert devices["submersible"] is True
+            assert devices["sourceTank"] is False
+            assert devices["municipal"] is False
+            assert devices["motorizedValves"] is False
+        if "source-only" in modes:
+            assert devices["sourceTank"] is True
+            assert devices["municipal"] is False
+            assert devices["motorizedValves"] is False
+
+
+def test_water_flow_animation_can_really_pause_and_respects_reduced_motion():
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+
+    assert "prefers-reduced-motion:reduce" in animation
+    assert "!$('tankSim').checked" in animation
+
+
+def test_pricing_and_animation_share_plan_configuration_catalog():
+    import json
+
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    animation = (PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_animation.html").read_text(encoding="utf-8")
+    catalog_path = PROJECT_ROOT / "flask_app" / "static" / "marketing" / "water_flow_plan_catalog.json"
+    catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+    assert "addPlanCustomizeLinks" in pricing
+    assert 'link.href = "#find-my-plan"' in pricing
+    assert 'link.textContent = "Customize Your Setup"' in pricing
+    assert 'separator.textContent = "OR"' in pricing
+    assert "js-view-animation" not in pricing
+    assert 'url.searchParams.set("plan", planName)' in pricing
+    assert 'id="animationModal"' in pricing
+    assert 'id="planAnimationFrame"' in pricing
+    assert 'class="animation-modal-title"' in pricing
+    assert 'url.searchParams.set("embed", "1")' in pricing
+    assert 'id="wizardAnimation"' in pricing
+    assert "updateWizardAnimationButton(plan, {upperTanks:upperTankCount" in pricing
+    assert "openAnimationModal(planName, url.toString())" in pricing
+    assert 'url.searchParams.set("configured", "1")' in pricing
+    assert 'url.searchParams.set("upperTanks"' in pricing
+    assert 'url.searchParams.set("sourceTanks"' in pricing
+    assert 'url.searchParams.set("supplies"' in pricing
+    assert "openAnimationModal(planName, url.toString())" in pricing
+    assert 'animationFrame.src = "about:blank"' in pricing
+    assert "grid-template-columns:repeat(2,minmax(0,1fr))" in pricing
+    assert 'grid-template-areas:"summary price"' in pricing
+    assert ".plan-card>.feature-list{grid-area:features}" in pricing
+    assert "function initializePlanCarousel()" in pricing
+    assert 'className = "plans-carousel"' in pricing
+    assert 'class="plans-carousel-button is-prev"' in pricing
+    assert 'class="plans-carousel-button is-next"' in pricing
+    assert "planCards.forEach((card, index) =>" in pricing
+    assert "track.appendChild(card)" in pricing
+    assert "height:clamp(520px,58vh,610px)" in pricing
+    assert ".plans-carousel-track .plan-action span{display:none}" in pricing
+    assert "align-content:start;align-self:start" in pricing
+    assert "transform:none!important" in pricing
+    assert ".plans-carousel-track .price-note{display:none!important}" in pricing
+    assert 'button.className = "plan-info-button"' in pricing
+    assert 'panel.className = "plan-info-panel"' in pricing
+    assert 'button.setAttribute("aria-expanded", "false")' in pricing
+    assert 'More information about ${planName}' in pricing
+    assert "loadSelectedPlan" in animation
+    assert "const params=new URLSearchParams(location.search),requested=params.get('plan')" in animation
+    assert "planSetup.modes" in animation
+    assert "params.get('configured')==='1'" in animation
+    assert "get('embed')==='1'" in animation
+    assert "body.embedded .diagram-header,body.embedded .sidebar{display:none!important}" in animation
+    assert "aspect-ratio:1050/790" in pricing
+    assert "configuredModes.push('municipal-upper','source-pump-fill','source-upper')" in animation
+    assert "configuredModes.push('municipal-direct')" in animation
+    assert "configuredModes.push('borewell')" in animation
+    assert "configuredModes.push(hasSourceTank?'source-only':'pump-only')" in animation
+    assert "sourceTank:hasSourceTank" in animation
+    assert catalog["plans"]["Enterprise Modular"]["animation"] is False
+    assert all(catalog["plans"][name]["animation"] for name in (
+        "Home Basic", "Home Control", "Home Cloud Pro", "RWA Standard", "Commercial AI Pro"
+    ))
+    for name in ("Home Basic", "Home Control", "Home Cloud Pro", "Dealer / Installer Kit"):
+        assert catalog["plans"][name]["initialMode"] == "borewell"
+        assert catalog["plans"][name]["devices"]["submersible"] is True
+        assert catalog["plans"][name]["devices"]["sourceTank"] is False
+        assert catalog["plans"][name]["devices"]["municipal"] is False
+        assert catalog["plans"][name]["devices"]["motorizedValves"] is False
+    for name in ("RWA Standard", "Commercial AI Pro"):
+        assert catalog["plans"][name]["devices"]["sourceTank"] is True
+        assert catalog["plans"][name]["devices"]["municipal"] is False
+        assert catalog["plans"][name]["devices"]["motorizedValves"] is False
 
 
 def test_water_flow_animation_includes_direct_municipal_upper_without_source_or_valves():
@@ -226,7 +512,50 @@ def test_sales_enquiry_server_validation_matches_booking_form_rules():
     assert 're.fullmatch(r"\\+?[0-9][0-9 ()-]*[0-9]", cleaned["phone"])' in server_source
     assert 'len(phone_digits) > 15' in server_source
     assert 'cleaned["segment"] not in valid_segments' in server_source
-    assert 'len(cleaned["message"]) < 10' in server_source
+    assert 'visitor_note = cleaned["message"] or "Demo booking requested;' in server_source
+    assert 'cleaned["source_configuration"] not in valid_source_configurations' in server_source
+    assert 'cleaned["pump_type"] not in valid_pump_types' in server_source
+    assert 'Water configuration:' in server_source
+    validator = server_source[server_source.index("def validate_sales_enquiry_payload(form):"):server_source.index("def build_sales_enquiry_email", server_source.index("def validate_sales_enquiry_payload(form):"))]
+    for allowed_values in (
+        "valid_upper_layouts = {",
+        "valid_source_configurations = {",
+        "valid_pump_types = {",
+        "valid_maintenance_preferences = {",
+    ):
+        assert allowed_values in validator
+
+    for template_name in ("login.html", "pricing.html"):
+        template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
+        assert 'name="upper_tank_count"' not in template
+        assert 'name="source_tank_count"' not in template
+        assert 'id="lead_upper_layout"' not in template
+        assert 'id="lead_source_configuration"' not in template
+        assert 'id="lead_pump_type"' not in template
+        assert 'id="lead_maintenance_preference"' not in template
+        assert "Customize Your Water Setup" not in template
+    pricing_template = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+    assert "Customize your water setup." in pricing_template
+    assert "Customized water setup:" in pricing_template
+
+
+def test_demo_booking_uses_waf_safe_canonical_route():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    route_block = server_source[server_source.index('@app.route("/sales/enquiry"'):server_source.index("def sales_enquiry():")]
+    assert '@app.route("/sales/enquiry", methods=["GET", "POST"])' in route_block
+    assert '@app.route("/sales/enquiry/", methods=["GET", "POST"])' in route_block
+    # Flask applies decorators from the bottom up, so the closest route is the
+    # first registered rule and therefore the URL emitted by url_for().
+    assert route_block.rstrip().endswith('@csrf_protect')
+    assert route_block.index('@app.route("/book-demo"') > route_block.index('@app.route("/sales/enquiry/"')
+
+    for template_name in ("login.html", "pricing.html"):
+        template = (PROJECT_ROOT / "flask_app" / "templates" / template_name).read_text(encoding="utf-8")
+        assert 'action="{{ url_for(\'sales_enquiry\') }}"' in template
+        email_tag = template.split('id="lead_email"', 1)[1].split(">", 1)[0]
+        assert " required" not in email_tag
+        assert 'name="message" maxlength="800"' in template
+        assert 'name="message" minlength="10"' not in template
 
 
 def test_admin_customer_page_uses_single_relay_alert_cleanup_hook():
@@ -524,17 +853,23 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert '"/device/command"' in server_source
     assert '"/api/"' in server_source
     assert "Cache-Control\", \"no-store\"" in server_source
-    assert 'cache: "default"' in smooth_navigation
+    assert 'window.location.assign(targetUrl.href)' in smooth_navigation
+    assert 'window.location.replace(targetUrl.href)' in smooth_navigation
+    assert 'history.scrollRestoration = "auto"' in smooth_navigation
+    assert 'history.pushState' not in smooth_navigation
+    assert 'window.addEventListener("popstate"' not in smooth_navigation
+    assert 'document.addEventListener("click"' not in smooth_navigation
+    assert 'document.addEventListener("submit"' not in smooth_navigation
     assert 'cache: "no-store"' not in smooth_navigation
-    assert "20260615-cache-v1" in pwa_head
+    assert "20260812-native-history-v1" in pwa_head
     assert '"/static/js/smooth-navigation.js"' in service_worker
-    assert 'const CACHE_NAME = "swt-pwa-v6";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
 
 
 def test_customer_graphs_refresh_after_live_telemetry_changes():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
-    assert "const ANALYTICS_LIVE_REFRESH_MS=30000;" in customer_template
+    assert "const ANALYTICS_LIVE_REFRESH_MS=300000;" in customer_template
     assert "Date.now()-state.analyticsUpdatedAt>ANALYTICS_LIVE_REFRESH_MS" in customer_template
     assert "loadAnalytics({force:true})" in customer_template
 
@@ -563,8 +898,9 @@ def test_interval_polling_avoids_heavy_page_and_analytics_downloads():
     device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
     assert "setInterval(()=>loadAnalytics()" not in dashboard_template
+    assert "const ANALYTICS_LIVE_REFRESH_MS=300000;" in dashboard_template
     assert "ANALYTICS_STALE_MS" in dashboard_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in dashboard_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in dashboard_template
     assert "function analyticsCacheContext()" in dashboard_template
     assert "function analyticsHasChartData(data)" in dashboard_template
     assert "function analyticsIsFallbackPayload(data)" in dashboard_template
@@ -635,7 +971,7 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'ctx.lineTo(endX,stateY(next.state));' in customer_template
     assert 'const tickCount=Math.max(2,Math.min(5,Math.round(box.plotWidth/170)));' in customer_template
     assert 'function isCustomerWaterEvent(event)' in customer_template
-    assert 'Hidden because sensor changes exceed the water supported by observed refill cycles.' in customer_template
+    assert 'Provisional estimate from tank-level changes; telemetry validation is limited.' in customer_template
     assert 'label==="Today"?"Today’s water activity":"Water activity over the selected period"' in customer_template
 
 
@@ -656,7 +992,8 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert 'id="dashboardSettings"' in customer_template
     assert '<details id="dashboardSettings"' not in customer_template
     assert '<div id="dashboardSettings" class="customer-settings-pane">' in customer_template
-    assert customer_template.index('id="dashboardSettings"') < customer_template.index('id="eventTimeline"')
+    assert 'id="eventTimeline"' not in customer_template
+    assert "Recent water events" not in customer_template
     assert 'class="panel customer-only customer-tools-panel"' in customer_template
     assert 'class="customer-tools-grid"' in customer_template
     assert 'class="customer-guidance-panel"' in customer_template
@@ -683,11 +1020,12 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
 
     assert 'setText("usage_change",displayedLiters!==null?' in usage_body
     assert "usage_physically_plausible!==false" in usage_body
-    assert 'setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use")' in usage_body
-    assert "Hidden because sensor changes exceed the water supported by observed refill cycles." in usage_body
-    assert 'Number(snapshot.tomorrow_prediction)' in usage_body
+    assert 'setText("customerUsageMetricLabel","Water used today")' in usage_body
+    assert "Provisional estimate from tank-level changes; telemetry validation is limited." in usage_body
+    assert 'analytics?.prediction?.status==="ready"' in usage_body
+    assert "analytics?.analysis?.quality?.daily_usage_reliable===true" in usage_body
     assert 'Number(snapshot.ai_usage_rate)' in usage_body
-    assert '"Live device estimate; historical confidence is still building."' in usage_body
+    assert '"Not enough reliable history to forecast yet."' in usage_body
     assert '"Live device usage-rate estimate."' in usage_body
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
@@ -695,7 +1033,7 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'Savings insight appears after two complete days of reliable usage history.' in customer_template
     assert 'value:"0.0 L"' not in customer_template
     assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
-    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v16-usage-validity";' in customer_template
+    assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
 
 
@@ -1348,8 +1686,18 @@ def test_homepage_shows_active_identity_and_logout():
     assert "def homepage_login_status():" in server_source
     assert "homepage_user=homepage_login_status()" in server_source
     assert "active_homepage_user = nav_auth.active_user|default(homepage_user)" in login_template
-    assert "Logged in as - {{ active_homepage_user.display_name }}" in login_template
+    assert "Logged in as - {{ active_homepage_user.display_name }}" not in login_template
+    assert "<strong>{{ active_homepage_user.display_name }}</strong>" in login_template
+    assert 'class="login-account-panel"' in login_template
+    assert 'aria-controls="loginModal"' in login_template
     assert '<form class="logout-form" method="post" action="/logout">' in login_template
+
+
+def test_homepage_template_has_valid_jinja_syntax():
+    from jinja2 import Environment
+
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    Environment().parse(template)
 
 
 def test_landing_page_has_compact_conversion_and_mobile_contact_content():
@@ -1359,8 +1707,8 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert '>Buy Now</a>' in template
     assert 'id="buyer-confidence"' in template
     assert 'aria-label="Pricing preview"' in template
-    assert "From &#8377;3,999" in template
-    assert "From &#8377;9,999" in template
+    assert "From &#8377;4,999" in template
+    assert "From &#8377;10,999" in template
     assert 'class="faq-list"' in template
     assert "Does it work without Wi-Fi?" in template
     assert 'class="mobile-contact-bar"' in template
@@ -1381,6 +1729,9 @@ def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     assert 'mobileChatbotButton.addEventListener("click", (event) =>' in template
     assert 'event.stopPropagation();' in template
     assert 'id="mobileChatbotButton"' in template
+    assert "--chat-text:#f1fbfd" in template
+    assert "--chat-control-text:#dff8fc" in template
+    assert "font-size:14px;\nline-height:1.48" in template
     assert 'setChatbotOpen(true);' in template
     assert "grid-template-columns:repeat(4,minmax(0,1fr))" in template
     assert ".enquiry-modal{z-index:120}" in template
@@ -1398,13 +1749,13 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert "Complete Wireless Smart Tank Kit" in homepage
     assert "Single Controller Kit" not in homepage
     assert "Shielded Wire or Dual Node" not in homepage
-    assert "One wireless setup for every building height." in pricing
-    assert "No long sensor signal cable" in pricing
-    assert "Every base plan includes a complete wireless tank setup." in pricing
+    assert "One wireless setup for every building height." not in pricing
+    assert 'id="modules"' not in pricing
+    assert "Every base plan includes a complete wireless tank setup and automatic pump control." in pricing
     assert "Included Equipment" in pricing
-    assert "one-time wireless hardware price" in homepage
+    assert "one-time equipment price" in homepage
     assert "Phone app and live screen not included" in pricing
-    assert "&#8377;4,999" in pricing
+    assert "&#8377;5,999" in pricing
     assert "Phone access at the property only. Remote access and AI are not included." in pricing
     assert "Home Basic and Home Control connect directly" in pricing
     assert "<th>Home Wi-Fi / Internet</th>" in pricing
@@ -1415,12 +1766,37 @@ def test_sales_content_uses_current_complete_wireless_architecture():
     assert pricing.count('class="addon-fit"') == 10
     assert 'id="planWizard"' in pricing
     assert 'id="wizardPlan"' in pricing
+    assert 'id="wizardPrice"' in pricing
+    assert '"Home Basic": 4999' in pricing
+    assert '"Home Control": 5999' in pricing
+    assert '"Home Cloud Pro": 8499' in pricing
+    assert '"RWA Standard": 10999' in pricing
+    assert '"Commercial AI Pro": 13999' in pricing
+    assert "additionalUpperMcuCount * 2500" in pricing
+    assert 'upperLayout === "shared" ? 1 : upperTankCount' in pricing
+    assert 'property === "managed" || requiredSensorNodeCount >= 3' in pricing
+    assert "sourceSensorCount * 2000" in pricing
+    assert "estimatedPrice += 7999" in pricing
+    assert "Municipal Water Kit (2 motorized valves + 1 water sensor)" in pricing
+    assert pricing.count("Installation and plumbing charged separately by work type") == 7
+    assert 'name="pump"' not in pricing
+    assert "Every device plan includes automatic pump control" in pricing
+    assert "source-tank sensor" in pricing
+    assert '" + site quote"' in pricing
+    assert 'name="maintenance" value="monthly"' in pricing
+    assert 'name="maintenance" value="annual"' in pricing
+    assert "Optional monthly or annual maintenance" in pricing
     assert 'id="use-cases"' in pricing
     assert 'id="installation"' in pricing
     assert 'id="faqs"' in pricing
-    assert 'class="sticky-actions"' in pricing
-    assert "500+" in pricing
-    assert "10,000+ KL/day" in pricing
+    assert 'class="mobile-contact-bar"' in pricing
+    assert 'aria-label="Call SaleWell"' in pricing
+    assert 'aria-label="Contact SaleWell on WhatsApp"' in pricing
+    assert 'aria-label="Book a free demo"' in pricing
+    assert 'aria-label="Open chat"' in pricing
+    assert "grid-template-columns:repeat(4,minmax(0,1fr))" in pricing
+    assert "Built for homes and managed properties." not in pricing
+    assert "A simple path from basics to AI analytics." not in pricing
     assert "Warranty coverage varies by kit and project scope." in pricing
     assert "Single Controller Kit" not in pricing
     assert "Shielded Wire or Dual Node" not in pricing
@@ -1447,8 +1823,7 @@ def test_combined_fill_status_uses_firmware_active_fill_flags():
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
 
     assert "const sourcePumpActive=flagEnabled(snapshot.source_pump_fill_active,false);" in customer_template
-    assert "const sourceGravityActive=flagEnabled(snapshot.source_gravity_fill_active,false);" in customer_template
-    assert "const filling=sourceGravityActive||pumpActive||valveFlowActive;" in customer_template
+    assert "const filling=pumpActive||valveFlowActive;" in customer_template
 
 
 def test_event_log_explains_motorized_valve_state_and_water_path():
@@ -1477,6 +1852,28 @@ def test_all_today_usage_cards_use_today_specific_readiness_text():
     assert "Waiting for complete days" not in customer_template
 
 
+def test_customer_usage_cards_do_not_sum_selected_range_or_show_provisional_forecasts():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "dailyComplete.findLastIndex" in customer_template
+    assert 'setText("customerUsageMetricLabel","Water used today")' in customer_template
+    assert "observedLiters.reduce((total,value)=>total+value,0)" not in customer_template
+    assert 'analytics?.prediction?.status==="ready"' in customer_template
+    assert "analytics?.analysis?.quality?.daily_usage_reliable===true" in customer_template
+    assert "snapshot.tomorrow_prediction" not in customer_template[
+        customer_template.index("function updateCustomerUsageCards"):
+        customer_template.index("function updateCustomerAnalyticsKpis")
+    ]
+
+
+def test_customer_water_use_charts_span_the_full_dashboard_width():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="panel daily-chart-panel"' in customer_template
+    assert 'class="panel hourly-chart-panel"' in customer_template
+    assert ".customer-dashboard .charts .daily-chart-panel,.customer-dashboard .charts .hourly-chart-panel{grid-column:1/-1}" in customer_template
+
+
 def test_login_modal_has_scoped_high_contrast_theme():
     login_template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
@@ -1486,3 +1883,18 @@ def test_login_modal_has_scoped_high_contrast_theme():
     assert "-webkit-text-fill-color:#f4fcfd!important" in login_template
     assert '#loginModal .portal-form input:not([type="hidden"]):-webkit-autofill' in login_template
     assert "-webkit-box-shadow:0 0 0 1000px #102f39 inset!important" in login_template
+
+
+def test_device_detail_uses_real_page_views_and_keeps_admin_actions_intact():
+    device_template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    for page in ("overview", "diagnostics", "configuration", "firmware", "logs"):
+        assert f'data-device-tab="{page}"' in device_template
+        assert f'data-device-page="{page}"' in device_template
+    assert "function activateDevicePage" in device_template
+    assert 'id="deviceCommandsCard"' in device_template
+    assert 'id="deviceSimulatorsSection"' in device_template
+    assert 'id="diagnosticTools"' in device_template
+    assert "Danger Zone" in device_template
+    assert 'action="/admin/customers/{{ device_id }}/delete"' in device_template
+    assert 'action="/admin/customers/{{ device_id }}/simulator"' in device_template

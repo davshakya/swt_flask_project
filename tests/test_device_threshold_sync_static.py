@@ -52,7 +52,7 @@ def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
     server = SERVER_SOURCE.read_text(encoding="utf-8")
 
     assert 'name="device_setup_type"' in template
-    for setup_type in ("source_only", "municipal_direct", "dual_source_gravity", "dual_source_pumped", "custom"):
+    for setup_type in ("source_only", "municipal_direct", "dual_source_pumped", "custom"):
         assert f'value="{setup_type}"' in template
     assert "const DEVICE_SETUP_PRESETS=" in template
     assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template
@@ -186,7 +186,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG10:" in build_source
+    assert "SERVICECFG11:" in build_source
     assert "municipal_sensor_enabled" in build_source
     assert "turbidity_monitoring_enabled" in build_source
     assert "master_turbidity_enabled" in build_source
