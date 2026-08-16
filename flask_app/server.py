@@ -2741,6 +2741,7 @@ def render_login_page(
     sales_success=None,
     sales_form=None,
     show_login_modal=None,
+    homepage_visitor_count=None,
 ):
     is_admin_mode = mode == "admin"
     is_landing_page = request.endpoint in {"dashboard", "homepage"}
@@ -2758,9 +2759,8 @@ def render_login_page(
             "Thanks for your enquiry. Your request was saved, but the support email delivery needs SMTP checking."
         )
     sales_form = sales_form or sales_form_from_pricing_query()
-    # The persisted value is loaded during startup. Public page rendering only
-    # reads the cache; visit persistence runs asynchronously.
-    homepage_visitor_count = homepage_visitor_count_cached or 0
+    if homepage_visitor_count is None:
+        homepage_visitor_count = ensure_homepage_visitor_count_loaded()
     return render_template(
         "login.html",
         error=error,
@@ -6874,69 +6874,30 @@ def save_device_local_web_password(device_id, password):
 
 def increment_homepage_visitor_count():
     global homepage_visitor_count_cached
-    global homepage_visitor_count_pending
-    global homepage_visitor_count_worker_running
-
-    if homepage_visitor_count_cached is None:
-        ensure_homepage_visitor_count_loaded()
-
-    with homepage_visitor_count_lock:
-        homepage_visitor_count_pending += 1
-        homepage_visitor_count_cached += 1
-        display_count = homepage_visitor_count_cached
-        if homepage_visitor_count_worker_running:
-            return display_count
-        homepage_visitor_count_worker_running = True
-
-    def persist_pending_visits():
-        global homepage_visitor_count_cached
-        global homepage_visitor_count_pending
-        global homepage_visitor_count_worker_running
-        while True:
-            with homepage_visitor_count_lock:
-                increment_by = homepage_visitor_count_pending
-                homepage_visitor_count_pending = 0
-            if increment_by <= 0:
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_worker_running = False
-                return
-            try:
-                with get_db() as db:
-                    db.execute(
-                        """
-                        INSERT INTO app_settings(key, value, updated_at)
-                        VALUES (?, ?, CURRENT_TIMESTAMP)
-                        ON CONFLICT(key) DO UPDATE SET
-                            value=app_settings.value + excluded.value,
-                            updated_at=CURRENT_TIMESTAMP
-                        """,
-                        (HOMEPAGE_VISITOR_COUNT_SETTING, str(increment_by)),
-                    )
-                    row = db.execute(
-                        "SELECT value FROM app_settings WHERE key = ?",
-                        (HOMEPAGE_VISITOR_COUNT_SETTING,),
-                    ).fetchone()
-                persisted_count = max(0, int(str(row["value"] if row else "0").strip()))
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_cached = persisted_count + homepage_visitor_count_pending
-            except Exception as exc:
-                logger.warning("Homepage visitor counter update deferred: %s", exc)
-                with homepage_visitor_count_lock:
-                    homepage_visitor_count_pending += increment_by
-                    homepage_visitor_count_worker_running = False
-                return
-
     try:
-        threading.Thread(
-            target=persist_pending_visits,
-            name="homepage-visitor-counter",
-            daemon=True,
-        ).start()
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO app_settings(key, value, updated_at)
+                VALUES (?, 1, CURRENT_TIMESTAMP)
+                ON CONFLICT(key) DO UPDATE SET
+                    value=app_settings.value + 1,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            )
+            row = db.execute(
+                "SELECT value FROM app_settings WHERE key = ?",
+                (HOMEPAGE_VISITOR_COUNT_SETTING,),
+            ).fetchone()
+        display_count = max(0, int(str(row["value"] if row else "0").strip()))
+        with homepage_visitor_count_lock:
+            homepage_visitor_count_cached = display_count
     except Exception as exc:
-        logger.warning(
-            "Homepage visitor counter update failed: %s",
-            exc,
-        )
+        logger.warning("Homepage visitor counter update failed: %s", exc)
+        with homepage_visitor_count_lock:
+            homepage_visitor_count_cached = (homepage_visitor_count_cached or 0) + 1
+            display_count = homepage_visitor_count_cached
     return display_count
 
 
@@ -19718,19 +19679,21 @@ def admin_delete_known_device(device_id):
 
 @app.route("/")
 def dashboard():
-    increment_homepage_visitor_count()
+    homepage_visitor_count = increment_homepage_visitor_count()
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
+        homepage_visitor_count=homepage_visitor_count,
     )
 
 
 @app.route("/homepage")
 def homepage():
-    increment_homepage_visitor_count()
+    homepage_visitor_count = increment_homepage_visitor_count()
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
+        homepage_visitor_count=homepage_visitor_count,
     )
 
 
