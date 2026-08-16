@@ -38,6 +38,8 @@ Within the wider workspace:
 
 ## What This Project Includes
 
+Cloud-facing firmware uploads, command checks, Android refreshes, and Flask dashboard polling currently share `SWT_CLOUD_POLL_INTERVAL_SECONDS=30`. Local sensor sampling and master/slave safety timing remain at 5 seconds and stay independent so cloud load reduction does not delay pump protection. The recommended future profile keeps telemetry and dashboards at 30 seconds, introduces a separately wired `SWT_CLOUD_COMMAND_POLL_INTERVAL_SECONDS=10` for command polling, and preserves 5-second local control. Until that firmware change is implemented, `SWT_FLASK_ARCH_COMMAND_INTERVAL_MS` cannot override the shared 30-second interval.
+
 - Device telemetry ingestion through `POST /status`
 - Device command delivery through `/device/command` and `/device/command/ack`
 - Admin and customer login flows with separate scopes

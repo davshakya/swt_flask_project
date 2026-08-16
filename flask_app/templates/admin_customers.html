@@ -1801,7 +1801,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 
     applySort();
     applyFilter();
-    window.setInterval(refreshDeviceTable, 5000);
+    window.setInterval(refreshDeviceTable, {{ cloud_poll_interval_ms }});
 })();
 </script>
 </body>

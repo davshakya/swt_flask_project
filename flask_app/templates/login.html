@@ -5043,7 +5043,7 @@ body.chatbot-open .page-jump-controls{display:none}
                                     <div class="demo-kpi-row">
                                         <div class="demo-kpi is-featured">
                                             <span>Pump Status</span>
-                                            <strong>OFF Â· Auto</strong>
+                                            <strong>OFF · Auto</strong>
                                             <p>Starts at the configured low threshold.</p>
                                         </div>
                                         <div class="demo-kpi">
@@ -5062,7 +5062,7 @@ body.chatbot-open .page-jump-controls{display:none}
                                             <p>Local Wi-Fi and cloud sync are healthy.</p>
                                         </div>
                                     </div>
-                                    <div class="demo-dashboard-banner">Source Tank â†’ Pump â†’ Main Tank Â· Automatic threshold protection active.</div>
+                                    <div class="demo-dashboard-banner">Source Tank → Pump → Main Tank · Automatic threshold protection active.</div>
                                 </div>
                             </div>
                         </div>
@@ -7148,7 +7148,7 @@ function getChatbotResponse(rawInput) {
     if (deviceOffline) {
         return {
             useRag: true,
-            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed statusâ€”never share its API key.",
+            text: "Check device power, network connection, and last-seen time, then restart only if it is safe and approved. If the device remains offline, contact SaleWell support with the device ID and observed status—never share its API key.",
             actions: [{ label: "Contact support", action: "ask-prompt", fill: { prompt: "How can I contact SaleWell support?" } }],
         };
     }
@@ -7321,7 +7321,7 @@ function getChatbotResponse(rawInput) {
         chatbotGreetingCount += 1;
         return {
             text: chatbotGreetingCount === 1
-                ? "Hi! Welcome to SaleWell. What would you like help withâ€”tank monitoring, pump control, overflow prevention, pricing, or installation?"
+                ? "Hi! Welcome to SaleWell. What would you like help with—tank monitoring, pump control, overflow prevention, pricing, or installation?"
                 : "Hello again! Tell me what you would like to know, or choose one of the topics below.",
             actions: [
                 { label: "Product overview", action: "ask-prompt", fill: { prompt: "What does the SaleWell smart water tank system do?" } },

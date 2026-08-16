@@ -722,6 +722,7 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 300)
+CLOUD_POLL_INTERVAL_SECONDS = max(30, env_int("SWT_CLOUD_POLL_INTERVAL_SECONDS", 30))
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
@@ -2548,7 +2549,10 @@ def csrf_protect(view):
 
 @app.context_processor
 def inject_template_globals():
-    return {"csrf_token": get_csrf_token()}
+    return {
+        "csrf_token": get_csrf_token(),
+        "cloud_poll_interval_ms": CLOUD_POLL_INTERVAL_SECONDS * 1000,
+    }
 
 def is_logged_in():
     if not bool(session.get("logged_in")):
@@ -18197,11 +18201,9 @@ register_mobile_firmware_routes(
 
 
 def device_sync_next_interval(telemetry):
-    critical = build_alert_flags(telemetry) != 0
-    motor_running = str(telemetry.get("motor") or telemetry.get("pump") or "").strip().upper() == "ON"
-    if critical or motor_running:
-        return max(5, env_int("DEVICE_SYNC_ACTIVE_SECONDS", 10))
-    return max(10, env_int("DEVICE_SYNC_IDLE_SECONDS", 60))
+    # Keep the optional combined-sync hint aligned with firmware, Android, and
+    # dashboard cloud polling. Local safety/control loops remain independent.
+    return CLOUD_POLL_INTERVAL_SECONDS
 
 
 @app.route("/api/device/sync", methods=["POST"])

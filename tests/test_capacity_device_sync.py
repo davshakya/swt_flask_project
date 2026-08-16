@@ -71,7 +71,7 @@ def test_device_sync_combines_ingestion_ack_command_and_interval(monkeypatch):
     assert response.status_code == 200
     assert payload["accepted"] is True
     assert payload["result"] == "saved"
-    assert payload["next_sync_seconds"] == 10
+    assert payload["next_sync_seconds"] == 30
     assert payload["command"]["command_id"] == 9
     assert payload["command_ack"]["acknowledged"] is True
     assert captured["telemetry"]["device_id"] == "swt-authenticated"
