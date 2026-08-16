@@ -741,7 +741,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
                     <div class="section-badges">
                         <span id="device_visibility_status" class="pill pill-info">{{ available_devices|length }} visible</span>
-                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh 5s</span>
+                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh {{ cloud_poll_interval_ms // 1000 }}s</span>
                         <span class="pill pill-clear">Press Escape in search to clear quickly</span>
                     </div>
                 </div>
@@ -1395,7 +1395,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             refreshDeviceRows();
             applySort();
             applyFilter();
-            setAutoRefreshStatus("Updated now", "clear");
+            setAutoRefreshStatus("Updated now · every {{ cloud_poll_interval_ms // 1000 }}s", "clear");
         } catch (error) {
             console.warn("Admin device table refresh failed", error);
             setAutoRefreshStatus("Refresh paused", "warning");
