@@ -38,7 +38,7 @@ Within the wider workspace:
 
 ## What This Project Includes
 
-Cloud-facing firmware uploads, command checks, Android refreshes, and Flask dashboard polling currently share `SWT_CLOUD_POLL_INTERVAL_SECONDS=30`. Local sensor sampling and master/slave safety timing remain at 5 seconds and stay independent so cloud load reduction does not delay pump protection. The recommended future profile keeps telemetry and dashboards at 30 seconds, introduces a separately wired `SWT_CLOUD_COMMAND_POLL_INTERVAL_SECONDS=10` for command polling, and preserves 5-second local control. Until that firmware change is implemented, `SWT_FLASK_ARCH_COMMAND_INTERVAL_MS` cannot override the shared 30-second interval.
+Cloud telemetry uploads, Android refreshes, and Flask dashboard polling use `SWT_CLOUD_POLL_INTERVAL_SECONDS=30`. Firmware command checks independently use `SWT_CLOUD_COMMAND_POLL_INTERVAL_SECONDS=10`. Local sensor sampling and master/slave safety timing remain at 5 seconds, so lower cloud load does not delay pump protection.
 
 - Device telemetry ingestion through `POST /status`
 - Device command delivery through `/device/command` and `/device/command/ack`
@@ -54,7 +54,7 @@ Cloud-facing firmware uploads, command checks, Android refreshes, and Flask dash
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
-- APK update availability is determined from the uploaded APK's embedded numeric `versionCode`; release names use `vYY.M.<increment>`, and uploading the same code again does not create an update
+- APK update availability is determined from the uploaded APK's monotonic numeric `versionCode`, which must never reset. Android and firmware display names use `vYY.M.<monthlyIncrement>` and reset only that final display component when the UTC month/year changes; uploading the same Android numeric code again does not create an update
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`

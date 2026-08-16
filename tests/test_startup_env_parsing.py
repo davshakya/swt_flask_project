@@ -21,7 +21,7 @@ def test_root_gunicorn_config_loads_from_any_working_directory(monkeypatch):
 
     assert config["bind"] == "0.0.0.0:8000"
     assert config["workers"] == 1
-    assert config["threads"] == 4
+    assert config["threads"] == 2
 
 
 def test_flask_uses_device_env_as_its_only_local_config_file():
@@ -91,7 +91,7 @@ print(json.dumps({{"bind": config["bind"], "workers": config["workers"], "thread
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip())
-    assert payload == {"bind": "0.0.0.0:8000", "workers": 1, "threads": 4}
+    assert payload == {"bind": "0.0.0.0:8000", "workers": 1, "threads": 2}
 
 
 def test_server_import_falls_back_when_startup_numeric_env_values_are_invalid():
