@@ -159,6 +159,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .range-buttons .active{background:linear-gradient(135deg,var(--primary),var(--primary-deep));color:#fff;box-shadow:0 0 0 4px var(--button-lite-ring),0 8px 18px color-mix(in srgb,var(--primary) 24%,transparent)}
 .customer-dashboard .charts{align-items:start}
 .customer-dashboard .charts .tank-chart-panel{grid-column:1/-1}
+.customer-dashboard .charts .daily-chart-panel,.customer-dashboard .charts .hourly-chart-panel{grid-column:1/-1}
 .customer-dashboard .charts .pump-chart-panel{grid-column:1/-1}
 .water-visualize-button{width:100%;gap:9px;background:linear-gradient(135deg,#087f9c,#0f9f72);color:#fff;box-shadow:0 12px 26px rgba(8,127,156,.22)}
 .water-visual-dialog{width:min(1120px,calc(100% - 24px));max-height:94vh;padding:0;border:1px solid var(--line);border-radius:24px;background:var(--panel-strong);color:var(--text);box-shadow:0 34px 90px rgba(0,0,0,.38);overflow:auto}.water-visual-dialog::backdrop{background:rgba(2,12,18,.72);backdrop-filter:blur(4px)}
@@ -550,8 +551,8 @@ canvas{height:260px!important}
 
     <section class="charts" style="margin-top:16px">
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable tank level timeline"><canvas id="levelChart"></canvas></div></div>
-        <div class="panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable daily water use timeline"><canvas id="dailyChart"></canvas></div></div>
-        <div class="panel"><div class="eyebrow">Water Use Timeline</div><h3>Hourly water use</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable hourly water use timeline"><canvas id="patternChart"></canvas></div></div>
+        <div class="panel daily-chart-panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable daily water use timeline"><canvas id="dailyChart"></canvas></div></div>
+        <div class="panel hourly-chart-panel"><div class="eyebrow">Water Use Timeline</div><h3>Hourly water use</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable hourly water use timeline"><canvas id="patternChart"></canvas></div></div>
         <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">Telemetry · Selected range</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
     </section>
 
@@ -1680,6 +1681,7 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     const capacity=Number(analytics?.usage?.tank_capacity_liters??snapshot.capacity_liters);
     const dailyValues=Array.isArray(analytics?.daily?.values)?analytics.daily.values:[];
     const dailyLiters=Array.isArray(analytics?.daily?.liters)?analytics.daily.liters:[];
+    const dailyComplete=Array.isArray(analytics?.daily?.complete)?analytics.daily.complete:[];
     const usagePlausible=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const readiness=analyticsReadinessText(analytics,2);
     const observedLiters=dailyValues.map((percent,index)=>hasDisplayNumber(dailyLiters[index])
@@ -1687,38 +1689,36 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         :estimateUsageLiters(percent,capacity)
     ).filter((value)=>value!==null&&Number.isFinite(value)).map(Math.abs);
     const todayRange=analyticsRangeIsToday();
-    const displayedLiters=observedLiters.length
-        ?todayRange
-            ?observedLiters[observedLiters.length-1]
-            :observedLiters.reduce((total,value)=>total+value,0)
-        :null;
-    setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use");
+    const currentDayIndex=dailyComplete.findLastIndex((complete)=>complete===false);
+    const displayedLiters=currentDayIndex>=0&&hasDisplayNumber(dailyLiters[currentDayIndex])
+        ?Math.abs(Number(dailyLiters[currentDayIndex]))
+        :currentDayIndex>=0&&hasDisplayNumber(dailyValues[currentDayIndex])
+            ?estimateUsageLiters(dailyValues[currentDayIndex],capacity)
+            :todayRange&&observedLiters.length
+                ?observedLiters[observedLiters.length-1]
+                :null;
+    setText("customerUsageMetricLabel","Water used today");
     setText("usage_change",displayedLiters!==null?`~${displayedLiters.toFixed(1)} L`:"--");
     setText("customerKpiUsage",displayedLiters!==null?`~${displayedLiters.toFixed(1)} L`:readiness);
     setText("usage_change_text",displayedLiters!==null
         ?usagePlausible
-            ?todayRange
-                ?"Current-day estimate from validated tank drawdown."
-                :`${observedLiters.length} observed day${observedLiters.length===1?"":"s"} within ${selectedAnalyticsRangeLabel().toLowerCase()}.`
+            ?"Current-day estimate from validated tank drawdown."
             :"Provisional estimate from tank-level changes; telemetry validation is limited."
         :usagePlausible
             ?"A usage estimate will appear after enough validated level change is recorded."
             :"No measurable tank drawdown is available yet.");
 
     const analyticsForecastRaw=analytics?.prediction?.tomorrow_usage_liters;
-    const analyticsForecast=analytics?.prediction?.status!=="insufficient_data"&&hasDisplayNumber(analyticsForecastRaw)
+    const analyticsForecast=analytics?.prediction?.status==="ready"&&analytics?.analysis?.quality?.daily_usage_reliable===true&&hasDisplayNumber(analyticsForecastRaw)
         ?Number(analyticsForecastRaw)
         :NaN;
-    const deviceForecast=hasDisplayNumber(snapshot.tomorrow_prediction)?Number(snapshot.tomorrow_prediction):NaN;
-    const forecast=Number.isFinite(analyticsForecast)?Math.abs(analyticsForecast):(Number.isFinite(deviceForecast)?Math.abs(deviceForecast):null);
+    const forecast=Number.isFinite(analyticsForecast)?Math.abs(analyticsForecast):null;
     nodesById("ai_tomorrow_usage").forEach((node)=>{
         node.textContent=forecast!==null?`~ ${forecast.toFixed(1)} L`:readiness;
         const note=node.parentElement?.querySelector(".subvalue");
         if(note)note.textContent=Number.isFinite(analyticsForecast)
             ?"Analytics estimate for the next complete day."
-            :forecast!==null
-                ?"Live device estimate; historical confidence is still building."
-                :(analytics?.prediction?.limitations?.[0]||"Not enough history to forecast yet.");
+            :(analytics?.prediction?.limitations?.[0]||"Not enough reliable history to forecast yet.");
     });
     setText("customerKpiForecast",forecast!==null?`~${forecast.toFixed(1)} L`:readiness);
 

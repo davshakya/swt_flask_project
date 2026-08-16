@@ -1019,11 +1019,12 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
 
     assert 'setText("usage_change",displayedLiters!==null?' in usage_body
     assert "usage_physically_plausible!==false" in usage_body
-    assert 'setText("customerUsageMetricLabel",todayRange?"Water used today":"Observed water use")' in usage_body
+    assert 'setText("customerUsageMetricLabel","Water used today")' in usage_body
     assert "Provisional estimate from tank-level changes; telemetry validation is limited." in usage_body
-    assert 'Number(snapshot.tomorrow_prediction)' in usage_body
+    assert 'analytics?.prediction?.status==="ready"' in usage_body
+    assert "analytics?.analysis?.quality?.daily_usage_reliable===true" in usage_body
     assert 'Number(snapshot.ai_usage_rate)' in usage_body
-    assert '"Live device estimate; historical confidence is still building."' in usage_body
+    assert '"Not enough reliable history to forecast yet."' in usage_body
     assert '"Live device usage-rate estimate."' in usage_body
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
@@ -1848,6 +1849,28 @@ def test_all_today_usage_cards_use_today_specific_readiness_text():
     assert "Today is still in progress; daily averages appear in the 7 Days view." in customer_template
     assert "Today is still in progress; use the 7 Days view for a complete-day forecast." in customer_template
     assert "Waiting for complete days" not in customer_template
+
+
+def test_customer_usage_cards_do_not_sum_selected_range_or_show_provisional_forecasts():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert "dailyComplete.findLastIndex" in customer_template
+    assert 'setText("customerUsageMetricLabel","Water used today")' in customer_template
+    assert "observedLiters.reduce((total,value)=>total+value,0)" not in customer_template
+    assert 'analytics?.prediction?.status==="ready"' in customer_template
+    assert "analytics?.analysis?.quality?.daily_usage_reliable===true" in customer_template
+    assert "snapshot.tomorrow_prediction" not in customer_template[
+        customer_template.index("function updateCustomerUsageCards"):
+        customer_template.index("function updateCustomerAnalyticsKpis")
+    ]
+
+
+def test_customer_water_use_charts_span_the_full_dashboard_width():
+    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
+
+    assert 'class="panel daily-chart-panel"' in customer_template
+    assert 'class="panel hourly-chart-panel"' in customer_template
+    assert ".customer-dashboard .charts .daily-chart-panel,.customer-dashboard .charts .hourly-chart-panel{grid-column:1/-1}" in customer_template
 
 
 def test_login_modal_has_scoped_high_contrast_theme():
