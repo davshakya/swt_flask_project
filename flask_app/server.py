@@ -4001,7 +4001,10 @@ def filter_admin_search_results(items, search_query):
 def load_admin_known_devices(accounts, inventory_limit=100):
     return build_admin_known_devices(
         accounts=accounts,
-        available_devices=fetch_device_inventory(limit=inventory_limit),
+        # The admin registry includes up to 200 persisted devices. Load at
+        # least that many live snapshots so registered devices with fresh
+        # telemetry are not rendered offline merely because of pagination.
+        available_devices=fetch_device_inventory(limit=max(250, int(inventory_limit))),
         include_registered_devices=True,
         seed_configuration=True,
     )
@@ -6795,7 +6798,6 @@ def init_db():
         seed_default_customer_accounts(cursor)
         ensure_performance_indexes(cursor)
 
-    maybe_reset_device_source_mode_on_boot()
     deleted_counts = purge_configured_virtual_device_records()
     if deleted_counts.get("device_ids"):
         logger.info(
@@ -15727,32 +15729,31 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
-    source_clause, source_params = device_source_where_clause(column="candidate.device_source")
+    source_clause, source_params = device_source_where_clause(column="ranked_source.device_source")
     query = """
-        SELECT *
+        SELECT tank_data.*
         FROM tank_data
-        WHERE id IN (
-            SELECT latest.id
-            FROM tank_data latest
-            WHERE latest.id = (
-                SELECT candidate.id
-                FROM tank_data candidate
-                WHERE COALESCE(candidate.device_id, '') = COALESCE(latest.device_id, '')
-                  AND 
+        JOIN (
+            SELECT ranked_source.id,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY COALESCE(ranked_source.device_id, '')
+                       ORDER BY ranked_source.created_at DESC, ranked_source.id DESC
+                   ) AS device_row_number
+            FROM tank_data AS ranked_source
+            WHERE
     """
     query += source_clause
-    query += """
-                ORDER BY candidate.created_at DESC, candidate.id DESC
-                LIMIT 1
-            )
-        )
-    """
     params = list(source_params)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
-        query += f" AND COALESCE(device_id, '') IN ({placeholders})"
+        query += f" AND COALESCE(ranked_source.device_id, '') IN ({placeholders})"
         params.extend(normalized_device_ids)
-    query += " ORDER BY id DESC LIMIT ?"
+    query += """
+        ) AS ranked_inventory ON ranked_inventory.id = tank_data.id
+        WHERE ranked_inventory.device_row_number = 1
+        ORDER BY tank_data.id DESC
+        LIMIT ?
+    """
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
@@ -21946,6 +21947,9 @@ logger.info(
 logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
 init_db_serialized()
+# Runtime boot settings must be applied even when the schema revision is
+# already current and init_db_serialized() skips init_db().
+maybe_reset_device_source_mode_on_boot()
 ensure_homepage_visitor_count_loaded()
 resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()

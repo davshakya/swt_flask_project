@@ -355,7 +355,7 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="starter_contactor_sensor_enabled" value="1" {% if service_config.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
                         <label class="service-option"><input type="checkbox" name="motor_current_sensor_enabled" value="1" {% if service_config.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
                         <label class="service-option"><input type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
-                        <label class="service-option"><input type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') %}checked{% endif %}> Municipal water pressure/availability sensor</label>
+                        <label class="service-option"><input type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') %}checked{% endif %}> Water-pressure sensor for municipal availability</label>
                         <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. A disabled sensor is ignored by pump confirmation and safety logic.</div>
                     </div>
                 </div>
