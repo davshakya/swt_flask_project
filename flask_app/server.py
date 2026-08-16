@@ -17634,6 +17634,17 @@ def mobile_bootstrap():
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    # Events, audit, analytics, and monitoring remain materialized for a fast
+    # cPanel response, but the Android overview must use the same latest
+    # telemetry snapshot as the Flask device table.  Otherwise the configured
+    # summary refresh window can leave Android several minutes behind Flask.
+    latest_snapshot = load_dashboard_snapshot(scoped_device_id)
+    if snapshot_has_live_device_data(latest_snapshot):
+        summary = dict(summary)
+        summary["snapshot"] = strip_ip_address_fields(
+            latest_snapshot,
+            keep_device_local_url=True,
+        )
     summary = overlay_capacity_snapshot(summary, scoped_device_id, "mobile_read_latest_state")
     public_snapshot = summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id)
     snapshot = public_snapshot

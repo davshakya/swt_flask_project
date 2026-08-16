@@ -43,6 +43,11 @@ def test_customer_and_mobile_bootstrap_only_read_materialized_summary():
         assert "build_events(" not in route_body
         assert "fetch_audit_events(" not in route_body
 
+    # Android keeps the expensive sections materialized, but its primary tank
+    # and motor snapshot must match the live Flask device table.
+    assert "latest_snapshot = load_dashboard_snapshot(scoped_device_id)" in mobile_body
+    assert 'summary["snapshot"] = strip_ip_address_fields(' in mobile_body
+
 
 def test_dashboard_displays_persisted_summary_last_updated_time():
     template = TEMPLATE.read_text(encoding="utf-8")
