@@ -19746,12 +19746,27 @@ def admin_dashboard():
 
 
 SURVEY_QUESTION_LABELS = {
-    "overall_experience": "Overall experience",
-    "primary_use": "Primary use",
-    "most_valuable_feature": "Most valuable feature",
-    "reliability_rating": "Reliability rating",
-    "ease_of_use_rating": "Ease-of-use rating",
-    "would_recommend": "Would recommend SaleWell",
+    "survey_date": "Preferred survey date", "preferred_visit_time": "Preferred visit time",
+    "alternate_phone": "Alternate phone", "installation_address": "Installation address",
+    "landmark_city_pin": "Landmark, city and PIN", "property_type": "Property type",
+    "tank_access": "Tank access", "roof_height": "Roof/platform height from ground",
+    "safe_working_space": "Safe working space", "site_hazards": "Site hazards",
+    "access_safety_notes": "Access/safety notes", "water_source": "Water source",
+    "pump_control": "Existing pump control", "pump_rating": "Pump rating (HP/kW)",
+    "pump_location": "Pump location", "rising_pipe": "Rising pipe size/material",
+    "pipe_run": "Approximate pipe run", "current_issues": "Current water-system issues",
+    "existing_system_notes": "Existing valves, automation or issue details",
+    "tank1_details": "Tank 1: capacity, elevations, pipes, overflow and condition",
+    "tank2_details": "Tank 2: capacity, elevations, pipes, overflow and condition",
+    "tank1_capacity": "Tank 1 capacity (litres)", "different_height_notes": "Different-height tank assessment",
+    "bottoms_connected": "Tank bottoms connected", "lower_tank_overflows": "Lower tank overflows",
+    "recommended_control": "Recommended control arrangement", "hydraulic_notes": "Hydraulic arrangement and reason",
+    "power_near_controller": "Power near controller", "earthing": "Earthing available",
+    "connectivity": "Connectivity", "supply_voltage": "Supply voltage",
+    "weatherproof_enclosure": "Weatherproof enclosure needed", "controller_location": "Controller location",
+    "cable_route_length": "Cable route length", "sensor_locations": "Tank sensor types/locations",
+    "customer_requirements": "Customer requirements", "preferred_installation_date": "Special requirements / preferred installation date",
+    "consent": "Quotation-preparation consent",
 }
 SURVEY_TEST_DEVICE_ID = "swt-test-000-000-001"
 
@@ -19769,36 +19784,24 @@ def survey_test_user_required(view):
 
 
 def survey_form_values():
-    return {key: str(request.form.get(key, "")).strip() for key in (
-        "name", "email", "contact_number", "overall_experience", "primary_use",
-        "most_valuable_feature", "reliability_rating", "ease_of_use_rating",
-        "would_recommend", "comments",
-    )}
+    fields = ("name", "email", "contact_number", *SURVEY_QUESTION_LABELS.keys(), "comments")
+    return {key: str(request.form.get(key, "")).strip() for key in fields}
 
 
 def validate_survey_form(values):
     errors = {}
     required = {
-        "name": "Please enter your name.",
-        "overall_experience": "Please select your overall experience.",
-        "primary_use": "Please select how you use the system.",
-        "most_valuable_feature": "Please select the most valuable feature.",
-        "reliability_rating": "Please rate system reliability.",
-        "ease_of_use_rating": "Please rate ease of use.",
-        "would_recommend": "Please tell us whether you would recommend SaleWell.",
+        "name": "Please enter the customer name.", "contact_number": "Please enter the phone or WhatsApp number.",
+        "installation_address": "Please enter the installation address.",
+        "landmark_city_pin": "Please enter the city and PIN code.", "property_type": "Please select the property type.",
+        "tank_access": "Please select the tank access method.", "water_source": "Please select the water source.",
+        "pump_control": "Please select the pump-control method.", "tank1_capacity": "Please enter the primary tank capacity.",
+        "customer_requirements": "Please select the required features.",
+        "consent": "Consent is required to prepare a quotation.",
     }
     for field, message in required.items():
         if not values.get(field):
             errors[field] = message
-    allowed_choices = {
-        "overall_experience": {"Excellent", "Good", "Average", "Poor"},
-        "primary_use": {"home", "apartment", "commercial", "school", "other"},
-        "most_valuable_feature": {"level-monitoring", "pump-control", "alerts", "analytics", "support"},
-        "would_recommend": {"Yes", "Maybe", "No"},
-    }
-    for field, choices in allowed_choices.items():
-        if values.get(field) and values[field] not in choices:
-            errors[field] = "Please select a valid option."
     if len(values.get("name", "")) > 160:
         errors["name"] = "Name must be 160 characters or fewer."
     if len(values.get("email", "")) > 255:
@@ -19809,9 +19812,6 @@ def validate_survey_form(values):
         errors["email"] = "Please enter a valid email address."
     if values.get("contact_number") and not re.fullmatch(r"[0-9+()\-\s]{7,40}", values["contact_number"]):
         errors["contact_number"] = "Please enter a valid contact number."
-    for field in ("reliability_rating", "ease_of_use_rating"):
-        if values.get(field) and values[field] not in {"1", "2", "3", "4", "5"}:
-            errors[field] = "Please choose a rating from 1 to 5."
     return errors
 
 
@@ -19847,10 +19847,9 @@ def survey():
                         """,
                         (
                             submission_token, values["name"], values["email"] or None,
-                            values["contact_number"] or None, values["overall_experience"],
-                            values["primary_use"], values["most_valuable_feature"],
-                            int(values["reliability_rating"]), int(values["ease_of_use_rating"]),
-                            values["would_recommend"], json.dumps(answers, separators=(",", ":")),
+                            values["contact_number"] or None, "Site assessment",
+                            values["property_type"], values["customer_requirements"][:64],
+                            0, 0, "Not applicable", json.dumps(answers, separators=(",", ":")),
                             values["comments"] or None, session.get("role") if logged_in else None,
                             session.get("username") if logged_in else None,
                             session.get("device_id") if logged_in else None,
