@@ -569,6 +569,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
                     <a class="hero-secondary" href="#" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</a>
+                    <a class="hero-secondary" href="{{ url_for('admin_survey_responses') }}">Survey Responses</a>
                     <a class="hero-secondary" href="/account/password">Admin Password</a>
                     <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
                 </div>

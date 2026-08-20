@@ -659,7 +659,10 @@ canvas{height:260px!important}
     {% if not is_admin %}
     <footer class="panel customer-footer" aria-label="Customer support resources">
         <div><strong>Customer resources</strong><p>Installation and safety information for your activated SaleWell Smart Tank account.</p></div>
-        <a class="action-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+        <div class="row">
+            {% if viewer_role == 'customer' and viewer_device_id == 'swt-test-000-000-001' %}<a class="action-link" href="{{ url_for('survey') }}">Take Survey</a>{% endif %}
+            <a class="action-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+        </div>
     </footer>
     {% endif %}
 

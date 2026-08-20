@@ -5793,7 +5793,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-15-optional-sensors-valves-v1"
+DB_SCHEMA_REVISION = "2026-08-20-survey-responses-v1"
 
 
 def init_db_serialized():
@@ -6354,6 +6354,32 @@ def ensure_customer_password_reset_tokens_table(cursor):
     )
 
 
+def ensure_survey_responses_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS survey_responses(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_token VARCHAR(64) NOT NULL UNIQUE,
+            name VARCHAR(160) NOT NULL,
+            email VARCHAR(255),
+            contact_number VARCHAR(40),
+            overall_experience VARCHAR(32) NOT NULL,
+            primary_use VARCHAR(64) NOT NULL,
+            most_valuable_feature VARCHAR(64) NOT NULL,
+            reliability_rating INTEGER NOT NULL,
+            ease_of_use_rating INTEGER NOT NULL,
+            would_recommend VARCHAR(16) NOT NULL,
+            answers_json LONGTEXT NOT NULL,
+            comments TEXT,
+            submitted_by_role VARCHAR(32),
+            submitted_by_username VARCHAR(255),
+            submitted_by_device_id VARCHAR(255),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_device_service_configs_table(cursor):
     cursor.execute(
         f"""
@@ -6545,6 +6571,7 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at DESC, id DESC)",
         "CREATE INDEX idx_customer_accounts_email_updated ON customer_accounts(email, updated_at DESC)",
         "CREATE INDEX idx_customer_password_reset_expires ON customer_password_reset_tokens(expires_at, used_at)",
+        "CREATE INDEX idx_survey_responses_created ON survey_responses(created_at DESC, id DESC)",
         "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
         "CREATE INDEX idx_device_auth_keys_updated ON device_auth_keys(updated_at, device_id)",
         "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
@@ -6787,6 +6814,7 @@ def init_db():
         ensure_customer_accounts_table(cursor)
         ensure_customer_accounts_columns(cursor)
         ensure_customer_password_reset_tokens_table(cursor)
+        ensure_survey_responses_table(cursor)
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
         ensure_registered_devices_table(cursor)
@@ -19715,6 +19743,160 @@ def homepage():
 @admin_required
 def admin_dashboard():
     return redirect(url_for("admin_customers"))
+
+
+SURVEY_QUESTION_LABELS = {
+    "overall_experience": "Overall experience",
+    "primary_use": "Primary use",
+    "most_valuable_feature": "Most valuable feature",
+    "reliability_rating": "Reliability rating",
+    "ease_of_use_rating": "Ease-of-use rating",
+    "would_recommend": "Would recommend SaleWell",
+}
+SURVEY_TEST_DEVICE_ID = "swt-test-000-000-001"
+
+
+def survey_test_user_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not activate_dashboard_identity("customer"):
+            return redirect(url_for("customer_login", next=request.path))
+        if current_user_role() != "customer" or current_customer_device_id() != SURVEY_TEST_DEVICE_ID:
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def survey_form_values():
+    return {key: str(request.form.get(key, "")).strip() for key in (
+        "name", "email", "contact_number", "overall_experience", "primary_use",
+        "most_valuable_feature", "reliability_rating", "ease_of_use_rating",
+        "would_recommend", "comments",
+    )}
+
+
+def validate_survey_form(values):
+    errors = {}
+    required = {
+        "name": "Please enter your name.",
+        "overall_experience": "Please select your overall experience.",
+        "primary_use": "Please select how you use the system.",
+        "most_valuable_feature": "Please select the most valuable feature.",
+        "reliability_rating": "Please rate system reliability.",
+        "ease_of_use_rating": "Please rate ease of use.",
+        "would_recommend": "Please tell us whether you would recommend SaleWell.",
+    }
+    for field, message in required.items():
+        if not values.get(field):
+            errors[field] = message
+    allowed_choices = {
+        "overall_experience": {"Excellent", "Good", "Average", "Poor"},
+        "primary_use": {"home", "apartment", "commercial", "school", "other"},
+        "most_valuable_feature": {"level-monitoring", "pump-control", "alerts", "analytics", "support"},
+        "would_recommend": {"Yes", "Maybe", "No"},
+    }
+    for field, choices in allowed_choices.items():
+        if values.get(field) and values[field] not in choices:
+            errors[field] = "Please select a valid option."
+    if len(values.get("name", "")) > 160:
+        errors["name"] = "Name must be 160 characters or fewer."
+    if len(values.get("email", "")) > 255:
+        errors["email"] = "Email must be 255 characters or fewer."
+    if len(values.get("comments", "")) > 5000:
+        errors["comments"] = "Comments must be 5,000 characters or fewer."
+    if values.get("email") and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", values["email"]):
+        errors["email"] = "Please enter a valid email address."
+    if values.get("contact_number") and not re.fullmatch(r"[0-9+()\-\s]{7,40}", values["contact_number"]):
+        errors["contact_number"] = "Please enter a valid contact number."
+    for field in ("reliability_rating", "ease_of_use_rating"):
+        if values.get(field) and values[field] not in {"1", "2", "3", "4", "5"}:
+            errors[field] = "Please choose a rating from 1 to 5."
+    return errors
+
+
+@app.route("/survey", methods=["GET", "POST"])
+@survey_test_user_required
+@csrf_protect
+def survey():
+    values = {}
+    errors = {}
+    success = request.args.get("submitted") == "1"
+    submission_token = str(request.form.get("submission_token") or secrets.token_hex(24))
+    if request.method == "POST":
+        values = survey_form_values()
+        errors = validate_survey_form(values)
+        if not re.fullmatch(r"[a-f0-9]{48}", submission_token):
+            errors["form"] = "This survey session is invalid. Please reload and try again."
+        if not errors:
+            answers = {key: values[key] for key in SURVEY_QUESTION_LABELS}
+            logged_in = is_logged_in()
+            with get_db() as db:
+                existing = db.execute(
+                    "SELECT id FROM survey_responses WHERE submission_token = ? LIMIT 1", (submission_token,),
+                ).fetchone()
+                if not existing:
+                    db.execute(
+                        """
+                        INSERT INTO survey_responses(
+                            submission_token, name, email, contact_number, overall_experience,
+                            primary_use, most_valuable_feature, reliability_rating, ease_of_use_rating,
+                            would_recommend, answers_json, comments, submitted_by_role,
+                            submitted_by_username, submitted_by_device_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            submission_token, values["name"], values["email"] or None,
+                            values["contact_number"] or None, values["overall_experience"],
+                            values["primary_use"], values["most_valuable_feature"],
+                            int(values["reliability_rating"]), int(values["ease_of_use_rating"]),
+                            values["would_recommend"], json.dumps(answers, separators=(",", ":")),
+                            values["comments"] or None, session.get("role") if logged_in else None,
+                            session.get("username") if logged_in else None,
+                            session.get("device_id") if logged_in else None,
+                        ),
+                    )
+            return redirect(url_for("survey", submitted=1))
+    return render_template("survey.html", values=values, errors=errors, success=success, submission_token=submission_token)
+
+
+@app.route("/admin/surveys")
+@admin_required
+def admin_survey_responses():
+    search_query = str(request.args.get("q", "")).strip()
+    like_query = f"%{search_query}%"
+    with get_db() as db:
+        if search_query:
+            rows = db.execute(
+                """
+                SELECT * FROM survey_responses
+                WHERE name LIKE ? OR COALESCE(email, '') LIKE ? OR COALESCE(contact_number, '') LIKE ?
+                   OR COALESCE(comments, '') LIKE ? OR COALESCE(submitted_by_username, '') LIKE ?
+                ORDER BY created_at DESC, id DESC LIMIT 500
+                """,
+                (like_query, like_query, like_query, like_query, like_query),
+            ).fetchall()
+        else:
+            rows = db.execute("SELECT * FROM survey_responses ORDER BY created_at DESC, id DESC LIMIT 500").fetchall()
+    return render_template("admin_survey_responses.html", responses=[dict(row) for row in rows], search_query=search_query)
+
+
+@app.route("/admin/surveys/<int:response_id>")
+@admin_required
+def admin_survey_response_detail(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    response = dict(row)
+    try:
+        answers = json.loads(response.get("answers_json") or "{}")
+    except (TypeError, ValueError):
+        answers = {}
+    return render_template(
+        "admin_survey_response_detail.html", response=response, answers=answers,
+        question_labels=SURVEY_QUESTION_LABELS,
+    )
 
 
 @app.route("/admin/ops/bootstrap")
