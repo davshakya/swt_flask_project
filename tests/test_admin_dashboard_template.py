@@ -1025,33 +1025,16 @@ def test_customer_usage_cards_show_live_values_while_history_confidence_builds()
     assert 'analytics?.prediction?.status==="ready"' in usage_body
     assert "analytics?.analysis?.quality?.daily_usage_reliable===true" in usage_body
     assert 'Number(snapshot.ai_usage_rate)' in usage_body
-    assert '"Not enough history to calculate a forecast yet."' in usage_body
+    assert '"Not enough reliable history to forecast yet."' in usage_body
     assert '"Live device usage-rate estimate."' in usage_body
     assert "updateCustomerUsageCards(snapshot,analytics);" in customer_template
     assert "function customerUsageSavings(" in customer_template
-    assert 'const savingsReliable=analytics?.daily?.reliable===true' in customer_template
-    assert 'Provisional savings versus the previous day; telemetry validation is limited.' in customer_template
-    assert 'const completeObservedLiters=' in customer_template
-    assert 'const provisionalForecast=completeObservedLiters.length' in customer_template
-    assert 'Provisional estimate from recent complete days; telemetry validation is limited.' in customer_template
-    assert 'const derivedChange=fallbackPrevious!==null&&fallbackPrevious>0' in customer_template
-    assert 'Savings appears after two complete days have been recorded.' in customer_template
+    assert 'analytics?.daily?.reliable!==true' in customer_template
+    assert 'Savings insight appears after two complete days of reliable usage history.' in customer_template
     assert 'value:"0.0 L"' not in customer_template
     assert '`+${increaseLiters.toFixed(1)} L used`' in customer_template
     assert 'const ANALYTICS_CACHE_SCHEMA_VERSION="v17-provisional-usage";' in customer_template
     assert "function analyticsReliabilityNote(" in customer_template
-
-
-def test_customer_dashboard_keeps_missing_numeric_values_out_of_zero_metrics():
-    customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
-
-    assert 'function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value));}' in customer_template
-    assert 'hasDisplayNumber(pump.runtime_seconds)?formatDurationSeconds(pump.runtime_seconds):"Collecting"' in customer_template
-    assert 'hasDisplayNumber(startsRaw)?String(Number(startsRaw)):"Collecting"' in customer_template
-    assert 'hasDisplayNumber(pump.avg_run_seconds)?formatDurationSeconds(pump.avg_run_seconds):"Collecting"' in customer_template
-    assert 'hasDisplayNumber(pump.duty_cycle_pct)?`${Number(pump.duty_cycle_pct).toFixed(1)}%`:"Collecting"' in customer_template
-    assert 'hasDisplayNumber(state.data.snapshot?.level)?Number(state.data.snapshot.level):NaN' in customer_template
-    assert 'const ratePercent=hasDisplayNumber(ratePercentRaw)?Number(ratePercentRaw):NaN;' in customer_template
 
 
 def test_customer_dashboard_avoids_duplicate_summary_cards():

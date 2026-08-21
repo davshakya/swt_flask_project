@@ -741,7 +741,7 @@ const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${cu
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
 const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value));}
+function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&!Number.isNaN(Number(value));}
 function hasMeaningfulAnalyticsData(data){
     if(!data||typeof data!=="object")return false;
     return analyticsIsStrongPayload(data);
@@ -1227,29 +1227,21 @@ function customerUsageSavings(snapshot,analytics){
         value:"Select 7 Days",
         note:"Savings compares complete days. Use the 7 Days view for a reliable day-to-day comparison."
     };
-    const savingsReliable=analytics?.daily?.reliable===true&&Number(analytics?.analysis?.quality?.complete_day_count||0)>=2;
-    const capacity=analytics?.usage?.tank_capacity_liters??snapshot?.capacity_liters;
-    const dailyValues=Array.isArray(analytics?.daily?.values)?analytics.daily.values:[];
-    const dailyLiters=Array.isArray(analytics?.daily?.liters)?analytics.daily.liters:[];
-    const dailyComplete=Array.isArray(analytics?.daily?.complete)?analytics.daily.complete:[];
-    const completeLiters=dailyValues.map((percent,index)=>dailyComplete[index]===true
-        ?(hasDisplayNumber(dailyLiters[index])?Math.abs(Number(dailyLiters[index])):estimateUsageLiters(percent,capacity))
-        :null
-    ).filter((value)=>value!==null&&Number.isFinite(value));
-    const fallbackPrevious=completeLiters.length>=2?completeLiters[completeLiters.length-2]:null;
-    const fallbackLatest=completeLiters.length>=2?completeLiters[completeLiters.length-1]:null;
-    const changeRaw=analytics?.comparison?.change_pct;
-    const derivedChange=fallbackPrevious!==null&&fallbackPrevious>0?((fallbackLatest-fallbackPrevious)/fallbackPrevious)*100:null;
-    const change=hasDisplayNumber(changeRaw)?Number(changeRaw):derivedChange;
-    if(!Number.isFinite(change))return{
+    if(analytics?.daily?.reliable!==true||Number(analytics?.analysis?.quality?.complete_day_count||0)<2)return{
         value:"--",
-        note:"Savings appears after two complete days have been recorded."
+        note:"Savings insight appears after two complete days of reliable usage history."
+    };
+    const changeRaw=analytics?.comparison?.change_pct;
+    const change=Number(changeRaw);
+    if(!hasDisplayNumber(changeRaw)||!Number.isFinite(change))return{
+        value:"--",
+        note:"Savings insight appears when a usable comparison is available."
     };
     const latestLitersRaw=analytics?.comparison?.latest_day_usage_liters;
     const previousLitersRaw=analytics?.comparison?.previous_day_usage_liters;
-    const latestLiters=hasDisplayNumber(latestLitersRaw)?Number(latestLitersRaw):fallbackLatest;
-    const previousLiters=hasDisplayNumber(previousLitersRaw)?Number(previousLitersRaw):fallbackPrevious;
-    const savedLiters=Number.isFinite(latestLiters)&&Number.isFinite(previousLiters)
+    const latestLiters=Number(latestLitersRaw);
+    const previousLiters=Number(previousLitersRaw);
+    const savedLiters=hasDisplayNumber(latestLitersRaw)&&hasDisplayNumber(previousLitersRaw)
         ?Math.max(0,previousLiters-latestLiters)
         :estimateUsageLiters(
             Math.max(0,Number(analytics?.comparison?.previous_day_usage)-Number(analytics?.comparison?.latest_day_usage)),
@@ -1257,20 +1249,16 @@ function customerUsageSavings(snapshot,analytics){
         );
     if(change<0)return{
         value:savedLiters!==null?`~${savedLiters.toFixed(1)} L`:`${Math.abs(change).toFixed(0)}%`,
-        note:savingsReliable
-            ?(savedLiters!==null?"Estimated savings versus the previous day.":"Lower than the previous day.")
-            :"Provisional savings versus the previous day; telemetry validation is limited."
+        note:savedLiters!==null?"Estimated savings versus the previous day.":"Lower than the previous day."
     };
     if(change>0){
-        const increaseLiters=Number.isFinite(latestLiters)&&Number.isFinite(previousLiters)?Math.max(0,latestLiters-previousLiters):null;
+        const increaseLiters=hasDisplayNumber(latestLitersRaw)&&hasDisplayNumber(previousLitersRaw)?Math.max(0,latestLiters-previousLiters):null;
         return{
             value:increaseLiters!==null?`+${increaseLiters.toFixed(1)} L used`:`+${change.toFixed(0)}% used`,
-            note:savingsReliable
-                ?"Estimated increase versus the previous day; savings are reported only when usage falls."
-                :"Provisional increase versus the previous day; telemetry validation is limited."
+            note:"Estimated increase versus the previous day; savings are reported only when usage falls."
         };
     }
-    return{value:"No change",note:savingsReliable?"Estimated usage matches the previous day.":"Provisional comparison; telemetry validation is limited."};
+    return{value:"No change",note:"Estimated usage matches the previous day."};
 }
 function customerConfidenceScore(snapshot,system,analytics,sourceState){
     if(customerFeedBlocked())return 56;
@@ -1703,10 +1691,6 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
         ?Math.abs(Number(dailyLiters[index]))
         :estimateUsageLiters(percent,capacity)
     ).filter((value)=>value!==null&&Number.isFinite(value)).map(Math.abs);
-    const completeObservedLiters=dailyValues.map((percent,index)=>dailyComplete[index]===true
-        ?(hasDisplayNumber(dailyLiters[index])?Math.abs(Number(dailyLiters[index])):estimateUsageLiters(percent,capacity))
-        :null
-    ).filter((value)=>value!==null&&Number.isFinite(value)).map(Math.abs);
     const todayRange=analyticsRangeIsToday();
     const currentDayIndex=dailyComplete.findLastIndex((complete)=>complete===false);
     const displayedLiters=currentDayIndex>=0&&hasDisplayNumber(dailyLiters[currentDayIndex])
@@ -1731,21 +1715,13 @@ function updateCustomerUsageCards(snapshot=state.data.snapshot,analytics=state.d
     const analyticsForecast=analytics?.prediction?.status==="ready"&&analytics?.analysis?.quality?.daily_usage_reliable===true&&hasDisplayNumber(analyticsForecastRaw)
         ?Number(analyticsForecastRaw)
         :NaN;
-    const provisionalForecast=completeObservedLiters.length
-        ?completeObservedLiters.slice(-3).reduce((sum,value)=>sum+value,0)/Math.min(3,completeObservedLiters.length)
-        :NaN;
-    const forecast=Number.isFinite(analyticsForecast)
-        ?Math.abs(analyticsForecast)
-        :Number.isFinite(provisionalForecast)?provisionalForecast:null;
-    const forecastReliable=Number.isFinite(analyticsForecast);
+    const forecast=Number.isFinite(analyticsForecast)?Math.abs(analyticsForecast):null;
     nodesById("ai_tomorrow_usage").forEach((node)=>{
         node.textContent=forecast!==null?`~ ${forecast.toFixed(1)} L`:readiness;
         const note=node.parentElement?.querySelector(".subvalue");
-        if(note)note.textContent=forecastReliable
+        if(note)note.textContent=Number.isFinite(analyticsForecast)
             ?"Analytics estimate for the next complete day."
-            :forecast!==null
-                ?"Provisional estimate from recent complete days; telemetry validation is limited."
-                :(analytics?.prediction?.limitations?.[0]||"Not enough history to calculate a forecast yet.");
+            :(analytics?.prediction?.limitations?.[0]||"Not enough reliable history to forecast yet.");
     });
     setText("customerKpiForecast",forecast!==null?`~${forecast.toFixed(1)} L`:readiness);
 
@@ -1776,11 +1752,10 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     if(VIEWER_ROLE!=="customer")return;
     const pump=analytics?.pump_activity||{};
     const hasPumpData=analytics&&Object.keys(pump).length>0;
-    const runtime=hasPumpData&&hasDisplayNumber(pump.runtime_seconds)?formatDurationSeconds(pump.runtime_seconds):"Collecting";
-    const startsRaw=pump.started_runs??pump.completed_runs;
-    const starts=hasPumpData&&hasDisplayNumber(startsRaw)?String(Number(startsRaw)):"Collecting";
-    const average=hasPumpData&&hasDisplayNumber(pump.avg_run_seconds)?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
-    const duty=hasPumpData&&hasDisplayNumber(pump.duty_cycle_pct)?`${Number(pump.duty_cycle_pct).toFixed(1)}%`:"Collecting";
+    const runtime=hasPumpData?formatDurationSeconds(pump.runtime_seconds):"Collecting";
+    const starts=hasPumpData?String(Number(pump.started_runs??pump.completed_runs??0)):"Collecting";
+    const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
+    const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
@@ -1788,7 +1763,7 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     setText("chartLevelHigh",levelValue(levels.length?Math.max(...levels):NaN));
     setText("chartLevelLow",levelValue(levels.length?Math.min(...levels):NaN));
     setText("chartLevelAverage",levelValue(levels.length?levels.reduce((sum,value)=>sum+value,0)/levels.length:NaN));
-    const currentLevel=hasDisplayNumber(state.data.snapshot?.level)?Number(state.data.snapshot.level):NaN;
+    const currentLevel=Number(state.data.snapshot?.level);
     setText("chartLevelCurrent",levelValue(currentLevel));
     setText("chartFillCycles",hasPumpData?starts:"Collecting");
     if(state.data.events)renderEvents(state.data.events);
@@ -2644,10 +2619,8 @@ function renderAnalytics(data){
     setText("min_max_level",analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
         :"Waiting for more synced level history.");
-    const rateCapacityRaw=data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters;
-    const ratePercentRaw=data.insights?.consumption_rate;
-    const rateCapacity=hasDisplayNumber(rateCapacityRaw)?Number(rateCapacityRaw):NaN;
-    const ratePercent=hasDisplayNumber(ratePercentRaw)?Number(ratePercentRaw):NaN;
+    const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
+    const ratePercent=Number(data.insights?.consumption_rate);
     const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
     setText("consumption_rate",analyticsReady&&rateLiters!==null
         ?`${rateLiters.toFixed(0)} L/hr`
