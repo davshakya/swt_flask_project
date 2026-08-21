@@ -741,7 +741,7 @@ const fmtLiters=(v)=>v===null||v===undefined||Number.isNaN(Number(v))?"--":`${cu
 const fmtRatePerHour=(v)=>v===null||v===undefined||v===""||Number.isNaN(Number(v))?"--":`${Number(v).toFixed(2)}%/hr`;
 const isoDate=(d)=>d.toISOString().slice(0,10);
 const themeVar=(name)=>getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&!Number.isNaN(Number(value));}
+function hasDisplayNumber(value){return value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value));}
 function hasMeaningfulAnalyticsData(data){
     if(!data||typeof data!=="object")return false;
     return analyticsIsStrongPayload(data);
@@ -1752,10 +1752,11 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     if(VIEWER_ROLE!=="customer")return;
     const pump=analytics?.pump_activity||{};
     const hasPumpData=analytics&&Object.keys(pump).length>0;
-    const runtime=hasPumpData?formatDurationSeconds(pump.runtime_seconds):"Collecting";
-    const starts=hasPumpData?String(Number(pump.started_runs??pump.completed_runs??0)):"Collecting";
-    const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
-    const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
+    const runtime=hasPumpData&&hasDisplayNumber(pump.runtime_seconds)?formatDurationSeconds(pump.runtime_seconds):"Collecting";
+    const startsRaw=pump.started_runs??pump.completed_runs;
+    const starts=hasPumpData&&hasDisplayNumber(startsRaw)?String(Number(startsRaw)):"Collecting";
+    const average=hasPumpData&&hasDisplayNumber(pump.avg_run_seconds)?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
+    const duty=hasPumpData&&hasDisplayNumber(pump.duty_cycle_pct)?`${Number(pump.duty_cycle_pct).toFixed(1)}%`:"Collecting";
     setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
@@ -1763,7 +1764,7 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     setText("chartLevelHigh",levelValue(levels.length?Math.max(...levels):NaN));
     setText("chartLevelLow",levelValue(levels.length?Math.min(...levels):NaN));
     setText("chartLevelAverage",levelValue(levels.length?levels.reduce((sum,value)=>sum+value,0)/levels.length:NaN));
-    const currentLevel=Number(state.data.snapshot?.level);
+    const currentLevel=hasDisplayNumber(state.data.snapshot?.level)?Number(state.data.snapshot.level):NaN;
     setText("chartLevelCurrent",levelValue(currentLevel));
     setText("chartFillCycles",hasPumpData?starts:"Collecting");
     if(state.data.events)renderEvents(state.data.events);
@@ -2619,8 +2620,10 @@ function renderAnalytics(data){
     setText("min_max_level",analyticsReady
         ?`Min ${fmtPct(data.insights?.min_level)} | Max ${fmtPct(data.insights?.max_level)}`
         :"Waiting for more synced level history.");
-    const rateCapacity=Number(data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters);
-    const ratePercent=Number(data.insights?.consumption_rate);
+    const rateCapacityRaw=data.usage?.tank_capacity_liters??state.data.snapshot?.capacity_liters;
+    const ratePercentRaw=data.insights?.consumption_rate;
+    const rateCapacity=hasDisplayNumber(rateCapacityRaw)?Number(rateCapacityRaw):NaN;
+    const ratePercent=hasDisplayNumber(ratePercentRaw)?Number(ratePercentRaw):NaN;
     const rateLiters=Number.isFinite(rateCapacity)&&rateCapacity>0&&Number.isFinite(ratePercent)?rateCapacity*ratePercent/100:null;
     setText("consumption_rate",analyticsReady&&rateLiters!==null
         ?`${rateLiters.toFixed(0)} L/hr`
