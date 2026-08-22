@@ -928,6 +928,50 @@ app_log_handler.setFormatter(SwtColorFormatter(color_enabled=SWT_LOG_COLOR_ENABL
 logging.basicConfig(level=APP_LOG_LEVEL, handlers=[app_log_handler], force=True)
 
 logger = logging.getLogger("tank_server")
+device_connection_logger = logging.getLogger("tank_server.device_connection")
+device_connection_logger.setLevel(logging.INFO)
+DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS = max(
+    30, env_int("DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS", 300)
+)
+device_connection_log_lock = threading.Lock()
+device_connection_log_state = {}
+
+
+def log_device_connection_status(device_id, reachable, *, telemetry_status=None, seconds_since_sync=None):
+    """Log connection transitions plus a bounded heartbeat for each device."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    status = "reachable" if bool(reachable) else "unreachable"
+    now_monotonic = time.monotonic()
+    with device_connection_log_lock:
+        previous = device_connection_log_state.get(normalized_device_id)
+        changed = previous is None or previous["status"] != status
+        heartbeat_due = previous is None or (
+            now_monotonic - previous["logged_at"] >= DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS
+        )
+        if not changed and not heartbeat_due:
+            return
+        device_connection_log_state[normalized_device_id] = {
+            "status": status,
+            "logged_at": now_monotonic,
+        }
+        if len(device_connection_log_state) > 1000:
+            oldest_device_id = min(
+                device_connection_log_state,
+                key=lambda key: device_connection_log_state[key]["logged_at"],
+            )
+            if oldest_device_id != normalized_device_id:
+                device_connection_log_state.pop(oldest_device_id, None)
+    device_connection_logger.info(
+        "Device connection status: device=%s status=%s telemetry=%s seconds_since_sync=%s",
+        normalized_device_id,
+        status,
+        str(telemetry_status or "unknown").strip().lower() or "unknown",
+        seconds_since_sync if seconds_since_sync is not None else "--",
+    )
+
+
 relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
@@ -5242,6 +5286,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
             )
 
     clear_runtime_caches(cleaned.get("device_id"))
+    log_device_connection_status(
+        cleaned.get("device_id"),
+        True,
+        telemetry_status="live",
+        seconds_since_sync=0,
+    )
     # Telemetry is intentionally high-frequency (often every few seconds per
     # device).  Logging every successful sample at INFO makes Passenger's
     # stderr log grow without bound on cPanel and can exhaust the account's
@@ -21972,13 +22022,20 @@ def device_detail_status(device_id):
     # configuration is already embedded in the page and is fetched again only
     # for an explicit/full refresh.
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot) if include_details else {}
+    current_system_status = build_system_status_payload(
+        snapshot,
+        device_id=scoped_device_id,
+        service_config=service_config,
+    )
+    log_device_connection_status(
+        scoped_device_id,
+        current_system_status.get("device") == "online",
+        telemetry_status=current_system_status.get("telemetry_status"),
+        seconds_since_sync=current_system_status.get("seconds_since_sync"),
+    )
     payload = {
         "device_id": scoped_device_id,
-        "system_status": build_system_status_payload(
-            snapshot,
-            device_id=scoped_device_id,
-            service_config=service_config,
-        ),
+        "system_status": current_system_status,
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
     }
