@@ -1,4 +1,4 @@
-const CACHE_NAME = "swt-pwa-v7-native-history";
+const CACHE_NAME = "swt-pwa-v8-brand-refresh";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/static/js/smooth-navigation.js",
@@ -9,6 +9,7 @@ const APP_SHELL = [
   "/static/pwa/apple-touch-icon.png",
   "/static/pwa/tab-favicon.svg",
   "/static/pwa/brand-logo.svg",
+  "/static/pwa/brand-logo.png",
   "/static/marketing/smart-water-tank-hero-ai-960.webp",
   "/static/marketing/smart-water-tank-hero-ai-1280.webp",
   "/static/marketing/smart-water-tank-controls-ai-960.webp",
