@@ -1128,7 +1128,10 @@ document.addEventListener("DOMContentLoaded",()=>{
         if(ok)form.reset();
         if(button){button.disabled=false;button.textContent=originalLabel;}
       };
+      let fallbackStarted=false;
       const sendJsonFallback=async()=>{
+        if(fallbackStarted)return;
+        fallbackStarted=true;
         const file=form.querySelector('input[name="firmware_file"]')?.files?.[0];
         if(!file){finish(false,"Choose a compiled firmware .bin file to upload.");return;}
         try{
@@ -1161,13 +1164,15 @@ document.addEventListener("DOMContentLoaded",()=>{
       request.addEventListener("load",()=>{
         let payload=null;
         try{payload=JSON.parse(request.responseText||"{}");}catch(error){payload=null;}
-        if(request.status===403){sendJsonFallback();return;}
+        if(request.status===0||request.status===403){sendJsonFallback();return;}
         const ok=request.status>=200&&request.status<400&&payload?.ok!==false;
         finish(ok,payload?.message||payload?.error||`Server returned HTTP ${request.status}.`);
       });
       request.addEventListener("error",()=>{
-        finish(false,"Network error while uploading firmware.");
+        sendJsonFallback();
       });
+      request.addEventListener("timeout",()=>{sendJsonFallback();});
+      request.addEventListener("abort",()=>{sendJsonFallback();});
       const formData=new FormData(form);
       const profileOverride=form.querySelector("[data-profile-mismatch-override]");
       if(profileOverride)formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0");

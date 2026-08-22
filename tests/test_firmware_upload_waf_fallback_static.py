@@ -15,6 +15,9 @@ def test_authenticated_json_firmware_upload_fallback_is_available():
 
 
 def test_browser_retries_litespeed_403_without_multipart_form_data():
-    assert "if(request.status===403){sendJsonFallback();return;}" in TEMPLATE_SOURCE
+    assert "if(request.status===0||request.status===403){sendJsonFallback();return;}" in TEMPLATE_SOURCE
+    assert 'request.addEventListener("error",()=>{' in TEMPLATE_SOURCE
+    assert 'request.addEventListener("timeout",()=>{sendJsonFallback();});' in TEMPLATE_SOURCE
+    assert 'request.addEventListener("abort",()=>{sendJsonFallback();});' in TEMPLATE_SOURCE
     assert 'form.action.replace(/\\/firmware$/,"/artifact-intake")' in TEMPLATE_SOURCE
     assert '"Content-Type":"application/json"' in TEMPLATE_SOURCE
