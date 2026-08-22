@@ -11,6 +11,42 @@ if str(PROJECT_ROOT) not in sys.path:
 from flask_app import server
 
 
+def test_ai_leakage_result_is_synchronized_to_active_alerts(monkeypatch):
+    calls = []
+    monkeypatch.setattr(server, "set_alert", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    eligible = server.synchronize_ai_leakage_alert(
+        "swt-test-001",
+        {"status": "likely_leak", "score": 94, "confidence": 96},
+    )
+
+    assert eligible is True
+    assert calls == [
+        (
+            ("ai_leakage", "warning", "AI/ML telemetry analysis found a likely leakage pattern."),
+            {
+                "device_id": "swt-test-001",
+                "active": True,
+                "best_effort": True,
+            },
+        )
+    ]
+
+
+def test_ai_leakage_alert_is_resolved_when_result_is_not_eligible(monkeypatch):
+    calls = []
+    monkeypatch.setattr(server, "set_alert", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    eligible = server.synchronize_ai_leakage_alert(
+        "swt-test-001",
+        {"status": "possible_leak", "score": 90, "confidence": 99},
+    )
+
+    assert eligible is False
+    assert calls[0][0][0] == "ai_leakage"
+    assert calls[0][1]["active"] is False
+
+
 def test_leakage_ai_model_flags_unusual_off_pump_drop_pattern():
     model = server.build_leakage_ai_model(
         leak_events=0,

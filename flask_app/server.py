@@ -11159,6 +11159,26 @@ def ai_leakage_alert_eligible(leakage_model):
     )
 
 
+def synchronize_ai_leakage_alert(device_id, leakage_model):
+    """Publish the already-computed AI leak result without recomputing analytics."""
+    model = leakage_model or {}
+    eligible = ai_leakage_alert_eligible(model)
+    status = str(model.get("status") or "").strip().lower()
+    if status == "likely_leak":
+        message = "AI/ML telemetry analysis found a likely leakage pattern."
+    else:
+        message = "AI/ML telemetry analysis found a possible leakage pattern."
+    set_alert(
+        "ai_leakage",
+        "warning",
+        message,
+        device_id=device_id,
+        active=eligible,
+        best_effort=True,
+    )
+    return eligible
+
+
 def build_analysis_payload(
     *,
     quality,
@@ -12511,6 +12531,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         quality=analytics_quality,
         pump_activity_metrics=pump_activity_metrics,
     )
+    synchronize_ai_leakage_alert(latest_row.get("device_id"), leakage_model)
     health = calculate_health(
         snapshot=latest_row,
         leak_events=leak_events,
