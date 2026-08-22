@@ -950,7 +950,7 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'id="chartPumpRuntime"' in customer_template
     assert 'id="chartPumpStarts"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
-    assert 'id="chartPumpDuty"' in customer_template
+    assert 'id="chartPumpDuty"' not in customer_template
     assert "Hourly water use" in customer_template
     assert "data.pattern?.time||[]" in customer_template
     assert 'xScale:"time"' in customer_template
@@ -1613,12 +1613,13 @@ def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
     assert "cloudPumpActivityScroll" not in android_layout
     assert "cloudHourlyPatternChart" not in android_layout
     assert "cloudHourlyPatternCard" not in android_layout
-    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue", "cloudPumpDutyValue"):
+    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue"):
         assert metric_id in android_layout
+    assert "cloudPumpDutyValue" not in android_layout
     assert "binding.cloudPumpRuntimeValue" in android_source
     assert "binding.cloudPumpStartsValue" in android_source
     assert "binding.cloudPumpAverageValue" in android_source
-    assert "binding.cloudPumpDutyValue" in android_source
+    assert "binding.cloudPumpDutyValue" not in android_source
     assert "binding.cloudPumpActivityChart.setChart" not in android_source
 
 
