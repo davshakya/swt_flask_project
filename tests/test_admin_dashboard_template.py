@@ -84,7 +84,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "water_flow_animation.html', embed='1', v='20260813-2'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
-    assert 'const CACHE_NAME = "swt-pwa-v8-brand-refresh";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v10-water-blade-brand";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
@@ -863,7 +863,7 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert 'cache: "no-store"' not in smooth_navigation
     assert "20260812-native-history-v1" in pwa_head
     assert '"/static/js/smooth-navigation.js"' in service_worker
-    assert 'const CACHE_NAME = "swt-pwa-v8-brand-refresh";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v10-water-blade-brand";' in service_worker
 
 
 def test_customer_graphs_refresh_after_live_telemetry_changes():

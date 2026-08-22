@@ -1,4 +1,4 @@
-const CACHE_NAME = "swt-pwa-v8-brand-refresh";
+const CACHE_NAME = "swt-pwa-v10-water-blade-brand";
 const APP_SHELL = [
   "/manifest.webmanifest",
   "/static/js/smooth-navigation.js",
