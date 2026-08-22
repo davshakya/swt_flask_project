@@ -5793,7 +5793,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-20-survey-responses-v1"
+DB_SCHEMA_REVISION = "2026-08-22-survey-approval-registration-v2"
 
 
 def init_db_serialized():
@@ -6380,6 +6380,21 @@ def ensure_survey_responses_table(cursor):
     )
 
 
+def ensure_survey_responses_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(survey_responses)").fetchall()}
+    required = {
+        "review_status": "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+        "reviewed_at": "TEXT",
+        "reviewed_by": "VARCHAR(255)",
+        "registered_device_id": "VARCHAR(255)",
+        "registration_config_json": "LONGTEXT",
+        "registered_at": "TEXT",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE survey_responses ADD COLUMN {column} {definition}")
+
+
 def ensure_device_service_configs_table(cursor):
     cursor.execute(
         f"""
@@ -6815,6 +6830,7 @@ def init_db():
         ensure_customer_accounts_columns(cursor)
         ensure_customer_password_reset_tokens_table(cursor)
         ensure_survey_responses_table(cursor)
+        ensure_survey_responses_columns(cursor)
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
         ensure_registered_devices_table(cursor)
@@ -19792,6 +19808,62 @@ SURVEY_QUESTION_LABELS = {
 SURVEY_TEST_DEVICE_ID = "swt-test-000-000-001"
 
 
+def parse_survey_answers(response):
+    try:
+        payload = json.loads((response or {}).get("answers_json") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def survey_device_setup_defaults(response, answers=None):
+    """Create an editable setup proposal from survey facts; it is not registered yet."""
+    answers = answers or parse_survey_answers(response)
+    water_source = str(answers.get("water_source") or "").strip().lower()
+    tank2 = str(answers.get("tank2_details") or "").strip().lower()
+    requirements = " ".join(
+        str(answers.get(key) or "")
+        for key in ("customer_requirements", "current_issues", "recommended_control")
+    ).lower()
+    municipal = water_source in {"municipal", "multiple sources"}
+    source_tank = water_source != "municipal"
+    multiple_sources = water_source == "multiple sources"
+    has_second_tank = bool(tank2 and tank2 not in {"not applicable", "n/a", "none", "no"})
+    capacity = normalize_optional_config_float(answers.get("tank1_capacity"))
+    return {
+        "device_setup_type": "hybrid" if multiple_sources else ("municipal_only" if municipal and not source_tank else "source_only"),
+        "source_tank_monitoring_enabled": source_tank,
+        "municipal_sensor_enabled": municipal,
+        "municipal_valve_enabled": multiple_sources,
+        "source_outlet_valve_enabled": multiple_sources,
+        "slave_device_enabled": has_second_tank,
+        "auto_mode_enabled": "automatic" in requirements or "auto" in requirements,
+        "ai_analysis_enabled": True,
+        "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
+        "relay_enabled": True,
+        "buzzer_enabled": True,
+        "led_display_enabled": True,
+        "local_firmware_upload_enabled": True,
+        "upper_tank_capacity_liters": capacity,
+        "tank_capacity_liters": capacity,
+    }
+
+
+def survey_registration_float(form, name, minimum=None, maximum=None):
+    raw = str(form.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name.replace('_', ' ').title()} must be a number.") from exc
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{name.replace('_', ' ').title()} must be at least {minimum:g}.")
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{name.replace('_', ' ').title()} must not exceed {maximum:g}.")
+    return value
+
+
 def survey_test_user_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -19909,14 +19981,197 @@ def admin_survey_response_detail(response_id):
     if not row:
         abort(404)
     response = dict(row)
-    try:
-        answers = json.loads(response.get("answers_json") or "{}")
-    except (TypeError, ValueError):
-        answers = {}
+    response["review_status"] = str(response.get("review_status") or "pending").strip().lower()
+    answers = parse_survey_answers(response)
+    registered_device_id = normalize_device_id(response.get("registered_device_id"))
+    registered_device = None
+    registered_config = None
+    if registered_device_id:
+        with get_db() as db:
+            registered_row = db.execute(
+                "SELECT device_id, registration_source, first_seen_at, last_seen_at, updated_at FROM registered_devices WHERE device_id = ? LIMIT 1",
+                (registered_device_id,),
+            ).fetchone()
+        registered_device = dict(registered_row) if registered_row else {"device_id": registered_device_id}
+        registered_config = fetch_device_service_config(registered_device_id)
+    setup_defaults = survey_device_setup_defaults(response, answers)
     return render_template(
         "admin_survey_response_detail.html", response=response, answers=answers,
         question_labels=SURVEY_QUESTION_LABELS,
+        setup_defaults=setup_defaults,
+        registered_device=registered_device,
+        registered_config=registered_config,
+        registration_success=request.args.get("registered") == "1",
+        deletion_success=request.args.get("deleted") == "1",
+        registration_error=request.args.get("error", "", type=str),
+        review_success=request.args.get("reviewed", "", type=str),
     )
+
+
+@app.route("/admin/surveys/<int:response_id>/review", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_review(response_id):
+    decision = str(request.form.get("decision") or "").strip().lower()
+    if decision not in {"accepted", "rejected"}:
+        abort(400)
+    with get_db() as db:
+        row = db.execute("SELECT id, registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+        if not row:
+            abort(404)
+        if row["registered_device_id"] and decision == "rejected":
+            return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Delete the registered device before rejecting this survey."))
+        db.execute(
+            "UPDATE survey_responses SET review_status = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ?",
+            (decision, current_actor_username(), response_id),
+        )
+    log_audit_event(
+        actor=current_actor_username(), action=f"{decision[:-2]}_survey_response",
+        target_type="survey_response", target_id=str(response_id),
+        details={"review_status": decision},
+    )
+    return redirect(url_for("admin_survey_response_detail", response_id=response_id, reviewed=decision))
+
+
+@app.route("/admin/surveys/<int:response_id>/delete", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_delete(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT id, registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+        if not row:
+            abort(404)
+        if normalize_device_id(row["registered_device_id"]):
+            return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Delete the registered device before deleting this survey."))
+        db.execute("DELETE FROM survey_responses WHERE id = ?", (response_id,))
+    log_audit_event(
+        actor=current_actor_username(), action="delete_survey_response",
+        target_type="survey_response", target_id=str(response_id), details={},
+    )
+    return redirect(url_for("admin_survey_responses", deleted=1))
+
+
+@app.route("/admin/surveys/<int:response_id>/register-device", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_register_device(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    response = dict(row)
+    if str(response.get("review_status") or "pending").strip().lower() != "accepted":
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Accept this survey before registering a device."))
+    if normalize_device_id(response.get("registered_device_id")):
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="This survey already has a registered device."))
+
+    device_id = request.form.get("device_id", "")
+    device_key = request.form.get("device_key", "")
+    password = request.form.get("password", "")
+    try:
+        normalized_device_id = normalize_device_id(device_id)
+        if not normalized_device_id:
+            raise ValueError("Device ID is required.")
+        if not str(device_key or "").strip():
+            raise ValueError("Device key is required.")
+        if not str(password or "").strip():
+            raise ValueError("Customer password is required.")
+        with get_db() as db:
+            linked = db.execute(
+                "SELECT id FROM survey_responses WHERE registered_device_id = ? AND id <> ? LIMIT 1",
+                (normalized_device_id, response_id),
+            ).fetchone()
+        if linked:
+            raise ValueError("That device is already linked to another survey response.")
+
+        upper_height = survey_registration_float(request.form, "upper_tank_height_cm", 30, 500)
+        upper_capacity = survey_registration_float(request.form, "upper_tank_capacity_liters", 50, 50000)
+        lower_height = survey_registration_float(request.form, "lower_tank_height_cm", 30, 500)
+        lower_capacity = survey_registration_float(request.form, "lower_tank_capacity_liters", 50, 50000)
+        slave_enabled = form_flag("slave_device_enabled", default=False)
+        source_enabled = form_flag("source_tank_monitoring_enabled", default=False)
+        municipal_enabled = form_flag("municipal_sensor_enabled", default=False)
+        setup_payload = {
+            "device_setup_type": str(request.form.get("device_setup_type") or "custom").strip().lower(),
+            "main_sensor_enabled": True,
+            "master_upper_sensor_enabled": not slave_enabled,
+            "slave_device_enabled": slave_enabled,
+            "slave_upper_sensor_enabled": slave_enabled,
+            "source_tank_monitoring_enabled": source_enabled,
+            "municipal_sensor_enabled": municipal_enabled,
+            "municipal_valve_enabled": municipal_enabled and source_enabled and form_flag("municipal_valve_enabled", default=False),
+            "source_outlet_valve_enabled": source_enabled and form_flag("source_outlet_valve_enabled", default=False),
+            "relay_enabled": form_flag("relay_enabled", default=False),
+            "ai_analysis_enabled": form_flag("ai_analysis_enabled", default=False),
+            "cloud_feed_mode": normalize_device_service_cloud_mode(request.form.get("cloud_feed_mode")),
+            "local_firmware_upload_enabled": form_flag("local_firmware_upload_enabled", default=False),
+            "buzzer_enabled": form_flag("buzzer_enabled", default=False),
+            "led_display_enabled": form_flag("led_display_enabled", default=False),
+            "auto_mode_enabled": form_flag("auto_mode_enabled", default=False),
+            "tank_height_cm": upper_height,
+            "tank_capacity_liters": upper_capacity,
+            "upper_tank_height_cm": upper_height,
+            "upper_tank_capacity_liters": upper_capacity,
+            "lower_tank_height_cm": lower_height,
+            "lower_tank_capacity_liters": lower_capacity,
+        }
+
+        register_device_credentials(normalized_device_id, device_key, registration_source="admin_survey", remote_addr=request.remote_addr)
+        account = upsert_customer_account(
+            normalized_device_id,
+            password,
+            display_name=request.form.get("display_name") or response.get("name"),
+            email=request.form.get("email") or response.get("email"),
+            service_updates_enabled=form_flag("service_updates_enabled", default=True),
+            marketing_emails_enabled=form_flag("marketing_emails_enabled", default=False),
+        )
+        saved_config = upsert_device_service_config(normalized_device_id, **setup_payload)
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE survey_responses
+                SET registered_device_id = ?, registration_config_json = ?, registered_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND registered_device_id IS NULL
+                """,
+                (normalized_device_id, json.dumps(saved_config, separators=(",", ":")), response_id),
+            )
+        log_audit_event(
+            actor=current_actor_username(), action="register_device_from_survey",
+            target_type="survey_response", target_id=str(response_id), device_id=normalized_device_id,
+            details={"customer_email": account.get("email"), "service_config": saved_config},
+        )
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, registered=1))
+    except ValueError as exc:
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error=str(exc)))
+
+
+@app.route("/admin/surveys/<int:response_id>/delete-device", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_delete_device(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    normalized_device_id = normalize_device_id(row["registered_device_id"])
+    if not normalized_device_id:
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="This survey has no registered device."))
+    try:
+        delete_known_device(normalized_device_id)
+        with get_db() as db:
+            db.execute(
+                "UPDATE survey_responses SET registered_device_id = NULL, registration_config_json = NULL, registered_at = NULL WHERE id = ?",
+                (response_id,),
+            )
+        log_audit_event(
+            actor=current_actor_username(), action="delete_survey_registered_device",
+            target_type="survey_response", target_id=str(response_id), device_id=normalized_device_id,
+            details={"deleted_device_id": normalized_device_id},
+        )
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, deleted=1))
+    except Exception:
+        logger.exception("Survey device delete failed for %s", normalized_device_id)
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Device deletion failed. Review the server log and try again."))
 
 
 @app.route("/admin/ops/bootstrap")
