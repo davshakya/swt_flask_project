@@ -5242,7 +5242,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
             )
 
     clear_runtime_caches(cleaned.get("device_id"))
-    logger.info(
+    # Telemetry is intentionally high-frequency (often every few seconds per
+    # device).  Logging every successful sample at INFO makes Passenger's
+    # stderr log grow without bound on cPanel and can exhaust the account's
+    # disk/I/O quota.  Operators can still opt into these records with DEBUG;
+    # failures and state-changing events remain visible at higher levels.
+    logger.debug(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
         cleaned.get("level"),
@@ -16242,6 +16247,14 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
 
     try:
         with get_db() as db:
+            previous_rows = db.execute(
+                """
+                SELECT id, stored_filename
+                FROM firmware_artifacts
+                WHERE target_device = ? AND target_role = ?
+                """,
+                (normalized_device_id, normalized_role),
+            ).fetchall()
             cursor = db.execute(
                 """
                 INSERT INTO firmware_artifacts(
@@ -16264,6 +16277,13 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
                 ),
             )
             artifact_id = int(cursor.lastrowid or 0)
+            db.execute(
+                """
+                DELETE FROM firmware_artifacts
+                WHERE target_device = ? AND target_role = ? AND id <> ?
+                """,
+                (normalized_device_id, normalized_role, artifact_id),
+            )
     except Exception as exc:
         try:
             storage_path.unlink()
@@ -16274,6 +16294,20 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
     artifact = fetch_firmware_artifact(artifact_id, device_id=normalized_device_id, role=normalized_role)
     if not artifact:
         raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
+    active_path = storage_path.resolve()
+    for row in previous_rows:
+        old_filename = str(row["stored_filename"] or "").strip()
+        if not old_filename:
+            continue
+        old_path = firmware_artifact_storage_path(old_filename).resolve()
+        if old_path == active_path:
+            continue
+        try:
+            old_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove replaced firmware artifact %s: %s", old_path, exc)
     return artifact
 
 
@@ -16378,6 +16412,12 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
 
     try:
         with get_db() as db:
+            previous_rows = db.execute(
+                """
+                SELECT id, stored_filename
+                FROM android_app_releases
+                """
+            ).fetchall()
             cursor = db.execute(
                 """
                 INSERT INTO android_app_releases(
@@ -16400,6 +16440,13 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
                 ),
             )
             release_id = int(cursor.lastrowid or 0)
+            db.execute(
+                """
+                DELETE FROM android_app_releases
+                WHERE id <> ?
+                """,
+                (release_id,),
+            )
     except Exception as exc:
         try:
             storage_path.unlink()
@@ -16410,6 +16457,20 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
     release = fetch_android_app_release(release_id)
     if not release:
         raise ValueError("Uploaded Android app release could not be loaded after it was saved.")
+    active_path = storage_path.resolve()
+    for row in previous_rows:
+        old_filename = str(row["stored_filename"] or "").strip()
+        if not old_filename:
+            continue
+        old_path = android_release_storage_path(old_filename).resolve()
+        if old_path == active_path:
+            continue
+        try:
+            old_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove replaced Android release %s: %s", old_path, exc)
     return release
 
 

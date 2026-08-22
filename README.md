@@ -55,6 +55,7 @@ Cloud telemetry uploads, Android refreshes, and Flask dashboard polling use `SWT
 - Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - APK update availability is determined from the uploaded APK's monotonic numeric `versionCode`, which must never reset. Android and firmware display names use `vYY.M.<monthlyIncrement>` and reset only that final display component when the UTC month/year changes; uploading the same Android numeric code again does not create an update
+- A successful firmware upload replaces the previous artifact for the same device and master/slave role. A successful Android upload replaces all previous APK releases. Old database rows and obsolete stored files are removed only after the replacement is registered successfully.
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
