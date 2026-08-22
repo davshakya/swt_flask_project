@@ -20069,6 +20069,81 @@ def admin_survey_response_detail(response_id):
     )
 
 
+@app.route("/admin/customers/<device_id>/artifact-intake", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_artifact_intake(device_id):
+    """Accept firmware through JSON when a hosting WAF rejects multipart binaries."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return jsonify({"ok": False, "error": "Choose a valid device before uploading firmware."}), 400
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "Upload request must be valid JSON."}), 400
+
+    encoded_payload = str(body.get("content_base64") or "")
+    # Reject oversized encoded input before decoding it. Base64 is at most 4/3
+    # of the binary size, plus a few bytes of padding.
+    encoded_limit = ((FIRMWARE_ARTIFACT_MAX_BYTES + 2) // 3) * 4
+    if not encoded_payload or len(encoded_payload) > encoded_limit:
+        return jsonify({"ok": False, "error": "Firmware upload is empty or too large."}), 400
+    try:
+        binary_payload = base64.b64decode(encoded_payload, validate=True)
+    except (ValueError, binascii.Error):
+        return jsonify({"ok": False, "error": "Firmware upload encoding is invalid."}), 400
+
+    filename = Path(str(body.get("filename") or "firmware.bin")).name
+    role = body.get("firmware_role", "master")
+    notes = body.get("notes", "")
+    uploaded_file = type(
+        "JsonFirmwareUpload",
+        (),
+        {
+            "filename": filename,
+            "stream": io.BytesIO(binary_payload),
+            "mimetype": "application/octet-stream",
+        },
+    )()
+    try:
+        normalized_role = normalize_firmware_artifact_role(role)
+        artifact = create_firmware_artifact(
+            normalized_device_id,
+            uploaded_file,
+            notes=notes,
+            uploaded_by=current_actor_username(),
+            role=normalized_role,
+            expected_build_flags=None,
+        )
+        firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or normalized_role)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="upload_device_firmware_artifact",
+            target_type="device",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details={
+                "artifact_id": artifact["id"],
+                "role": firmware_role,
+                "version_label": artifact.get("version_label"),
+                "original_filename": artifact.get("original_filename"),
+                "md5": artifact.get("md5"),
+                "size_bytes": artifact.get("size_bytes"),
+                "notes": artifact.get("notes"),
+                "delivery": "android_local_wifi",
+                "transport": "json_base64_waf_fallback",
+            },
+        )
+        version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+        message = (
+            f"{firmware_role.title()} firmware uploaded for {normalized_device_id}. "
+            f"{artifact['original_filename']}{version_suffix} is now available to the Android app for local Wi-Fi upgrades."
+        )
+        return jsonify({"ok": True, "message": message}), 200
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
 @app.route("/admin/surveys/<int:response_id>/review", methods=["POST"])
 @admin_required
 @csrf_protect

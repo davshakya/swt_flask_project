@@ -1123,25 +1123,50 @@ document.addEventListener("DOMContentLoaded",()=>{
         button.textContent="Uploading...";
       }
       const request=new XMLHttpRequest();
+      const finish=(ok,message)=>{
+        showResultModal(ok?"Upload successful":"Upload failed",message,!ok);
+        if(ok)form.reset();
+        if(button){button.disabled=false;button.textContent=originalLabel;}
+      };
+      const sendJsonFallback=async()=>{
+        const file=form.querySelector('input[name="firmware_file"]')?.files?.[0];
+        if(!file){finish(false,"Choose a compiled firmware .bin file to upload.");return;}
+        try{
+          const dataUrl=await new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(String(reader.result||""));
+            reader.onerror=()=>reject(reader.error);
+            reader.readAsDataURL(file);
+          });
+          const response=await fetch(form.action.replace(/\/firmware$/,"/artifact-intake"),{
+            method:"POST",
+            credentials:"same-origin",
+            headers:{"Content-Type":"application/json","Accept":"application/json","X-CSRF-Token":form.querySelector('[name="csrf_token"]')?.value||""},
+            body:JSON.stringify({
+              filename:file.name,
+              content_base64:dataUrl.split(",",2)[1]||"",
+              firmware_role:form.querySelector('[name="firmware_role"]')?.value||"master",
+              notes:form.querySelector('[name="notes"]')?.value||"",
+              allow_profile_mismatch:form.querySelector("[data-profile-mismatch-override]")?.checked||false,
+            }),
+          });
+          let payload=null;
+          try{payload=await response.json();}catch(error){payload=null;}
+          const ok=response.ok&&payload?.ok!==false;
+          finish(ok,payload?.message||payload?.error||`Fallback upload returned HTTP ${response.status}.`);
+        }catch(error){finish(false,"Network error while retrying the firmware upload.");}
+      };
       request.open("POST",form.action,true);
       request.setRequestHeader("X-Requested-With","XMLHttpRequest");
       request.addEventListener("load",()=>{
         let payload=null;
         try{payload=JSON.parse(request.responseText||"{}");}catch(error){payload=null;}
+        if(request.status===403){sendJsonFallback();return;}
         const ok=request.status>=200&&request.status<400&&payload?.ok!==false;
-        showResultModal(ok?"Upload successful":"Upload failed",payload?.message||payload?.error||`Server returned HTTP ${request.status}.`,!ok);
-        if(ok)form.reset();
-        if(button){
-          button.disabled=false;
-          button.textContent=originalLabel;
-        }
+        finish(ok,payload?.message||payload?.error||`Server returned HTTP ${request.status}.`);
       });
       request.addEventListener("error",()=>{
-        showResultModal("Upload failed","Network error while uploading firmware.",true);
-        if(button){
-          button.disabled=false;
-          button.textContent=originalLabel;
-        }
+        finish(false,"Network error while uploading firmware.");
       });
       const formData=new FormData(form);
       const profileOverride=form.querySelector("[data-profile-mismatch-override]");
