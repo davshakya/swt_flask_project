@@ -878,6 +878,14 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
     assert detected == ("Available", "online")
 
 
+def test_admin_municipal_column_renders_operational_label_not_generic_connectivity():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert '{{ device.municipal_sensor_status_label or "Disabled" }}' in template
+    assert 'setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled")' in template
+    assert "connectivityLabel(device.municipal_sensor_status" not in template
+
+
 def test_admin_device_entry_preserves_municipal_detection_telemetry():
     if str(PROJECT_ROOT / "flask_app") not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))

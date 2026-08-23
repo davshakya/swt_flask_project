@@ -795,7 +795,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ "Online" if device.lower_sensor_status_tone == "online" else "Disabled" if device.lower_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ "Online" if device.municipal_sensor_status_tone == "online" else "Disabled" if device.municipal_sensor_status_tone == "clear" else "Offline" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ device.municipal_sensor_status_label or "Disabled" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main" data-device-field="tank_level">
@@ -1351,7 +1351,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setPillTone(lower, device.lower_sensor_status_tone || "offline");
 
         const municipal = row.querySelector('[data-device-field="municipal_sensor_status"]');
-        setTextIfChanged(municipal, connectivityLabel(device.municipal_sensor_status, device.municipal_sensor_status_tone));
+        setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled");
         setPillTone(municipal, device.municipal_sensor_status_tone || "clear");
 
         setTextIfChanged(row.querySelector('[data-device-field="tank_level"]'), device.tank_level || "--");
