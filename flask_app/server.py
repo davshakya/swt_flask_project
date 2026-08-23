@@ -3574,7 +3574,7 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
     if not enabled:
         return "Disabled", "clear"
     if not online:
-        return "Offline/Stale", "offline"
+        return "Offline", "offline"
     if simulated:
         reachable = True
     elif flow_selected:
@@ -3582,8 +3582,8 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
     elif pressure_selected:
         reachable = boolish_enabled(entry.get("water_pressure_detected"), default=False)
     if reachable:
-        return "Reachable", "online"
-    return "Unreachable", "offline"
+        return "Available", "online"
+    return "Waiting", "warning"
 
 
 def admin_sensor_reachable(raw_status):
