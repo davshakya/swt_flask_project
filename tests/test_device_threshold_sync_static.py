@@ -55,7 +55,7 @@ def test_device_detail_offers_setup_presets_and_filters_simulators_by_setup():
     for setup_type in ("source_only", "municipal_direct", "dual_source_pumped", "custom"):
         assert f'value="{setup_type}"' in template
     assert "const DEVICE_SETUP_PRESETS=" in template
-    assert 'setVisible("municipalSimulatorForm",usesMunicipal)' in template
+    assert 'setVisible("municipalDetectionSimulatorForm",usesMunicipal)' in template
     assert 'setVisible("municipalValveSimulatorForm",usesInletValve)' in template
     assert 'setVisible("sourceOutletValveSimulatorForm",usesOutletValve)' in template
     assert "syncSimulatorControlsWithRuntimeForm();" in template
@@ -229,7 +229,7 @@ def test_admin_device_detail_configuration_reports_auto_mode_and_queue_errors():
     assert "Auto Start/Stop is {auto_mode_label}" in route_source
 
 
-def test_device_detail_has_independent_municipal_simulator_toggle():
+def test_device_detail_has_selected_flow_or_pressure_sensor_simulator_toggle():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
 
@@ -237,8 +237,10 @@ def test_device_detail_has_independent_municipal_simulator_toggle():
     assert "def admin_device_detail_municipal_simulator(device_id):" in source
     assert 'command = "MUNICIPAL_SIMULATOR_OFF" if simulator_enabled else "MUNICIPAL_SIMULATOR_ON"' in source
     assert 'action="queue_municipal_sensor_simulator_toggle"' in source
-    assert 'id="municipalSimulatorToggleButton"' in template
-    assert "Municipal Water Simulator" in template
+    assert 'id="municipalDetectionSimulatorToggleButton"' in template
+    assert "Water-flow Sensor Simulator" in template
+    assert "Water-pressure Sensor Simulator" in template
+    assert "Municipal Water Simulator" not in template
 
 
 def test_disabled_features_force_simulators_off_and_queue_device_cleanup():
@@ -305,7 +307,7 @@ def test_device_detail_has_motorized_valve_simulator():
     assert 'id="municipalValveSimulatorToggleButton"' in template
 
 
-def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
+def test_all_device_simulators_use_shared_ajax_route_with_confirmed_disable_all_action():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     template = TEMPLATE_SOURCE.read_text(encoding="utf-8")
     simulator_section = template[
@@ -313,15 +315,16 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     ]
 
     assert '@app.route("/admin/customers/<device_id>/turbidity-simulator/<role>"' in source
-    assert simulator_section.count("<form ") == 6
+    assert simulator_section.count("<form ") == 7
     assert 'name="simulator_target" value="outlet_valve"' in simulator_section
     assert "Outlet Motorized Valve Simulator" in simulator_section
-    assert simulator_section.count("data-ajax-form") == 6
-    assert simulator_section.count("data-confirm-title=") == 0
-    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 6
+    assert simulator_section.count("data-ajax-form") == 7
+    assert simulator_section.count("data-confirm-title=") == 1
+    assert simulator_section.count('/admin/customers/{{ device_id }}/simulator') == 7
     assert 'name="simulator_target" value="lower_turbidity"' in simulator_section
     assert 'name="simulator_target" value="upper_turbidity"' in simulator_section
-    assert 'name="simulator_target" value="municipal"' in simulator_section
+    assert 'id="municipalDetectionSimulatorTarget"' in simulator_section
+    assert "municipal_detection_target" in simulator_section
     assert 'name="simulator_target" value="valve"' in simulator_section
     assert "function setValveSimulatorSwitchState(snapshot)" in template
     assert "setSimulatorSwitchState(button,active);" in template
@@ -329,6 +332,9 @@ def test_all_device_simulators_use_shared_ajax_route_without_confirmation():
     assert '{{ "ON" if valve_simulator_enabled|default(false) else "OFF" }}' in template
     assert "snapshot?.municipal_valve_route" in template
     assert 'name="simulator_target" value="tank"' in simulator_section
+    assert 'id="disableAllSimulatorsForm"' in simulator_section
+    assert 'name="simulator_target" value="all"' in simulator_section
+    assert "Disable All Simulators for Hardware Testing" in simulator_section
     assert '"lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated")' in source
     assert '"upper_turbidity": (boolish_enabled(snapshot.get("upper_turbidity_simulated")' in source
     assert 'command = f"{command_prefix}_{\'ON\' if desired_enabled else \'OFF\'}"' in source

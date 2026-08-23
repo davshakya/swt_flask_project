@@ -215,6 +215,24 @@ def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupe
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
 
 
+def test_ping_command_jumps_ahead_of_routine_simulator_commands():
+    device_id = "swt-ping-priority-test-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+    try:
+        server.queue_device_command("SIMULATOR_OFF", device_id)
+        server.queue_device_command("MUNICIPAL_SIMULATOR_OFF", device_id)
+        ping_id = server.queue_device_command("PING_MASTER:492095472", device_id)
+
+        queued = server.peek_queued_command(device_id)
+
+        assert queued["id"] == ping_id
+        assert queued["command"] == "PING_MASTER:492095472"
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+
 def test_simulator_commands_dedupe_only_their_own_target():
     assert server.device_command_family("SIMULATOR_ON") == "simulator:tank"
     assert server.device_command_family("SIMULATOR_OFF") == "simulator:tank"

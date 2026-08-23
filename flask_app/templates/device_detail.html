@@ -508,17 +508,26 @@ body{font-size:16px}
             <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
                 <h3>Device Simulators</h3>
                 <div class="summary-label">Sensor and valve simulation</div>
+                <form id="disableAllSimulatorsForm" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Disable all simulators?" data-confirm-message="Disable every tank, municipal, valve, and turbidity simulator for device {{ device_id }} and use real hardware inputs?" data-confirm-button="Disable All Simulators">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <input type="hidden" name="simulator_target" value="all">
+                    <input type="hidden" name="simulator_enabled" value="off">
+                    <button id="disableAllSimulatorsButton" class="btn btn-warning btn-full" type="submit"><span>Disable All Simulators for Hardware Testing</span></button>
+                </form>
                 <form id="tankSimulatorForm" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
                     <input type="hidden" name="simulator_target" value="tank">
                     <button id="simulatorToggleButton" class="simulator-switch{% if simulator_enabled|default(false) %} is-on{% endif %}" data-tone="tank" type="submit" role="switch" aria-checked="{{ 'true' if simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Tank Level Simulator</span><span class="simulator-switch-state">{{ "ON" if simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
-                <form id="municipalSimulatorForm" class="{% if not service_config.get('municipal_sensor_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                {% set municipal_detection_target = 'water_pressure' if service_config.get('water_pressure_sensor_enabled', False) else 'water_flow' %}
+                {% set municipal_detection_label = 'Water-pressure Sensor Simulator' if municipal_detection_target == 'water_pressure' else 'Water-flow Sensor Simulator' %}
+                <form id="municipalDetectionSimulatorForm" class="{% if not service_config.get('municipal_sensor_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="simulator_target" value="municipal">
-                    <button id="municipalSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Municipal Water Simulator</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                    <input id="municipalDetectionSimulatorTarget" type="hidden" name="simulator_target" value="{{ municipal_detection_target }}">
+                    <button id="municipalDetectionSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span id="municipalDetectionSimulatorLabel" class="simulator-switch-label">{{ municipal_detection_label }}</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
                 <form id="municipalValveSimulatorForm" class="{% if not service_config.get('municipal_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -912,6 +921,7 @@ function selectMunicipalDetectionSensor(selected){
   const pressure=document.getElementById("municipalPressureSensorOption");
   if(selected==="flow"&&flow?.checked&&pressure)pressure.checked=false;
   if(selected==="pressure"&&pressure?.checked&&flow)flow.checked=false;
+  syncSimulatorControlsWithRuntimeForm();
 }
 window.swtSelectMunicipalDetectionSensor=selectMunicipalDetectionSensor;
 function runtimeServiceConfigFromForm(){
@@ -923,6 +933,8 @@ function runtimeServiceConfigFromForm(){
     ),
     source_tank_monitoring_enabled:Boolean(document.getElementById("lowerSensorOption")?.checked),
     municipal_sensor_enabled:Boolean(document.getElementById("municipalSensorOption")?.checked),
+    water_flow_sensor_enabled:Boolean(document.getElementById("municipalFlowSensorOption")?.checked),
+    water_pressure_sensor_enabled:Boolean(document.getElementById("municipalPressureSensorOption")?.checked),
     municipal_valve_enabled:Boolean(document.getElementById("municipalValveOption")?.checked),
     source_outlet_valve_enabled:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
     master_turbidity_enabled:Boolean(document.getElementById("masterTurbidityOption")?.checked),
@@ -1633,7 +1645,12 @@ function updateSimulatorControls(snapshot,serviceConfig){
   const usesMunicipal=Boolean(serviceConfig?.municipal_sensor_enabled);
   const usesInletValve=usesMunicipal&&Boolean(serviceConfig?.municipal_valve_enabled);
   const usesOutletValve=usesMunicipal&&Boolean(serviceConfig?.source_outlet_valve_enabled);
-  setVisible("municipalSimulatorForm",usesMunicipal);
+  const usesWaterPressure=Boolean(serviceConfig?.water_pressure_sensor_enabled)&&!Boolean(serviceConfig?.water_flow_sensor_enabled);
+  setVisible("municipalDetectionSimulatorForm",usesMunicipal);
+  const municipalDetectionTarget=document.getElementById("municipalDetectionSimulatorTarget");
+  const municipalDetectionLabel=document.getElementById("municipalDetectionSimulatorLabel");
+  if(municipalDetectionTarget)municipalDetectionTarget.value=usesWaterPressure?"water_pressure":"water_flow";
+  if(municipalDetectionLabel)municipalDetectionLabel.textContent=usesWaterPressure?"Water-pressure Sensor Simulator":"Water-flow Sensor Simulator";
   setVisible("municipalValveSimulatorForm",usesInletValve);
   setVisible("sourceOutletValveSimulatorForm",usesOutletValve);
   setVisible("lowerTurbiditySimulatorForm",Boolean(serviceConfig?.master_turbidity_enabled));
@@ -1642,13 +1659,13 @@ function updateSimulatorControls(snapshot,serviceConfig){
   if(button){
     setSimulatorSwitchState(button,active);
   }
-  setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
+  setSimulatorSwitchState(document.getElementById("municipalDetectionSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
   if(Boolean(serviceConfig?.municipal_valve_enabled))setValveSimulatorSwitchState(snapshot);else setSimulatorSwitchState(document.getElementById("municipalValveSimulatorToggleButton"),false);
   setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),Boolean(serviceConfig?.source_outlet_valve_enabled)&&clientTruthy(snapshot?.source_outlet_valve_simulated,false));
   setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.master_turbidity_enabled)&&clientTruthy(snapshot?.lower_turbidity_simulated,false));
   setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.slave_turbidity_enabled)&&clientTruthy(snapshot?.upper_turbidity_simulated,false));
   setSimulatorFeatureAvailability(button,serviceConfig?.main_sensor_enabled,active,"upper tank sensor");
-  setSimulatorFeatureAvailability(document.getElementById("municipalSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),"municipal water");
+  setSimulatorFeatureAvailability(document.getElementById("municipalDetectionSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),usesWaterPressure?"water-pressure sensor":"water-flow sensor");
   setSimulatorFeatureAvailability(document.getElementById("municipalValveSimulatorToggleButton"),serviceConfig?.municipal_valve_enabled,clientTruthy(snapshot?.municipal_valve_simulated,false),"inlet motorized valve");
   setSimulatorFeatureAvailability(document.getElementById("sourceOutletValveSimulatorToggleButton"),serviceConfig?.source_outlet_valve_enabled,clientTruthy(snapshot?.source_outlet_valve_simulated,false),"outlet motorized valve");
   setSimulatorFeatureAvailability(document.getElementById("lowerTurbiditySimulatorToggleButton"),serviceConfig?.master_turbidity_enabled,clientTruthy(snapshot?.lower_turbidity_simulated,false),"lower turbidity");
@@ -1695,6 +1712,12 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const savedServiceConfig=savedConfig.service_config||serviceConfig||{};
   const savedAutomationSettings=savedConfig.automation_settings||automationSettings||{};
   const telemetryStatus=String(snapshot?.telemetry_status||systemStatus?.telemetry_status||"").trim().toLowerCase();
+  const deviceSensorsOnline=["live","recent","fresh","online"].includes(telemetryStatus);
+  const sensorConnectionStatus=(enabled,detail="")=>{
+    if(!enabled)return"Disabled";
+    if(!deviceSensorsOnline)return"Offline";
+    return detail?`Online · ${detail}`:"Online";
+  };
   const showAllDetails=true;
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sourceCapacity=savedConfig.lower_tank_capacity_liters??savedServiceConfig.lower_tank_capacity_liters??snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
@@ -1752,8 +1775,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
+    {label:"Upper Sensor",value:sensorConnectionStatus(mainSensorEnabled,titleCase(snapshot?.sensor||snapshot?.upper_sensor||"")),category:"sensors",show:true},
     {label:"Upper Sensor Source",value:upperSource},
-    {label:"Source Tank Sensor",value:sourceSensorLocation},
+    {label:"Source Tank Sensor",value:sensorConnectionStatus(sourceMonitoringEnabled,titleCase(snapshot?.lower_sensor||"")),category:"sensors",show:true},
+    {label:"Lower Turbidity Sensor",value:sensorConnectionStatus(Boolean(savedServiceConfig?.master_turbidity_enabled),titleCase(snapshot?.lower_turbidity_sensor||"")),category:"sensors",show:true},
+    {label:"Upper Turbidity Sensor",value:sensorConnectionStatus(Boolean(savedServiceConfig?.slave_turbidity_enabled),titleCase(snapshot?.upper_turbidity_sensor||"")),category:"sensors",show:true},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
     {label:"Inlet Motorized Valve",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
     {label:"Inlet Selected Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
@@ -1789,10 +1815,10 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Control",value:Boolean(savedServiceConfig?.relay_enabled)?"Enabled":"Disabled"},
     {label:"Physical Pump State",value:clientTruthy(snapshot?.physical_pump_running,false)?"Running":"Stopped",category:"sensors",show:true},
     {label:"Pump Confirmation",value:infoValue(titleCase(snapshot?.pump_confirmation_source||""),"Relay command fallback"),category:"sensors",show:true},
-    {label:"Starter Contactor Sensor",value:clientTruthy(snapshot?.starter_contactor_active,false)?"Active":(clientTruthy(snapshot?.starter_contactor_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Motor Current Sensor",value:clientTruthy(snapshot?.motor_current_detected,false)?"Current detected":(clientTruthy(snapshot?.motor_current_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Flow Sensor",value:clientTruthy(snapshot?.water_flow_detected,false)?"Flow detected":(clientTruthy(snapshot?.water_flow_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Pressure Sensor",value:clientTruthy(snapshot?.water_pressure_detected,false)?"Pressure detected":(clientTruthy(snapshot?.water_pressure_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
+    {label:"Starter Contactor Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.starter_contactor_sensor_enabled,Boolean(savedServiceConfig?.starter_contactor_sensor_enabled)),clientTruthy(snapshot?.starter_contactor_active,false)?"Active":"Standby"),category:"sensors",show:true},
+    {label:"Motor Current Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.motor_current_sensor_enabled,Boolean(savedServiceConfig?.motor_current_sensor_enabled)),clientTruthy(snapshot?.motor_current_detected,false)?"Current detected":"Standby"),category:"sensors",show:true},
+    {label:"Water Flow Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.water_flow_sensor_enabled,Boolean(savedServiceConfig?.water_flow_sensor_enabled)),clientTruthy(snapshot?.water_flow_detected,false)?"Flow detected":"No flow"),category:"sensors",show:true},
+    {label:"Water Pressure Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.water_pressure_sensor_enabled,Boolean(savedServiceConfig?.water_pressure_sensor_enabled)),clientTruthy(snapshot?.water_pressure_detected,false)?"Pressure detected":"No pressure"),category:"sensors",show:true},
     {label:"Authoritative Pump Runtime",value:formatDurationSeconds(snapshot?.pump_total_runtime_s),category:"sensors",show:true},
     {label:"Last Pump Run",value:formatDurationSeconds(snapshot?.pump_last_run_runtime_s),category:"sensors",show:true},
     {label:"Pump Cycle Counter",value:isReportedInfoValue(snapshot?.pump_cycle_count)?`${snapshot.pump_cycle_count}`:"Not reported",category:"sensors",show:true},

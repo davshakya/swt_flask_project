@@ -16713,7 +16713,13 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
         # enough for the normal reconnect/poll recovery path.
         expires_in_seconds = 600 if desired_state in {"ON", "OFF"} else 300
     expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
-    priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
+    # Diagnostic pings must not sit behind a batch of simulator/configuration
+    # commands. The browser waits for a nonce-matched result, so deliver pings
+    # after safety-critical pump commands but ahead of routine configuration.
+    if normalized_family in {"ping_master", "ping_slave"}:
+        priority = 40
+    else:
+        priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
     with get_db() as db:
         existing_request = db.execute(
             "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",
@@ -20558,6 +20564,17 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         saved_service_config.get("source_tank_monitoring_enabled"),
         default=True,
     )
+    telemetry_online = str(snapshot.get("telemetry_status") or system_status.get("telemetry_status") or "").strip().lower() in {
+        "live", "recent", "fresh", "online"
+    }
+
+    def sensor_connection_status(enabled, detail=""):
+        if not boolish_enabled(enabled, default=False):
+            return "Disabled"
+        if not telemetry_online:
+            return "Offline"
+        normalized_detail = str(detail or "").strip()
+        return f"Online · {normalized_detail}" if normalized_detail else "Online"
     upper_source = snapshot.get("upper_sensor_source") or ("slave" if slave_upper else "master")
     auto_start = (
         current_saved_config.get("auto_start_pct")
@@ -20640,8 +20657,11 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
         ("Architecture", f"Arch {snapshot.get('arch_id')}" if snapshot.get("arch_id") not in (None, "") else device_detail_card_display(snapshot.get("architecture_mode"))),
         ("Source Mode", device_detail_card_title(snapshot.get("device_source") or system_status.get("device_source_mode"), "Real")),
+        ("Upper Sensor", sensor_connection_status(True, device_detail_card_title(snapshot.get("sensor") or snapshot.get("upper_sensor"), "Waiting"))),
         ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
-        ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
+        ("Source Tank Sensor", sensor_connection_status(source_monitoring, device_detail_card_title(snapshot.get("lower_sensor"), "Waiting"))),
+        ("Lower Turbidity Sensor", sensor_connection_status(saved_service_config.get("master_turbidity_enabled"), device_detail_card_title(snapshot.get("lower_turbidity_sensor"), "Waiting"))),
+        ("Upper Turbidity Sensor", sensor_connection_status(saved_service_config.get("slave_turbidity_enabled"), device_detail_card_title(snapshot.get("upper_turbidity_sensor"), "Waiting"))),
         ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
         ("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF"),
         ("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled"),
@@ -20672,10 +20692,10 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
         ("Physical Pump State", "Running" if boolish_enabled(snapshot.get("physical_pump_running"), default=False) else "Stopped"),
         ("Pump Confirmation", device_detail_card_title(snapshot.get("pump_confirmation_source"), "Relay command fallback")),
-        ("Starter Contactor Sensor", "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else ("Ready" if boolish_enabled(snapshot.get("starter_contactor_sensor_enabled"), default=False) else "Not installed")),
-        ("Motor Current Sensor", "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("motor_current_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Flow Sensor", "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_flow_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Pressure Sensor", "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_pressure_sensor_enabled"), default=False) else "Not installed")),
+        ("Starter Contactor Sensor", sensor_connection_status(snapshot.get("starter_contactor_sensor_enabled", saved_service_config.get("starter_contactor_sensor_enabled")), "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else "Standby")),
+        ("Motor Current Sensor", sensor_connection_status(snapshot.get("motor_current_sensor_enabled", saved_service_config.get("motor_current_sensor_enabled")), "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else "Standby")),
+        ("Water Flow Sensor", sensor_connection_status(snapshot.get("water_flow_sensor_enabled", saved_service_config.get("water_flow_sensor_enabled")), "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else "No flow")),
+        ("Water Pressure Sensor", sensor_connection_status(snapshot.get("water_pressure_sensor_enabled", saved_service_config.get("water_pressure_sensor_enabled")), "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else "No pressure")),
         ("Authoritative Pump Runtime", device_detail_card_duration_seconds(snapshot.get("pump_total_runtime_s"), "Not reported")),
         ("Last Pump Run", device_detail_card_duration_seconds(snapshot.get("pump_last_run_runtime_s"), "Not reported")),
         ("Pump Cycle Counter", device_detail_card_display(snapshot.get("pump_cycle_count"), "Not reported")),
@@ -21731,9 +21751,55 @@ def admin_device_detail_simulator(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id) or {}
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
+    if simulator_target == "all":
+        commands = [dependency[2] for dependency in SIMULATOR_FEATURE_DEPENDENCIES]
+        queued_commands = []
+        queue_errors = []
+        for command in commands:
+            result, error = safe_queue_device_detail_command(
+                command,
+                scoped_device_id,
+                f"Unable to queue simulator disable command {command}",
+            )
+            if error:
+                queue_errors.append(error)
+            elif result:
+                queued_commands.append(result.get("command") or command)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="queue_all_simulators_disable",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "commands": queued_commands,
+                "errors": queue_errors,
+            },
+        )
+        if queue_errors:
+            return redirect(
+                url_for(
+                    "device_detail_page",
+                    device_id=scoped_device_id,
+                    config_error="Some simulator OFF commands could not be queued: " + "; ".join(queue_errors),
+                )
+            )
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_message="All simulator disable commands queued for real-hardware testing.",
+                simulator_state="off",
+                municipal_simulator_state="off",
+                valve_simulator_state="off",
+                outlet_valve_simulator_state="off",
+            )
+        )
     target_config = {
         "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled")), None),
         "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled")), "municipal_feature_enabled"),
+        "water_flow": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Water-flow sensor", bool(service_config.get("municipal_sensor_enabled")) and bool(service_config.get("water_flow_sensor_enabled")), "municipal_feature_enabled"),
+        "water_pressure": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Water-pressure sensor", bool(service_config.get("municipal_sensor_enabled")) and bool(service_config.get("water_pressure_sensor_enabled")), "municipal_feature_enabled"),
         "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled")), "municipal_valve_feature_enabled"),
         "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled")), "source_pump_fill_feature_enabled"),
         "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled")), "master_turbidity_enabled"),
