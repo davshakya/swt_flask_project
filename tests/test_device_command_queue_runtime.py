@@ -48,6 +48,44 @@ def test_motorized_valve_feature_defaults_off_and_persists_independently():
             db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
 
 
+def test_municipal_detection_sensors_are_mutually_exclusive():
+    device_id = "swt-municipal-choice-test-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+    try:
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=True,
+            water_flow_sensor_enabled=True,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is True
+        assert saved["water_pressure_sensor_enabled"] is False
+        assert server.build_device_service_command(saved).split(":")[-2:] == ["1", "0"]
+
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=True,
+            water_flow_sensor_enabled=False,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is False
+        assert saved["water_pressure_sensor_enabled"] is True
+        assert server.build_device_service_command(saved).split(":")[-2:] == ["0", "1"]
+
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=False,
+            water_flow_sensor_enabled=True,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is False
+        assert saved["water_pressure_sensor_enabled"] is False
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+
 def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg9(monkeypatch):
     device_id = "swt-999-999-999-994"
     desired = server.default_device_service_config(device_id)

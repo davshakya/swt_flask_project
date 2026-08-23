@@ -321,6 +321,11 @@ body{font-size:16px}
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
+                        <div id="municipalDetectionSensorOptions" class="config-subsection{% if not service_config.get('municipal_sensor_enabled') %} is-disabled{% endif %}">
+                            <div class="helper-text">Municipal detection sensor (select only one)</div>
+                            <label class="service-option"><input id="municipalFlowSensorOption" type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('flow')"> Water-flow sensor</label>
+                            <label class="service-option"><input id="municipalPressureSensorOption" type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') and not service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('pressure')"> Water-pressure sensor</label>
+                        </div>
                         <label id="municipalValveOptionRow" class="service-option"><input id="municipalValveOption" type="checkbox" name="municipal_valve_enabled" value="1" {% if service_config.get("municipal_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Inlet Motorized Valve</label>
                         <label id="sourceOutletValveOptionRow" class="service-option"><input id="sourceOutletValveOption" type="checkbox" name="source_outlet_valve_enabled" value="1" {% if service_config.get("source_outlet_valve_enabled", False) %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Outlet Motorized Valve</label>
                         <label class="service-option"><input id="masterTurbidityOption" type="checkbox" name="master_turbidity_enabled" value="1" {% if service_config.get("master_turbidity_enabled", False) %}checked{% endif %}> Lower Turbidity</label>
@@ -354,9 +359,7 @@ body{font-size:16px}
                         <h4>Pump Confirmation Sensors</h4>
                         <label class="service-option"><input type="checkbox" name="starter_contactor_sensor_enabled" value="1" {% if service_config.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
                         <label class="service-option"><input type="checkbox" name="motor_current_sensor_enabled" value="1" {% if service_config.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
-                        <label class="service-option"><input type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
-                        <label class="service-option"><input type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') %}checked{% endif %}> Water-pressure sensor for municipal availability</label>
-                        <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. A disabled sensor is ignored by pump confirmation and safety logic.</div>
+                        <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. Municipal flow/pressure detection is configured under Municipal Water Feature.</div>
                     </div>
                 </div>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
@@ -866,6 +869,20 @@ function syncRuntimeConfigurationOptions(){
   const municipalValve=document.getElementById("municipalValveOption");
   const outletValve=document.getElementById("sourceOutletValveOption");
   const municipalEnabled=Boolean(municipalFeature?.checked);
+  const municipalDetectionOptions=document.getElementById("municipalDetectionSensorOptions");
+  const municipalFlow=document.getElementById("municipalFlowSensorOption");
+  const municipalPressure=document.getElementById("municipalPressureSensorOption");
+  municipalDetectionOptions?.classList.toggle("is-disabled",!municipalEnabled);
+  if(municipalFlow)municipalFlow.disabled=!municipalEnabled;
+  if(municipalPressure)municipalPressure.disabled=!municipalEnabled;
+  if(!municipalEnabled){
+    if(municipalFlow)municipalFlow.checked=false;
+    if(municipalPressure)municipalPressure.checked=false;
+  }else if(municipalFlow?.checked&&municipalPressure?.checked){
+    municipalPressure.checked=false;
+  }else if(!municipalFlow?.checked&&!municipalPressure?.checked&&municipalFlow){
+    municipalFlow.checked=true;
+  }
   const municipalValvesApplicable=Boolean(sourceFeature?.checked);
   document.getElementById("municipalDirectUpperHint")?.classList.toggle("hidden-section",!(municipalEnabled&&!sourceFeature?.checked));
   syncSimulatorControlsWithRuntimeForm();
@@ -889,6 +906,13 @@ function syncRuntimeConfigurationOptions(){
   if(setupSelect)setupSelect.value=currentDeviceSetupType();
   syncUpperSensorSetupLabels();
 }
+function selectMunicipalDetectionSensor(selected){
+  const flow=document.getElementById("municipalFlowSensorOption");
+  const pressure=document.getElementById("municipalPressureSensorOption");
+  if(selected==="flow"&&flow?.checked&&pressure)pressure.checked=false;
+  if(selected==="pressure"&&pressure?.checked&&flow)flow.checked=false;
+}
+window.swtSelectMunicipalDetectionSensor=selectMunicipalDetectionSensor;
 function runtimeServiceConfigFromForm(){
   return {
     ...(INITIAL_SERVICE_CONFIG||{}),

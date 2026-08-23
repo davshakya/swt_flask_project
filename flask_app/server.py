@@ -8193,6 +8193,15 @@ def upsert_device_service_config(
         water_pressure_sensor_enabled,
         default=existing.get("water_pressure_sensor_enabled", False),
     )
+    # Flow and pressure are alternative municipal-availability inputs. Keep old
+    # records/forms deterministic by preferring flow if both arrive enabled.
+    if not resolved_municipal_sensor_enabled:
+        resolved_water_flow_sensor_enabled = False
+        resolved_water_pressure_sensor_enabled = False
+    elif resolved_water_flow_sensor_enabled and resolved_water_pressure_sensor_enabled:
+        resolved_water_pressure_sensor_enabled = False
+    elif not resolved_water_flow_sensor_enabled and not resolved_water_pressure_sensor_enabled:
+        resolved_water_flow_sensor_enabled = True
     resolved_turbidity_monitoring_enabled = boolish_enabled(
         turbidity_monitoring_enabled,
         default=existing.get("turbidity_monitoring_enabled", False),
@@ -8458,6 +8467,10 @@ def build_device_service_command(service_config):
     slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
+    water_flow_sensor_enabled = municipal_sensor_enabled and bool(config.get("water_flow_sensor_enabled"))
+    water_pressure_sensor_enabled = municipal_sensor_enabled and bool(config.get("water_pressure_sensor_enabled")) and not water_flow_sensor_enabled
+    if municipal_sensor_enabled and not water_flow_sensor_enabled and not water_pressure_sensor_enabled:
+        water_flow_sensor_enabled = True
     return "SERVICECFG11:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
@@ -8475,8 +8488,8 @@ def build_device_service_command(service_config):
         source_outlet_valve=1 if source_outlet_valve_enabled else 0,
         starter_aux=1 if bool(config.get("starter_contactor_sensor_enabled")) else 0,
         motor_current=1 if bool(config.get("motor_current_sensor_enabled")) else 0,
-        water_flow=1 if bool(config.get("water_flow_sensor_enabled")) else 0,
-        water_pressure=1 if bool(config.get("water_pressure_sensor_enabled")) else 0,
+        water_flow=1 if water_flow_sensor_enabled else 0,
+        water_pressure=1 if water_pressure_sensor_enabled else 0,
     )
 
 
@@ -21088,6 +21101,14 @@ def admin_device_detail_configuration(device_id):
     setup_type = str(request.form.get("device_setup_type") or "custom").strip().lower()
     setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
     municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+    water_flow_sensor_enabled = municipal_feature_enabled and "water_flow_sensor_enabled" in request.form
+    water_pressure_sensor_enabled = (
+        municipal_feature_enabled
+        and not water_flow_sensor_enabled
+        and "water_pressure_sensor_enabled" in request.form
+    )
+    if municipal_feature_enabled and not water_flow_sensor_enabled and not water_pressure_sensor_enabled:
+        water_flow_sensor_enabled = True
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
     municipal_valve_enabled = "municipal_valve_enabled" in request.form
     source_outlet_valve_enabled = "source_outlet_valve_enabled" in request.form
@@ -21113,8 +21134,8 @@ def admin_device_detail_configuration(device_id):
             source_outlet_valve_enabled=source_outlet_valve_enabled,
             starter_contactor_sensor_enabled=("starter_contactor_sensor_enabled" in request.form),
             motor_current_sensor_enabled=("motor_current_sensor_enabled" in request.form),
-            water_flow_sensor_enabled=("water_flow_sensor_enabled" in request.form),
-            water_pressure_sensor_enabled=("water_pressure_sensor_enabled" in request.form),
+            water_flow_sensor_enabled=water_flow_sensor_enabled,
+            water_pressure_sensor_enabled=water_pressure_sensor_enabled,
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
