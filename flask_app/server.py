@@ -3561,28 +3561,14 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
         default=service_config.get("municipal_sensor_enabled", False),
     )
     state = str(entry.get("municipal_sensor_state") or "").strip().lower()
-    simulated = boolish_enabled(entry.get("municipal_sensor_simulated"), default=False)
-    reachable = boolish_enabled(entry.get("municipal_sensor_reachable"), default=state in {"available", "unavailable"})
-    flow_selected = boolish_enabled(
-        entry.get("water_flow_sensor_enabled"),
-        default=service_config.get("water_flow_sensor_enabled", False),
-    )
-    pressure_selected = boolish_enabled(
-        entry.get("water_pressure_sensor_enabled"),
-        default=service_config.get("water_pressure_sensor_enabled", False),
-    )
     if not enabled:
         return "Disabled", "clear"
     if not online:
         return "Offline", "offline"
-    if simulated:
-        reachable = True
-    elif flow_selected:
-        reachable = boolish_enabled(entry.get("water_flow_detected"), default=False)
-    elif pressure_selected:
-        reachable = boolish_enabled(entry.get("water_pressure_detected"), default=False)
-    if reachable:
+    if state == "available":
         return "Available", "online"
+    if state == "unavailable":
+        return "Unavailable", "warning"
     return "Waiting", "warning"
 
 

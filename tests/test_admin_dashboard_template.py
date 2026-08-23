@@ -858,6 +858,7 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
             "municipal_sensor_enabled": True,
             "municipal_sensor_simulated": False,
             "municipal_sensor_reachable": True,
+            "municipal_sensor_state": "unavailable",
             "water_flow_sensor_enabled": True,
             "water_flow_detected": False,
         },
@@ -868,13 +869,14 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
             "telemetry_status": "live",
             "municipal_sensor_enabled": True,
             "municipal_sensor_simulated": False,
+            "municipal_sensor_state": "available",
             "water_flow_sensor_enabled": True,
             "water_flow_detected": True,
         },
         config,
     )
 
-    assert disconnected == ("Waiting", "warning")
+    assert disconnected == ("Unavailable", "warning")
     assert detected == ("Available", "online")
 
 
