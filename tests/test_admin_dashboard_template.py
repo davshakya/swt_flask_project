@@ -867,6 +867,28 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
     assert detected == ("Reachable", "online")
 
 
+def test_admin_device_entry_preserves_municipal_detection_telemetry():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    entry = server.build_admin_device_entry(
+        "swt-test-000-000-001",
+        {
+            "device_id": "swt-test-000-000-001",
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": True,
+            "water_pressure_sensor_enabled": False,
+            "water_pressure_detected": False,
+        },
+    )
+
+    assert entry["water_flow_sensor_enabled"] is True
+    assert entry["water_flow_detected"] is True
+    assert entry["water_pressure_sensor_enabled"] is False
+    assert entry["water_pressure_detected"] is False
+
+
 def test_dashboards_render_company_icon_home_links():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
