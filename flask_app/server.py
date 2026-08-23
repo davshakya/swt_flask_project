@@ -3563,12 +3563,24 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
     state = str(entry.get("municipal_sensor_state") or "").strip().lower()
     simulated = boolish_enabled(entry.get("municipal_sensor_simulated"), default=False)
     reachable = boolish_enabled(entry.get("municipal_sensor_reachable"), default=state in {"available", "unavailable"})
+    flow_selected = boolish_enabled(
+        entry.get("water_flow_sensor_enabled"),
+        default=service_config.get("water_flow_sensor_enabled", False),
+    )
+    pressure_selected = boolish_enabled(
+        entry.get("water_pressure_sensor_enabled"),
+        default=service_config.get("water_pressure_sensor_enabled", False),
+    )
     if not enabled:
         return "Disabled", "clear"
     if not online:
         return "Offline/Stale", "offline"
     if simulated:
         reachable = True
+    elif flow_selected:
+        reachable = boolish_enabled(entry.get("water_flow_detected"), default=False)
+    elif pressure_selected:
+        reachable = boolish_enabled(entry.get("water_pressure_detected"), default=False)
     if reachable:
         return "Reachable", "online"
     return "Unreachable", "offline"
@@ -20568,13 +20580,23 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         "live", "recent", "fresh", "online"
     }
 
-    def sensor_connection_status(enabled, detail=""):
+    def municipal_detection_status(enabled, detected, detected_label):
         if not boolish_enabled(enabled, default=False):
             return "Disabled"
         if not telemetry_online:
             return "Offline"
-        normalized_detail = str(detail or "").strip()
-        return f"Online · {normalized_detail}" if normalized_detail else "Online"
+        if boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False):
+            return "Online · Simulated"
+        return f"Online · {detected_label}" if boolish_enabled(detected, default=False) else "Offline"
+
+    def sensor_signal_status(enabled, valid_signal, simulated=False, detail="Signal detected"):
+        if not boolish_enabled(enabled, default=False):
+            return "Disabled"
+        if not telemetry_online or not (
+            boolish_enabled(simulated, default=False) or boolish_enabled(valid_signal, default=False)
+        ):
+            return "Offline"
+        return "Online · Simulated" if boolish_enabled(simulated, default=False) else f"Online · {detail}"
     upper_source = snapshot.get("upper_sensor_source") or ("slave" if slave_upper else "master")
     auto_start = (
         current_saved_config.get("auto_start_pct")
@@ -20657,11 +20679,11 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
         ("Architecture", f"Arch {snapshot.get('arch_id')}" if snapshot.get("arch_id") not in (None, "") else device_detail_card_display(snapshot.get("architecture_mode"))),
         ("Source Mode", device_detail_card_title(snapshot.get("device_source") or system_status.get("device_source_mode"), "Real")),
-        ("Upper Sensor", sensor_connection_status(True, device_detail_card_title(snapshot.get("sensor") or snapshot.get("upper_sensor"), "Waiting"))),
+        ("Upper Sensor", sensor_signal_status(True, admin_sensor_reachable(snapshot.get("sensor") or snapshot.get("upper_sensor")), snapshot.get("upper_tank_simulator") or snapshot.get("simulator"), device_detail_card_title(snapshot.get("sensor") or snapshot.get("upper_sensor"), "OK"))),
         ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
-        ("Source Tank Sensor", sensor_connection_status(source_monitoring, device_detail_card_title(snapshot.get("lower_sensor"), "Waiting"))),
-        ("Lower Turbidity Sensor", sensor_connection_status(saved_service_config.get("master_turbidity_enabled"), device_detail_card_title(snapshot.get("lower_turbidity_sensor"), "Waiting"))),
-        ("Upper Turbidity Sensor", sensor_connection_status(saved_service_config.get("slave_turbidity_enabled"), device_detail_card_title(snapshot.get("upper_turbidity_sensor"), "Waiting"))),
+        ("Source Tank Sensor", sensor_signal_status(source_monitoring, admin_sensor_reachable(snapshot.get("lower_sensor")), snapshot.get("lower_tank_simulator"), device_detail_card_title(snapshot.get("lower_sensor"), "OK"))),
+        ("Lower Turbidity Sensor", sensor_signal_status(saved_service_config.get("master_turbidity_enabled"), str(snapshot.get("lower_turbidity_sensor") or "").upper() == "OK", snapshot.get("lower_turbidity_simulated"), "OK")),
+        ("Upper Turbidity Sensor", sensor_signal_status(saved_service_config.get("slave_turbidity_enabled"), str(snapshot.get("upper_turbidity_sensor") or "").upper() == "OK", snapshot.get("upper_turbidity_simulated"), "OK")),
         ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
         ("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF"),
         ("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled"),
@@ -20692,10 +20714,10 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
         ("Physical Pump State", "Running" if boolish_enabled(snapshot.get("physical_pump_running"), default=False) else "Stopped"),
         ("Pump Confirmation", device_detail_card_title(snapshot.get("pump_confirmation_source"), "Relay command fallback")),
-        ("Starter Contactor Sensor", sensor_connection_status(snapshot.get("starter_contactor_sensor_enabled", saved_service_config.get("starter_contactor_sensor_enabled")), "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else "Standby")),
-        ("Motor Current Sensor", sensor_connection_status(snapshot.get("motor_current_sensor_enabled", saved_service_config.get("motor_current_sensor_enabled")), "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else "Standby")),
-        ("Water Flow Sensor", sensor_connection_status(snapshot.get("water_flow_sensor_enabled", saved_service_config.get("water_flow_sensor_enabled")), "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else "No flow")),
-        ("Water Pressure Sensor", sensor_connection_status(snapshot.get("water_pressure_sensor_enabled", saved_service_config.get("water_pressure_sensor_enabled")), "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else "No pressure")),
+        ("Starter Contactor Sensor", sensor_signal_status(snapshot.get("starter_contactor_sensor_enabled", saved_service_config.get("starter_contactor_sensor_enabled")), snapshot.get("starter_contactor_active"), snapshot.get("pump_feedback_simulated"), "Active")),
+        ("Motor Current Sensor", sensor_signal_status(snapshot.get("motor_current_sensor_enabled", saved_service_config.get("motor_current_sensor_enabled")), snapshot.get("motor_current_detected"), snapshot.get("pump_feedback_simulated"), "Current detected")),
+        ("Water Flow Sensor", municipal_detection_status(snapshot.get("water_flow_sensor_enabled", saved_service_config.get("water_flow_sensor_enabled")), snapshot.get("water_flow_detected"), "Flow detected")),
+        ("Water Pressure Sensor", municipal_detection_status(snapshot.get("water_pressure_sensor_enabled", saved_service_config.get("water_pressure_sensor_enabled")), snapshot.get("water_pressure_detected"), "Pressure detected")),
         ("Authoritative Pump Runtime", device_detail_card_duration_seconds(snapshot.get("pump_total_runtime_s"), "Not reported")),
         ("Last Pump Run", device_detail_card_duration_seconds(snapshot.get("pump_last_run_runtime_s"), "Not reported")),
         ("Pump Cycle Counter", device_detail_card_display(snapshot.get("pump_cycle_count"), "Not reported")),

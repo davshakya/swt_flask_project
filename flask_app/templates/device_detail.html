@@ -1713,10 +1713,13 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const savedAutomationSettings=savedConfig.automation_settings||automationSettings||{};
   const telemetryStatus=String(snapshot?.telemetry_status||systemStatus?.telemetry_status||"").trim().toLowerCase();
   const deviceSensorsOnline=["live","recent","fresh","online"].includes(telemetryStatus);
-  const sensorConnectionStatus=(enabled,detail="")=>{
+  const municipalDetectionSimulated=clientTruthy(snapshot?.municipal_sensor_simulated,false);
+  const municipalFlowOnline=municipalDetectionSimulated||clientTruthy(snapshot?.water_flow_detected,false);
+  const municipalPressureOnline=municipalDetectionSimulated||clientTruthy(snapshot?.water_pressure_detected,false);
+  const sensorSignalStatus=(enabled,validSignal,simulated=false,detail="")=>{
     if(!enabled)return"Disabled";
-    if(!deviceSensorsOnline)return"Offline";
-    return detail?`Online · ${detail}`:"Online";
+    if(!deviceSensorsOnline||(!simulated&&!validSignal))return"Offline";
+    return `Online · ${simulated?"Simulated":(detail||"Signal detected")}`;
   };
   const showAllDetails=true;
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
@@ -1775,11 +1778,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
-    {label:"Upper Sensor",value:sensorConnectionStatus(mainSensorEnabled,titleCase(snapshot?.sensor||snapshot?.upper_sensor||"")),category:"sensors",show:true},
+    {label:"Upper Sensor",value:sensorSignalStatus(mainSensorEnabled,["OK","ON","READY","CONNECTED","HEALTHY"].includes(String(snapshot?.sensor||snapshot?.upper_sensor||"").toUpperCase()),clientTruthy(snapshot?.upper_tank_simulator,clientTruthy(snapshot?.simulator,false)),titleCase(snapshot?.sensor||snapshot?.upper_sensor||"OK")),category:"sensors",show:true},
     {label:"Upper Sensor Source",value:upperSource},
-    {label:"Source Tank Sensor",value:sensorConnectionStatus(sourceMonitoringEnabled,titleCase(snapshot?.lower_sensor||"")),category:"sensors",show:true},
-    {label:"Lower Turbidity Sensor",value:sensorConnectionStatus(Boolean(savedServiceConfig?.master_turbidity_enabled),titleCase(snapshot?.lower_turbidity_sensor||"")),category:"sensors",show:true},
-    {label:"Upper Turbidity Sensor",value:sensorConnectionStatus(Boolean(savedServiceConfig?.slave_turbidity_enabled),titleCase(snapshot?.upper_turbidity_sensor||"")),category:"sensors",show:true},
+    {label:"Source Tank Sensor",value:sensorSignalStatus(sourceMonitoringEnabled,["OK","ON","READY","CONNECTED","HEALTHY"].includes(String(snapshot?.lower_sensor||"").toUpperCase()),clientTruthy(snapshot?.lower_tank_simulator,false),titleCase(snapshot?.lower_sensor||"OK")),category:"sensors",show:true},
+    {label:"Lower Turbidity Sensor",value:sensorSignalStatus(Boolean(savedServiceConfig?.master_turbidity_enabled),String(snapshot?.lower_turbidity_sensor||"").toUpperCase()==="OK",clientTruthy(snapshot?.lower_turbidity_simulated,false),"OK"),category:"sensors",show:true},
+    {label:"Upper Turbidity Sensor",value:sensorSignalStatus(Boolean(savedServiceConfig?.slave_turbidity_enabled),String(snapshot?.upper_turbidity_sensor||"").toUpperCase()==="OK",clientTruthy(snapshot?.upper_turbidity_simulated,false),"OK"),category:"sensors",show:true},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
     {label:"Inlet Motorized Valve",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
     {label:"Inlet Selected Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
@@ -1815,10 +1818,10 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Control",value:Boolean(savedServiceConfig?.relay_enabled)?"Enabled":"Disabled"},
     {label:"Physical Pump State",value:clientTruthy(snapshot?.physical_pump_running,false)?"Running":"Stopped",category:"sensors",show:true},
     {label:"Pump Confirmation",value:infoValue(titleCase(snapshot?.pump_confirmation_source||""),"Relay command fallback"),category:"sensors",show:true},
-    {label:"Starter Contactor Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.starter_contactor_sensor_enabled,Boolean(savedServiceConfig?.starter_contactor_sensor_enabled)),clientTruthy(snapshot?.starter_contactor_active,false)?"Active":"Standby"),category:"sensors",show:true},
-    {label:"Motor Current Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.motor_current_sensor_enabled,Boolean(savedServiceConfig?.motor_current_sensor_enabled)),clientTruthy(snapshot?.motor_current_detected,false)?"Current detected":"Standby"),category:"sensors",show:true},
-    {label:"Water Flow Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.water_flow_sensor_enabled,Boolean(savedServiceConfig?.water_flow_sensor_enabled)),clientTruthy(snapshot?.water_flow_detected,false)?"Flow detected":"No flow"),category:"sensors",show:true},
-    {label:"Water Pressure Sensor",value:sensorConnectionStatus(clientTruthy(snapshot?.water_pressure_sensor_enabled,Boolean(savedServiceConfig?.water_pressure_sensor_enabled)),clientTruthy(snapshot?.water_pressure_detected,false)?"Pressure detected":"No pressure"),category:"sensors",show:true},
+    {label:"Starter Contactor Sensor",value:sensorSignalStatus(clientTruthy(snapshot?.starter_contactor_sensor_enabled,Boolean(savedServiceConfig?.starter_contactor_sensor_enabled)),clientTruthy(snapshot?.starter_contactor_active,false),clientTruthy(snapshot?.pump_feedback_simulated,false),"Active"),category:"sensors",show:true},
+    {label:"Motor Current Sensor",value:sensorSignalStatus(clientTruthy(snapshot?.motor_current_sensor_enabled,Boolean(savedServiceConfig?.motor_current_sensor_enabled)),clientTruthy(snapshot?.motor_current_detected,false),clientTruthy(snapshot?.pump_feedback_simulated,false),"Current detected"),category:"sensors",show:true},
+    {label:"Water Flow Sensor",value:!clientTruthy(snapshot?.water_flow_sensor_enabled,Boolean(savedServiceConfig?.water_flow_sensor_enabled))?"Disabled":(!deviceSensorsOnline||!municipalFlowOnline?"Offline":`Online · ${municipalDetectionSimulated?"Simulated":"Flow detected"}`),category:"sensors",show:true},
+    {label:"Water Pressure Sensor",value:!clientTruthy(snapshot?.water_pressure_sensor_enabled,Boolean(savedServiceConfig?.water_pressure_sensor_enabled))?"Disabled":(!deviceSensorsOnline||!municipalPressureOnline?"Offline":`Online · ${municipalDetectionSimulated?"Simulated":"Pressure detected"}`),category:"sensors",show:true},
     {label:"Authoritative Pump Runtime",value:formatDurationSeconds(snapshot?.pump_total_runtime_s),category:"sensors",show:true},
     {label:"Last Pump Run",value:formatDurationSeconds(snapshot?.pump_last_run_runtime_s),category:"sensors",show:true},
     {label:"Pump Cycle Counter",value:isReportedInfoValue(snapshot?.pump_cycle_count)?`${snapshot.pump_cycle_count}`:"Not reported",category:"sensors",show:true},

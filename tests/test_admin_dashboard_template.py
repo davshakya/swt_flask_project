@@ -831,6 +831,42 @@ def test_admin_municipal_sensor_status_uses_reachability_labels_for_simulator():
     assert unreachable_fields == ("Unreachable", "offline")
 
 
+def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    config = {
+        "municipal_sensor_enabled": True,
+        "water_flow_sensor_enabled": True,
+        "water_pressure_sensor_enabled": False,
+    }
+    disconnected = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": False,
+            "municipal_sensor_reachable": True,
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": False,
+        },
+        config,
+    )
+    detected = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": False,
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": True,
+        },
+        config,
+    )
+
+    assert disconnected == ("Unreachable", "offline")
+    assert detected == ("Reachable", "online")
+
+
 def test_dashboards_render_company_icon_home_links():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
     customer_template = (PROJECT_ROOT / "flask_app" / "templates" / "index.html").read_text(encoding="utf-8")
