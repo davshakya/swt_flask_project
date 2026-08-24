@@ -3565,17 +3565,9 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
         return "Disabled", "clear"
     if not online:
         return "Offline", "offline"
-    reachable = boolish_enabled(
-        entry.get("municipal_sensor_reachable"),
-        default=state in {"available", "unavailable"},
-    )
-    if state == "offline" or not reachable:
-        return "Offline", "offline"
     if state == "available":
         return "Available", "online"
-    if state == "unavailable":
-        return "Unavailable", "warning"
-    return "Waiting", "warning"
+    return "No Flow", "warning"
 
 
 def admin_sensor_reachable(raw_status):

@@ -838,7 +838,7 @@ def test_admin_municipal_sensor_status_uses_reachability_labels_for_simulator():
     )
 
     assert simulated_fields == ("Available", "online")
-    assert unreachable_fields == ("Offline", "offline")
+    assert unreachable_fields == ("No Flow", "warning")
     assert offline_fields == ("Offline", "offline")
 
 
@@ -876,7 +876,7 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
         config,
     )
 
-    assert disconnected == ("Offline", "offline")
+    assert disconnected == ("No Flow", "warning")
     assert detected == ("Available", "online")
 
 

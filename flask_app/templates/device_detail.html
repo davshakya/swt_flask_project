@@ -247,7 +247,7 @@ body{font-size:16px}
             <div id="municipalSensorCard" class="info-item">
                 <div class="info-label">Municipal Water</div>
                 <span id="municipalSensorStatus" class="info-value">{{ municipal_status|replace("_", " ")|title }}</span>
-                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "UNAVAILABLE" %}No municipal water is currently detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}Waiting for valid municipal sensor telemetry.{% endif %}</div>
+                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}No municipal water flow is currently detected.{% endif %}</div>
             </div>
         </div>
         <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
@@ -1695,14 +1695,13 @@ function turbidityReading(snapshot,serviceConfig,role){
 function municipalSensorStatus(snapshot,serviceConfig){
   if(!Boolean(serviceConfig?.municipal_sensor_enabled))return"DISABLED";
   const status=String(snapshot?.municipal_sensor_state||"").trim().toUpperCase();
-  return ["AVAILABLE","UNAVAILABLE"].includes(status)?status:"WAITING";
+  return status==="AVAILABLE"?"AVAILABLE":"NO FLOW";
 }
 function municipalSensorReading(snapshot,serviceConfig){
   const status=municipalSensorStatus(snapshot,serviceConfig);
   if(status==="DISABLED")return"Enable Municipal Water Feature in runtime configuration.";
   if(status==="AVAILABLE")return"Municipal water is detected.";
-  if(status==="UNAVAILABLE")return"No municipal water is currently detected.";
-  return"Waiting for valid municipal sensor telemetry.";
+  return"No municipal water flow is currently detected.";
 }
 function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig){
   const root=document.getElementById("deviceInfoGrid");
