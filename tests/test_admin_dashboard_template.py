@@ -838,7 +838,7 @@ def test_admin_municipal_sensor_status_uses_reachability_labels_for_simulator():
     )
 
     assert simulated_fields == ("Available", "online")
-    assert unreachable_fields == ("Waiting", "warning")
+    assert unreachable_fields == ("Offline", "offline")
     assert offline_fields == ("Offline", "offline")
 
 
@@ -857,8 +857,8 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
             "telemetry_status": "live",
             "municipal_sensor_enabled": True,
             "municipal_sensor_simulated": False,
-            "municipal_sensor_reachable": True,
-            "municipal_sensor_state": "unavailable",
+            "municipal_sensor_reachable": False,
+            "municipal_sensor_state": "offline",
             "water_flow_sensor_enabled": True,
             "water_flow_detected": False,
         },
@@ -876,7 +876,7 @@ def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
         config,
     )
 
-    assert disconnected == ("Unavailable", "warning")
+    assert disconnected == ("Offline", "offline")
     assert detected == ("Available", "online")
 
 
