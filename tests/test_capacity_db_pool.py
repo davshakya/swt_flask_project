@@ -87,3 +87,47 @@ def test_server_pool_integration_is_feature_gated_and_reports_stats():
     assert 'CAPACITY_FEATURES.enabled("db_connection_pool")' in source
     assert '"pool_stats": _MYSQL_CONNECTION_POOL.stats()' in source
     assert "return connect_mysql_unpooled()" in source
+
+
+def test_idempotent_database_retry_recovers_from_mysql_disconnect(monkeypatch):
+    from flask_app import server
+
+    attempts = []
+    monkeypatch.setattr(server.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(server.random, "uniform", lambda _start, _end: 0.0)
+
+    def operation():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise server.pymysql.err.OperationalError(2006, "MySQL server has gone away")
+        return "persisted"
+
+    result = server.run_with_database_lock_retries(
+        operation,
+        operation_name="test idempotent upsert",
+        attempts=3,
+        initial_delay_s=0.01,
+        retry_connection_errors=True,
+    )
+
+    assert result == "persisted"
+    assert len(attempts) == 2
+
+
+def test_database_retry_does_not_replay_disconnect_by_default():
+    from flask_app import server
+
+    attempts = []
+
+    def operation():
+        attempts.append(1)
+        raise server.pymysql.err.OperationalError(2006, "MySQL server has gone away")
+
+    try:
+        server.run_with_database_lock_retries(operation, attempts=3, initial_delay_s=0)
+    except server.pymysql.err.OperationalError:
+        pass
+    else:
+        raise AssertionError("connection error should propagate for a non-idempotent operation")
+
+    assert len(attempts) == 1

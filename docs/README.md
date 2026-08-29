@@ -1,5 +1,14 @@
 # SaleWell Smart Tank Documentation
 
+Last refreshed: `2026-08-24`
+
+Municipal-water documentation uses the shared status vocabulary: `Available`,
+`No Flow`, `Disabled`, and controller-level `Offline`. Do not claim that a basic
+three-wire pulse sensor detects physical disconnection; zero flow and an
+unplugged sensor both produce no pulses. Installer documents must also state
+that flow and pressure detection are mutually exclusive runtime choices and
+simulators must be disabled for hardware tests.
+
 Choose the document that matches your work. Customer instructions use simple language. Technical and production documents remain separate so customers are not exposed to server or security details.
 
 ## Customers and installers

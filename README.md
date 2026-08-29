@@ -1,6 +1,20 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-11`
+Last refreshed: `2026-08-24`
+
+## Municipal Sensor and Simulator Status
+
+Admin configuration exposes a separate Municipal Detection Sensor card.
+Water-flow and water-pressure are mutually exclusive, and Municipal Water must
+be enabled before either is active. Diagnostics replace the generic municipal
+simulator with a detector-specific flow/pressure simulator and provide an
+admin-only bulk action to disable every simulator for hardware testing.
+
+Fleet and device-detail pages preserve operational labels instead of converting
+green states to generic `Online`. Municipal Water shows `Available`, `No Flow`,
+`Disabled`, or `Offline` when controller telemetry is stale/offline. The fleet
+entry pipeline preserves flow/pressure enabled and detected telemetry fields so
+initial HTML and automatic refresh agree.
 
 ## Documentation map
 

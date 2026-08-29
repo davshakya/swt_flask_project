@@ -1579,13 +1579,16 @@ def run_with_database_lock_retries(
     operation_name="database operation",
     attempts=6,
     initial_delay_s=0.5,
+    retry_connection_errors=False,
 ):
     last_exc = None
     for attempt in range(max(1, int(attempts or 1))):
         try:
             return operation()
         except Exception as exc:
-            if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
+            lock_error = database_is_locked_error(exc)
+            connection_error = bool(retry_connection_errors) and mysql_is_connection_recoverable_error(exc)
+            if (not lock_error and not connection_error) or attempt >= max(1, int(attempts or 1)) - 1:
                 raise
             last_exc = exc
             # Back off with jitter so simultaneous web workers do not retry the
@@ -1595,8 +1598,9 @@ def run_with_database_lock_retries(
             if delay_s > 0:
                 delay_s += random.uniform(0.0, min(0.25, delay_s * 0.25))
             logger.warning(
-                "Retrying %s after database lock/deadlock (%s/%s): %s",
+                "Retrying %s after recoverable database %s (%s/%s): %s",
                 operation_name,
+                "lock/deadlock" if lock_error else "connection error",
                 attempt + 1,
                 max(1, int(attempts or 1)),
                 exc,
@@ -1605,6 +1609,24 @@ def run_with_database_lock_retries(
                 time.sleep(delay_s)
     if last_exc is not None:
         raise last_exc
+
+
+def retry_idempotent_database_operation(operation_name, attempts=3, initial_delay_s=0.25):
+    """Retry an operation whose complete transaction is safe to replay."""
+    def decorate(operation):
+        @wraps(operation)
+        def wrapped(*args, **kwargs):
+            return run_with_database_lock_retries(
+                lambda: operation(*args, **kwargs),
+                operation_name=operation_name,
+                attempts=attempts,
+                initial_delay_s=initial_delay_s,
+                retry_connection_errors=True,
+            )
+
+        return wrapped
+
+    return decorate
 
 
 def alert_touch_key(kind, device_id=None):
@@ -8079,6 +8101,7 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
     return configs
 
 
+@retry_idempotent_database_operation("upsert device service configuration")
 def upsert_device_service_config(
     device_id,
     device_setup_type=None,
@@ -11848,6 +11871,7 @@ def persist_dashboard_summary(device_id, payload=None):
         operation_name="persist dashboard summary",
         attempts=4,
         initial_delay_s=0.25,
+        retry_connection_errors=True,
     )
 
     cache_key = f"{active_mode}:{normalized_device_id}"
