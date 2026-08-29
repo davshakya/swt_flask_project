@@ -3784,6 +3784,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
         "direct_peer_last_sequence": payload.get("direct_peer_last_sequence"),
+        "direct_peer_received_packets": payload.get("direct_peer_received_packets"),
+        "direct_peer_link_quality_pct": payload.get("direct_peer_link_quality_pct"),
         "direct_peer_duplicate_packets": payload.get("direct_peer_duplicate_packets"),
         "direct_peer_out_of_order_packets": payload.get("direct_peer_out_of_order_packets"),
         "direct_peer_estimated_lost_packets": payload.get("direct_peer_estimated_lost_packets"),
@@ -5198,6 +5200,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("direct_peer_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
         cleaned.get("direct_peer_last_sequence"),
+        cleaned.get("direct_peer_received_packets"),
+        cleaned.get("direct_peer_link_quality_pct"),
         cleaned.get("direct_peer_duplicate_packets"),
         cleaned.get("direct_peer_out_of_order_packets"),
         cleaned.get("direct_peer_estimated_lost_packets"),
@@ -5267,7 +5271,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
                 direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
-                direct_peer_last_sequence, direct_peer_duplicate_packets,
+                direct_peer_last_sequence, direct_peer_received_packets, direct_peer_link_quality_pct,
+                direct_peer_duplicate_packets,
                 direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                 direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                 direct_peer_sync_pending, direct_peer_sync_channel,
@@ -5870,7 +5875,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-22-survey-approval-registration-v2"
+DB_SCHEMA_REVISION = "2026-08-29-direct-peer-link-quality-v1"
 
 
 def init_db_serialized():
@@ -5976,6 +5981,8 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
         "direct_peer_last_sequence": "BIGINT",
+        "direct_peer_received_packets": "BIGINT",
+        "direct_peer_link_quality_pct": "INTEGER",
         "direct_peer_duplicate_packets": "BIGINT",
         "direct_peer_out_of_order_packets": "BIGINT",
         "direct_peer_estimated_lost_packets": "BIGINT",
@@ -9528,6 +9535,8 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         "direct_peer_wifi_channel",
         "direct_peer_last_packet_age_s",
         "direct_peer_last_packet_bytes",
+        "direct_peer_received_packets",
+        "direct_peer_link_quality_pct",
         "direct_peer_last_pong_age_s",
         "direct_peer_last_pong_nonce",
         "direct_peer_sync_channel",
@@ -9540,6 +9549,21 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
             data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
         except (TypeError, ValueError):
             data[key] = None
+    peer_quality = data.get("direct_peer_link_quality_pct")
+    peer_received = data.get("direct_peer_received_packets") or 0
+    peer_age = data.get("direct_peer_last_packet_age_s")
+    if not peer_received or peer_age is None or peer_age > 60:
+        data["direct_peer_signal"] = "none"
+    elif peer_quality is None:
+        data["direct_peer_signal"] = "not reported"
+    elif peer_quality >= 90:
+        data["direct_peer_signal"] = "excellent"
+    elif peer_quality >= 75:
+        data["direct_peer_signal"] = "good"
+    elif peer_quality >= 50:
+        data["direct_peer_signal"] = "weak"
+    else:
+        data["direct_peer_signal"] = "poor"
     data["direct_peer_sync_pending"] = bool_flag(data.get("direct_peer_sync_pending"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["dry_run_active"] = "YES" if effective_dry_run_active(data) else "NO"
@@ -20721,6 +20745,9 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Peer Remote IP", device_detail_card_display(snapshot.get("direct_peer_remote_ip"), "Waiting for peer")),
         ("Peer Remote MAC", device_detail_card_display(snapshot.get("direct_peer_remote_mac"), "Waiting for peer")),
         ("Peer Packet Age", device_detail_card_duration_seconds(snapshot.get("direct_peer_last_packet_age_s"), "0s")),
+        ("Peer Link Signal", device_detail_card_title(snapshot.get("direct_peer_signal"), "Not reported")),
+        ("Peer Link Quality", f"{snapshot.get('direct_peer_link_quality_pct')}%" if snapshot.get("direct_peer_link_quality_pct") is not None else "Not reported"),
+        ("Peer Packets", device_detail_card_display(snapshot.get("direct_peer_received_packets"), "Not reported")),
         ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),

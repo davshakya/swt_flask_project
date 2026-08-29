@@ -809,7 +809,9 @@ function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceCo
     const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
     const channel=snapshot.direct_peer_wifi_channel||snapshot.direct_peer_config_channel||serviceConfig.direct_peer_wifi_channel;
     const channelText=channel!==undefined&&channel!==null?`; channel ${channel}`:"";
-    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac});
+    const peerQuality=Number(snapshot.direct_peer_link_quality_pct);
+    const peerQualityText=Number.isFinite(peerQuality)?` | signal ${snapshot.direct_peer_signal||"unknown"} (${Math.round(peerQuality)}%)`:"";
+    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}${peerQualityText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac,direct_peer_signal:snapshot.direct_peer_signal,direct_peer_link_quality_pct:snapshot.direct_peer_link_quality_pct,direct_peer_received_packets:snapshot.direct_peer_received_packets});
   }
   if(snapshot.firmware_version||snapshot.slave_firmware_version){
     add("firmware_current_status","info",`Firmware status: master ${snapshot.firmware_version||"not reported"}; slave ${snapshot.slave_firmware_version||"not reported"}.`,{firmware_version:snapshot.firmware_version,slave_firmware_version:snapshot.slave_firmware_version});
@@ -1808,6 +1810,9 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Direct Peer",value:infoValue(snapshot?.direct_peer,"Not reported")},
     {label:"Peer Config Channel",value:isReportedInfoValue(snapshot?.direct_peer_config_channel)?`${snapshot.direct_peer_config_channel}`:"Not reported"},
     {label:"Peer Active Channel",value:isReportedInfoValue(snapshot?.direct_peer_wifi_channel)?`${snapshot.direct_peer_wifi_channel}`:"Not reported"},
+    {label:"Peer Link Signal",value:isReportedInfoValue(snapshot?.direct_peer_signal)?String(snapshot.direct_peer_signal).toUpperCase():"Not reported"},
+    {label:"Peer Link Quality",value:isReportedInfoValue(snapshot?.direct_peer_link_quality_pct)?`${snapshot.direct_peer_link_quality_pct}%`:"Not reported"},
+    {label:"Peer Packets Received",value:infoValue(snapshot?.direct_peer_received_packets,"Not reported")},
     {label:"Peer Sync",value:formatPeerSyncStatus(snapshot)},
     {label:"Peer Remote IP",value:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for peer")},
     {label:"Peer Remote MAC",value:infoValue(snapshot?.direct_peer_remote_mac,"Waiting for peer")},

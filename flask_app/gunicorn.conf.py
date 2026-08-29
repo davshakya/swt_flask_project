@@ -26,7 +26,7 @@ def env_int(name, default):
 IS_RENDER = bool(os.environ.get("RENDER") or os.environ.get("RENDER_SERVICE_ID"))
 bind = f"0.0.0.0:{env_int('PORT', 8000)}"
 workers = env_int("WEB_CONCURRENCY", 1)
-threads = env_int("GUNICORN_THREADS", 2 if IS_RENDER else 4)
+threads = env_int("GUNICORN_THREADS", 2)
 timeout = env_int("GUNICORN_TIMEOUT", 120)
 graceful_timeout = env_int("GUNICORN_GRACEFUL_TIMEOUT", 30)
 keepalive = env_int("GUNICORN_KEEPALIVE", 5)

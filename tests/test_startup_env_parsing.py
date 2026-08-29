@@ -59,7 +59,7 @@ def test_root_gunicorn_config_falls_back_when_numeric_env_values_are_invalid(mon
 
     assert config["bind"] == "0.0.0.0:8000"
     assert config["workers"] == 1
-    assert config["threads"] == 4
+    assert config["threads"] == 2
     assert config["timeout"] == 120
     assert config["graceful_timeout"] == 30
     assert config["keepalive"] == 5
