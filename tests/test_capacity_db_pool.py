@@ -131,3 +131,33 @@ def test_database_retry_does_not_replay_disconnect_by_default():
         raise AssertionError("connection error should propagate for a non-idempotent operation")
 
     assert len(attempts) == 1
+
+
+def test_passenger_entrypoint_retry_wrapper_accepts_connection_retry(monkeypatch):
+    import importlib.util
+
+    from flask_app import server
+
+    entrypoint_path = server.PROJECT_ROOT / "server.py"
+    spec = importlib.util.spec_from_file_location("passenger_retry_test", entrypoint_path)
+    entrypoint = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(entrypoint)
+
+    attempts = []
+    monkeypatch.setattr(entrypoint.time, "sleep", lambda _seconds: None)
+
+    def operation():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise server.pymysql.err.OperationalError(2006, "MySQL server has gone away")
+        return "persisted"
+
+    result = entrypoint._run_with_database_lock_retries(
+        operation,
+        attempts=2,
+        initial_delay_s=0,
+        retry_connection_errors=True,
+    )
+
+    assert result == "persisted"
+    assert len(attempts) == 2

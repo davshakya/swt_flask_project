@@ -4,7 +4,7 @@ from functools import wraps
 
 from flask_app import server as flask_server
 
-HOTFIX_DEPLOY_MARKER = "root-device-detail-recovery-2026-07-26-v2"
+HOTFIX_DEPLOY_MARKER = "root-mysql-retry-compat-2026-08-29-v1"
 
 
 def _database_is_locked_error(exc):
@@ -24,12 +24,26 @@ def _database_is_locked_error(exc):
     )
 
 
+def _database_connection_recoverable_error(exc):
+    checker = getattr(flask_server, "mysql_is_connection_recoverable_error", None)
+    if callable(checker):
+        try:
+            return bool(checker(exc))
+        except Exception:
+            pass
+    message = str(exc or "").strip().lower()
+    return (
+        "mysql server has gone away" in message
+        or "lost connection" in message
+        or "connection reset by peer" in message
+    )
 def _run_with_database_lock_retries(
     operation,
     *,
     operation_name="database operation",
     attempts=6,
     initial_delay_s=0.5,
+    retry_connection_errors=False,
 ):
     last_exc = None
     total_attempts = max(1, int(attempts or 1))
@@ -38,13 +52,16 @@ def _run_with_database_lock_retries(
         try:
             return operation()
         except Exception as exc:
-            if not _database_is_locked_error(exc) or attempt >= total_attempts - 1:
+            lock_error = _database_is_locked_error(exc)
+            connection_error = bool(retry_connection_errors) and _database_connection_recoverable_error(exc)
+            if (not lock_error and not connection_error) or attempt >= total_attempts - 1:
                 raise
             last_exc = exc
             delay_s = base_delay * (attempt + 1)
             flask_server.logger.warning(
-                "Root hotfix retrying %s after database lock/deadlock (%s/%s): %s",
+                "Root hotfix retrying %s after recoverable database %s (%s/%s): %s",
                 operation_name,
+                "lock/deadlock" if lock_error else "connection error",
                 attempt + 1,
                 total_attempts,
                 exc,
