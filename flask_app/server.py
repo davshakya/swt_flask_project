@@ -3782,6 +3782,8 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_config_channel": payload.get("direct_peer_config_channel"),
         "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
+        "direct_peer_repeater_reachable": payload.get("direct_peer_repeater_reachable"),
+        "direct_peer_repeater_last_packet_age_s": payload.get("direct_peer_repeater_last_packet_age_s"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
         "direct_peer_last_sequence": payload.get("direct_peer_last_sequence"),
         "direct_peer_received_packets": payload.get("direct_peer_received_packets"),
@@ -5198,6 +5200,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("direct_peer_config_channel"),
         cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
+        1 if boolish_enabled(cleaned.get("direct_peer_repeater_reachable"), default=False) else 0,
+        cleaned.get("direct_peer_repeater_last_packet_age_s"),
         cleaned.get("direct_peer_last_packet_bytes"),
         cleaned.get("direct_peer_last_sequence"),
         cleaned.get("direct_peer_received_packets"),
@@ -5270,7 +5274,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 arch_id, node_role, device_type,
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
-                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
+                direct_peer_repeater_last_packet_age_s, direct_peer_last_packet_bytes,
                 direct_peer_last_sequence, direct_peer_received_packets, direct_peer_link_quality_pct,
                 direct_peer_duplicate_packets,
                 direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
@@ -5979,6 +5984,8 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_config_channel": "INTEGER",
         "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
+        "direct_peer_repeater_reachable": "INTEGER",
+        "direct_peer_repeater_last_packet_age_s": "INTEGER",
         "direct_peer_last_packet_bytes": "INTEGER",
         "direct_peer_last_sequence": "BIGINT",
         "direct_peer_received_packets": "BIGINT",
@@ -6140,6 +6147,8 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             direct_peer_config_channel INTEGER,
             direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
+            direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
+            direct_peer_repeater_last_packet_age_s INTEGER,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -6876,6 +6885,8 @@ def init_db():
             direct_peer_config_channel INTEGER,
             direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
+            direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
+            direct_peer_repeater_last_packet_age_s INTEGER,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -9534,6 +9545,7 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         "direct_peer_config_channel",
         "direct_peer_wifi_channel",
         "direct_peer_last_packet_age_s",
+        "direct_peer_repeater_last_packet_age_s",
         "direct_peer_last_packet_bytes",
         "direct_peer_received_packets",
         "direct_peer_link_quality_pct",
@@ -11774,6 +11786,8 @@ def build_empty_snapshot_payload(device_id=None):
         "direct_peer_config_channel": None,
         "direct_peer_wifi_channel": None,
         "direct_peer_last_packet_age_s": None,
+        "direct_peer_repeater_reachable": False,
+        "direct_peer_repeater_last_packet_age_s": None,
         "direct_peer_last_packet_bytes": None,
         "direct_peer_last_pong_age_s": None,
         "direct_peer_last_pong_nonce": None,
@@ -12035,7 +12049,19 @@ def build_synchronized_status_payload(snapshot, device_id=None, service_config=N
         else {}
     )
     sensor_status = admin_relay_sensor_status_fields(snapshot, config)
+    node_status = admin_node_status_fields(snapshot, config)
     fresh = snapshot_is_fresh_enough_for_runtime_sync(snapshot)
+    repeater_age = snapshot.get("direct_peer_repeater_last_packet_age_s")
+    try:
+        repeater_age = int(repeater_age)
+    except (TypeError, ValueError):
+        repeater_age = None
+    repeater_reachable = (
+        fresh
+        and boolish_enabled(snapshot.get("direct_peer_repeater_reachable"), default=False)
+        and repeater_age is not None
+        and 0 <= repeater_age <= DIRECT_PEER_STALE_AFTER_SECONDS
+    )
     pump_running = str(
         snapshot.get("pump")
         or snapshot.get("motor")
@@ -12053,6 +12079,25 @@ def build_synchronized_status_payload(snapshot, device_id=None, service_config=N
         "device_id": normalized_device_id,
         "observed_at": snapshot.get("last_sync_at") or snapshot.get("created_at"),
         "telemetry_status": snapshot.get("telemetry_status") or "no-data",
+        "nodes": {
+            "master": {
+                "state": node_status.get("master_status_label") or "Unreachable",
+                "reachable": node_status.get("master_status_tone") == "online",
+                "source": "firmware_telemetry",
+            },
+            "slave": {
+                "state": node_status.get("slave_status_label") or "Unreachable",
+                "reachable": node_status.get("slave_status_tone") == "online",
+                "packet_age_s": snapshot.get("direct_peer_last_packet_age_s"),
+                "source": "firmware_espnow",
+            },
+            "repeater": {
+                "state": "Reachable" if repeater_reachable else "Unreachable",
+                "reachable": repeater_reachable,
+                "packet_age_s": repeater_age,
+                "source": "firmware_espnow",
+            },
+        },
         "pump": {
             "state": "ON" if pump_running else "OFF",
             "mode": str(snapshot.get("mode") or "UNKNOWN").strip().upper(),
@@ -13286,7 +13331,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                node_role, device_type,
                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                direct_peer_config_channel, direct_peer_wifi_channel,
-               direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
+               direct_peer_repeater_last_packet_age_s, direct_peer_last_packet_bytes,
                direct_peer_last_sequence, direct_peer_duplicate_packets,
                direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
@@ -13434,6 +13480,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
             "direct_peer_config_channel": current.get("direct_peer_config_channel"),
             "direct_peer_wifi_channel": current.get("direct_peer_wifi_channel"),
             "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
+            "direct_peer_repeater_reachable": bool(current.get("direct_peer_repeater_reachable")),
+            "direct_peer_repeater_last_packet_age_s": current.get("direct_peer_repeater_last_packet_age_s"),
             "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
             "direct_peer_last_pong_age_s": current.get("direct_peer_last_pong_age_s"),
             "direct_peer_last_pong_nonce": current.get("direct_peer_last_pong_nonce"),
