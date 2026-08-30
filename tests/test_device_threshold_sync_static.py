@@ -156,6 +156,15 @@ def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     assert '"auto_stop_pct": "REAL"' in schema_source
     assert '"auto_start_stable_ms": "INTEGER"' in schema_source
     assert '"auto_level_average_samples": "INTEGER"' in schema_source
+    assert '"direct_peer_repeater_reachable": "INTEGER"' in schema_source
+    assert '"direct_peer_repeater_last_packet_age_s": "INTEGER"' in schema_source
+
+    assert 'DB_SCHEMA_REVISION = "2026-08-30-direct-peer-repeater-columns-v2"' in source
+    assert "def mysql_tank_data_schema_is_current(db):" in source
+    init_start = source.index("def init_db_serialized():")
+    init_source = source[init_start : source.index("\n\ndef ensure_tank_data_columns", init_start)]
+    assert "marker_current and structure_current" in init_source
+    assert "marker_current and not structure_current" in init_source
 
 
 def test_device_service_config_table_persists_shared_device_settings_via_upsert():

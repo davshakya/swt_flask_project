@@ -5880,7 +5880,33 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-29-direct-peer-link-quality-v1"
+DB_SCHEMA_REVISION = "2026-08-30-direct-peer-repeater-columns-v2"
+DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
+    "direct_peer_repeater_reachable",
+    "direct_peer_repeater_last_packet_age_s",
+    "direct_peer_last_sequence",
+    "direct_peer_received_packets",
+    "direct_peer_link_quality_pct",
+    "direct_peer_duplicate_packets",
+    "direct_peer_out_of_order_packets",
+    "direct_peer_estimated_lost_packets",
+)
+
+
+def mysql_tank_data_schema_is_current(db):
+    rows = db.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'tank_data'
+        """
+    ).fetchall()
+    existing = {
+        str(row.get("column_name") or row.get("COLUMN_NAME") or "").strip().lower()
+        for row in rows
+    }
+    return all(column.lower() in existing for column in DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS)
 
 
 def init_db_serialized():
@@ -5904,9 +5930,16 @@ def init_db_serialized():
             marker_row = lock_db.execute(
                 "SELECT value FROM app_settings WHERE `key` = 'db_schema_revision' LIMIT 1"
             ).fetchone() if table_row else None
-            if str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION:
+            marker_current = str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION
+            structure_current = mysql_tank_data_schema_is_current(lock_db)
+            if marker_current and structure_current:
                 logger.info("MySQL schema already current at revision %s", DB_SCHEMA_REVISION)
                 return
+            if marker_current and not structure_current:
+                logger.warning(
+                    "MySQL schema marker %s is current but required tank_data columns are missing; repairing schema",
+                    DB_SCHEMA_REVISION,
+                )
             init_db()
             lock_db.execute(
                 """
