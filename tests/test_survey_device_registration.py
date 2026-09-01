@@ -41,6 +41,15 @@ def test_survey_registration_route_has_server_side_acceptance_gate():
     assert "upsert_device_service_config(" in route
 
 
+def test_explicit_device_registration_restores_deleted_device_telemetry():
+    source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    start = source.index("def register_device_credentials(")
+    body = source[start : source.index("def list_registered_device_ids", start)]
+
+    assert "forget_ignored_device(normalized_device_id)" in body
+    assert body.index("forget_ignored_device(normalized_device_id)") < body.index("remember_registered_device(")
+
+
 def test_admin_can_accept_reject_and_delete_survey_with_csrf_forms():
     detail = DETAIL_TEMPLATE.read_text(encoding="utf-8")
     listing = LIST_TEMPLATE.read_text(encoding="utf-8")

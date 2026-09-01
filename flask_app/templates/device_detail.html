@@ -392,6 +392,14 @@ body{font-size:16px}
                 <button class="btn btn-admin" type="submit"><span>Save Peer Channel</span></button>
             </form>
 
+            <form class="admin-form" method="post" action="/devices/{{ device_id }}/replace-node" data-ajax-form>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <h3>Add / Replace Node</h3>
+                <div class="helper-text">Power off the old node first. This opens a two-minute channel-6 pairing window. The replacement must already contain this system's final device ID. Existing configuration remains active unless validation succeeds.</div>
+                <button class="btn btn-admin" type="submit" name="role" value="slave"><span>Replace Slave</span></button>
+                <button class="btn btn-admin" type="submit" name="role" value="repeater"><span>Replace Repeater</span></button>
+            </form>
+
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}" data-ajax-form>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Customer Name</h3>

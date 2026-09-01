@@ -1449,6 +1449,10 @@ def register_device_credentials(device_id, device_key, registration_source="admi
         remote_addr=remote_addr,
         registration_source=registration_source,
     )
+    # Explicit registration restores a previously deleted identity. Without
+    # clearing this marker, authenticated /status requests return HTTP 200 but
+    # process_telemetry_payload silently discards every update as ignored.
+    forget_ignored_device(normalized_device_id)
     remember_registered_device(
         normalized_device_id,
         registration_source=registration_source,
@@ -18521,6 +18525,39 @@ def mobile_device_peer_channel():
     return jsonify(response_payload)
 
 
+@app.route("/api/mobile/device/replace-node", methods=["POST"])
+@mobile_auth_required
+def mobile_device_replace_node():
+    source_payload = request.get_json(silent=True) or {}
+    target_device = current_mobile_scope_device_id(source_payload.get("device_id"))
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+    user = resolve_mobile_user()
+    if not user or user.get("role") not in {"customer", "admin"}:
+        return jsonify({"error": "mobile access required"}), 403
+    role = str(source_payload.get("role") or source_payload.get("target") or "").strip().lower()
+    if role not in {"slave", "repeater"}:
+        return jsonify({"error": "Replacement role must be slave or repeater."}), 400
+    command = f"replace_node:{role}"
+    queue_result = queue_command(command, target_device=target_device)
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="start_node_replacement_mobile", target_type="device",
+        target_id=target_device, device_id=target_device,
+        details={"role": role, "queued_command": command, "source": "mobile_api"},
+    )
+    payload = {
+        "message": f"{role.title()} replacement queued. Pairing channel 6 will open on the next command poll.",
+        "device_id": target_device, "role": role, "queued_command": command,
+    }
+    if isinstance(queue_result, tuple):
+        error_payload, status_code = queue_result
+        payload["queue_error"] = error_payload.get("error")
+        return jsonify(payload), status_code
+    payload.update(queue_result)
+    return jsonify(payload)
+
+
 register_mobile_firmware_routes(
     app,
     mobile_auth_required=mobile_auth_required,
@@ -21582,6 +21619,34 @@ def admin_device_detail_peer_channel(device_id):
         direct_peer_wifi_channel=requested_channel,
         queued_command=queued_command,
         queue_result=queue_result,
+    )
+
+
+@app.route("/devices/<device_id>/replace-node", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_replace_node(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    role = str(request.form.get("role") or request.form.get("target") or "").strip().lower()
+    if role not in {"slave", "repeater"}:
+        return device_detail_action_response(
+            scoped_device_id, error="Replacement role must be slave or repeater.", status_code=400
+        )
+    command = f"replace_node:{role}"
+    queue_result, queue_error = safe_queue_device_detail_command(
+        command, scoped_device_id, f"Unable to start {role} replacement"
+    )
+    log_audit_event(
+        actor=current_actor_username(), action="start_node_replacement",
+        target_type="device", target_id=scoped_device_id, device_id=scoped_device_id,
+        details={"role": role, "queued_command": command, "queue_error": queue_error},
+    )
+    return device_detail_action_response(
+        scoped_device_id,
+        f"{role.title()} replacement queued. Keep the replacement node powered on in factory pairing mode.",
+        title="Node replacement started",
+        detail_lines=[queue_error] if queue_error else [],
+        queued_command=command, queue_result=queue_result,
     )
 
 
