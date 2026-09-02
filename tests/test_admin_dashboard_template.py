@@ -1766,7 +1766,8 @@ def test_admin_dashboard_renders_online_offline_pie_chart():
 def test_admin_dashboard_uses_compact_aligned_layout():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
-    assert "<th>Repeater</th>" in admin_template
+    assert "<th>Repeater 1</th>" in admin_template
+    assert "<th>Repeater 2</th>" in admin_template
     assert '<th data-tooltip-key="telemetry">Telemetry</th>' not in admin_template
     assert '<th data-tooltip-key="signal">Signal</th>' not in admin_template
     assert 'data-device-field="repeater1_status"' in admin_template
@@ -1787,7 +1788,7 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left" in admin_template
     assert ".device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link" in admin_template
     assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}" in admin_template
-    assert ".device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:left;vertical-align:middle}" in admin_template
+    assert ".device-table-shell .admin-table th:nth-child(10),.device-table-shell .admin-table td:nth-child(10){text-align:left;vertical-align:middle}" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():
