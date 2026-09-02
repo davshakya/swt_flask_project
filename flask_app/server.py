@@ -15402,6 +15402,62 @@ def build_device_ping_result(device_id, target):
     }
 
 
+def build_device_ping_all_result(device_id):
+    """Queue checks for the controller and the complete ESP-NOW slave path."""
+    master = build_device_ping_result(device_id, "master")
+    slave = build_device_ping_result(device_id, "slave")
+    normalized_device_id = normalize_device_id(device_id)
+    checked_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    message = (
+        "Ping All Nodes queued for the master and complete ESP-NOW slave path. "
+        "Any active repeater route is checked as part of the slave-path response."
+    )
+    event = {
+        "time": checked_at,
+        "severity": "info",
+        "message": message,
+        "kind": "all_nodes_ping_commands_queued",
+        "details": {
+            "event_key": f"{normalized_device_id}:ping_command:all:{master.get('command_id')}:{slave.get('command_id')}",
+            "device_id": normalized_device_id,
+            "current_status": True,
+            "status_checked_at": checked_at,
+            "event_group": "ping_command",
+            "ping_target": "all",
+            "ping_status": "Queued",
+            "master_command_id": master.get("command_id"),
+            "slave_command_id": slave.get("command_id"),
+            "master_ping_nonce": master.get("expected_ping_nonce"),
+            "slave_ping_nonce": slave.get("expected_ping_nonce"),
+            "saved_peer_channel": slave.get("saved_peer_channel"),
+        },
+    }
+    return {
+        "target": "all",
+        "reachable": False,
+        "disabled": False,
+        "status": "Queued",
+        "title": "Ping All Nodes Queued",
+        "message": message,
+        "detail_lines": [
+            "Master: ping command queued",
+            "Slave path: ESP-NOW ping command queued",
+            "Repeaters: verified by the active slave route and repeater packet freshness",
+            f"Master command id: {master.get('command_id') or '--'}",
+            f"Slave command id: {slave.get('command_id') or '--'}",
+            f"Queued at: {checked_at}",
+        ],
+        "saved_peer_channel": slave.get("saved_peer_channel"),
+        "queued_command": [master.get("queued_command"), slave.get("queued_command")],
+        "command_id": [master.get("command_id"), slave.get("command_id")],
+        "expected_ping_nonce": {
+            "master": master.get("expected_ping_nonce"),
+            "slave": slave.get("expected_ping_nonce"),
+        },
+        "event": event,
+    }
+
+
 def describe_command_activity(command):
     normalized = str(command or "").strip().upper()
     details = {
@@ -21662,7 +21718,11 @@ def admin_device_detail_ping(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     target = request.form.get("target") or request.form.get("node") or request.form.get("ping_target")
     try:
-        ping_result = build_device_ping_result(scoped_device_id, target)
+        ping_result = (
+            build_device_ping_all_result(scoped_device_id)
+            if str(target or "").strip().lower() == "all"
+            else build_device_ping_result(scoped_device_id, target)
+        )
     except Exception as exc:
         logger.exception("Device ping failed for %s target=%s", scoped_device_id, target)
         return jsonify({"ok": False, "error": str(exc) or "Unable to ping device node."}), 200

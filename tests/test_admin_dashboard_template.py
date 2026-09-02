@@ -1260,8 +1260,10 @@ def test_device_detail_reduces_density_and_keeps_critical_actions_safe():
     assert 'id="firmwareVersion"' in template
     assert 'id="rssiSignal"' in template
     assert 'id="deviceUptime"' in template
-    assert 'data-info-tab="network"' in template
-    assert 'data-info-tab="sensors"' in template
+    assert 'data-info-tab="network"' not in template
+    assert 'data-info-tab="sensors"' not in template
+    assert "activeInfoTab" not in template
+    assert "applyInfoTab" not in template
     assert 'type="range" min="0" max="95"' in template
     assert 'id="activitySearch"' in template
     assert 'id="activitySeverity"' in template
@@ -1340,7 +1342,7 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
     assert ".admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}" in device_template
     assert ".config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}" in device_template
-    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:16px;align-items:start}" in device_template
+    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:16px;align-items:start}" in device_template
     assert ".admin-form>form{display:grid;gap:10px;width:100%}" in device_template
     assert ".admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}" in device_template
     assert ".admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}" in device_template
@@ -1366,6 +1368,14 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert "const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};" in device_template
     assert "const INITIAL_CONFIG_ERROR={{ config_error|tojson }};" in device_template
     assert "function showInitialConfigResult()" in device_template
+    assert "const RESULT_STORAGE_KEY=`swt:device-result:${DEVICE_ID}`;" in device_template
+    assert "window.sessionStorage.setItem(RESULT_STORAGE_KEY,JSON.stringify(result))" in device_template
+    assert "window.sessionStorage.removeItem(RESULT_STORAGE_KEY)" in device_template
+    assert 'url.searchParams.delete("config_message")' in device_template
+    assert 'url.searchParams.delete("config_error")' in device_template
+    assert 'addEventListener("click",dismissResultModal)' in device_template
+    assert "<h3>Peer Channel</h3>" not in device_template
+    assert "<h3>Add / Replace Node</h3>" not in device_template
     assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
     assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
     assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template
@@ -1553,10 +1563,17 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "syncRuntimeConfigurationOptions" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template
-    assert 'name="allow_profile_mismatch" value="0"' in device_template
-    assert 'name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override' in device_template
-    assert 'formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0")' in device_template
-    assert "Store for recovery/profile change" in device_template
+    assert 'name="allow_profile_mismatch" value="1"' in device_template
+    assert "data-profile-mismatch-override" not in device_template
+    assert "Store for recovery/profile change" not in device_template
+    assert "Master uploads can be stored even when" not in device_template
+    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr))" in device_template
+    assert '<input type="hidden" name="target" value="all">' in device_template
+    assert "Ping All Nodes" in device_template
+    assert "Ping Master" not in device_template
+    assert "Ping Slave" not in device_template
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in device_template
+    assert "def build_device_ping_all_result(device_id):" in server_source
     assert 'request.form.getlist("allow_profile_mismatch")' in server_source
     assert "profile_validation_bypassed = normalized_role == \"master\"" in server_source
     assert "expected_build_flags=None" in server_source

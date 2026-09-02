@@ -1,6 +1,6 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-24`
+Last refreshed: `2026-09-02`
 
 ## Municipal Sensor and Simulator Status
 
@@ -66,10 +66,10 @@ Cloud telemetry uploads, Android refreshes, and Flask dashboard polling use `SWT
 - Admin service controls for source tank monitoring, optional municipal automation, optional upper/lower turbidity monitoring, buzzer, LED, cloud-feed mode, and customer AI access
 - Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
-- Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
+- Firmware artifact upload/download flow for independently scoped master, slave, repeater1, and repeater2 OTA updates
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - APK update availability is determined from the uploaded APK's monotonic numeric `versionCode`, which must never reset. Android and firmware display names use `vYY.M.<monthlyIncrement>` and reset only that final display component when the UTC month/year changes; uploading the same Android numeric code again does not create an update
-- A successful firmware upload replaces the previous artifact for the same device and master/slave role. A successful Android upload replaces all previous APK releases. Old database rows and obsolete stored files are removed only after the replacement is registered successfully.
+- A successful firmware upload replaces the previous artifact for the same device and selected role (`master`, `slave`, `repeater1`, or `repeater2`). Repeater artifacts use distinct derived device identities and are never shared between indices. A successful Android upload replaces all previous APK releases. Old database rows and obsolete stored files are removed only after the replacement is registered successfully.
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
@@ -372,7 +372,7 @@ Check [`device.env.example`](device.env.example) for the currently wired backend
 | `/admin/devices/register` | Register device credentials and optional customer account | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
 | `/admin/customers/<device_id>/delete` | Delete a device through the normal admin flow; purges device-scoped rows and keeps the deleted-device marker until re-registration | Admin |
-| `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload master, slave, repeater1, or repeater2 firmware artifacts; validates the binary role and keeps both repeater indices separate | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/releases/android/prune` | Prune old uploaded Android APK releases | Admin |
 | `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
@@ -424,7 +424,7 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
 | `/api/mobile/device/local-auth/reset` | `POST` | Queue/reset local firmware auth from an authenticated mobile session |
-| `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware for `role=master` or `role=slave` |
+| `/api/mobile/device/firmware` | `GET` | Latest identity-specific firmware for `role=master`, `slave`, `repeater1`, or `repeater2` |
 | `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device and role |
 | `/api/mobile/app/update` | `GET` | Android update manifest for the latest uploaded APK |
 | `/api/mobile/app/latest.apk` | `GET` | Authenticated latest Android APK download |
@@ -450,7 +450,7 @@ Important tables include:
 - `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
   including the persisted `device_setup_type`. Existing databases receive this
   column through startup schema maintenance; no manual SQL migration is needed.
-- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
+- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave/repeater1/repeater2 updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
 
