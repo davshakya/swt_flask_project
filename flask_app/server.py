@@ -3589,6 +3589,9 @@ def admin_repeater_status_fields(entry):
         hop_count = 0
 
     route = str(entry.get("direct_peer_route") or entry.get("direct_peer_path") or "").strip().upper()
+    route_is_lan = "WIFI_LAN" in route or boolish_enabled(
+        entry.get("direct_peer_lan_reachable"), default=False
+    )
     if direct_peer_enabled and ("2_REPEATER" in route or "TWO_REPEATER" in route):
         hop_count = max(hop_count, 2)
     elif direct_peer_enabled and "REPEATER" in route:
@@ -3599,7 +3602,7 @@ def admin_repeater_status_fields(entry):
     except (TypeError, ValueError):
         repeater_age = -1
     # Older installed firmware only provides a shared repeater heartbeat.
-    if direct_peer_enabled and hop_count == 0 and repeater_age >= 0:
+    if direct_peer_enabled and not route_is_lan and hop_count == 0 and repeater_age >= 0:
         hop_count = 1
 
     repeater_fresh = boolish_enabled(entry.get("direct_peer_repeater_reachable"), default=False)
@@ -3615,6 +3618,8 @@ def admin_repeater_status_fields(entry):
     result["active_data_path"] = (
         "M"
         if not slave_reachable
+        else "M <-> WIFI_LAN <-> Slave"
+        if route_is_lan
         else "M ↔ R1 ↔ R2 ↔ S"
         if repeater_fresh and hop_count >= 2
         else "M ↔ R1 ↔ S"
@@ -3833,6 +3838,10 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
         "direct_peer_repeater_reachable": payload.get("direct_peer_repeater_reachable"),
         "direct_peer_repeater_last_packet_age_s": payload.get("direct_peer_repeater_last_packet_age_s"),
+        "direct_peer_route": payload.get("direct_peer_route"),
+        "direct_peer_path": payload.get("direct_peer_path"),
+        "direct_peer_repeater_hops": payload.get("direct_peer_repeater_hops"),
+        "direct_peer_lan_reachable": payload.get("direct_peer_lan_reachable"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
         "direct_peer_last_sequence": payload.get("direct_peer_last_sequence"),
         "direct_peer_received_packets": payload.get("direct_peer_received_packets"),
@@ -5252,6 +5261,10 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("direct_peer_last_packet_age_s"),
         1 if boolish_enabled(cleaned.get("direct_peer_repeater_reachable"), default=False) else 0,
         cleaned.get("direct_peer_repeater_last_packet_age_s"),
+        cleaned.get("direct_peer_route"),
+        cleaned.get("direct_peer_path"),
+        cleaned.get("direct_peer_repeater_hops"),
+        1 if boolish_enabled(cleaned.get("direct_peer_lan_reachable"), default=False) else 0,
         cleaned.get("direct_peer_last_packet_bytes"),
         cleaned.get("direct_peer_last_sequence"),
         cleaned.get("direct_peer_received_packets"),
@@ -5292,7 +5305,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
         cursor = db.cursor()
-        cursor.execute(
+        write_legacy_tank_data = (
+            cursor.execute
+            if CAPACITY_FEATURES.enabled("legacy_tank_data_writes")
+            else lambda *_args, **_kwargs: None
+        )
+        write_legacy_tank_data(
             f"""
             INSERT INTO tank_data (
                 level, motor, mode,
@@ -5325,7 +5343,8 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
                 direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
-                direct_peer_repeater_last_packet_age_s, direct_peer_last_packet_bytes,
+                direct_peer_repeater_last_packet_age_s, direct_peer_route, direct_peer_path,
+                direct_peer_repeater_hops, direct_peer_lan_reachable, direct_peer_last_packet_bytes,
                 direct_peer_last_sequence, direct_peer_received_packets, direct_peer_link_quality_pct,
                 direct_peer_duplicate_packets,
                 direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
@@ -5930,10 +5949,14 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-30-direct-peer-repeater-columns-v2"
+DB_SCHEMA_REVISION = "2026-09-02-peer-lan-route-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
     "direct_peer_repeater_reachable",
     "direct_peer_repeater_last_packet_age_s",
+    "direct_peer_route",
+    "direct_peer_path",
+    "direct_peer_repeater_hops",
+    "direct_peer_lan_reachable",
     "direct_peer_last_sequence",
     "direct_peer_received_packets",
     "direct_peer_link_quality_pct",
@@ -6069,6 +6092,10 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_last_packet_age_s": "INTEGER",
         "direct_peer_repeater_reachable": "INTEGER",
         "direct_peer_repeater_last_packet_age_s": "INTEGER",
+        "direct_peer_route": "VARCHAR(32)",
+        "direct_peer_path": "VARCHAR(96)",
+        "direct_peer_repeater_hops": "INTEGER",
+        "direct_peer_lan_reachable": "INTEGER NOT NULL DEFAULT 0",
         "direct_peer_last_packet_bytes": "INTEGER",
         "direct_peer_last_sequence": "BIGINT",
         "direct_peer_received_packets": "BIGINT",
@@ -6232,6 +6259,10 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             direct_peer_last_packet_age_s INTEGER,
             direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_repeater_last_packet_age_s INTEGER,
+            direct_peer_route VARCHAR(32),
+            direct_peer_path VARCHAR(96),
+            direct_peer_repeater_hops INTEGER,
+            direct_peer_lan_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -6970,6 +7001,10 @@ def init_db():
             direct_peer_last_packet_age_s INTEGER,
             direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_repeater_last_packet_age_s INTEGER,
+            direct_peer_route VARCHAR(32),
+            direct_peer_path VARCHAR(96),
+            direct_peer_repeater_hops INTEGER,
+            direct_peer_lan_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -11871,6 +11906,10 @@ def build_empty_snapshot_payload(device_id=None):
         "direct_peer_last_packet_age_s": None,
         "direct_peer_repeater_reachable": False,
         "direct_peer_repeater_last_packet_age_s": None,
+        "direct_peer_route": None,
+        "direct_peer_path": None,
+        "direct_peer_repeater_hops": 0,
+        "direct_peer_lan_reachable": False,
         "direct_peer_last_packet_bytes": None,
         "direct_peer_last_pong_age_s": None,
         "direct_peer_last_pong_nonce": None,
@@ -13415,7 +13454,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                direct_peer_config_channel, direct_peer_wifi_channel,
                direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
-               direct_peer_repeater_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_repeater_last_packet_age_s, direct_peer_route, direct_peer_path,
+               direct_peer_repeater_hops, direct_peer_lan_reachable, direct_peer_last_packet_bytes,
                direct_peer_last_sequence, direct_peer_duplicate_packets,
                direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
@@ -13565,6 +13605,10 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
             "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
             "direct_peer_repeater_reachable": bool(current.get("direct_peer_repeater_reachable")),
             "direct_peer_repeater_last_packet_age_s": current.get("direct_peer_repeater_last_packet_age_s"),
+            "direct_peer_route": current.get("direct_peer_route"),
+            "direct_peer_path": current.get("direct_peer_path"),
+            "direct_peer_repeater_hops": current.get("direct_peer_repeater_hops"),
+            "direct_peer_lan_reachable": bool(current.get("direct_peer_lan_reachable")),
             "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
             "direct_peer_last_pong_age_s": current.get("direct_peer_last_pong_age_s"),
             "direct_peer_last_pong_nonce": current.get("direct_peer_last_pong_nonce"),

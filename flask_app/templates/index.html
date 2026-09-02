@@ -117,8 +117,9 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-settings-pane,.customer-dashboard .customer-guidance-panel{min-width:0;padding:22px}
 .customer-dashboard .customer-settings-pane{margin:0;border-right:1px solid var(--line)}
 .customer-dashboard .customer-settings-heading{font-weight:800}
-.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
-.customer-dashboard .customer-settings-grid .setting{min-width:0;min-height:128px;padding:14px}
+.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.customer-dashboard .customer-settings-grid .setting{min-width:0;min-height:0;height:auto;padding:12px 14px;justify-content:flex-start;gap:8px}
+.customer-dashboard .customer-settings-grid .setting span{margin-top:0}
 .customer-dashboard .customer-technical-details{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .customer-dashboard .customer-technical-details h4{margin:0;font-size:1rem}
 .customer-dashboard .customer-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
@@ -204,6 +205,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 }
 @media (max-width:760px){
 .customer-dashboard .shell{width:min(100% - 18px,var(--customer-shell-max));padding-top:22px}
+.customer-dashboard .customer-settings-grid{grid-template-columns:1fr}
 .customer-dashboard .status-row,.customer-pulse-grid,.customer-dashboard .grid.metrics,.customer-dashboard .glance-grid,.customer-dashboard .customer-hero-meta,.customer-dashboard .customer-stat-grid{grid-template-columns:1fr}
 .customer-dashboard .customer-insight-kpis,.customer-dashboard .chart-summary,.customer-dashboard .technical-grid,.customer-dashboard .header-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{display:grid;grid-template-columns:1fr;width:100%}.customer-dashboard .analytics-toolbar input[type="date"]{width:100%}
