@@ -109,3 +109,5 @@ def test_test_device_slave_role_uses_the_slave_mcu_identity():
     assert firmware_role_device_id("swt-test-000-000-001", "master") == "swt-test-000-000-001"
     assert firmware_role_device_id("swt-test-000-000-001", "slave") == "swt-test-100-000-001"
     assert firmware_role_device_id("swt-000-000-000-001", "slave") == "swt-100-000-000-001"
+    assert firmware_role_device_id("swt-test-000-000-001", "repeater1") == "swt-test-rep1-000-001"
+    assert firmware_role_device_id("swt-test-000-000-001", "repeater2") == "swt-test-rep2-000-001"

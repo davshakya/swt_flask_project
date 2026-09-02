@@ -18,6 +18,12 @@ def firmware_role_device_id(device_id, role):
             return "swt-test-100-" + normalized_device_id[len("swt-test-000-") :]
         if normalized_device_id.startswith("swt-000-"):
             return "swt-100-" + normalized_device_id[len("swt-000-") :]
+    if role in {"repeater1", "repeater2"}:
+        index = "1" if role == "repeater1" else "2"
+        if normalized_device_id.startswith("swt-test-000-"):
+            return f"swt-test-rep{index}-" + normalized_device_id[len("swt-test-000-") :]
+        if normalized_device_id.startswith("swt-000-"):
+            return f"swt-rep{index}-" + normalized_device_id[len("swt-000-") :]
     return normalized_device_id
 
 

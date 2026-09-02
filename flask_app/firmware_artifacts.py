@@ -14,7 +14,7 @@ FIRMWARE_RELEASE_VERSION_PATTERN = re.compile(
 FIRMWARE_RELEASE_VERSION_BYTES_PATTERN = re.compile(
     rb"(?<![A-Za-z0-9])(?:v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*|\d{2}\.[1-9]\d*\.[1-9]\d*)(?![A-Za-z0-9])"
 )
-FIRMWARE_ARTIFACT_ROLES = ("master", "slave")
+FIRMWARE_ARTIFACT_ROLES = ("master", "slave", "repeater1", "repeater2")
 FIRMWARE_BINARY_ROLE_MARKERS = {
     "master": (
         b"SWT_FIRMWARE_ROLE=master",
@@ -30,6 +30,11 @@ FIRMWARE_BINARY_ROLE_MARKERS = {
         b'"device_type":"swt_slave"',
         b"swt_slave",
     ),
+    "repeater": (
+        b"SWT_FIRMWARE_ROLE=repeater",
+        b"SWT repeater started",
+        b"swt_repeater",
+    ),
 }
 FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {
     "master": re.compile(rb"\bswt-000-\d{3}-\d{3}-\d{3}\b", re.IGNORECASE),
@@ -38,6 +43,7 @@ FIRMWARE_BINARY_DEVICE_ID_PATTERNS = {
 FIRMWARE_BINARY_DISTINCT_ROLE_MARKERS = {
     "master": (b"master_control",),
     "slave": (b"slave_tank", b"peer-only-slave"),
+    "repeater": (b"SWT repeater started", b"swt_repeater"),
 }
 FIRMWARE_BUILD_FLAG_KEYS = (
     "SWT_FEATURE_MASTER_LOWER_SENSOR",
@@ -51,7 +57,7 @@ FIRMWARE_BUILD_FLAG_KEYS = (
 def normalize_firmware_artifact_role(value, default="master"):
     normalized = str(value or default or "master").strip().lower()
     if normalized not in FIRMWARE_ARTIFACT_ROLES:
-        raise ValueError("Choose master or slave firmware role.")
+        raise ValueError("Choose master, slave, repeater1, or repeater2 firmware role.")
     return normalized
 
 
@@ -131,7 +137,8 @@ def validate_firmware_binary_role(payload, expected_role, filename="firmware.bin
             "Could not verify whether this firmware binary is master or slave. "
             "Rebuild the firmware with the current role marker and upload the matching .bin file."
         )
-    if detected_role != normalized_role:
+    expected_binary_role = "repeater" if normalized_role in {"repeater1", "repeater2"} else normalized_role
+    if detected_role != expected_binary_role:
         safe_name = sanitize_firmware_filename(filename)
         raise ValueError(
             f"Selected {safe_name} is {detected_role} firmware, "

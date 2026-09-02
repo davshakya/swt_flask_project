@@ -19942,7 +19942,11 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
     config_error = None
     config_message = None
 
-    if not scoped_device_id:
+    requested_role = request.form.get("firmware_role", "all", type=str).strip().lower()
+    allowed_roles = {"all", "master", "slave", "repeater1", "repeater2"}
+    if requested_role not in allowed_roles:
+        config_error = "Choose master/slave, repeater 1, or repeater 2 firmware target."
+    elif not scoped_device_id:
         config_error = "Choose a valid device before queueing an Android OTA trigger."
     else:
         service_config = fetch_device_service_config(scoped_device_id)
@@ -19955,9 +19959,10 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
                 MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
                 scoped_device_id,
                 payload={
-                    "message": "Flask requested a firmware upgrade.",
+                    "message": f"Flask requested a {requested_role} firmware upgrade.",
                     "device_id": scoped_device_id,
                     "source": "device_detail",
+                    "firmware_role": requested_role,
                 },
             )
             if isinstance(queue_result, tuple):
@@ -19977,7 +19982,7 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
                     },
                 )
                 config_message = (
-                    f"Android OTA trigger queued for {scoped_device_id}. "
+                    f"Android OTA trigger queued for {scoped_device_id} ({requested_role}). "
                     "The Android app will start its next firmware upgrade sync on the next cloud refresh."
                 )
 

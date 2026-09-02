@@ -595,6 +595,8 @@ body{font-size:16px}
         <div class="firmware-upload-grid">
             {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
             {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
+            {% set repeater1_firmware = latest_firmware_artifacts.get("repeater1") if latest_firmware_artifacts else none %}
+            {% set repeater2_firmware = latest_firmware_artifacts.get("repeater2") if latest_firmware_artifacts else none %}
             <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload master firmware?" data-confirm-message="Store this master firmware binary for device {{ device_id }}? Verify the selected build and profile before continuing." data-confirm-button="Upload Master Firmware">
                 <h3>Master Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -638,12 +640,44 @@ body{font-size:16px}
                 {% endif %}
                 <button class="btn btn-admin" type="submit"><span>Upload Slave Firmware</span></button>
             </form>
+            {% for repeater_number, repeater_firmware in [(1, repeater1_firmware), (2, repeater2_firmware)] %}
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload repeater {{ repeater_number }} firmware?" data-confirm-message="Store this firmware only for repeater {{ repeater_number }} of device {{ device_id }}? It will not upgrade the master, slave, or other repeater." data-confirm-button="Upload Repeater {{ repeater_number }} Firmware">
+                <h3>Repeater {{ repeater_number }} Firmware</h3>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="return_to" value="device_detail">
+                <input type="hidden" name="firmware_role" value="repeater{{ repeater_number }}">
+                <div class="form-group">
+                    <label for="repeater{{ repeater_number }}_firmware_file">Repeater {{ repeater_number }} Firmware Binary</label>
+                    <input id="repeater{{ repeater_number }}_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                </div>
+                <div class="form-group">
+                    <label for="repeater{{ repeater_number }}_firmware_notes">Repeater {{ repeater_number }} Release Notes</label>
+                    <input id="repeater{{ repeater_number }}_firmware_notes" name="notes" type="text" placeholder="Repeater {{ repeater_number }} firmware change summary">
+                </div>
+                {% if repeater_firmware %}
+                <div class="helper-text">Latest repeater {{ repeater_number }} build: {{ repeater_firmware.version_label or "--" }} from {{ repeater_firmware.original_filename or "firmware.bin" }}.</div>
+                {% else %}
+                <div class="helper-text">No firmware has been uploaded for repeater {{ repeater_number }} yet.</div>
+                {% endif %}
+                <button class="btn btn-admin" type="submit"><span>Upload Repeater {{ repeater_number }} Firmware</span></button>
+            </form>
+            {% endfor %}
         </div>
         {% set android_ota_ready = service_config.get("cloud_feed_enabled") and service_config.get("local_firmware_upload_enabled") %}
         <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_mobile_firmware_upgrade', device_id=device_id) }}" data-ajax-form data-confirm-title="Queue Android firmware upgrade?" data-confirm-message="Send an Android OTA trigger for device {{ device_id }}? The app will start its normal firmware upgrade flow on the next cloud refresh." data-confirm-button="Queue Upgrade">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="return_to" value="device_detail">
             <h3>Android App OTA Trigger</h3>
+            <div class="form-group">
+                <label for="android_ota_firmware_role">Upgrade Target</label>
+                <select id="android_ota_firmware_role" name="firmware_role">
+                    <option value="all">Master + Slave</option>
+                    <option value="master">Master only</option>
+                    <option value="slave">Slave only</option>
+                    <option value="repeater1">Repeater 1 only</option>
+                    <option value="repeater2">Repeater 2 only</option>
+                </select>
+            </div>
             {% if android_ota_ready %}
             <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device.</div>
             <button class="btn btn-admin btn-full" type="submit"><span>Queue Android OTA</span></button>
