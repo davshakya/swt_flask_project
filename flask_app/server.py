@@ -13266,23 +13266,42 @@ def telemetry_sync_is_recent_duplicate(device_id, fingerprint, transport=None, s
     if not normalized_device_id or not normalized_fingerprint:
         return False
 
-    with get_db() as db:
-        row = db.execute(
-            """
-            SELECT created_at
-            FROM tank_data
-            WHERE device_id = ?
-              AND telemetry_fingerprint = ?
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """,
-            (normalized_device_id, normalized_fingerprint),
-        ).fetchone()
-
-    if not row:
-        return False
-
-    created_at = parse_timestamp(row["created_at"])
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT received_at, state_json
+                FROM device_latest_state
+                WHERE device_id = ? AND device_source = ?
+                LIMIT 1
+                """,
+                (normalized_device_id, get_device_source_mode()),
+            ).fetchone()
+        if not row:
+            return False
+        try:
+            stored_state = json.loads(row.get("state_json") or "{}")
+        except (TypeError, ValueError):
+            return False
+        if stored_state.get("telemetry_fingerprint") != normalized_fingerprint:
+            return False
+        created_at = parse_timestamp(row.get("received_at"))
+    else:
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT created_at
+                FROM tank_data
+                WHERE device_id = ?
+                  AND telemetry_fingerprint = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (normalized_device_id, normalized_fingerprint),
+            ).fetchone()
+        if not row:
+            return False
+        created_at = parse_timestamp(row["created_at"])
     if created_at is None:
         return False
     age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
@@ -16141,6 +16160,44 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        active_mode = get_device_source_mode()
+        clauses = ["device_source = ?"]
+        params = [active_mode]
+        if normalized_device_ids:
+            placeholders = ",".join("?" for _ in normalized_device_ids)
+            clauses.append(f"device_id IN ({placeholders})")
+            params.extend(normalized_device_ids)
+        params.append(limit)
+        try:
+            with get_db() as db:
+                rows = db.execute(
+                    f"""
+                    SELECT device_id, state_json, received_at
+                    FROM device_latest_state
+                    WHERE {' AND '.join(clauses)}
+                    ORDER BY received_at DESC
+                    LIMIT ?
+                    """,
+                    tuple(params),
+                ).fetchall()
+            inventory = []
+            for row in rows:
+                try:
+                    payload = json.loads(row.get("state_json") or "{}")
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(payload, dict) or not payload:
+                    continue
+                payload["device_id"] = row.get("device_id")
+                payload["device_source"] = active_mode
+                payload["created_at"] = row.get("received_at")
+                snapshot = enrich_snapshot(payload)
+                inventory.append(build_admin_device_entry(snapshot.get("device_id") or "unassigned", snapshot=snapshot))
+            return inventory
+        except Exception as exc:
+            logger.warning("Latest-state inventory unavailable; using legacy inventory: %s", exc)
+
     source_clause, source_params = device_source_where_clause(column="ranked_source.device_source")
     query = """
         SELECT tank_data.*
@@ -16181,6 +16238,18 @@ def fetch_device_snapshot(device_id, include_transition_counts=True):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        try:
+            with get_db() as db:
+                payload = fetch_latest_state_payload(
+                    db.cursor(),
+                    normalized_device_id,
+                    get_device_source_mode(),
+                )
+            if payload:
+                return enrich_snapshot(payload)
+        except Exception as exc:
+            logger.warning("Latest-state snapshot unavailable for %s; using legacy snapshot: %s", normalized_device_id, exc)
     source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
