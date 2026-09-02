@@ -1772,7 +1772,7 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert '<th data-tooltip-key="signal">Signal</th>' not in admin_template
     assert 'data-device-field="repeater1_status"' in admin_template
     assert 'data-device-field="repeater2_status"' in admin_template
-    assert "<th>Active Data Path</th>" in admin_template
+    assert "<th>Active Path</th>" in admin_template
     assert 'data-device-field="active_data_path"' in admin_template
     assert ".admin-control-room{padding:14px}" in admin_template
     assert ".hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:16px;align-items:start}" in admin_template
@@ -1785,10 +1785,10 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert ".device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}" in admin_template
     assert ".device-horizontal-scroll{display:none}" in admin_template
     assert ".searchControls{grid-template-columns:minmax(320px,1fr) auto auto auto" in admin_template
-    assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left" in admin_template
+    assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:center" in admin_template
     assert ".device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link" in admin_template
-    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}" in admin_template
-    assert ".device-table-shell .admin-table th:nth-child(10),.device-table-shell .admin-table td:nth-child(10){text-align:left;vertical-align:middle}" in admin_template
+    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:4px}" in admin_template
+    assert ".device-table-shell .admin-table th:nth-child(10),.device-table-shell .admin-table td:nth-child(10){text-align:center;vertical-align:middle}" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():
