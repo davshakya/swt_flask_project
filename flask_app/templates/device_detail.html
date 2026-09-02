@@ -27,7 +27,7 @@
 .result-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(7,27,36,.5);backdrop-filter:blur(4px)}.result-dialog{width:min(460px,calc(100vw - 24px));padding:18px;border-radius:20px;border:1px solid var(--line);background:var(--panel);box-shadow:0 30px 70px rgba(7,36,47,.28)}.result-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.result-head h2{margin:4px 0 0;font-size:1.25rem;letter-spacing:-.03em}.result-close{min-height:38px;padding:8px 12px;border-radius:12px;border:1px solid var(--button-line);background:rgba(255,255,255,.74);color:var(--text);font-weight:800;cursor:pointer}.confirm-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px}.confirm-actions .btn{min-width:0}.confirm-actions .btn-danger{border:0}
 .admin-form>form{display:grid;gap:10px;width:100%}.admin-form .btn,.firmware-upload-grid .btn{min-height:44px;height:auto;padding:0 16px;border-radius:14px;font-size:12px;letter-spacing:.01em;box-shadow:0 10px 20px rgba(19,137,165,.14)}.admin-form .btn span,.firmware-upload-grid .btn span{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px}.admin-form .btn-admin,.firmware-upload-grid .btn-admin{background:linear-gradient(135deg,#23bfd7 0%,#168aa2 55%,#0f6f82 100%);border:1px solid color-mix(in srgb,var(--primary) 36%,transparent)}.admin-form .btn-admin:hover,.admin-form .btn-admin:focus-visible,.firmware-upload-grid .btn-admin:hover,.firmware-upload-grid .btn-admin:focus-visible{background:linear-gradient(135deg,#30cbe2 0%,#1595ad 58%,#0b758b 100%);box-shadow:0 14px 26px rgba(19,137,165,.22)}.admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}.admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}.tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}.tank-setup-actions .btn{width:100%;justify-self:stretch}.btn-danger{background:linear-gradient(135deg,#ff8292,#d84461);border:1px solid color-mix(in srgb,var(--danger) 38%,transparent);box-shadow:0 10px 20px rgba(218,79,99,.14)}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ff7588,#ca3856);box-shadow:0 14px 26px rgba(218,79,99,.22)}
 @media (max-width:1080px){.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config-sections{grid-template-columns:1fr}.config-form{grid-column:1/-1}}
-.device-command-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;width:100%}.device-command-actions form{display:grid;min-width:0}.device-command-actions .btn{width:100%;height:100%}
+.device-command-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:100%}.device-command-actions form{display:grid;min-width:0}.device-command-actions .btn{width:100%;height:100%;min-height:58px;font-size:14px}.device-command-actions .btn span{white-space:nowrap}#diagnosticTools #deviceCommandsCard{grid-column:1/-1;width:100%}
 @media (max-width:1100px){.firmware-upload-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:820px){.firmware-upload-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.hero-head{align-items:flex-start}.hero-actions{width:100%;justify-content:flex-start}.hero-actions form,.hero-actions .btn{width:auto}.summary-grid,.admin-grid{grid-template-columns:1fr}.admin-form .btn,.config-form>.btn{width:100%;justify-self:stretch;max-width:none}.tank-setup-actions{grid-template-columns:1fr}.info-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
@@ -1080,6 +1080,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
     try{
       const saved=JSON.parse(window.sessionStorage.getItem(RESULT_STORAGE_KEY)||"null");
+      if(saved?.message&&/ping .* queued/i.test(String(saved.title||""))){clearPersistedResult();return;}
       if(saved?.message)window.requestAnimationFrame(()=>showResultModal(saved.title,saved.message,Boolean(saved.isError),saved.details||[],false));
     }catch(error){clearPersistedResult();}
   }
@@ -1102,19 +1103,21 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
   function pingResultDetailLines(snapshot={},payload={}){
     const target=String(payload.target||snapshot.last_ping_target||"device").trim().toLowerCase();
+    const noncePayload=payload.expected_ping_nonce;
+    const expectedNonce=noncePayload&&typeof noncePayload==="object"?(noncePayload.slave||noncePayload.master):noncePayload;
     const responseMs=Number(snapshot.last_ping_response_ms);
     const lines=[
       `Target: ${titleCase(target)}`,
       `Reported result: ${pingDisplayValue(snapshot.last_ping_status)}`,
       Number.isFinite(responseMs)&&responseMs>=0?`Response time: ${Math.round(responseMs)} ms`:"Response time: Not reported",
-      `Ping nonce: ${pingDisplayValue(snapshot.last_ping_nonce||payload.expected_ping_nonce)}`,
+      `Ping nonce: ${pingDisplayValue(snapshot.last_ping_nonce||expectedNonce)}`,
       `Command id: ${pingDisplayValue(payload.command_id)}`,
       `Queued command: ${pingDisplayValue(payload.queued_command)}`,
       `Ping telemetry age: ${pingAgeDisplay(snapshot.last_ping_age_s)}`,
       `Telemetry status: ${pingDisplayValue(snapshot.telemetry_status)}`,
       `Last sync: ${pingDisplayValue(snapshot.last_sync_at)}`,
     ];
-    if(target==="slave"){
+    if(target==="slave"||target==="all"){
       lines.push(`Saved peer channel: ${pingChannelDisplay(payload.saved_peer_channel)}`);
       lines.push(`Configured peer channel: ${pingChannelDisplay(snapshot.direct_peer_config_channel)}`);
       lines.push(`Master Wi-Fi channel: ${pingChannelDisplay(snapshot.direct_peer_wifi_channel)}`);
@@ -1136,14 +1139,24 @@ document.addEventListener("DOMContentLoaded",()=>{
     if(!response.ok)throw new Error(data?.error||`HTTP ${response.status}`);
     return data;
   }
-  async function waitForPingTelemetry(payload){
-    const expectedNonce=Number(payload?.expected_ping_nonce);
+  async function waitForPingTelemetry(payload,progressButton=null){
+    const noncePayload=payload?.expected_ping_nonce;
+    const expectedNonce=Number(
+      noncePayload&&typeof noncePayload==="object"
+        ? (noncePayload.slave||noncePayload.master)
+        : noncePayload
+    );
     if(!Number.isFinite(expectedNonce)||expectedNonce<=0)return;
     const watchToken=++pingWatchToken;
     const target=String(payload?.target||"device").trim().toLowerCase();
-    const targetLabel=titleCase(target||"device");
+    const targetLabel=target==="all"?"All Nodes":titleCase(target||"device");
     let lastSnapshot={};
     for(let attempt=0;attempt<15;attempt+=1){
+      if(progressButton){
+        const percent=Math.min(95,Math.max(8,Math.round(((attempt+1)/15)*100)));
+        progressButton.textContent=`Checking All Nodes… ${percent}%`;
+        progressButton.setAttribute("aria-busy","true");
+      }
       await sleep(attempt===0?2500:4000);
       if(watchToken!==pingWatchToken)return;
       try{
@@ -1156,7 +1169,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           const succeeded=pingStatusSucceeded(reportedStatus);
           showResultModal(
             `Ping ${targetLabel} Result`,
-            `Device reported ping ${targetLabel.toLowerCase()} result: ${reportedStatus}.`,
+            `Device reported the ${targetLabel.toLowerCase()} ping result: ${reportedStatus}.`,
             !succeeded,
             pingResultDetailLines(snapshot,payload)
           );
@@ -1170,8 +1183,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
     if(watchToken!==pingWatchToken)return;
     showResultModal(
-      `Ping ${targetLabel} Pending`,
-      `No firmware ping result has been reported yet for nonce ${expectedNonce}.`,
+      `Ping ${targetLabel} Timed Out`,
+      `No final firmware ping result was reported for nonce ${expectedNonce} before the status-check timeout.`,
       true,
       [
         `Command id: ${pingDisplayValue(payload.command_id)}`,
@@ -1185,7 +1198,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
   }
   document.addEventListener("keydown",(event)=>{
-    if(event.key==="Escape")closeResultModal();
+    if(event.key==="Escape")document.querySelector("[data-result-close]")?dismissResultModal():closeResultModal();
   });
   document.querySelectorAll("[data-firmware-upload-form]").forEach((form)=>{
     form.addEventListener("submit",(event)=>{
@@ -1318,8 +1331,14 @@ document.addEventListener("DOMContentLoaded",()=>{
         if(contentType.includes("application/json")){
           const payload=await response.json();
           const failed=payload?.ok===false||!response.ok;
-          showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
-          if(!failed&&payload?.expected_ping_nonce)waitForPingTelemetry(payload);
+          const isQueuedPing=!failed&&String(payload?.status||"").trim().toLowerCase()==="queued"&&Boolean(payload?.expected_ping_nonce);
+          if(isQueuedPing){
+            closeResultModal();
+            clearPersistedResult();
+            await waitForPingTelemetry(payload,button);
+          }else{
+            showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
+          }
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
@@ -1344,6 +1363,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       }finally{
         if(button){
           button.disabled=false;
+          button.removeAttribute("aria-busy");
           if(button.classList.contains("simulator-switch")){
             button.classList.remove("is-loading");
             button.removeAttribute("aria-busy");

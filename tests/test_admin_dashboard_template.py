@@ -1374,6 +1374,11 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert 'url.searchParams.delete("config_message")' in device_template
     assert 'url.searchParams.delete("config_error")' in device_template
     assert 'addEventListener("click",dismissResultModal)' in device_template
+    assert 'const isQueuedPing=!failed&&String(payload?.status||"").trim().toLowerCase()==="queued"' in device_template
+    assert "await waitForPingTelemetry(payload,button)" in device_template
+    assert "progressButton.textContent=`Checking All Nodes… ${percent}%`" in device_template
+    assert 'noncePayload&&typeof noncePayload==="object"' in device_template
+    assert "Ping ${targetLabel} Timed Out" in device_template
     assert "<h3>Peer Channel</h3>" not in device_template
     assert "<h3>Add / Replace Node</h3>" not in device_template
     assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
@@ -1573,6 +1578,8 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "Ping Master" not in device_template
     assert "Ping Slave" not in device_template
     assert "grid-template-columns:repeat(3,minmax(0,1fr))" in device_template
+    assert "#diagnosticTools #deviceCommandsCard{grid-column:1/-1;width:100%}" in device_template
+    assert ".device-command-actions .btn{width:100%;height:100%;min-height:58px;font-size:14px}" in device_template
     assert "def build_device_ping_all_result(device_id):" in server_source
     assert 'request.form.getlist("allow_profile_mismatch")' in server_source
     assert "profile_validation_bypassed = normalized_role == \"master\"" in server_source
