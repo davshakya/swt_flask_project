@@ -47,7 +47,9 @@
 .device-table-shell .last-sync-cell.is-stale{color:var(--muted)}
 .device-table-shell .last-sync-cell.is-live{color:var(--text);font-weight:800}
 .device-table-shell .pill{vertical-align:middle}
-.node-status-pill{justify-content:center;width:max-content}
+  .node-status-pill{justify-content:center;width:max-content}
+  .repeater-status-stack{display:grid;gap:4px;justify-items:start}
+  .data-path-label{font-weight:900;white-space:nowrap;color:var(--primary)}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-form,.inline-form.inline-form-wide{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
 .admin-control-room{--admin-shell-max:1680px;--admin-surface:linear-gradient(180deg,rgba(255,255,255,.96),rgba(240,248,248,.9));--admin-panel-highlight:linear-gradient(135deg,rgba(8,58,74,.94),rgba(19,121,143,.92));--admin-card:rgba(255,255,255,.7);--admin-card-strong:rgba(255,255,255,.82);--admin-border:rgba(14,84,99,.12);--admin-shadow:0 34px 70px rgba(10,58,72,.18);--admin-text-soft:#506a73;--admin-accent:#0e8096;--admin-accent-strong:#0b5567;--admin-table-row:rgba(255,255,255,.56);--admin-table-row-hover:rgba(240,250,251,.96);--admin-match:rgba(14,128,150,.08)}
@@ -444,7 +446,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}
 .device-table-shell .admin-table thead th,.device-table-shell .admin-table thead .sort-button{font-size:9px;line-height:1.2;white-space:normal;justify-content:flex-start;text-align:left}
 .device-table-shell .admin-table td{font-size:10px;line-height:1.25}
-.device-table-shell .admin-table th:nth-child(1){width:14%}.device-table-shell .admin-table th:nth-child(2){width:12%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:7%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:8%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:9%}.device-table-shell .admin-table th:nth-child(10){width:6%}.device-table-shell .admin-table th:nth-child(11){width:7%}.device-table-shell .admin-table th:nth-child(12){width:8%}
+.device-table-shell .admin-table th:nth-child(1){width:14%}.device-table-shell .admin-table th:nth-child(2){width:12%}.device-table-shell .admin-table th:nth-child(3){width:7%}.device-table-shell .admin-table th:nth-child(4){width:7%}.device-table-shell .admin-table th:nth-child(5){width:9%}.device-table-shell .admin-table th:nth-child(6){width:12%}.device-table-shell .admin-table th:nth-child(7){width:7%}.device-table-shell .admin-table th:nth-child(8){width:7%}.device-table-shell .admin-table th:nth-child(9){width:8%}.device-table-shell .admin-table th:nth-child(10){width:5%}.device-table-shell .admin-table th:nth-child(11){width:6%}.device-table-shell .admin-table th:nth-child(12){width:6%}
 .device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link,.device-table-shell .device-id-cell .device-link,.device-table-shell .device-id-cell .cell-sub,.device-table-shell .admin-table td:nth-child(2) .cell-main,.device-table-shell .admin-table td:nth-child(2) .cell-sub{display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .device-table-shell .cell-sub{margin-top:2px}.device-table-shell .cell-sub::before{content:""}
 .device-table-shell .last-sync-cell,.device-table-shell .sync-date,.device-table-shell .sync-time{white-space:normal;overflow:visible;text-overflow:clip;text-align:left}
@@ -757,8 +759,8 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <th>Customer</th>
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Master Status</button></th>
                             <th>Slave Status</th>
-                            <th data-tooltip-key="telemetry">Telemetry</th>
-                            <th data-tooltip-key="signal">Signal</th>
+                            <th>Repeater</th>
+                            <th>Active Data Path</th>
                             <th>Upper Sensor</th>
                             <th>Lower Sensor</th>
                             <th data-tooltip-key="municipal sensor">Municipal Water</th>
@@ -786,8 +788,13 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 {% set slave_node_label = "Online" if device.slave_status_tone == "online" else "Disabled" if device.slave_status_tone == "clear" else "Offline" %}
                                 <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}" data-device-field="slave_status">{{ slave_node_label }}</span>
                             </td>
-                            <td data-device-field="telemetry_status">{{ device.telemetry_status_label or "--" }}</td>
-                            <td data-device-field="wifi_rssi">{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
+                            <td>
+                                <div class="repeater-status-stack">
+                                    <span class="pill node-status-pill pill-{{ device.repeater1_status_tone or 'clear' }}" data-device-field="repeater1_status">R1: {{ device.repeater1_status_label or "Disabled" }}</span>
+                                    <span class="pill node-status-pill pill-{{ device.repeater2_status_tone or 'clear' }}" data-device-field="repeater2_status">R2: {{ device.repeater2_status_label or "Disabled" }}</span>
+                                </div>
+                            </td>
+                            <td><span class="data-path-label" data-device-field="active_data_path">{{ device.active_data_path or "M" }}</span></td>
                             <td>
                                 <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ "Online" if device.upper_sensor_status_tone == "online" else "Disabled" if device.upper_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
@@ -1339,8 +1346,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setTextIfChanged(slave, connectivityLabel(device.slave_status, device.slave_status_tone));
         setPillTone(slave, device.slave_status_tone || "offline");
 
-        setTextIfChanged(row.querySelector('[data-device-field="telemetry_status"]'), device.telemetry_status_label || "--");
-        setTextIfChanged(row.querySelector('[data-device-field="wifi_rssi"]'), device.wifi_rssi ?? "--");
+        const repeater1 = row.querySelector('[data-device-field="repeater1_status"]');
+        setTextIfChanged(repeater1, `R1: ${device.repeater1_status || "Disabled"}`);
+        setPillTone(repeater1, device.repeater1_status_tone || "clear");
+
+        const repeater2 = row.querySelector('[data-device-field="repeater2_status"]');
+        setTextIfChanged(repeater2, `R2: ${device.repeater2_status || "Disabled"}`);
+        setPillTone(repeater2, device.repeater2_status_tone || "clear");
+
+        setTextIfChanged(row.querySelector('[data-device-field="active_data_path"]'), device.active_data_path || "M");
 
         const upper = row.querySelector('[data-device-field="upper_sensor_status"]');
         setTextIfChanged(upper, connectivityLabel(device.upper_sensor_status, device.upper_sensor_status_tone));
@@ -1444,13 +1458,14 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     document.getElementById("export_visible_devices")?.addEventListener("click", () => {
         const rows = deviceRows.filter((row) => !row.classList.contains("hidden-result"));
         const quote = (value) => `"${String(value || "").replaceAll('"','""')}"`;
-        const lines = [["Device ID","Customer","Status","Telemetry","Signal","Tank","Health","Alerts","Last Seen"]];
+        const lines = [["Device ID","Customer","Status","Repeater 1","Repeater 2","Active Data Path","Tank","Health","Alerts","Last Seen"]];
         rows.forEach((row) => lines.push([
             row.dataset.deviceId,
             row.dataset.customer,
             row.dataset.online === "1" ? "Online" : "Offline",
-            row.dataset.telemetry,
-            row.dataset.signal,
+            row.querySelector('[data-device-field="repeater1_status"]')?.textContent.trim(),
+            row.querySelector('[data-device-field="repeater2_status"]')?.textContent.trim(),
+            row.querySelector('[data-device-field="active_data_path"]')?.textContent.trim(),
             row.querySelector('[data-device-field="tank_level"]')?.textContent.trim(),
             `${row.dataset.healthScore}%`,
             row.querySelector('[data-device-field="alerts"]')?.textContent.trim(),

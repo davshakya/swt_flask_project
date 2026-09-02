@@ -3579,6 +3579,51 @@ def admin_reachable_status_fields(enabled, reachable):
     return "Unreachable", "offline"
 
 
+def admin_repeater_status_fields(entry):
+    """Build R1/R2 dashboard states from the controller's route telemetry."""
+    direct_peer_enabled = str(entry.get("direct_peer") or "").strip().lower() not in {"disabled", "off"}
+    raw_hops = entry.get("direct_peer_repeater_hops") or entry.get("direct_peer_repeater_hop_count")
+    try:
+        hop_count = max(0, int(raw_hops)) if direct_peer_enabled else 0
+    except (TypeError, ValueError):
+        hop_count = 0
+
+    route = str(entry.get("direct_peer_route") or entry.get("direct_peer_path") or "").strip().upper()
+    if direct_peer_enabled and ("2_REPEATER" in route or "TWO_REPEATER" in route):
+        hop_count = max(hop_count, 2)
+    elif direct_peer_enabled and "REPEATER" in route:
+        hop_count = max(hop_count, 1)
+
+    try:
+        repeater_age = int(entry.get("direct_peer_repeater_last_packet_age_s"))
+    except (TypeError, ValueError):
+        repeater_age = -1
+    # Older installed firmware only provides a shared repeater heartbeat.
+    if direct_peer_enabled and hop_count == 0 and repeater_age >= 0:
+        hop_count = 1
+
+    repeater_fresh = boolish_enabled(entry.get("direct_peer_repeater_reachable"), default=False)
+    result = {}
+    for index in (1, 2):
+        enabled = hop_count >= index
+        label = "Online" if enabled and repeater_fresh else "Offline" if enabled else "Disabled"
+        result[f"repeater{index}_status_label"] = label
+        result[f"repeater{index}_status_tone"] = (
+            "online" if label == "Online" else "offline" if label == "Offline" else "clear"
+        )
+    slave_reachable = str(entry.get("slave_status_tone") or "").strip().lower() == "online"
+    result["active_data_path"] = (
+        "M"
+        if not slave_reachable
+        else "M ↔ R1 ↔ R2 ↔ S"
+        if repeater_fresh and hop_count >= 2
+        else "M ↔ R1 ↔ S"
+        if repeater_fresh and hop_count >= 1
+        else "M ↔ S"
+    )
+    return result
+
+
 def admin_municipal_sensor_status_fields(entry, service_config=None):
     service_config = service_config or {}
     online = admin_device_is_online(entry)
@@ -4029,6 +4074,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         )
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
+        entry.update(admin_repeater_status_fields(entry))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
         entry.update(admin_device_health_fields(entry))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
@@ -19326,6 +19372,11 @@ def admin_customers_device_table_json():
                 "master_status_tone": device.get("master_status_tone") or "offline",
                 "slave_status": slave_node_label,
                 "slave_status_tone": device.get("slave_status_tone") or "offline",
+                "repeater1_status": device.get("repeater1_status_label") or "Disabled",
+                "repeater1_status_tone": device.get("repeater1_status_tone") or "clear",
+                "repeater2_status": device.get("repeater2_status_label") or "Disabled",
+                "repeater2_status_tone": device.get("repeater2_status_tone") or "clear",
+                "active_data_path": device.get("active_data_path") or "M",
                 "telemetry_status": device.get("telemetry_status") or "no-data",
                 "telemetry_status_label": device.get("telemetry_status_label") or "--",
                 "wifi_rssi": device.get("wifi_rssi") if device.get("wifi_rssi") is not None else "--",

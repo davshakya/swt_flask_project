@@ -1766,6 +1766,13 @@ def test_admin_dashboard_renders_online_offline_pie_chart():
 def test_admin_dashboard_uses_compact_aligned_layout():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
+    assert "<th>Repeater</th>" in admin_template
+    assert '<th data-tooltip-key="telemetry">Telemetry</th>' not in admin_template
+    assert '<th data-tooltip-key="signal">Signal</th>' not in admin_template
+    assert 'data-device-field="repeater1_status"' in admin_template
+    assert 'data-device-field="repeater2_status"' in admin_template
+    assert "<th>Active Data Path</th>" in admin_template
+    assert 'data-device-field="active_data_path"' in admin_template
     assert ".admin-control-room{padding:14px}" in admin_template
     assert ".hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:16px;align-items:start}" in admin_template
     assert ".hero-panel{padding:18px}" in admin_template
