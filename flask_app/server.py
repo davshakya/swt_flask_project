@@ -2386,8 +2386,31 @@ def register_active_platform_session(platform, role, username=None, device_id=No
     active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
     active_sessions = [item for item in active_sessions if item != next_session_id]
     active_sessions.append(next_session_id)
+    # Mobile tokens are bearer credentials. Retain only the newest sessions
+    # allowed for this customer, so a new phone displaces the oldest phone.
+    session_limit = active_platform_session_limit(
+        platform,
+        role,
+        username=username,
+        device_id=device_id,
+    )
+    active_sessions = active_sessions[-session_limit:]
     set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions))
     return next_session_id
+
+
+def enforce_active_platform_session_limit(platform, role, username=None, device_id=None):
+    """Remove oldest sessions after an administrator lowers the allowed count."""
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return 0
+    active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    retained_sessions = active_sessions[-session_limit:]
+    removed_count = len(active_sessions) - len(retained_sessions)
+    if removed_count:
+        set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
+    return removed_count
 
 
 def active_platform_session_matches(platform, role, username=None, device_id=None, session_id=None):
@@ -2398,6 +2421,11 @@ def active_platform_session_matches(platform, role, username=None, device_id=Non
     if not setting_key:
         return False
     active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    retained_sessions = active_sessions[-session_limit:]
+    if retained_sessions != active_sessions:
+        set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
+        active_sessions = retained_sessions
     return any(secrets.compare_digest(active_session_id, supplied_session_id) for active_session_id in active_sessions)
 
 
@@ -9204,13 +9232,9 @@ def resolve_mobile_user():
             device_id=device_id,
             session_id=platform_session_id,
         ):
-            register_active_platform_session(
-                SESSION_PLATFORM_ANDROID,
-                "customer",
-                username=device_id,
-                device_id=device_id,
-                session_id=platform_session_id,
-            )
+            g.mobile_auth_error = "session_replaced"
+            g.mobile_user = None
+            return None
         service_config = fetch_device_service_config(
             device_id,
             account=customer,
@@ -21590,6 +21614,13 @@ def admin_device_detail_configuration(device_id):
             status_code=500,
         )
 
+    expired_android_sessions = enforce_active_platform_session_limit(
+        SESSION_PLATFORM_ANDROID,
+        "customer",
+        username=scoped_device_id,
+        device_id=scoped_device_id,
+    )
+
     queued_command = build_device_service_command(updated_config)
     logger.info(
         "Admin water features saved: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s command=%s",
@@ -21654,7 +21685,7 @@ def admin_device_detail_configuration(device_id):
                 "simulator_off_commands": simulator_off_commands,
                 "automatic_simulator_commands": automatic_simulator_commands,
                 "automatic_simulator_errors": automatic_simulator_errors,
-                "android_sessions_preserved": True,
+                "android_sessions_expired": expired_android_sessions,
             },
         )
     except Exception as exc:

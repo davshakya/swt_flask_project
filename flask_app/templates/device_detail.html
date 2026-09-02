@@ -347,7 +347,7 @@ body{font-size:16px}
                             <label for="android_sso_session_limit">Android SSO Device Count</label>
                             <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
                         </div>
-                        <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached.</div>
+                        <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached; lowering the count signs out the oldest sessions immediately.</div>
                         <div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div>
                     </div>
                     <div class="config-section" id="pumpConfirmationSensors">
