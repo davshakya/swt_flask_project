@@ -455,7 +455,18 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .table-toolbar{flex-wrap:nowrap}
 }
 @media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
-</style>
+  /* Center table content on both axes and remove visual gaps between columns. */
+  .admin-table{border-spacing:0}
+  .admin-table th,.admin-table td{text-align:center;vertical-align:middle;padding-left:2px;padding-right:2px}
+  .admin-table th>*,.admin-table td>*{margin-left:auto;margin-right:auto}
+  .admin-table thead .sort-button{justify-content:center;text-align:center;white-space:nowrap}
+  .device-table-shell .admin-table th:nth-child(3),
+  .device-table-shell .admin-table th:nth-child(3) .sort-button{white-space:nowrap;overflow:visible}
+  @media(min-width:1400px){
+    .device-table-shell .admin-table th:nth-child(3){width:8%}
+    .device-table-shell .admin-table th:nth-child(7){width:10%}
+  }
+  </style>
 {% include '_theme_overrides.html' %}
 </head>
 <body class="admin-control-room">

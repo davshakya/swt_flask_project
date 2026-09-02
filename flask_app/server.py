@@ -222,8 +222,17 @@ DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
 DEVICE_LOCAL_WEB_PASSWORD_PREFIX = "device_local_web_password:"
-DEFAULT_DEVICE_AUTO_START_PCT = 30.0
-DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
+PUMP_CONTROL_CONTRACT_PATH = Path(__file__).resolve().parents[2] / "config" / "pump_control.json"
+with PUMP_CONTROL_CONTRACT_PATH.open(encoding="utf-8") as pump_control_contract_file:
+    PUMP_CONTROL_CONTRACT = json.load(pump_control_contract_file)
+PUMP_AUTO_START_CONTRACT = PUMP_CONTROL_CONTRACT["auto_start_pct"]
+PUMP_AUTO_STOP_CONTRACT = PUMP_CONTROL_CONTRACT["auto_stop_pct"]
+DEFAULT_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["default"])
+DEFAULT_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["default"])
+MIN_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["minimum"])
+MAX_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["maximum"])
+MIN_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["minimum"])
+MAX_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["maximum"])
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
 DEVICE_SOURCE_REAL = "real"
@@ -3646,7 +3655,7 @@ def admin_repeater_status_fields(entry):
     result["active_data_path"] = (
         "M"
         if not slave_reachable
-        else "M <-> WIFI_LAN <-> Slave"
+        else "M ↔ WIFI_LAN ↔ S"
         if route_is_lan
         else "M ↔ R1 ↔ R2 ↔ S"
         if repeater_fresh and hop_count >= 2
@@ -8762,7 +8771,9 @@ def snapshot_device_automation_settings(snapshot, device_id=None):
     )
     if auto_start_pct is None or auto_stop_pct is None:
         return None
-    if auto_start_pct < 0 or auto_start_pct > 95 or auto_stop_pct < 5 or auto_stop_pct > 100 or auto_start_pct >= auto_stop_pct:
+    if (auto_start_pct < MIN_DEVICE_AUTO_START_PCT or auto_start_pct > MAX_DEVICE_AUTO_START_PCT
+            or auto_stop_pct < MIN_DEVICE_AUTO_STOP_PCT or auto_stop_pct > MAX_DEVICE_AUTO_STOP_PCT
+            or auto_start_pct >= auto_stop_pct):
         return None
     return build_device_automation_settings(
         device_id or snapshot.get("device_id"),
@@ -8916,10 +8927,10 @@ def upsert_device_automation_settings(device_id, auto_start_pct=None, auto_stop_
     if resolved_stop is None:
         resolved_stop = safe_float(existing.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
 
-    if resolved_start < 0 or resolved_start > 95:
-        raise ValueError("Start level must be between 0 and 95%.")
-    if resolved_stop < 5 or resolved_stop > 100:
-        raise ValueError("Stop level must be between 5 and 100%.")
+    if resolved_start < MIN_DEVICE_AUTO_START_PCT or resolved_start > MAX_DEVICE_AUTO_START_PCT:
+        raise ValueError(f"Start level must be between {MIN_DEVICE_AUTO_START_PCT:g} and {MAX_DEVICE_AUTO_START_PCT:g}%.")
+    if resolved_stop < MIN_DEVICE_AUTO_STOP_PCT or resolved_stop > MAX_DEVICE_AUTO_STOP_PCT:
+        raise ValueError(f"Stop level must be between {MIN_DEVICE_AUTO_STOP_PCT:g} and {MAX_DEVICE_AUTO_STOP_PCT:g}%.")
     if resolved_start >= resolved_stop:
         raise ValueError("Start level must stay below stop level.")
 
@@ -21261,6 +21272,7 @@ def device_detail_page(device_id):
         customer_account=account,
         service_config=service_config,
         automation_settings=automation_settings,
+        pump_threshold_contract=PUMP_CONTROL_CONTRACT,
         current_saved_config=current_saved_config,
         system_status=system_status,
         peer_channel_input_value=peer_channel_input_value,
