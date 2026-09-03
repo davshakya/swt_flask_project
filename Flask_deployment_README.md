@@ -109,6 +109,7 @@ Upload the whole project folder, including:
 - `passenger_wsgi.py`
 - `requirements.txt`
 - `flask_app/`
+- `config/pump_control.json`
 - `device.env`
 
 Do not upload:
@@ -177,6 +178,8 @@ Why:
 
 Create `device.env` before first production boot, starting from
 `device.env.example`. Legacy `.env` and `flask_app/.env` files are not loaded.
+
+The tracked `config/pump_control.json` file is also required. Do not create it manually on the server and do not place it in `/home/<user>/repositories/config`; it must deploy as `<application-root>/config/pump_control.json`. Passenger imports this file during startup.
 
 ### Recommended `device.env` values
 
@@ -445,6 +448,10 @@ After the basic smoke test, also verify:
 ## Common Problems
 
 ### 500 Internal Server Error
+
+If the Passenger log contains `FileNotFoundError` for `config/pump_control.json`, the deployment omitted the tracked config directory or used an older upload filter. Upload the complete `config/` directory, confirm `<application-root>/config/pump_control.json` exists, and restart the Python application.
+
+The warning `Telemetry history is capped at 65000 rows` is informational and does not cause an HTTP 500. MySQL `server has gone away`, connection resets, and lock-wait timeouts are separate database-capacity/connection issues; investigate them only after the application imports successfully.
 
 Check:
 

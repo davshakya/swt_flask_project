@@ -269,6 +269,12 @@ Useful first URLs:
 
 ## Configuration Loading
 
+### Pump automation configuration
+
+The tracked [`config/pump_control.json`](config/pump_control.json) file defines the shared bootstrap defaults and validation bounds for Flask, Android, and firmware. Its current defaults are start at or below `30%` and stop at or above `95%`. Do not move it above this project directory: cPanel deploys this repository independently and Passenger loads the file at import time.
+
+For an installed device, the `device_service_configs.auto_start_pct` and `auto_stop_pct` columns are authoritative. The admin device page and `GET/POST /api/mobile/device/thresholds` read/write the same record and queue `THRESHOLDS:<start>:<stop>` to firmware. A live snapshot may seed an unset record but does not replace an existing saved value.
+
 The app reads local configuration from one canonical file:
 
 1. `./device.env`

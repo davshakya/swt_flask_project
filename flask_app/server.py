@@ -17096,13 +17096,15 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
         # enough for the normal reconnect/poll recovery path.
         expires_in_seconds = 600 if desired_state in {"ON", "OFF"} else 300
     expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
-    # Diagnostic pings must not sit behind a batch of simulator/configuration
-    # commands. The browser waits for a nonce-matched result, so deliver pings
-    # after safety-critical pump commands but ahead of routine configuration.
-    if normalized_family in {"ping_master", "ping_slave"}:
+    # Explicit pump commands always preempt automation, schedules, diagnostics,
+    # simulator actions, and configuration work. The shared pump family also
+    # coalesces older pending ON/OFF requests so the latest operator intent wins.
+    if normalized_family == "pump":
+        priority = 1000
+    elif normalized_family in {"ping_master", "ping_slave"}:
         priority = 40
     else:
-        priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
+        priority = 10
     with get_db() as db:
         existing_request = db.execute(
             "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",

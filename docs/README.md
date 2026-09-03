@@ -1,5 +1,7 @@
 # SaleWell Smart Tank Documentation
 
+The workspace-wide maintained-source index is [`../../docs/DOCUMENTATION_INDEX.md`](../../docs/DOCUMENTATION_INDEX.md).
+
 Last refreshed: `2026-08-24`
 
 Municipal-water documentation uses the shared status vocabulary: `Available`,
@@ -30,6 +32,11 @@ Choose the document that matches your work. Customer instructions use simple lan
 - [Deployment Guide](../Flask_deployment_README.md): cPanel/Passenger upload, configuration, restart, and deployment checks.
 
 ## Document rules
+
+- The cross-platform pump-control contract is [`../config/pump_control.json`](../config/pump_control.json); documentation may explain its values but must not become a competing source of truth.
+- cPanel instructions must include the tracked `config/` directory because Passenger loads the pump contract during startup.
+- UI path names use `M`, `S`, `R1`, `R2`, and `WIFI_LAN` consistently across Flask and Android.
+- Markdown and HTML files are maintained sources. Regenerate derived PDF/DOCX artifacts through their source scripts when their content changes.
 
 - Keep customer instructions short and free of internal credentials.
 - Keep prices and plan details in the FAQ and chatbot knowledge base synchronized.
