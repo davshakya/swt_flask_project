@@ -16,7 +16,8 @@ def test_start_and_stop_share_highest_priority_latest_intent_queue():
 def test_firmware_manual_commands_keep_hard_safety_interlocks():
     firmware = (Path(__file__).resolve().parents[2] / "swt_firmware_project" / "src" / "two_node_udp.cpp").read_text(encoding="utf-8")
     assert "const bool manualStartCommand = starterPanelManualStartReason(reason);" in firmware
-    assert 'if (upperHighFloatAvailable && upperHighFloatActive) return "UPPER_HIGH_FLOAT_ACTIVE";' in firmware
-    assert "if (SWT_FEATURE_SOURCE_LOW_FLOAT" in firmware
+    assert "upperHighFloatAvailable && upperHighFloatActive," in firmware
+    assert "SWT_FEATURE_SOURCE_LOW_FLOAT && SOURCE_LOW_FLOAT_PIN >= 0 && sourceLowFloatActive," in firmware
+    assert "FirmwareLogic::pumpStartBlockReason(" in firmware
     assert "const char* startBlockReason = on ? pumpStartBlockReason() : nullptr;" in firmware
     assert 'strcmp(reason, "upper_tank_high") == 0' in firmware

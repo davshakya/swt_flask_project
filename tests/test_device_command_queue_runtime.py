@@ -40,7 +40,7 @@ def test_motorized_valve_feature_defaults_off_and_persists_independently():
         assert saved["municipal_sensor_enabled"] is True
         assert saved["municipal_valve_enabled"] is True
         assert saved["source_outlet_valve_enabled"] is True
-        assert server.build_device_service_command(saved).startswith("SERVICECFG11:")
+        assert server.build_device_service_command(saved).startswith("SERVICECFG12:")
         fields = server.build_device_service_command(saved).split(":")
         assert fields[13:15] == ["1", "1"]
     finally:
@@ -61,7 +61,7 @@ def test_municipal_detection_sensors_are_mutually_exclusive():
         )
         assert saved["water_flow_sensor_enabled"] is True
         assert saved["water_pressure_sensor_enabled"] is False
-        assert server.build_device_service_command(saved).split(":")[-2:] == ["1", "0"]
+        assert server.build_device_service_command(saved).split(":")[-3:-1] == ["1", "0"]
 
         saved = server.upsert_device_service_config(
             device_id,
@@ -71,7 +71,7 @@ def test_municipal_detection_sensors_are_mutually_exclusive():
         )
         assert saved["water_flow_sensor_enabled"] is False
         assert saved["water_pressure_sensor_enabled"] is True
-        assert server.build_device_service_command(saved).split(":")[-2:] == ["0", "1"]
+        assert server.build_device_service_command(saved).split(":")[-3:-1] == ["0", "1"]
 
         saved = server.upsert_device_service_config(
             device_id,
@@ -130,9 +130,28 @@ def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg9(mon
     )
     sync = server.build_runtime_sync_command(device_id, snapshot=old_snapshot)
     assert sync == {"command": server.build_device_service_command(desired), "reason": "service_config"}
-    assert sync["command"].startswith("SERVICECFG11:")
+    assert sync["command"].startswith("SERVICECFG12:")
     fields = sync["command"].split(":")
     assert fields[11:15] == ["1", "1", "0", "0"]
+
+
+def test_multi_tank_service_defaults_off_and_can_be_enabled_from_flask():
+    device_id = "swt-multi-tank-service-001"
+    with server.get_db() as db:
+        server.ensure_device_multi_tank_configs_table(db)
+        db.execute("DELETE FROM device_multi_tank_configs WHERE device_id = ?", (device_id,))
+    try:
+        assert server.fetch_device_service_config(device_id)["multi_tank_enabled"] is False
+        server.set_device_multi_tank_enabled(device_id, True)
+        enabled = server.fetch_device_service_config(device_id)
+        assert enabled["multi_tank_enabled"] is True
+        assert server.build_device_service_command(enabled).startswith("SERVICECFG12:")
+        assert server.build_device_service_command(enabled).split(":")[-1] == "1"
+        server.set_device_multi_tank_enabled(device_id, False)
+        assert server.fetch_device_service_config(device_id)["multi_tank_enabled"] is False
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_multi_tank_configs WHERE device_id = ?", (device_id,))
 
 
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():

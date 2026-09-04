@@ -45,9 +45,10 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
         "def device_automation_settings_key(device_id):",
     )
     assert 'municipal_sensor_enabled = bool(config.get("municipal_sensor_enabled", False))' in build_block
-    assert "SERVICECFG11:" in build_block
+    assert "SERVICECFG12:" in build_block
     assert 'name="municipal_valve_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert 'name="source_outlet_valve_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert 'name="multi_tank_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert "municipal_valve=1 if municipal_valve_enabled else 0" in build_block
     assert "source_outlet_valve=1 if source_outlet_valve_enabled else 0" in build_block
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block
@@ -83,5 +84,5 @@ def test_optional_confirmation_sensors_are_admin_configurable_and_transported():
         "def build_device_service_command(service_config):",
         "def device_automation_settings_key(device_id):",
     )
-    assert "SERVICECFG11:" in build_block
-    assert ":{starter_aux}:{motor_current}:{water_flow}:{water_pressure}" in build_block
+    assert "SERVICECFG12:" in build_block
+    assert ":{starter_aux}:{motor_current}:{water_flow}:{water_pressure}:{multi_tank}" in build_block

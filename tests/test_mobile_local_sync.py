@@ -266,12 +266,14 @@ def test_mobile_bootstrap_can_trigger_android_firmware_upgrade():
     assert '"mobile_action": pop_device_mobile_action(scoped_device_id)' in server_source
     assert '@app.route("/devices/<device_id>/mobile/firmware-upgrade", methods=["POST"])' in server_source
     assert "def admin_device_detail_mobile_firmware_upgrade(device_id):" in server_source
-    assert '"message": "Flask requested a firmware upgrade."' in server_source
+    assert '"message": f"Flask requested a {requested_role} firmware upgrade."' in server_source
     assert "scheduleRemoteFirmwareUpgradeIfRequested(payload)" in android_source
     assert 'optJSONObject("mobile_action")' in android_source
+    assert 'mobileAction.optJSONObject("payload")' in android_source
     assert 'optString("message")' in android_source
+    assert 'optString("firmware_role")' in android_source
     assert "local_firmware_upgrade_requested_from_flask" in android_source
-    assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true)" in android_source
+    assert "startAutomaticLocalFirmwareUpgrade(triggeredByFlask = true, requestedRoles = requestedRoles)" in android_source
     assert '"START_FIRMWARE_UPGRADE"' in android_source
 
 
@@ -300,6 +302,32 @@ def test_android_firmware_upgrade_action_is_queued_with_a_complete_result():
         assert queued is not None
         assert queued["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
         assert '"source":"device_detail"' in queued["payload_json"]
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
+
+
+def test_android_firmware_upgrade_action_exposes_selected_role_to_mobile_client():
+    device_id = "swt-test-mobile-ota-role-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))
+
+    try:
+        queued = server.queue_device_mobile_action(
+            server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
+            device_id,
+            payload={"message": "Upgrade the slave.", "firmware_role": "slave"},
+        )
+        assert not isinstance(queued, tuple)
+
+        action = server.pop_device_mobile_action(device_id)
+
+        assert action is not None
+        assert action["action"] == server.MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE
+        assert action["message"] == "Upgrade the slave."
+        assert action["firmware_role"] == "slave"
+        assert action["payload"]["firmware_role"] == "slave"
+        assert server.pop_device_mobile_action(device_id) is None
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM device_mobile_action_queue WHERE target_device = ?", (device_id,))

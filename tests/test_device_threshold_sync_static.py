@@ -159,7 +159,7 @@ def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     assert '"direct_peer_repeater_reachable": "INTEGER"' in schema_source
     assert '"direct_peer_repeater_last_packet_age_s": "INTEGER"' in schema_source
 
-    assert 'DB_SCHEMA_REVISION = "2026-08-30-direct-peer-repeater-columns-v2"' in source
+    assert 'DB_SCHEMA_REVISION = "2026-09-04-multi-tank-service-v1"' in source
     assert "def mysql_tank_data_schema_is_current(db):" in source
     init_start = source.index("def init_db_serialized():")
     init_source = source[init_start : source.index("\n\ndef ensure_tank_data_columns", init_start)]
@@ -195,7 +195,7 @@ def test_device_service_config_table_persists_shared_device_settings_via_upsert(
 
     build_start = source.index("def build_device_service_command(service_config):")
     build_source = source[build_start : source.index("\n\ndef device_automation_settings_key", build_start)]
-    assert "SERVICECFG11:" in build_source
+    assert "SERVICECFG12:" in build_source
     assert "municipal_sensor_enabled" in build_source
     assert "turbidity_monitoring_enabled" in build_source
     assert "master_turbidity_enabled" in build_source

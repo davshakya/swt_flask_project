@@ -2104,6 +2104,7 @@ def purge_device_data_fallback(cursor, normalized_device_id):
         ("registered_devices", "device_id"),
         ("device_auth_keys", "device_id"),
         ("device_service_configs", "device_id"),
+        ("device_multi_tank_configs", "device_id"),
         ("device_command_queue", "target_device"),
         ("device_mobile_action_queue", "target_device"),
         ("customer_accounts", "device_id"),
@@ -5986,7 +5987,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-09-02-peer-lan-route-v1"
+DB_SCHEMA_REVISION = "2026-09-04-multi-tank-service-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
     "direct_peer_repeater_reachable",
     "direct_peer_repeater_last_packet_age_s",
@@ -6694,6 +6695,18 @@ def ensure_device_service_configs_table(cursor):
     )
 
 
+def ensure_device_multi_tank_configs_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_multi_tank_configs(
+            device_id VARCHAR(64) PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
     added_auto_mode_enabled = False
@@ -7083,6 +7096,7 @@ def init_db():
         ensure_survey_responses_columns(cursor)
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
+        ensure_device_multi_tank_configs_table(cursor)
         ensure_registered_devices_table(cursor)
         ensure_device_auth_keys_table(cursor)
         ensure_ignored_devices_table(cursor)
@@ -7837,6 +7851,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
     municipal_valve_enabled = boolish_enabled(payload.get("municipal_valve_enabled"), default=False)
     source_outlet_valve_enabled = boolish_enabled(payload.get("source_outlet_valve_enabled"), default=False)
+    multi_tank_enabled = boolish_enabled(payload.get("multi_tank_enabled"), default=False)
     starter_contactor_sensor_enabled = boolish_enabled(payload.get("starter_contactor_sensor_enabled"), default=False)
     motor_current_sensor_enabled = boolish_enabled(payload.get("motor_current_sensor_enabled"), default=False)
     water_flow_sensor_enabled = boolish_enabled(payload.get("water_flow_sensor_enabled"), default=False)
@@ -7910,6 +7925,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "municipal_sensor_enabled": municipal_sensor_enabled,
         "municipal_valve_enabled": municipal_valve_enabled,
         "source_outlet_valve_enabled": source_outlet_valve_enabled,
+        "multi_tank_enabled": multi_tank_enabled,
         "starter_contactor_sensor_enabled": starter_contactor_sensor_enabled,
         "motor_current_sensor_enabled": motor_current_sensor_enabled,
         "water_flow_sensor_enabled": water_flow_sensor_enabled,
@@ -7984,6 +8000,7 @@ def default_device_service_config(device_id=None, account=None):
             "municipal_sensor_enabled": False,
             "municipal_valve_enabled": False,
             "source_outlet_valve_enabled": False,
+            "multi_tank_enabled": False,
             "starter_contactor_sensor_enabled": False,
             "motor_current_sensor_enabled": False,
             "water_flow_sensor_enabled": False,
@@ -8184,6 +8201,13 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         if row
         else default_device_service_config(normalized_device_id, account=resolved_account)
     )
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        multi_tank_row = db.execute(
+            "SELECT enabled FROM device_multi_tank_configs WHERE device_id = ?",
+            (normalized_device_id,),
+        ).fetchone()
+    stored_config["multi_tank_enabled"] = bool(multi_tank_row and int(multi_tank_row["enabled"] or 0))
     live_config = snapshot_device_service_config(
         snapshot,
         device_id=normalized_device_id,
@@ -8191,6 +8215,24 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         existing=stored_config,
     )
     return live_config or stored_config
+
+
+def set_device_multi_tank_enabled(device_id, enabled):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        db.execute(
+            """
+            INSERT INTO device_multi_tank_configs(device_id, enabled, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                enabled=excluded.enabled,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, 1 if boolish_enabled(enabled, default=False) else 0),
+        )
 
 
 def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):
@@ -8236,6 +8278,15 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         )
         for row in rows
     }
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        multi_rows = db.execute(
+            "SELECT device_id, enabled FROM device_multi_tank_configs"
+        ).fetchall()
+    for multi_row in multi_rows:
+        multi_device_id = normalize_device_id(multi_row["device_id"])
+        if multi_device_id in configs:
+            configs[multi_device_id]["multi_tank_enabled"] = bool(int(multi_row["enabled"] or 0))
     if normalized_device_ids:
         for normalized_device_id in normalized_device_ids:
             configs.setdefault(
@@ -8667,7 +8718,7 @@ def build_device_service_command(service_config):
     water_pressure_sensor_enabled = municipal_sensor_enabled and bool(config.get("water_pressure_sensor_enabled")) and not water_flow_sensor_enabled
     if municipal_sensor_enabled and not water_flow_sensor_enabled and not water_pressure_sensor_enabled:
         water_flow_sensor_enabled = True
-    return "SERVICECFG11:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}".format(
+    return "SERVICECFG12:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}:{multi_tank}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -8686,6 +8737,7 @@ def build_device_service_command(service_config):
         motor_current=1 if bool(config.get("motor_current_sensor_enabled")) else 0,
         water_flow=1 if water_flow_sensor_enabled else 0,
         water_pressure=1 if water_pressure_sensor_enabled else 0,
+        multi_tank=1 if bool(config.get("multi_tank_enabled", False)) else 0,
     )
 
 
@@ -15735,7 +15787,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = [
             "master upper",
@@ -15748,16 +15800,18 @@ def describe_command_activity(command):
             "local upload",
             "auto mode",
         ]
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
             labels.extend(("lower turbidity", "upper turbidity"))
         elif normalized.startswith("SERVICECFG7:"):
             labels.append("turbidity monitoring")
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:"):
             labels.extend(("inlet motorized valve", "outlet motorized valve"))
-            if normalized.startswith("SERVICECFG11:"):
+            if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:"):
                 labels.extend(("starter auxiliary sensor", "motor current sensor", "water flow sensor", "water pressure sensor"))
+                if normalized.startswith("SERVICECFG12:"):
+                    labels.append("multi-tank destination valves")
         elif normalized.startswith("SERVICECFG9:"):
             labels.append("inlet motorized valve")
 
@@ -17503,7 +17557,11 @@ def pop_device_mobile_action(device_id):
             payload = {"value": payload}
     except (TypeError, ValueError, json.JSONDecodeError):
         payload = {}
+    # Keep payload fields at the top level for mobile clients while retaining the
+    # nested payload for callers that consume the queue's generic envelope.
+    # Canonical queue metadata is applied last so a payload cannot replace it.
     return {
+        **payload,
         "id": row["id"],
         "action": row["action"],
         "payload": payload,
@@ -21574,6 +21632,7 @@ def admin_device_detail_configuration(device_id):
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
     municipal_valve_enabled = "municipal_valve_enabled" in request.form
     source_outlet_valve_enabled = "source_outlet_valve_enabled" in request.form
+    multi_tank_enabled = "multi_tank_enabled" in request.form
     auto_mode_enabled = "auto_mode_enabled" in request.form
     if setup_features is not None:
         source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
@@ -21618,6 +21677,8 @@ def admin_device_detail_configuration(device_id):
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
+        set_device_multi_tank_enabled(scoped_device_id, multi_tank_enabled)
+        updated_config = fetch_device_service_config(scoped_device_id, snapshot=snapshot)
     except ValueError as exc:
         return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
     except Exception as exc:
