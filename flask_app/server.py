@@ -74,7 +74,11 @@ from flask_app.firmware_artifacts import (
     validate_firmware_binary_role,
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
-from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.mobile_firmware_routes import (
+    build_ota_authorization,
+    firmware_role_device_id,
+    register_mobile_firmware_routes,
+)
 from flask_app.device_key_vault import decrypt_device_key, encrypt_device_key
 from flask_app.rag_routes import public_chat_blueprint, rag_blueprint
 from flask_app.runtime_utils import (
@@ -16926,6 +16930,86 @@ def fetch_latest_firmware_artifacts_by_role(device_id):
     return {role: fetch_latest_firmware_artifact(device_id, role=role) for role in FIRMWARE_ARTIFACT_ROLES}
 
 
+def direct_lan_firmware_target(snapshot, role):
+    """Return a reported, private LAN URL for a directly connected controller."""
+    snapshot = snapshot or {}
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role == "master":
+        candidate = snapshot.get("device_local_url") or snapshot.get("local_device_url") or snapshot.get("device_ip_url")
+    elif normalized_role == "slave":
+        candidate = snapshot.get("direct_peer_remote_ip")
+    else:
+        return None
+    base_url = normalize_device_base_url(candidate)
+    return base_url if is_private_device_base_url(base_url) else None
+
+
+def install_firmware_artifact_over_lan(device_id, role, snapshot=None):
+    """Upload the latest role-specific artifact directly to its reported LAN IP."""
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in {"master", "slave"}:
+        raise ValueError("Direct LAN installation supports master or slave firmware only.")
+    service_config = fetch_device_service_config(normalized_device_id)
+    if not service_config.get("local_firmware_upload_enabled", False):
+        raise ValueError("Enable Local firmware upload before installing firmware over LAN.")
+    artifact = fetch_latest_firmware_artifact(normalized_device_id, role=normalized_role)
+    if not artifact:
+        raise ValueError(f"Upload a {normalized_role} firmware binary in Flask before installing it over LAN.")
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        raise ValueError(f"The stored {normalized_role} firmware file is missing.")
+    snapshot = snapshot if snapshot is not None else fetch_device_snapshot(normalized_device_id)
+    base_url = direct_lan_firmware_target(snapshot, normalized_role)
+    if not base_url:
+        label = "Local Device IP" if normalized_role == "master" else "Slave Device IP"
+        raise ValueError(f"No valid private {label} has been reported by this device.")
+    target_device_id = firmware_role_device_id(normalized_device_id, normalized_role)
+    device_key = configured_device_key_for_id(target_device_id) or configured_device_key_for_id(normalized_device_id)
+    authorization = build_ota_authorization(target_device_id, artifact, device_key)
+    if authorization is None:
+        raise ValueError(
+            f"OTA authorization is not configured for {target_device_id}. "
+            "Let it complete an authenticated cloud check-in, then retry."
+        )
+    headers = {
+        "User-Agent": "SmartWaterTank-Flask-LAN-Installer/1.0",
+        "Connection": "close",
+        "X-OTA-Device-Id": authorization["device_id"],
+        "X-OTA-Artifact-Id": str(authorization["artifact_id"]),
+        "X-OTA-Version": authorization["version"],
+        "X-OTA-MD5": authorization["md5"],
+        "X-OTA-Expires": str(authorization["expires_at"]),
+        "X-OTA-Signature": authorization["signature"],
+        "X-OTA-Size": str(int(artifact.get("size_bytes") or storage_path.stat().st_size)),
+    }
+    endpoint = f"{base_url}/api/ota/update"
+    with storage_path.open("rb") as firmware_stream:
+        response = requests.post(
+            endpoint,
+            headers=headers,
+            files={"firmware_file": (
+                artifact.get("original_filename") or f"{normalized_role}-firmware.bin",
+                firmware_stream,
+                artifact.get("content_type") or "application/octet-stream",
+            )},
+            timeout=(10, 300),
+            allow_redirects=False,
+        )
+    if not 200 <= response.status_code < 300:
+        detail = str(response.text or "").strip()[:240]
+        raise ValueError(
+            f"{normalized_role.title()} rejected the firmware upload (HTTP {response.status_code})"
+            + (f": {detail}" if detail else ".")
+        )
+    return {
+        "role": normalized_role,
+        "endpoint": endpoint,
+        "version": artifact.get("version_label") or "unknown",
+        "artifact_id": artifact.get("id"),
+    }
+
+
 def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None):
     return build_firmware_artifact_response_payload(
         artifact,
@@ -20515,6 +20599,45 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
                     f"Android OTA trigger queued for {scoped_device_id} ({requested_role}). "
                     "The Android app will start its next firmware upgrade sync on the next cloud refresh."
                 )
+
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id or device_id,
+            config_error=config_error or "",
+            config_message=config_message or "",
+        )
+    )
+
+
+@app.route("/devices/<device_id>/firmware/lan-install", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_lan_firmware_install(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    config_error = None
+    config_message = None
+    role = request.form.get("firmware_role", "master", type=str).strip().lower()
+    if not scoped_device_id:
+        config_error = "Choose a valid device before installing firmware over LAN."
+    else:
+        try:
+            result = install_firmware_artifact_over_lan(scoped_device_id, role)
+            log_audit_event(
+                actor=current_actor_username(),
+                action="install_device_firmware_over_lan",
+                target_type="device",
+                target_id=scoped_device_id,
+                device_id=scoped_device_id,
+                details=result,
+            )
+            config_message = (
+                f"{result['role'].title()} firmware {result['version']} was accepted over LAN. "
+                "The controller will verify, install, and restart."
+            )
+        except (ValueError, OSError, requests.RequestException) as exc:
+            logger.warning("LAN firmware installation failed for %s/%s: %s", scoped_device_id, role, exc)
+            config_error = f"LAN firmware installation failed: {exc}"
 
     return redirect(
         url_for(

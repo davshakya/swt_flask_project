@@ -31,6 +31,8 @@
 @media (max-width:1100px){.firmware-upload-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:820px){.firmware-upload-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.hero-head{align-items:flex-start}.hero-actions{width:100%;justify-content:flex-start}.hero-actions form,.hero-actions .btn{width:auto}.summary-grid,.admin-grid{grid-template-columns:1fr}.admin-form .btn,.config-form>.btn{width:100%;justify-self:stretch;max-width:none}.tank-setup-actions{grid-template-columns:1fr}.info-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+#multiTankConfiguration{width:100%}#multiTankConfiguration>.config-sections{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:15px;overflow:hidden;background:rgba(255,255,255,.12)}#multiTankConfiguration>.config-sections>.config-section{border:0;border-radius:0;background:transparent;padding:14px 16px}#multiTankConfiguration>.config-sections>.config-section+ .config-section{border-left:1px solid var(--line)}
+@media(max-width:720px){#multiTankConfiguration>.config-sections{grid-template-columns:1fr}#multiTankConfiguration>.config-sections>.config-section+ .config-section{border-left:0;border-top:1px solid var(--line)}}
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
@@ -84,6 +86,8 @@ body{font-size:16px}
 @media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
 .simulator-switch:disabled{opacity:.48!important;filter:saturate(.35);cursor:not-allowed!important}.simulator-switch:disabled .simulator-switch-track{cursor:not-allowed}
 .device-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.device-meta-item{display:inline-flex;gap:6px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.18);color:var(--muted);font-size:11px}.device-meta-item strong{color:var(--text);font-size:12px}.quick-nav a{border:1px solid transparent}.quick-nav a.is-active{background:var(--primary);color:#fff;border-color:color-mix(in srgb,var(--primary) 70%,#fff);box-shadow:0 6px 14px rgba(19,137,165,.18)}.device-page-panel[hidden],.overview-summary[hidden]{display:none!important}.developer-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.danger-zone{border-color:color-mix(in srgb,var(--danger) 38%,var(--line));background:color-mix(in srgb,var(--danger) 6%,var(--panel))}.danger-zone h3{color:var(--danger)}
+.activity-details{margin-top:5px;color:var(--muted);font-size:11px}.activity-details summary{display:inline-block;cursor:pointer;color:var(--primary);font-weight:800;list-style:none}.activity-details summary::-webkit-details-marker{display:none}.activity-details summary::after{content:" +"}.activity-details[open] summary::after{content:" -"}.activity-details-body{margin-top:6px;padding:8px 10px;border-left:2px solid color-mix(in srgb,var(--primary) 45%,var(--line));background:rgba(255,255,255,.08);line-height:1.45;overflow-wrap:anywhere}
+@media(min-width:721px){#device-configuration .admin-grid,#device-firmware .firmware-upload-grid{gap:10px}#device-configuration .admin-form,#device-firmware .admin-form{gap:8px;padding:12px;border-radius:13px}#device-configuration .config-section{gap:7px;padding:11px}#device-configuration .service-option{padding:7px 9px;border-radius:10px;font-size:12px}#device-configuration .form-group{gap:4px}#device-configuration .form-group input,#device-configuration .form-group select,#device-firmware .form-group input,#device-firmware .form-group select{min-height:40px;height:40px;padding:7px 10px;font-size:13px;border-radius:10px}#device-configuration .helper-text,#device-firmware .helper-text{font-size:11px;line-height:1.4}#device-configuration .admin-form h3,#device-firmware .admin-form h3{font-size:15px}#device-firmware .firmware-upload-grid .admin-form{grid-template-rows:auto auto auto minmax(32px,1fr) auto;align-self:stretch}#device-firmware>.admin-form{margin-top:10px}.activity-table th,.activity-table td{padding:8px 10px}.activity-table th:first-child,.activity-table td:first-child{width:105px}.activity-table th:nth-child(2),.activity-table td:nth-child(2){width:85px}.activity-table th:last-child,.activity-table td:last-child{width:82px}.activity-message{font-size:13px;line-height:1.3}.activity-meta{font-size:11px;line-height:1.35}}
 @media(max-width:720px){.device-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.device-meta-item{min-width:0}.quick-nav{display:flex;width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.quick-nav a{white-space:nowrap}.device-action-bar{top:6px;bottom:auto}.device-action-group{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 {% include '_theme_overrides.html' %}
@@ -224,44 +228,30 @@ body{font-size:16px}
                 <p>Live tank setup, thresholds, services, peer link, and controller status from the latest sync.</p>
             </div>
         </div>
-        <div class="info-grid" style="margin-top:16px">
-            <div class="info-item">
-                <div class="info-label">Tank Health</div>
-                <span id="healthStatus" class="info-value">{% if live_snapshot.get("tank_health") is not none %}{{ live_snapshot.get("tank_health") }}% {{ live_snapshot.get("tank_health_status") or "" }}{% else %}--{% endif %}</span>
-                <div id="healthReason" class="detail-note">{% if live_snapshot.get("tank_health_reasons") %}{{ live_snapshot.get("tank_health_reasons")[0] }}{% else %}--{% endif %}</div>
-            </div>
+        <div id="optionalOverviewGrid" class="info-grid{% if not source_monitoring_active and not lower_turbidity_enabled and not upper_turbidity_enabled and not municipal_enabled %} hidden-section{% endif %}" style="margin-top:16px">
             <div id="sourceCard" class="info-item {% if not source_monitoring_active %}hidden-section{% endif %}">
                 <div class="info-label">Source Tank</div>
                 <span id="sourceLevel" class="info-value">{% if live_snapshot.get("lower_tank_level") is not none %}{{ live_snapshot.get("lower_tank_level") }}%{% else %}--{% endif %}</span>
                 <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
             </div>
-            <div id="lowerTurbidityCard" class="info-item">
+            <div id="lowerTurbidityCard" class="info-item{% if not lower_turbidity_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Lower Tank Turbidity (Master)</div>
                 <span id="lowerTurbidityStatus" class="info-value">{{ lower_turbidity_status|title }}</span>
                 <div id="lowerTurbidityReading" class="detail-note">{% if lower_turbidity_status == "OK" and live_snapshot.get("lower_turbidity_estimated_ntu") is not none and live_snapshot.get("lower_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("lower_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("lower_turbidity_raw_adc", "--") }}{% elif lower_turbidity_status == "DISABLED" %}Enable Master Turbidity in runtime configuration.{% elif lower_turbidity_status == "ERROR" %}Sensor signal unavailable or outside its valid ADC range.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
-            <div id="upperTurbidityCard" class="info-item">
+            <div id="upperTurbidityCard" class="info-item{% if not upper_turbidity_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Upper Tank Turbidity (Slave)</div>
                 <span id="upperTurbidityStatus" class="info-value">{{ upper_turbidity_status|title }}</span>
                 <div id="upperTurbidityReading" class="detail-note">{% if upper_turbidity_status == "OK" and live_snapshot.get("upper_turbidity_estimated_ntu") is not none and live_snapshot.get("upper_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("upper_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("upper_turbidity_raw_adc", "--") }}{% elif upper_turbidity_status == "DISABLED" %}Enable Slave Turbidity in runtime configuration.{% elif upper_turbidity_status == "ERROR" %}Sensor or slave telemetry is unavailable.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
-            <div id="municipalSensorCard" class="info-item">
+            <div id="municipalSensorCard" class="info-item{% if not municipal_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Municipal Water</div>
                 <span id="municipalSensorStatus" class="info-value">{{ municipal_status|replace("_", " ")|title }}</span>
                 <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}No municipal water flow is currently detected.{% endif %}</div>
             </div>
         </div>
         <div id="deviceInfoGrid" class="info-grid">
-            {% if initial_info_cards %}
-                {% for card in initial_info_cards %}
-                <div class="info-item">
-                    <span class="info-label">{{ card.label }}</span>
-                    <strong class="info-value">{{ card.value }}</strong>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="helper-text" style="grid-column:1/-1;margin-top:0">Live configuration details are ready and will expand from the latest synced snapshot.</div>
-            {% endif %}
+            <div class="helper-text" style="grid-column:1/-1;margin-top:0">Loading essential device information.</div>
         </div>
     </section>
 
@@ -680,6 +670,28 @@ body{font-size:16px}
                 <div class="helper-text">No firmware has been uploaded for repeater {{ repeater_number }} yet.</div>
                 {% endif %}
                 <button class="btn btn-admin" type="submit"><span>Upload Repeater {{ repeater_number }} Firmware</span></button>
+            </form>
+            {% endfor %}
+        </div>
+        {% set master_lan_url = snapshot.get("device_local_url") or snapshot.get("local_device_url") or snapshot.get("device_ip_url") %}
+        {% set slave_lan_ip = snapshot.get("direct_peer_remote_ip") %}
+        {% set lan_install_ready = service_config.get("local_firmware_upload_enabled") %}
+        <div class="firmware-upload-grid firmware-lan-grid">
+            {% for lan_role, lan_label, lan_address, lan_firmware in [("master", "Local Device IP", master_lan_url, master_firmware), ("slave", "Slave Device IP", slave_lan_ip, slave_firmware)] %}
+            <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_lan_firmware_install', device_id=device_id) }}" data-confirm-title="Install {{ lan_role }} firmware over LAN?" data-confirm-message="Upload the latest stored {{ lan_role }} firmware directly to {{ lan_address or 'its reported LAN IP' }}? Water control may pause and the controller will restart after verification." data-confirm-button="Install {{ lan_role|title }} Firmware">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="firmware_role" value="{{ lan_role }}">
+                <h3>{{ lan_role|title }} Direct LAN Install</h3>
+                <div class="form-group">
+                    <label>{{ lan_label }}</label>
+                    {% if lan_address %}
+                    <a class="lan-device-address" href="{{ lan_address if '://' in lan_address else 'http://' ~ lan_address }}" target="_blank" rel="noopener noreferrer">{{ lan_address }}</a>
+                    {% else %}
+                    <div class="helper-text">Waiting for the controller to report this address.</div>
+                    {% endif %}
+                </div>
+                <div class="helper-text">Uses the latest {{ lan_role }} binary uploaded above and the controller's signed OTA authorization.</div>
+                <button class="btn btn-admin" type="submit" {% if not lan_install_ready or not lan_address or not lan_firmware %}disabled{% endif %}><span>Install {{ lan_role|title }} via LAN</span></button>
             </form>
             {% endfor %}
         </div>
@@ -1820,7 +1832,7 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     if(!deviceSensorsOnline||(!simulated&&!validSignal))return"Offline";
     return `Online · ${simulated?"Simulated":(detail||"Signal detected")}`;
   };
-  const showAllDetails=true;
+  const showAllDetails=false;
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sourceCapacity=savedConfig.lower_tank_capacity_liters??savedServiceConfig.lower_tank_capacity_liters??snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
@@ -1942,9 +1954,18 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
-  ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
+  ];
+  const overviewLabels=new Set([
+    "Firmware","Configuration","Water Routing","Slave Status","Upper Sensor","Upper Sensor Source",
+    "Source Tank Sensor","Inlet Motorized Valve","Inlet Selected Path","Inlet Valve Feedback",
+    "Outlet Motorized Valve","Outlet Selected Path","Outlet Valve Feedback","Tank Capacity","Tank Height",
+    "Source Capacity","Source Height","Auto Start Threshold","Auto Stop Threshold","Water Depth",
+    "Source Water Depth","Simulator","Physical Pump State","Pump Confirmation","Local Device IP","Slave Device IP"
+  ]);
+  const unusedInfoValue=(value)=>/^(--|disabled|off|none|not reported|waiting for peer|distance not reported|source mode not reported|channel not reported|local ip not reported|heap not reported|slave heap not reported|uptime not reported|slave uptime not reported)$/i.test(String(value??"").trim());
+  const visibleItems=items.filter((item)=>item.show!==false&&overviewLabels.has(item.label)&&isReportedInfoValue(item.value)&&!unusedInfoValue(item.value));
   const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
-  setStableHtml(root,items.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
+  setStableHtml(root,visibleItems.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
 function uniqueFeedItems(items){
   const seen=new Set();
@@ -1981,7 +2002,7 @@ function activityNodeLabel(entry){
   if(role.includes("master"))return "Master";
   return "Master";
 }
-function activityMeta(entry){
+function activityMetaFull(entry){
   const parts=[];
   if(entry.kind)parts.push(titleCase(entry.kind));
   if(entry.device_id||entry.details?.device_id)parts.push(entry.device_id||entry.details.device_id);
@@ -2032,6 +2053,10 @@ function activityMeta(entry){
   if(details.device_local_url)parts.push(`Local ${details.device_local_url}`);
   return parts.join(" | ");
 }
+function activityMeta(entry){
+  const parts=activityMetaFull(entry).split(" | ").filter(Boolean);
+  return parts.slice(0,3).join(" · ");
+}
 function setButtonDisabled(id,disabled){
   const node=document.getElementById(id);
   if(node)node.disabled=disabled;
@@ -2070,7 +2095,7 @@ function renderActivityTable(){
     <tr class="${["danger","error","critical"].includes(String(entry.severity||"").toLowerCase())?"log-error":String(entry.severity||"").toLowerCase().includes("warn")?"log-warning":""}">
       <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
       <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
-      <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div></td>
+      <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div>${activityMetaFull(entry)?`<details class="activity-details"><summary>Show details</summary><div class="activity-details-body">${escapeHtml(activityMetaFull(entry))}</div></details>`:""}</td>
       <td><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></td>
     </tr>
   `).join(""));
@@ -2188,6 +2213,10 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   const lastSeen=document.getElementById("lastSeenAge");if(lastSeen){lastSeen.dataset.ageSeconds=snapshot.seconds_since_sync??"";lastSeen.dataset.loadedAt=String(Date.now());lastSeen.textContent=snapshot.seconds_since_sync!==undefined&&snapshot.seconds_since_sync!==null?`${formatDurationSeconds(snapshot.seconds_since_sync)} ago`:"--";}
   setText("lastSeenTimestamp",lastSync?formatLocaleDateTime(lastSync):"No communication yet");
   setVisible("sourceCard",sourceMonitoringActive);
+  setVisible("lowerTurbidityCard",Boolean(serviceConfig?.master_turbidity_enabled));
+  setVisible("upperTurbidityCard",Boolean(serviceConfig?.slave_turbidity_enabled));
+  setVisible("municipalSensorCard",Boolean(serviceConfig?.municipal_sensor_enabled));
+  setVisible("optionalOverviewGrid",sourceMonitoringActive||Boolean(serviceConfig?.master_turbidity_enabled)||Boolean(serviceConfig?.slave_turbidity_enabled)||Boolean(serviceConfig?.municipal_sensor_enabled));
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
