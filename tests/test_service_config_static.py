@@ -49,6 +49,10 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
     assert 'name="municipal_valve_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert 'name="source_outlet_valve_enabled"' in DEVICE_TEMPLATE_SOURCE
     assert 'name="multi_tank_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert 'name="tank_{{ tank.tank_index }}_enabled"' in DEVICE_TEMPLATE_SOURCE
+    assert 'name="tank_{{ tank.tank_index }}_slave_device_id"' in DEVICE_TEMPLATE_SOURCE
+    assert 'name="tank_{{ tank.tank_index }}_valve_owner"' in DEVICE_TEMPLATE_SOURCE
+    assert "Overhead Tanks / Slaves" in DEVICE_TEMPLATE_SOURCE
     assert "municipal_valve=1 if municipal_valve_enabled else 0" in build_block
     assert "source_outlet_valve=1 if source_outlet_valve_enabled else 0" in build_block
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block

@@ -154,6 +154,88 @@ def test_multi_tank_service_defaults_off_and_can_be_enabled_from_flask():
             db.execute("DELETE FROM device_multi_tank_configs WHERE device_id = ?", (device_id,))
 
 
+def test_multiple_slave_tanks_persist_with_independent_valve_owners_and_thresholds():
+    device_id = "swt-multi-slave-config-001"
+    with server.get_db() as db:
+        server.ensure_device_multi_tank_configs_table(db)
+        db.execute("DELETE FROM device_destination_tanks WHERE device_id = ?", (device_id,))
+    try:
+        saved = server.save_device_destination_tanks(device_id, [
+            {
+                "enabled": True,
+                "tank_name": "East Tank",
+                "slave_device_id": "swt-100-000-010-001",
+                "valve_owner": "slave",
+                "priority": 1,
+                "start_pct": 25,
+                "stop_pct": 95,
+            },
+            {
+                "enabled": True,
+                "tank_name": "West Tank",
+                "slave_device_id": "swt-101-000-010-001",
+                "valve_owner": "master",
+                "priority": 2,
+                "start_pct": 30,
+                "stop_pct": 90,
+            },
+        ])
+        assert len(saved) == server.MAX_DESTINATION_TANKS
+        loaded = server.fetch_device_service_config(device_id)["destination_tanks"]
+        assert loaded[0]["slave_device_id"] == "swt-100-000-010-001"
+        assert loaded[0]["valve_owner"] == "slave"
+        assert loaded[1]["slave_device_id"] == "swt-101-000-010-001"
+        assert loaded[1]["valve_owner"] == "master"
+        assert loaded[1]["stop_pct"] == 90.0
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_destination_tanks WHERE device_id = ?", (device_id,))
+
+
+def test_multiple_slave_tanks_reject_duplicate_enabled_slave_ids():
+    duplicate = {
+        "enabled": True,
+        "slave_device_id": "swt-100-000-010-001",
+        "valve_owner": "slave",
+        "priority": 1,
+        "start_pct": 30,
+        "stop_pct": 95,
+    }
+    try:
+        server.normalize_destination_tanks([duplicate, dict(duplicate)])
+        assert False, "duplicate Slave IDs must be rejected"
+    except ValueError as exc:
+        assert "already assigned" in str(exc)
+
+
+def test_multi_tank_commands_are_complete_transaction_and_address_each_slave():
+    commands = server.build_multi_tank_configuration_commands({"destination_tanks": [{
+        "enabled": True,
+        "slave_device_id": "swt-100-000-010-001",
+        "valve_owner": "slave",
+        "priority": 1,
+        "start_pct": 25,
+        "stop_pct": 95,
+    }]})
+    assert len(commands) == server.MAX_DESTINATION_TANKS + 2
+    assert commands[0] == "MTANKBEGIN"
+    assert commands[1] == "MTANKCFG:0:1:slave:1:25.0:95.0:swt-100-000-010-001"
+    assert commands[-1] == "MTANKCOMMIT"
+    assert len({server.device_command_family(command) for command in commands}) == len(commands)
+
+
+def test_multi_tank_rejects_slave_id_too_long_for_peer_packet():
+    try:
+        server.normalize_destination_tanks([{
+            "enabled": True,
+            "slave_device_id": "s" * 24,
+            "valve_owner": "slave",
+        }])
+        assert False, "24-byte Slave IDs do not leave room for a packet terminator"
+    except ValueError as exc:
+        assert "at most 23" in str(exc)
+
+
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():
     device_id = "swt-999-999-999-996"
 

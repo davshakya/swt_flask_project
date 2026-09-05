@@ -342,7 +342,7 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
                         <label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
-                        <label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %}> Multi-Tank Destination Valves</label>
+                        <label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %} onchange="document.getElementById('multiTankConfiguration').hidden=!this.checked"> Multi-Tank Destination Valves</label>
                         <div class="helper-text">Enable only after every configured tank valve has valid OPEN/CLOSED position feedback. Disabling stops multi-tank scheduling and commands a safe pump-off state.</div>
                         <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
                         <div class="form-group">
@@ -365,6 +365,48 @@ body{font-size:16px}
                         <label class="service-option"><input id="municipalPressureSensorOption" type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') and not service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('pressure')"> Water-pressure sensor</label>
                     </div>
                 </div>
+                <section id="multiTankConfiguration" class="admin-form" {% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}>
+                    <h3>Overhead Tanks / Slaves</h3>
+                    <div class="helper-text">Enable each overhead tank, assign its unique Slave MCU ID, and choose where that tank's dedicated pipe valve is wired. Lower priority numbers are filled first; equal priorities rotate fairly.</div>
+                    {% for tank in service_config.get('destination_tanks', []) %}
+                    <div class="config-sections">
+                        <div class="config-section">
+                            <h4>Tank {{ tank.tank_index }}</h4>
+                            <label class="service-option"><input type="checkbox" name="tank_{{ tank.tank_index }}_enabled" value="1" {% if tank.enabled %}checked{% endif %}> Enable this tank</label>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_name">Tank name</label>
+                                <input id="tank_{{ tank.tank_index }}_name" name="tank_{{ tank.tank_index }}_name" type="text" maxlength="40" value="{{ tank.tank_name }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_slave_device_id">Slave device ID</label>
+                                <input id="tank_{{ tank.tank_index }}_slave_device_id" name="tank_{{ tank.tank_index }}_slave_device_id" type="text" maxlength="23" value="{{ tank.slave_device_id }}" placeholder="swt-100-000-010-001">
+                            </div>
+                        </div>
+                        <div class="config-section">
+                            <h4>Valve and Fill Policy</h4>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_valve_owner">Valve connected to</label>
+                                <select id="tank_{{ tank.tank_index }}_valve_owner" name="tank_{{ tank.tank_index }}_valve_owner">
+                                    <option value="slave" {% if tank.valve_owner == 'slave' %}selected{% endif %}>This tank's Slave MCU</option>
+                                    <option value="master" {% if tank.valve_owner == 'master' %}selected{% endif %}>Master cabinet</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_priority">Priority (1–8)</label>
+                                <input id="tank_{{ tank.tank_index }}_priority" name="tank_{{ tank.tank_index }}_priority" type="number" min="1" max="8" value="{{ tank.priority }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_start_pct">Start filling at or below (%)</label>
+                                <input id="tank_{{ tank.tank_index }}_start_pct" name="tank_{{ tank.tank_index }}_start_pct" type="number" min="0" max="95" step="0.1" value="{{ tank.start_pct }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_stop_pct">Stop filling at or above (%)</label>
+                                <input id="tank_{{ tank.tank_index }}_stop_pct" name="tank_{{ tank.tank_index }}_stop_pct" type="number" min="5" max="100" step="0.1" value="{{ tank.stop_pct }}">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </section>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
 

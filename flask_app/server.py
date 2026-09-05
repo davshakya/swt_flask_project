@@ -2105,6 +2105,7 @@ def purge_device_data_fallback(cursor, normalized_device_id):
         ("device_auth_keys", "device_id"),
         ("device_service_configs", "device_id"),
         ("device_multi_tank_configs", "device_id"),
+        ("device_destination_tanks", "device_id"),
         ("device_command_queue", "target_device"),
         ("device_mobile_action_queue", "target_device"),
         ("customer_accounts", "device_id"),
@@ -6706,6 +6707,24 @@ def ensure_device_multi_tank_configs_table(cursor):
         """
     )
 
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_destination_tanks(
+            device_id VARCHAR(64) NOT NULL,
+            tank_index INTEGER NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            tank_name VARCHAR(40) NOT NULL,
+            slave_device_id VARCHAR(64),
+            valve_owner VARCHAR(16) NOT NULL DEFAULT 'slave',
+            priority INTEGER NOT NULL DEFAULT 1,
+            start_pct REAL NOT NULL DEFAULT 30,
+            stop_pct REAL NOT NULL DEFAULT 95,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(device_id, tank_index)
+        )
+        """
+    )
+
 
 def ensure_device_service_configs_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(device_service_configs)").fetchall()}
@@ -7926,6 +7945,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "municipal_valve_enabled": municipal_valve_enabled,
         "source_outlet_valve_enabled": source_outlet_valve_enabled,
         "multi_tank_enabled": multi_tank_enabled,
+        "destination_tanks": list(payload.get("destination_tanks") or []),
         "starter_contactor_sensor_enabled": starter_contactor_sensor_enabled,
         "motor_current_sensor_enabled": motor_current_sensor_enabled,
         "water_flow_sensor_enabled": water_flow_sensor_enabled,
@@ -8208,6 +8228,7 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
             (normalized_device_id,),
         ).fetchone()
     stored_config["multi_tank_enabled"] = bool(multi_tank_row and int(multi_tank_row["enabled"] or 0))
+    stored_config["destination_tanks"] = fetch_device_destination_tanks(normalized_device_id)
     live_config = snapshot_device_service_config(
         snapshot,
         device_id=normalized_device_id,
@@ -8233,6 +8254,135 @@ def set_device_multi_tank_enabled(device_id, enabled):
             """,
             (normalized_device_id, 1 if boolish_enabled(enabled, default=False) else 0),
         )
+
+
+MAX_DESTINATION_TANKS = 8
+
+
+def default_destination_tank(tank_index):
+    index = max(1, min(int(tank_index), MAX_DESTINATION_TANKS))
+    return {
+        "tank_index": index,
+        "enabled": False,
+        "tank_name": f"Overhead Tank {index}",
+        "slave_device_id": "",
+        "valve_owner": "slave",
+        "priority": index,
+        "start_pct": 30.0,
+        "stop_pct": 95.0,
+    }
+
+
+def fetch_device_destination_tanks(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    tanks = [default_destination_tank(index) for index in range(1, MAX_DESTINATION_TANKS + 1)]
+    if not normalized_device_id:
+        return tanks
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        rows = db.execute(
+            """
+            SELECT tank_index, enabled, tank_name, slave_device_id, valve_owner,
+                   priority, start_pct, stop_pct
+            FROM device_destination_tanks
+            WHERE device_id = ?
+            ORDER BY tank_index
+            """,
+            (normalized_device_id,),
+        ).fetchall()
+    for row in rows:
+        index = int(row["tank_index"] or 0)
+        if index < 1 or index > MAX_DESTINATION_TANKS:
+            continue
+        tanks[index - 1] = {
+            "tank_index": index,
+            "enabled": bool(int(row["enabled"] or 0)),
+            "tank_name": str(row["tank_name"] or f"Overhead Tank {index}"),
+            "slave_device_id": normalize_device_id(row["slave_device_id"]),
+            "valve_owner": "master" if str(row["valve_owner"] or "").lower() == "master" else "slave",
+            "priority": int(row["priority"] or index),
+            "start_pct": float(row["start_pct"]),
+            "stop_pct": float(row["stop_pct"]),
+        }
+    return tanks
+
+
+def normalize_destination_tanks(tanks):
+    normalized = []
+    enabled_slave_ids = set()
+    for offset, source in enumerate(list(tanks or [])[:MAX_DESTINATION_TANKS]):
+        index = offset + 1
+        source = source or {}
+        enabled = boolish_enabled(source.get("enabled"), default=False)
+        name = str(source.get("tank_name") or f"Overhead Tank {index}").strip()[:40]
+        owner = str(source.get("valve_owner") or "slave").strip().lower()
+        if owner not in {"master", "slave"}:
+            raise ValueError(f"Tank {index}: choose Master or Slave valve ownership.")
+        slave_id = normalize_device_id(source.get("slave_device_id"))
+        try:
+            priority = int(source.get("priority") or index)
+            start_pct = float(source.get("start_pct") or 30.0)
+            stop_pct = float(source.get("stop_pct") or 95.0)
+        except (TypeError, ValueError):
+            raise ValueError(f"Tank {index}: priority and thresholds must be numeric.")
+        if priority < 1 or priority > MAX_DESTINATION_TANKS:
+            raise ValueError(f"Tank {index}: priority must be between 1 and {MAX_DESTINATION_TANKS}.")
+        if start_pct < 0 or stop_pct > 100 or start_pct >= stop_pct:
+            raise ValueError(f"Tank {index}: start level must be below stop level within 0–100%.")
+        if enabled and not slave_id:
+            raise ValueError(f"Tank {index}: an enabled tank requires a Slave device ID.")
+        if len(slave_id) > 23:
+            raise ValueError(f"Tank {index}: Slave device ID must be at most 23 characters.")
+        if enabled and slave_id in enabled_slave_ids:
+            raise ValueError(f"Tank {index}: Slave device ID {slave_id} is already assigned to another tank.")
+        if enabled:
+            enabled_slave_ids.add(slave_id)
+        normalized.append({
+            "tank_index": index,
+            "enabled": enabled,
+            "tank_name": name or f"Overhead Tank {index}",
+            "slave_device_id": slave_id,
+            "valve_owner": owner,
+            "priority": priority,
+            "start_pct": round(start_pct, 1),
+            "stop_pct": round(stop_pct, 1),
+        })
+    while len(normalized) < MAX_DESTINATION_TANKS:
+        normalized.append(default_destination_tank(len(normalized) + 1))
+    return normalized
+
+
+def save_device_destination_tanks(device_id, tanks):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    normalized_tanks = normalize_destination_tanks(tanks)
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        for tank in normalized_tanks:
+            db.execute(
+                """
+                INSERT INTO device_destination_tanks(
+                    device_id, tank_index, enabled, tank_name, slave_device_id,
+                    valve_owner, priority, start_pct, stop_pct, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id, tank_index) DO UPDATE SET
+                    enabled=excluded.enabled,
+                    tank_name=excluded.tank_name,
+                    slave_device_id=excluded.slave_device_id,
+                    valve_owner=excluded.valve_owner,
+                    priority=excluded.priority,
+                    start_pct=excluded.start_pct,
+                    stop_pct=excluded.stop_pct,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (
+                    normalized_device_id, tank["tank_index"], 1 if tank["enabled"] else 0,
+                    tank["tank_name"], tank["slave_device_id"] or None, tank["valve_owner"],
+                    tank["priority"], tank["start_pct"], tank["stop_pct"],
+                ),
+            )
+    return normalized_tanks
 
 
 def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):
@@ -8283,10 +8433,37 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         multi_rows = db.execute(
             "SELECT device_id, enabled FROM device_multi_tank_configs"
         ).fetchall()
+        destination_rows = db.execute(
+            """
+            SELECT device_id, tank_index, enabled, tank_name, slave_device_id,
+                   valve_owner, priority, start_pct, stop_pct
+            FROM device_destination_tanks
+            ORDER BY device_id, tank_index
+            """
+        ).fetchall()
     for multi_row in multi_rows:
         multi_device_id = normalize_device_id(multi_row["device_id"])
         if multi_device_id in configs:
             configs[multi_device_id]["multi_tank_enabled"] = bool(int(multi_row["enabled"] or 0))
+    destinations_by_device = {}
+    for destination_row in destination_rows:
+        destination_device_id = normalize_device_id(destination_row["device_id"])
+        destinations_by_device.setdefault(destination_device_id, {})[int(destination_row["tank_index"])] = {
+            "tank_index": int(destination_row["tank_index"]),
+            "enabled": bool(int(destination_row["enabled"] or 0)),
+            "tank_name": str(destination_row["tank_name"] or ""),
+            "slave_device_id": normalize_device_id(destination_row["slave_device_id"]),
+            "valve_owner": "master" if str(destination_row["valve_owner"] or "").lower() == "master" else "slave",
+            "priority": int(destination_row["priority"]),
+            "start_pct": float(destination_row["start_pct"]),
+            "stop_pct": float(destination_row["stop_pct"]),
+        }
+    for configured_device_id, config in configs.items():
+        stored_destinations = destinations_by_device.get(configured_device_id, {})
+        config["destination_tanks"] = [
+            stored_destinations.get(index, default_destination_tank(index))
+            for index in range(1, MAX_DESTINATION_TANKS + 1)
+        ]
     if normalized_device_ids:
         for normalized_device_id in normalized_device_ids:
             configs.setdefault(
@@ -8322,6 +8499,17 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                 )
                 or existing
             )
+    multi_enabled_by_device = {
+        normalize_device_id(row["device_id"]): bool(int(row["enabled"] or 0))
+        for row in multi_rows
+    }
+    for configured_device_id, config in configs.items():
+        config["multi_tank_enabled"] = multi_enabled_by_device.get(configured_device_id, False)
+        stored_destinations = destinations_by_device.get(configured_device_id, {})
+        config["destination_tanks"] = [
+            stored_destinations.get(index, default_destination_tank(index))
+            for index in range(1, MAX_DESTINATION_TANKS + 1)
+        ]
     return configs
 
 
@@ -8739,6 +8927,26 @@ def build_device_service_command(service_config):
         water_pressure=1 if water_pressure_sensor_enabled else 0,
         multi_tank=1 if bool(config.get("multi_tank_enabled", False)) else 0,
     )
+
+
+def build_multi_tank_configuration_commands(service_config):
+    config = service_config or {}
+    commands = ["MTANKBEGIN"]
+    for tank in normalize_destination_tanks(config.get("destination_tanks")):
+        slave_id = tank["slave_device_id"] or "none"
+        commands.append(
+            "MTANKCFG:{index}:{enabled}:{owner}:{priority}:{start:.1f}:{stop:.1f}:{slave}".format(
+                index=tank["tank_index"] - 1,
+                enabled=1 if tank["enabled"] else 0,
+                owner=tank["valve_owner"],
+                priority=tank["priority"],
+                start=tank["start_pct"],
+                stop=tank["stop_pct"],
+                slave=slave_id,
+            )
+        )
+    commands.append("MTANKCOMMIT")
+    return commands
 
 
 def device_automation_settings_key(device_id):
@@ -17078,6 +17286,13 @@ def device_command_family(command):
         return "reboot"
     if compact.startswith("SERVICECFG"):
         return "service_config"
+    if compact.startswith("MTANKCFG:"):
+        parts = compact.split(":", 2)
+        return f"multi_tank_config:{parts[1]}" if len(parts) > 1 else "multi_tank_config"
+    if compact == "MTANKBEGIN":
+        return "multi_tank_begin"
+    if compact == "MTANKCOMMIT":
+        return "multi_tank_commit"
     if compact.startswith("THRESHOLDS:") or compact.startswith("CONFIG_THRESHOLDS:") or compact.startswith("CONFIG_AUTO:"):
         return "thresholds"
     if (
@@ -21633,6 +21848,18 @@ def admin_device_detail_configuration(device_id):
     municipal_valve_enabled = "municipal_valve_enabled" in request.form
     source_outlet_valve_enabled = "source_outlet_valve_enabled" in request.form
     multi_tank_enabled = "multi_tank_enabled" in request.form
+    destination_tanks = [
+        {
+            "enabled": f"tank_{index}_enabled" in request.form,
+            "tank_name": request.form.get(f"tank_{index}_name"),
+            "slave_device_id": request.form.get(f"tank_{index}_slave_device_id"),
+            "valve_owner": request.form.get(f"tank_{index}_valve_owner"),
+            "priority": request.form.get(f"tank_{index}_priority"),
+            "start_pct": request.form.get(f"tank_{index}_start_pct"),
+            "stop_pct": request.form.get(f"tank_{index}_stop_pct"),
+        }
+        for index in range(1, MAX_DESTINATION_TANKS + 1)
+    ]
     auto_mode_enabled = "auto_mode_enabled" in request.form
     if setup_features is not None:
         source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
@@ -21678,6 +21905,7 @@ def admin_device_detail_configuration(device_id):
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
         set_device_multi_tank_enabled(scoped_device_id, multi_tank_enabled)
+        save_device_destination_tanks(scoped_device_id, destination_tanks)
         updated_config = fetch_device_service_config(scoped_device_id, snapshot=snapshot)
     except ValueError as exc:
         return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
@@ -21705,11 +21933,39 @@ def admin_device_detail_configuration(device_id):
         "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
         queued_command,
     )
-    queue_result, queue_error = safe_queue_device_detail_command(
-        queued_command,
-        scoped_device_id,
-        "Unable to queue runtime configuration update",
-    )
+    queue_result = None
+    queue_error = None
+    # Disabling is queued first for an immediate safe stop. Enabling is queued
+    # only after the complete destination map commits, so firmware cannot run
+    # against an old or partially delivered valve layout.
+    if not updated_config.get("multi_tank_enabled"):
+        queue_result, queue_error = safe_queue_device_detail_command(
+            queued_command,
+            scoped_device_id,
+            "Unable to queue runtime configuration update",
+        )
+    multi_tank_commands = []
+    multi_tank_command_errors = []
+    for command in build_multi_tank_configuration_commands(updated_config):
+        result, error = safe_queue_device_detail_command(
+            command,
+            scoped_device_id,
+            f"Unable to queue multi-tank configuration command {command.split(':', 1)[0]}",
+        )
+        if error:
+            multi_tank_command_errors.append(error)
+        elif result:
+            multi_tank_commands.append(command)
+    if multi_tank_command_errors:
+        queue_error = "; ".join([error for error in [queue_error, *multi_tank_command_errors] if error])
+    if updated_config.get("multi_tank_enabled"):
+        queue_result, service_queue_error = safe_queue_device_detail_command(
+            queued_command,
+            scoped_device_id,
+            "Unable to queue runtime configuration update",
+        )
+        if service_queue_error:
+            queue_error = "; ".join([error for error in [queue_error, service_queue_error] if error])
     simulator_off_commands, simulator_off_errors = disable_orphaned_device_simulators(
         scoped_device_id,
         snapshot,
@@ -21756,6 +22012,8 @@ def admin_device_detail_configuration(device_id):
                 "service_config": updated_config,
                 "device_setup_type": setup_type,
                 "queued_command": queued_command,
+                "multi_tank_commands": multi_tank_commands,
+                "multi_tank_command_errors": multi_tank_command_errors,
                 "queue_error": queue_error,
                 "simulator_off_commands": simulator_off_commands,
                 "automatic_simulator_commands": automatic_simulator_commands,
