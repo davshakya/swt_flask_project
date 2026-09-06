@@ -4172,12 +4172,23 @@ def filter_admin_search_results(items, search_query):
 
 
 def load_admin_known_devices(accounts, inventory_limit=100):
+    try:
+        inventory = fetch_device_inventory(limit=max(250, int(inventory_limit)))
+    except Exception as exc:
+        # A telemetry-table timeout must not take the customer administration
+        # page down. Registered devices are still useful and will be enriched
+        # again by the live inventory on the next refresh.
+        logger.warning(
+            "Admin device inventory unavailable; showing registered devices without live snapshots: %s",
+            exc,
+        )
+        inventory = []
     return build_admin_known_devices(
         accounts=accounts,
         # The admin registry includes up to 200 persisted devices. Load at
         # least that many live snapshots so registered devices with fresh
         # telemetry are not rendered offline merely because of pagination.
-        available_devices=fetch_device_inventory(limit=max(250, int(inventory_limit))),
+        available_devices=inventory,
         include_registered_devices=True,
         seed_configuration=True,
     )
@@ -5993,7 +6004,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-09-04-multi-tank-service-v1"
+DB_SCHEMA_REVISION = "2026-09-06-fast-device-inventory-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
     "direct_peer_repeater_reachable",
     "direct_peer_repeater_last_packet_age_s",
@@ -6850,6 +6861,7 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_created ON tank_data(device_id, device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_id ON tank_data(device_id, device_source(16), id DESC)",
+        "CREATE INDEX idx_tank_data_source_device_id_id ON tank_data(device_source(16), device_id, id DESC)",
         "CREATE INDEX idx_tank_data_device_fingerprint ON tank_data(device_id, telemetry_fingerprint, created_at DESC, id DESC)",
         "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
         "CREATE INDEX idx_alerts_device_active_updated ON ops_alerts(device_id, active, updated_at DESC, id DESC)",
@@ -16538,28 +16550,30 @@ def fetch_device_inventory(limit=20, device_ids=None):
         except Exception as exc:
             logger.warning("Latest-state inventory unavailable; using legacy inventory: %s", exc)
 
-    source_clause, source_params = device_source_where_clause(column="ranked_source.device_source")
+    # Use the latest ingested row (largest primary key) for each device. The
+    # previous ROW_NUMBER window scanned and sorted the full telemetry history
+    # and could exhaust a Passenger worker on production-sized tables. This
+    # grouped lookup is served by idx_tank_data_source_device_id_id.
+    source_clause, source_params = device_source_where_clause(column="inventory_source.device_source")
     query = """
         SELECT tank_data.*
         FROM tank_data
         JOIN (
-            SELECT ranked_source.id,
-                   ROW_NUMBER() OVER (
-                       PARTITION BY COALESCE(ranked_source.device_id, '')
-                       ORDER BY ranked_source.created_at DESC, ranked_source.id DESC
-                   ) AS device_row_number
-            FROM tank_data AS ranked_source
+            SELECT MAX(inventory_source.id) AS latest_id
+            FROM tank_data AS inventory_source
             WHERE
     """
     query += source_clause
     params = list(source_params)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
-        query += f" AND COALESCE(ranked_source.device_id, '') IN ({placeholders})"
+        query += f" AND inventory_source.device_id IN ({placeholders})"
         params.extend(normalized_device_ids)
     query += """
-        ) AS ranked_inventory ON ranked_inventory.id = tank_data.id
-        WHERE ranked_inventory.device_row_number = 1
+              AND inventory_source.device_id IS NOT NULL
+              AND inventory_source.device_id <> ''
+            GROUP BY inventory_source.device_id
+        ) AS latest_inventory ON latest_inventory.latest_id = tank_data.id
         ORDER BY tank_data.id DESC
         LIMIT ?
     """

@@ -159,7 +159,7 @@ def test_telemetry_snapshot_persists_live_auto_threshold_fields():
     assert '"direct_peer_repeater_reachable": "INTEGER"' in schema_source
     assert '"direct_peer_repeater_last_packet_age_s": "INTEGER"' in schema_source
 
-    assert 'DB_SCHEMA_REVISION = "2026-09-04-multi-tank-service-v1"' in source
+    assert 'DB_SCHEMA_REVISION = "2026-09-06-fast-device-inventory-v1"' in source
     assert "def mysql_tank_data_schema_is_current(db):" in source
     init_start = source.index("def init_db_serialized():")
     init_source = source[init_start : source.index("\n\ndef ensure_tank_data_columns", init_start)]
