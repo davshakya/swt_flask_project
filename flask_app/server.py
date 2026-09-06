@@ -12621,6 +12621,15 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
         if normalized_device_id
         else sorted(set(sorted(DEVICE_KEY_MAP.keys()) + list_registered_device_ids(limit=200)))
     )
+    # Device-detail polling already has this exact device's latest snapshot.
+    # Reusing it avoids a redundant ROW_NUMBER inventory scan that can exceed
+    # the read timeout on shared cPanel MySQL. Fleet summaries still query the
+    # complete inventory when no device is scoped.
+    device_inventory = (
+        [build_admin_device_entry(normalized_device_id, snapshot=snapshot)]
+        if normalized_device_id and snapshot
+        else fetch_device_inventory(limit=20)
+    )
     return {
         "api_version": API_VERSION,
         "swt_version": SWT_VERSION,
@@ -12661,7 +12670,7 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "last_status_code": relay_state.get("last_status_code"),
         },
         "alerts": active_alerts,
-        "devices": fetch_device_inventory(limit=20, device_ids=[normalized_device_id] if normalized_device_id else None),
+        "devices": device_inventory,
     }
 
 

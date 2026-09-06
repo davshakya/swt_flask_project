@@ -54,3 +54,13 @@ def test_dashboard_displays_persisted_summary_last_updated_time():
 
     assert "payload.last_updated" in template
     assert '"Last updated"' in template
+
+
+def test_device_monitoring_summary_reuses_snapshot_instead_of_scanning_inventory():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def build_monitoring_summary_payload(")
+    function_body = source[function_start : source.index("\n\ndef build_ops_dashboard_payload", function_start)]
+
+    assert "[build_admin_device_entry(normalized_device_id, snapshot=snapshot)]" in function_body
+    assert "else fetch_device_inventory(limit=20)" in function_body
+    assert "device_ids=[normalized_device_id]" not in function_body
