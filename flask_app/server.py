@@ -13908,6 +13908,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
     def peer_link_state(current):
         if str(current.get("direct_peer") or "").strip().lower() in {"", "disabled", "off"}:
             return "disabled"
+        # A peer age is measured by the master at check-in time. Once the
+        # master telemetry is stale, that stored number is no longer a live
+        # clock and must never keep the slave looking reachable.
+        if not admin_device_is_online(current):
+            return "stale"
         age = peer_packet_age(current)
         if age is None or age < 0:
             return "waiting"
@@ -13952,6 +13957,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         if state == "reachable":
             return f"Slave peer reachable: {channel_note}, last packet {age}s ago."
         if state == "stale":
+            if not admin_device_is_online(current):
+                return f"Slave peer unavailable because master telemetry is stale; last reported packet age {age}s."
             return f"Slave peer stale: {channel_note}, last packet {age}s ago."
         if state == "waiting":
             return f"Slave peer waiting for accepted packet: {channel_note}."
@@ -14067,7 +14074,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         if state == "reachable":
             peer_text = f"peer reachable, last slave packet {age_text}"
         elif state == "stale":
-            peer_text = f"peer stale, last slave packet {age_text}"
+            peer_text = (
+                f"peer unavailable because master telemetry is stale, last reported slave packet age {age_text}"
+                if not admin_device_is_online(current)
+                else f"peer stale, last slave packet {age_text}"
+            )
         elif state == "waiting":
             peer_text = "peer waiting for accepted slave packet"
         else:
@@ -15532,9 +15543,12 @@ def build_snapshot_activity_events(
             peer_parts.append(f"last packet {format_compact_uptime(peer_age)} ago")
         if snapshot.get("direct_peer_remote_mac"):
             peer_parts.append(f"MAC {snapshot.get('direct_peer_remote_mac')}")
+        peer_is_current = admin_device_is_online(snapshot) and peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS
+        if not admin_device_is_online(snapshot):
+            peer_parts.append("master telemetry stale")
         add_event(
             "peer_current_status",
-            "success" if peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS else "warning",
+            "success" if peer_is_current else "warning",
             "; ".join(peer_parts) + ".",
             {
                 "direct_peer": direct_peer,
