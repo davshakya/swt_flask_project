@@ -794,6 +794,7 @@ dashboard_snapshot_cache = {}
 dashboard_summary_cache = {}
 dashboard_summary_refresh_pending = set()
 dashboard_summary_refresh_lock = threading.Lock()
+dashboard_summary_worker_lock = threading.Lock()
 dashboard_summary_last_refresh_at = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
@@ -12395,9 +12396,24 @@ def refresh_dashboard_summary(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+
+    def build_and_persist():
+        # Summary generation is idempotent and safe to replay. Serialize it per
+        # Passenger process so paired Master/Slave ingestion cannot open two
+        # expensive refresh transactions against constrained cPanel MySQL at
+        # the same instant.
+        with dashboard_summary_worker_lock:
+            invalidate_dashboard_summary_memory(normalized_device_id)
+            return persist_dashboard_summary(normalized_device_id)
+
     try:
-        invalidate_dashboard_summary_memory(normalized_device_id)
-        return persist_dashboard_summary(normalized_device_id)
+        return run_with_database_lock_retries(
+            build_and_persist,
+            operation_name=f"refresh dashboard summary for {normalized_device_id}",
+            attempts=3,
+            initial_delay_s=0.75,
+            retry_connection_errors=True,
+        )
     except Exception as exc:
         logger.warning("Dashboard summary refresh failed for %s: %s", normalized_device_id, exc)
         return None

@@ -64,3 +64,16 @@ def test_device_monitoring_summary_reuses_snapshot_instead_of_scanning_inventory
     assert "[build_admin_device_entry(normalized_device_id, snapshot=snapshot)]" in function_body
     assert "else fetch_device_inventory(limit=20)" in function_body
     assert "device_ids=[normalized_device_id]" not in function_body
+
+
+def test_dashboard_summary_refresh_serializes_and_retries_connection_resets():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def refresh_dashboard_summary(device_id):")
+    function_end = source.index("\n\ndef schedule_dashboard_summary_refresh", function_start)
+    function_body = source[function_start:function_end]
+
+    assert "dashboard_summary_worker_lock = threading.Lock()" in source
+    assert "with dashboard_summary_worker_lock:" in function_body
+    assert "run_with_database_lock_retries(" in function_body
+    assert "attempts=3" in function_body
+    assert "retry_connection_errors=True" in function_body
