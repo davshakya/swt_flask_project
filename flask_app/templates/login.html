@@ -4590,7 +4590,6 @@ caret-color:#67e8f9!important;
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
 .nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
-.text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface);color:var(--primary);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--primary);background:var(--primary-soft)}
 .book-demo-button,.book-demo-button:link,.book-demo-button:visited{color:#073d2d!important;-webkit-text-fill-color:#073d2d;background:linear-gradient(135deg,rgba(119,238,179,.9),rgba(42,190,129,.78))!important;border:1px solid rgba(26,145,97,.48)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 9px 24px rgba(25,138,97,.2)!important;backdrop-filter:blur(14px) saturate(145%)}
 .book-demo-button:hover,.book-demo-button:focus-visible{color:#032c20!important;-webkit-text-fill-color:#032c20;background:linear-gradient(135deg,rgba(145,248,198,.96),rgba(53,205,141,.88))!important;border-color:rgba(17,122,79,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 13px 30px rgba(25,138,97,.3)!important;transform:translateY(-2px)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
@@ -4639,7 +4638,6 @@ body.chatbot-open .page-jump-controls{display:none}
                 <span class="menu-bars" aria-hidden="true"><span></span><span></span><span></span></span>
                 <span>Login</span>
             </button>
-            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
 
@@ -7813,25 +7811,6 @@ document.querySelectorAll("[data-page-jump]").forEach((button) => {
         window.scrollTo({ top, behavior: "smooth" });
     });
 });
-const textSizeButton = document.querySelector("[data-text-size-button]");
-const textSizeModes = [
-    { name: "small", label: "Small", size: "14px" },
-    { name: "normal", label: "Normal", size: "15px" },
-    { name: "large", label: "Large", size: "17px" }
-];
-let textSizeIndex = Math.max(0, textSizeModes.findIndex((mode) => mode.name === localStorage.getItem("salewellTextSize")));
-const applyTextSize = () => {
-    const mode = textSizeModes[textSizeIndex];
-    document.documentElement.style.setProperty("--page-text-size", mode.size);
-    textSizeButton?.querySelector("[data-text-size-label]")?.replaceChildren(mode.label);
-    textSizeButton?.setAttribute("aria-label", `Text size: ${mode.label}. Click to change.`);
-};
-textSizeButton?.addEventListener("click", () => {
-    textSizeIndex = (textSizeIndex + 1) % textSizeModes.length;
-    localStorage.setItem("salewellTextSize", textSizeModes[textSizeIndex].name);
-    applyTextSize();
-});
-applyTextSize();
 </script>
 </body>
 </html>

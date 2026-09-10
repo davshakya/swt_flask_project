@@ -268,6 +268,18 @@ def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
     assert "url_for('dashboard', chat='open', chat_embed='1')" in pricing
     assert "function setPricingChatOpen(open)" in pricing
     assert 'class="pricing-chat-launcher-icon"' in pricing
+    assert "filename='pwa/brand-logo.png'" in pricing
+    assert 'aria-label="Ask SaleWell"' in pricing
+
+
+def test_public_pages_do_not_show_text_resize_control():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    for template in (homepage, pricing):
+        assert 'data-text-size-button' not in template
+        assert 'class="text-size-button"' not in template
+        assert "textSizeModes" not in template
     assert '.pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}' in pricing
     assert '.page-jump-controls{position:fixed;right:12px;bottom:150px' in pricing
     assert '.pricing-support-floats.is-open + .page-jump-controls{display:none}' in pricing
