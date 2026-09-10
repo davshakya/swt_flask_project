@@ -67,6 +67,10 @@ Cloud telemetry uploads, Android refreshes, and Flask dashboard polling use `SWT
 - Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
 - Firmware artifact upload/download flow for independently scoped master, slave, repeater1, and repeater2 OTA updates
+- Flask and Android OTA remain valid for hardware-bound firmware. Binding is
+  enforced by the target MCU using the MAC compiled during production
+  packaging; Flask continues to issue device-scoped, expiring HMAC
+  authorization for the selected artifact and role.
 - Admin-managed Android APK releases with customer download and in-app update manifest
 - APK update availability is determined from the uploaded APK's monotonic numeric `versionCode`, which must never reset. Android and firmware display names use `vYY.M.<monthlyIncrement>` and reset only that final display component when the UTC month/year changes; uploading the same Android numeric code again does not create an update
 - A successful firmware upload replaces the previous artifact for the same device and selected role (`master`, `slave`, `repeater1`, or `repeater2`). Repeater artifacts use distinct derived device identities and are never shared between indices. A successful Android upload replaces all previous APK releases. Old database rows and obsolete stored files are removed only after the replacement is registered successfully.
@@ -308,6 +312,10 @@ environment variables may still be used when the platform injects them.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_AUTH_REQUIRED`: When `1`, every device request must include valid device credentials from config or the database. Keep this enabled in production.
+- Production firmware should also use per-role hardware binding. See
+  [`../swt_firmware_project/docs/FIRMWARE_PROTECTION.md`](../swt_firmware_project/docs/FIRMWARE_PROTECTION.md).
+  The explicit unbound-production option does not weaken Flask authentication,
+  but it permits the same binary to run on another compatible MCU.
 - `AUTO_REGISTER_DEVICE_KEYS`: When `1`, a new device with an allowed ID prefix and a strong API key is registered on its first authenticated `/status` call. Keep this `0` in production unless you intentionally want open first-contact activation.
 - `AUTO_REGISTER_DEVICE_ID_PREFIXES`: Comma-separated allowed ID prefixes for auto-registration, for example `swt-`.
 - `AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH`: Minimum API key length for auto-registration. Use `32` or higher.
