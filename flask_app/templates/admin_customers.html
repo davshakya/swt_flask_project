@@ -150,7 +150,8 @@
 .admin-table th,.admin-table td{font-size:11px;padding:11px 12px}
 .device-table-shell .admin-table{min-width:1180px}
 .device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:7px 8px}
-.device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:center}
+.device-table-shell .admin-table .lower-sensor-column{text-align:center!important;vertical-align:middle!important}
+.device-table-shell .admin-table td.lower-sensor-column .node-status-pill{margin-left:auto;margin-right:auto}
 .device-table-shell .admin-table th:nth-child(1){width:15%}.device-table-shell .admin-table th:nth-child(2){width:13%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:6%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:7%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:8%}.device-table-shell .admin-table th:nth-child(10){width:8%}.device-table-shell .admin-table th:nth-child(11){width:7%}.device-table-shell .admin-table th:nth-child(12){width:7%}
 .alert-row-danger td{background:rgba(218,79,99,.08)}
 .alert-row-warning td{background:rgba(245,155,65,.08)}
@@ -774,7 +775,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <th>Repeater 2</th>
                             <th>Active Path</th>
                             <th>Upper Sensor</th>
-                            <th>Lower Sensor</th>
+                            <th class="lower-sensor-column">Lower Sensor</th>
                             <th data-tooltip-key="municipal sensor">Municipal Water</th>
                             <th>Tank</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts</button></th>
@@ -806,7 +807,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <td>
                                 <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ "Online" if device.upper_sensor_status_tone == "online" else "Disabled" if device.upper_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
-                            <td>
+                            <td class="lower-sensor-column">
                                 <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ "Online" if device.lower_sensor_status_tone == "online" else "Disabled" if device.lower_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>

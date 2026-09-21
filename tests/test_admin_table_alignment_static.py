@@ -26,4 +26,5 @@ def test_active_route_overrides_lan_standby_reachability():
 
 def test_lower_sensor_column_is_centered_like_other_status_columns():
     template = (ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
-    assert ".admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:center}" in template
+    assert 'class="lower-sensor-column"' in template
+    assert ".admin-table .lower-sensor-column{text-align:center!important;vertical-align:middle!important}" in template
