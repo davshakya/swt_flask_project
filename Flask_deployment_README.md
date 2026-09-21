@@ -1,6 +1,16 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-08-11`
+Last refreshed: `2026-09-21`
+
+## Firmware deployment coordination
+
+Firmware now offers an ESP32 slave (`swt_esp32_slave`) alongside the existing
+ESP8266 slave. Select artifacts for the actual board when preparing upgrades.
+Production packaging disables simulation by default and rejects enabled
+simulation; test packaging enables support by default. Maximum ESP32 transmit
+power is a firmware setting and requires flashing both boards, not redeploying
+Flask. Follow the [firmware guide](../swt_firmware_project/README.md) for the
+build, hardware binding, and separate installation steps.
 
 > Documentation map: use [`docs/README.md`](docs/README.md) to find customer, installer, support, development, and production documents. This file is only for cPanel/Passenger deployment.
 

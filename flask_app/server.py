@@ -3632,9 +3632,15 @@ def admin_repeater_status_fields(entry):
     except (TypeError, ValueError):
         hop_count = 0
 
-    route = str(entry.get("direct_peer_route") or entry.get("direct_peer_path") or "").strip().upper()
-    route_is_lan = "WIFI_LAN" in route or boolish_enabled(
-        entry.get("direct_peer_lan_reachable"), default=False
+    active_route = str(entry.get("direct_peer_route") or "").strip().upper()
+    route = active_route or str(entry.get("direct_peer_path") or "").strip().upper()
+    # New firmware reports the route which is actually carrying control data.
+    # LAN reachability only means the fallback is ready; it must not replace a
+    # healthy DIRECT or repeater route in the dashboard. Retain the reachability
+    # fallback only for older firmware which does not report direct_peer_route.
+    route_is_lan = "WIFI_LAN" in route or (
+        not active_route
+        and boolish_enabled(entry.get("direct_peer_lan_reachable"), default=False)
     )
     if direct_peer_enabled and ("2_REPEATER" in route or "TWO_REPEATER" in route):
         hop_count = max(hop_count, 2)
@@ -3910,6 +3916,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "source_low_float_active": payload.get("source_low_float_active"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
+        "wifi_ssid": payload.get("wifi_ssid"),
         "sensor": payload.get("sensor"),
         "sensor_distance_cm": payload.get("sensor_distance_cm"),
         "sensor_distance_label": sensor_distance_label,
@@ -5256,6 +5263,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("dry_run"),
         cleaned.get("wifi"),
         cleaned.get("wifi_rssi"),
+        cleaned.get("wifi_ssid"),
         cleaned.get("sensor"),
         cleaned.get("device_source"),
         cleaned.get("sensor_info"),
@@ -5375,7 +5383,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 drip, slow_leak, pipe_leak,
                 ai_usage_rate, tomorrow_prediction,
                 dry_run,
-                wifi, wifi_rssi, sensor,
+                wifi, wifi_rssi, wifi_ssid, sensor,
                 device_source,
                 sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
@@ -6004,8 +6012,9 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-09-06-fast-device-inventory-v1"
+DB_SCHEMA_REVISION = "2026-09-21-connected-wifi-ssid-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
+    "wifi_ssid",
     "direct_peer_repeater_reachable",
     "direct_peer_repeater_last_packet_age_s",
     "direct_peer_route",
@@ -6088,6 +6097,7 @@ def init_db_serialized():
 def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
+        "wifi_ssid": "VARCHAR(32)",
         "device_source": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
@@ -6258,6 +6268,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             dry_run TEXT,
             wifi TEXT,
             wifi_rssi INTEGER,
+            wifi_ssid VARCHAR(32),
             sensor TEXT,
             device_source TEXT,
             sensor_info TEXT,
@@ -7027,6 +7038,7 @@ def init_db():
                 dry_run TEXT,
                 wifi TEXT,
                 wifi_rssi INTEGER,
+                wifi_ssid VARCHAR(32),
                 sensor TEXT,
                 device_source TEXT,
                 sensor_info TEXT,

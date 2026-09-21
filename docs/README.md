@@ -1,8 +1,16 @@
 # SaleWell Smart Tank Documentation
 
+## Current firmware instructions
+
+Use the [firmware README](../../swt_firmware_project/README.md) for the new
+`swt_esp32_slave` option, ESP32 GPIO profile, master/slave build and install
+commands, simulator mode defaults, and maximum transmit-power behavior.
+Test packaging enables simulation support by default; production disables it.
+Use the board-specific slave image for firmware upgrades.
+
 The workspace-wide maintained-source index is [`../../docs/DOCUMENTATION_INDEX.md`](../../docs/DOCUMENTATION_INDEX.md).
 
-Last refreshed: `2026-08-24`
+Last refreshed: `2026-09-21`
 
 Municipal-water documentation uses the shared status vocabulary: `Available`,
 `No Flow`, `Disabled`, and controller-level `Offline`. Do not claim that a basic

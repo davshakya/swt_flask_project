@@ -17,3 +17,8 @@ def test_active_path_uses_compact_node_names():
     assert 'else "M ↔ WIFI_LAN ↔ S"' in server
     assert 'else "M ↔ R1 ↔ R2 ↔ S"' in server
     assert "WIFI_LAN <-> Slave" not in server
+
+def test_active_route_overrides_lan_standby_reachability():
+    server = (ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    assert 'active_route = str(entry.get("direct_peer_route") or "").strip().upper()' in server
+    assert "not active_route" in server

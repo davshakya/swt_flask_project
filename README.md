@@ -1,6 +1,17 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-09-02`
+Last refreshed: `2026-09-21`
+
+## Firmware board and simulator selection
+
+The tank node can use ESP8266 (`swt_slave`) or ESP32 (`swt_esp32_slave`).
+Keep uploaded firmware artifacts matched to the installed board and device
+identity. Both ESP32 roles now request maximum driver TX power; this takes
+effect after flashing, not after a backend restart.
+Normal firmware packaging defaults to simulation enabled in test mode and
+disabled in production; production rejects enabled simulation. Runtime admin
+simulator controls remain separate from these build settings.
+See the [firmware guide](../swt_firmware_project/README.md).
 
 ## Municipal Sensor and Simulator Status
 

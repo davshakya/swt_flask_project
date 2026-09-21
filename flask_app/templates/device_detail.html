@@ -119,6 +119,7 @@ body{font-size:16px}
                  <div class="device-meta" aria-label="Device metadata">
                      <span class="device-meta-item">Last seen <strong id="lastSeenAge" data-age-seconds="{{ live_snapshot.get('seconds_since_sync') if live_snapshot.get('seconds_since_sync') is not none else '' }}">--</strong></span>
                      <span class="device-meta-item">Firmware <strong id="firmwareVersion">{{ live_snapshot.get("firmware_version") or live_snapshot.get("swt_version") or "--" }}</strong></span>
+                     <span class="device-meta-item">Connected Wi-Fi <strong id="wifiSsid">{{ live_snapshot.get("wifi_ssid") or "Not connected" }}</strong></span>
                      <span class="device-meta-item">Signal <strong id="rssiSignal">{% if live_snapshot.get("wifi_rssi") is not none %}{{ live_snapshot.get("wifi_rssi") }} dBm{% else %}--{% endif %}</strong></span>
                      <span class="device-meta-item">Uptime <strong id="deviceUptime">{{ live_snapshot.get("uptime_label") or live_snapshot.get("runtime") or "--" }}</strong></span>
                      <span id="lastSeenTimestamp" hidden>{{ live_snapshot.get("last_sync_at") or "No communication yet" }}</span>
@@ -2207,6 +2208,7 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   setText("deviceHealthScore",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}%`:"--");
   setText("deviceHealthNote",firstReason(snapshot.tank_health_reasons,"Sensors, telemetry, pump, and alerts."));
   setText("firmwareVersion",snapshot.firmware_version||snapshot.swt_version||"--");
+  setText("wifiSsid",snapshot.wifi_ssid||"Not connected");
   setText("rssiSignal",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`${snapshot.wifi_rssi} dBm`:"--");
   setText("rssiNote",snapshot.signal_quality||systemStatus.signal_quality||"Signal not reported");
   setText("deviceUptime",snapshot.uptime_label||snapshot.runtime||"--");
