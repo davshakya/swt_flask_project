@@ -333,7 +333,7 @@ body{font-size:16px}
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
                         <label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
-                        <label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %} onchange="document.getElementById('multiTankConfiguration').hidden=!this.checked"> Multi-Tank Destination Valves</label>
+                        <label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %}> Multi-Tank Destination Valves</label>
                         <div class="helper-text">Enable only after every configured tank valve has valid OPEN/CLOSED position feedback. Disabling stops multi-tank scheduling and commands a safe pump-off state.</div>
                         <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
                         <div class="form-group">
@@ -356,11 +356,11 @@ body{font-size:16px}
                         <label class="service-option"><input id="municipalPressureSensorOption" type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') and not service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('pressure')"> Water-pressure sensor</label>
                     </div>
                 </div>
-                <section id="multiTankConfiguration" class="admin-form" {% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}>
+                <section id="multiTankConfiguration" class="admin-form{% if not service_config.get('multi_tank_enabled', False) %} hidden-section{% endif %}" {% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}>
                     <h3>Overhead Tanks / Slaves</h3>
                     <div class="helper-text">Enable each overhead tank, assign its unique Slave MCU ID, and choose where that tank's dedicated pipe valve is wired. Lower priority numbers are filled first; equal priorities rotate fairly.</div>
                     {% for tank in service_config.get('destination_tanks', []) %}
-                    <div class="config-sections">
+                    <div class="config-sections destination-tank-slot{% if tank.tank_index > 1 and not tank.enabled %} hidden-section{% endif %}" data-destination-tank-index="{{ tank.tank_index }}">
                         <div class="config-section">
                             <h4>Tank {{ tank.tank_index }}</h4>
                             <label class="service-option"><input type="checkbox" name="tank_{{ tank.tank_index }}_enabled" value="1" {% if tank.enabled %}checked{% endif %}> Enable this tank</label>
@@ -397,6 +397,10 @@ body{font-size:16px}
                         </div>
                     </div>
                     {% endfor %}
+                    <div class="tank-setup-actions" id="destinationTankActions">
+                        <button id="addDestinationTank" class="btn btn-admin" type="button"><span>Add Overhead Tank</span></button>
+                        <span id="destinationTankCount" class="helper-text" aria-live="polite"></span>
+                    </div>
                 </section>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
@@ -2341,6 +2345,43 @@ window.swtPageTeardown=()=>{
 </script>
 <script>
 (()=>{
+const multiTankOption=document.getElementById("multiTankOption");
+const multiTankConfiguration=document.getElementById("multiTankConfiguration");
+function syncMultiTankConfiguration(){
+  if(!multiTankOption||!multiTankConfiguration)return;
+  const enabled=multiTankOption.checked;
+  multiTankConfiguration.hidden=!enabled;
+  multiTankConfiguration.classList.toggle("hidden-section",!enabled);
+}
+multiTankOption?.addEventListener("change",syncMultiTankConfiguration);
+syncMultiTankConfiguration();
+const destinationTankSlots=Array.from(document.querySelectorAll("[data-destination-tank-index]"))
+  .sort((left,right)=>Number(left.dataset.destinationTankIndex)-Number(right.dataset.destinationTankIndex));
+const addDestinationTank=document.getElementById("addDestinationTank");
+const destinationTankCount=document.getElementById("destinationTankCount");
+let visibleDestinationTankCount=Math.max(1,...destinationTankSlots
+  .filter((slot)=>slot.querySelector('input[name$="_enabled"]')?.checked)
+  .map((slot)=>Number(slot.dataset.destinationTankIndex)||1));
+function renderDestinationTankSlots(){
+  visibleDestinationTankCount=Math.min(destinationTankSlots.length,visibleDestinationTankCount);
+  destinationTankSlots.forEach((slot,index)=>{
+    slot.classList.toggle("hidden-section",index>=visibleDestinationTankCount);
+  });
+  if(destinationTankCount){
+    destinationTankCount.textContent=`${visibleDestinationTankCount} of ${destinationTankSlots.length} overhead tank slots shown`;
+  }
+  if(addDestinationTank){
+    const complete=visibleDestinationTankCount>=destinationTankSlots.length;
+    addDestinationTank.hidden=complete;
+    addDestinationTank.disabled=complete;
+  }
+}
+addDestinationTank?.addEventListener("click",()=>{
+  visibleDestinationTankCount=Math.min(destinationTankSlots.length,visibleDestinationTankCount+1);
+  renderDestinationTankSlots();
+  destinationTankSlots[visibleDestinationTankCount-1]?.scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+renderDestinationTankSlots();
 document.querySelectorAll(".tank-setup-form").forEach((form)=>{
   const heightInput=form.querySelector("[data-tank-setup-height]");
   const capacityInput=form.querySelector("[data-tank-setup-capacity]");

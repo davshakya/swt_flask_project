@@ -53,6 +53,13 @@ def test_existing_municipal_option_is_the_optional_feature_master_switch():
     assert 'name="tank_{{ tank.tank_index }}_slave_device_id"' in DEVICE_TEMPLATE_SOURCE
     assert 'name="tank_{{ tank.tank_index }}_valve_owner"' in DEVICE_TEMPLATE_SOURCE
     assert "Overhead Tanks / Slaves" in DEVICE_TEMPLATE_SOURCE
+    assert 'id="addDestinationTank"' in DEVICE_TEMPLATE_SOURCE
+    assert "renderDestinationTankSlots" in DEVICE_TEMPLATE_SOURCE
+    assert "visibleDestinationTankCount=Math.min(destinationTankSlots.length" in DEVICE_TEMPLATE_SOURCE
+    assert 'data-destination-tank-index="{{ tank.tank_index }}"' in DEVICE_TEMPLATE_SOURCE
+    assert "syncMultiTankConfiguration" in DEVICE_TEMPLATE_SOURCE
+    assert 'multiTankConfiguration.classList.toggle("hidden-section",!enabled)' in DEVICE_TEMPLATE_SOURCE
+    assert "{% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}" in DEVICE_TEMPLATE_SOURCE
     assert "municipal_valve=1 if municipal_valve_enabled else 0" in build_block
     assert "source_outlet_valve=1 if source_outlet_valve_enabled else 0" in build_block
     assert "municipal=1 if municipal_sensor_enabled else 0" in build_block
