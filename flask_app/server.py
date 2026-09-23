@@ -2267,12 +2267,17 @@ def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
 
 
 def clear_runtime_caches(device_id=None):
-    analytics_cache.clear()
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
+        analytics_cache.clear()
         dashboard_snapshot_cache.clear()
         forget_alert_touches_for_device()
         return
+    # A device update also changes combined analytics, but must not evict
+    # unrelated customers' results and force their history to be read again.
+    for cache_key in list(analytics_cache):
+        if cache_key[2] in {normalized_device_id, "*"}:
+            analytics_cache.pop(cache_key, None)
     for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
         dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
@@ -5203,7 +5208,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     if normalized_device_id and device_is_ignored(normalized_device_id):
         cleaned["device_id"] = normalized_device_id
         cleaned["_telemetry_sync_result"] = "ignored"
-        logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
+        logger.debug("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
@@ -5216,7 +5221,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         source_ip=source_ip,
     ):
         cleaned["_telemetry_sync_result"] = "duplicate"
-        logger.info(
+        logger.debug(
             "Skipped duplicate telemetry sync via %s for device %s fingerprint=%s",
             transport,
             cleaned.get("device_id") or "unknown device",
@@ -23180,7 +23185,7 @@ def status():
 @app.route("/last")
 @login_required
 def last():
-    logger.info("Fetching last status")
+    logger.debug("Fetching last status")
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -23196,7 +23201,7 @@ def history():
     if not TELEMETRY_HISTORY_ENABLED:
         return jsonify([])
 
-    logger.info("Fetching history")
+    logger.debug("Fetching history")
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -23509,7 +23514,7 @@ def analytics():
         return jsonify({"error": str(exc)}), 400
 
     if TELEMETRY_HISTORY_ENABLED:
-        logger.info("Running analytics engine for %s", label)
+        logger.debug("Running analytics engine for %s", label)
     try:
         payload = build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
