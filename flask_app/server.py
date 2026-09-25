@@ -1,5 +1,6 @@
 import atexit
 from datetime import datetime, timedelta, timezone
+from flask_app.pump_command_status import pump_confirmation
 from functools import wraps
 import base64
 import copy
@@ -18424,6 +18425,10 @@ def motor_off():
 @login_required
 def motor_command_status(request_id):
     target_device = current_scope_device_id(request.args.get("device_id", type=str))
+    return device_motor_command_status(target_device, request_id)
+
+
+def device_motor_command_status(target_device, request_id):
     with get_db() as db:
         row = db.execute(
             """
@@ -18439,12 +18444,16 @@ def motor_command_status(request_id):
             return jsonify({"error": "command not found"}), 404
         result = dict(row)
         if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
-            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE request_id=?", (str(request_id),))
+            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE target_device=? AND request_id=?", (target_device, str(request_id)))
             result["status"] = "timed_out"
         try:
             result["device_result"] = json.loads(result.pop("result_json") or "{}")
         except (TypeError, ValueError):
             result["device_result"] = {}
+    snapshot = load_dashboard_snapshot(
+        target_device, prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
+    )
+    result.update(pump_confirmation(result, snapshot))
     return jsonify(result)
 
 
@@ -18851,6 +18860,16 @@ def mobile_motor_on():
     if response:
         return response
     return mobile_queue_command_response("ON", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
+
+
+@app.route("/api/mobile/motor/command-status/<request_id>")
+@mobile_auth_required
+def mobile_motor_command_status(request_id):
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    return device_motor_command_status(target_device, request_id)
 
 
 @app.route("/api/mobile/motor/off", methods=["POST"])
@@ -19318,6 +19337,15 @@ def device_sync():
     command_ack = payload.get("command_ack")
     acknowledgement = None
     if CAPACITY_FEATURES.enabled("sync_command_ack") and isinstance(command_ack, dict):
+        # Older compact-sync firmware omits motor_state in the acknowledgement,
+        # but supplies the actual firmware state in the same authenticated telemetry.
+        command_ack = dict(command_ack)
+        if "motor_state" not in command_ack:
+            if boolish_enabled(telemetry.get("pump_state_confirmed"), default=False):
+                if "physical_pump_running" in telemetry:
+                    command_ack["motor_state"] = "RUNNING" if boolish_enabled(telemetry["physical_pump_running"], default=False) else "OFF"
+            elif telemetry.get("motor") in {"ON", "OFF"}:
+                command_ack["motor_state"] = telemetry["motor"]
         command_source = str(command_ack.get("command_source") or "queue").strip().lower()
         if command_source == "relay":
             acknowledged = acknowledge_relay_command(
