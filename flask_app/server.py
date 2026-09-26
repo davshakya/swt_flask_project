@@ -18670,6 +18670,11 @@ def mobile_bootstrap():
     snapshot = public_snapshot
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
     payload = dict(summary)
+    # Android reads synchronized_status.pump before snapshot.motor. Rebuild it
+    # from the selected live sample, not the older materialized summary.
+    payload["system_status"] = build_system_status_payload(
+        snapshot, device_id=scoped_device_id, service_config=service_config
+    )
     payload.update({
         "events": list(summary.get("events") or [])[:event_limit],
         "audit": list(summary.get("audit") or [])[:audit_limit],
