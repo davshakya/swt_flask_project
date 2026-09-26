@@ -18443,6 +18443,9 @@ def device_motor_command_status(target_device, request_id):
         if not row:
             return jsonify({"error": "command not found"}), 404
         result = dict(row)
+        # Legacy MQTT acknowledgements record delivery without updating status.
+        if result["status"] == "queued" and result.get("delivered_at"):
+            result["status"] = "delivered"
         if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
             db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE target_device=? AND request_id=?", (target_device, str(request_id)))
             result["status"] = "timed_out"
@@ -21989,7 +21992,7 @@ def automatic_simulator_commands_for_setup(setup_type, service_config):
         "set:peer_delay_ms:0",
         f"set:simulator_level:{preset['simulator_upper_level']}",
     ]
-    if config.get("source_tank_monitoring_enabled"):
+    if config.get("source_tank_monitoring_enabled") and "simulator_source_level" in preset:
         commands.append(f"set:simulator_lower_level:{preset['simulator_source_level']}")
     if config.get("municipal_sensor_enabled"):
         commands.append("MUNICIPAL_SIMULATOR_ON")
@@ -22127,7 +22130,8 @@ def admin_device_detail_configuration(device_id):
         )
         set_device_multi_tank_enabled(scoped_device_id, multi_tank_enabled)
         save_device_destination_tanks(scoped_device_id, destination_tanks)
-        updated_config = fetch_device_service_config(scoped_device_id, snapshot=snapshot)
+        # Generate commands from the saved intent, not the pre-save device snapshot.
+        updated_config = fetch_device_service_config(scoped_device_id)
     except ValueError as exc:
         return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
     except Exception as exc:
