@@ -113,17 +113,15 @@ def test_test_device_slave_role_uses_the_slave_mcu_identity():
     assert firmware_role_device_id("swt-test-000-000-001", "repeater2") == "swt-test-rep2-000-001"
 
 
-def test_flask_keeps_android_ota_and_adds_signed_direct_lan_install():
+def test_flask_keeps_android_ota_without_direct_lan_install_cards():
     server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
     template_source = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
 
     assert "Android App OTA Trigger" in template_source
     assert "Queue Android OTA" in template_source
-    assert "Master Direct LAN Install" not in template_source  # Rendered from the role loop.
-    assert "{{ lan_role|title }} Direct LAN Install" in template_source
-    assert "Install {{ lan_role|title }} via LAN" in template_source
-    assert 'snapshot.get("device_local_url")' in template_source
-    assert 'snapshot.get("direct_peer_remote_ip")' in template_source
+    assert "Direct LAN Install" not in template_source
+    assert "via LAN" not in template_source
+    assert "admin_device_detail_lan_firmware_install" not in template_source
     assert '@app.route("/devices/<device_id>/firmware/lan-install", methods=["POST"])' in server_source
     assert "def admin_device_detail_lan_firmware_install(device_id):" in server_source
     assert 'normalized_role not in {"master", "slave"}' in server_source
