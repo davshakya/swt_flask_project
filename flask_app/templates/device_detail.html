@@ -89,6 +89,34 @@ body{font-size:16px}
 .activity-details{margin-top:5px;color:var(--muted);font-size:11px}.activity-details summary{display:inline-block;cursor:pointer;color:var(--primary);font-weight:800;list-style:none}.activity-details summary::-webkit-details-marker{display:none}.activity-details summary::after{content:" +"}.activity-details[open] summary::after{content:" -"}.activity-details-body{margin-top:6px;padding:8px 10px;border-left:2px solid color-mix(in srgb,var(--primary) 45%,var(--line));background:rgba(255,255,255,.08);line-height:1.45;overflow-wrap:anywhere}
 @media(min-width:721px){ #device-configuration .admin-grid, #device-firmware .firmware-upload-grid{gap:10px} #device-configuration .admin-form, #device-firmware .admin-form{gap:8px;padding:12px;border-radius:13px} #device-configuration .config-section{gap:7px;padding:11px} #device-configuration .service-option{padding:7px 9px;border-radius:10px;font-size:12px} #device-configuration .form-group{gap:4px} #device-configuration .form-group input, #device-configuration .form-group select, #device-firmware .form-group input, #device-firmware .form-group select{min-height:40px;height:40px;padding:7px 10px;font-size:13px;border-radius:10px} #device-configuration .helper-text, #device-firmware .helper-text{font-size:11px;line-height:1.4} #device-configuration .admin-form h3, #device-firmware .admin-form h3{font-size:15px} #device-firmware .firmware-upload-grid .admin-form{grid-template-rows:auto auto auto minmax(32px,1fr) auto;align-self:stretch} #device-firmware>.admin-form{margin-top:10px}.activity-table th,.activity-table td{padding:8px 10px}.activity-table th:first-child,.activity-table td:first-child{width:105px}.activity-table th:nth-child(2),.activity-table td:nth-child(2){width:85px}.activity-table th:last-child,.activity-table td:last-child{width:82px}.activity-message{font-size:13px;line-height:1.3}.activity-meta{font-size:11px;line-height:1.35}}
 @media(max-width:720px){.device-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.device-meta-item{min-width:0}.quick-nav{display:flex;width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.quick-nav a{white-space:nowrap}.device-action-bar{top:6px;bottom:auto}.device-action-group{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}}
+#device-firmware .firmware-android-ota{grid-template-rows:none;align-content:start}
+#device-firmware .firmware-android-ota>.btn{width:fit-content;max-width:100%;min-height:44px;height:auto;justify-self:start;align-self:start;padding:0 18px;font-size:14px;border-radius:10px}
+#device-firmware .firmware-android-ota>.btn span{min-height:42px;width:auto}
+/* Runtime settings use consistent rows; help stays available on click or keyboard. */
+#device-configuration .config-form .config-sections{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+#device-configuration .config-form .config-section{align-content:start;grid-auto-rows:max-content;gap:8px;padding:14px}
+#device-configuration .config-form .config-section h4{min-height:32px;display:flex;align-items:center;margin:0;font-size:14px}
+#device-configuration .config-form .service-option{min-height:44px;padding:10px 12px;font-size:13px;line-height:1.4;border-radius:10px;margin:0}
+#device-configuration .config-form .service-option input{width:18px;height:18px;min-height:18px;max-height:18px;flex:0 0 18px;margin:0;padding:0;accent-color:var(--primary)}
+#device-configuration .config-form .config-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+#device-configuration .config-form .config-label-row>.service-option{flex:1}
+#device-configuration .config-form .config-option-row{min-height:44px;padding:0 6px 0 0;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.24)}
+#device-configuration .config-form .config-option-row>.service-option{min-height:42px;padding:9px 12px 9px 11px;border:0;background:transparent}
+#device-configuration .config-form .service-option{cursor:pointer}
+#device-configuration .config-form .service-option:has(input:disabled){cursor:not-allowed}
+#device-configuration .config-form .service-option:focus-within{outline:2px solid var(--primary);outline-offset:2px}
+#device-configuration .config-form .config-info{position:relative;flex:0 0 32px;font-weight:400}
+#device-configuration .config-form .config-info summary{display:flex;align-items:center;justify-content:center;list-style:none;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:var(--panel);color:var(--primary);font-size:14px;font-weight:800;cursor:pointer}
+#device-configuration .config-form .config-info summary::-webkit-details-marker{display:none}
+#device-configuration .config-form .config-info summary:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+#device-configuration .config-form .config-info[open]{z-index:40}
+#device-configuration .config-form .config-info-content{position:absolute;right:0;top:38px;width:min(300px,calc(100vw - 80px));padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);box-shadow:var(--shadow);max-height:60vh;overflow:auto;overflow-wrap:anywhere}
+#device-configuration .config-form .config-info-content .helper-text{font-size:13px;line-height:1.5;margin:0}
+#device-configuration .config-form .config-info-content .helper-text+.helper-text{margin-top:10px}
+#device-configuration .config-form>.btn,#device-configuration .config-form .tank-setup-actions .btn{width:fit-content;max-width:100%;min-height:44px;align-self:start;justify-self:end;padding:0 18px;font-size:14px;border-radius:10px}
+#device-configuration .config-form .form-group input:not([type=checkbox]):not([type=radio]),#device-configuration .config-form .form-group select{min-height:44px;height:44px;font-size:14px}
+@media(max-width:1000px){ #device-configuration .config-form .config-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){ #device-configuration .config-form .config-sections{grid-template-columns:minmax(0,1fr)} #device-configuration .config-form>.btn,#device-configuration .config-form .tank-setup-actions .btn{width:100%;justify-self:stretch}}
 </style>
 {% include '_theme_overrides.html' %}
 </head>
@@ -296,7 +324,7 @@ body{font-size:16px}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Device Runtime Configuration</h3>
                 <div class="form-group">
-                    <label for="deviceSetupTypeOption">Device Setup Type</label>
+                    <div class="config-label-row"><label for="deviceSetupTypeOption">Device Setup Type</label><details class="config-info"><summary aria-label="Information about device setup">i</summary><div class="config-info-content"><div id="deviceSetupTypeHelp" class="helper-text">Selecting a setup applies compatible tank, municipal-water and valve features. Sensor-controller location and turbidity remain independently configurable.</div></div></details></div>
                     <select id="deviceSetupTypeOption" name="device_setup_type" onchange="window.swtApplyDeviceSetupType&&window.swtApplyDeviceSetupType(this.value)">
                         <option value="source_only" {% if configured_setup_type == "source_only" %}selected{% endif %}>Source Tank → Pump → Upper Tank</option>
                         <option value="borewell_upper" {% if configured_setup_type == "borewell_upper" %}selected{% endif %}>Borewell / Submersible Pump → Upper Tank</option>
@@ -305,10 +333,9 @@ body{font-size:16px}
                         <option value="custom" {% if configured_setup_type == "custom" %}selected{% endif %}>Custom Configuration</option>
                     </select>
                 </div>
-                <div id="deviceSetupTypeHelp" class="helper-text">Selecting a setup applies compatible tank, municipal-water and valve features. Sensor-controller location and turbidity remain independently configurable.</div>
                 <div class="config-sections">
                     <div class="config-section">
-                        <h4>Master Configuration</h4>
+                        <div class="config-label-row"><h4>Master Configuration</h4><details class="config-info"><summary aria-label="Information about master configuration">i</summary><div class="config-info-content"><div class="helper-text">Choose the sensors and outputs installed on the master controller. Select Upper Sensor here when the master reads the overhead tank.</div><div id="municipalDirectUpperHint" class="helper-text{% if not service_config.get('municipal_sensor_enabled') or service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}">Direct municipal setup: Municipal Water → Pump → Upper Tank. No source tank or motorized valves are required.</div></div></details></div>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
@@ -318,47 +345,38 @@ body{font-size:16px}
                         <label class="service-option"><input id="relayOption" type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
-                        <div id="municipalDirectUpperHint" class="helper-text{% if not service_config.get('municipal_sensor_enabled') or service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}">Direct municipal setup: Municipal Water → Pump → Upper Tank. No source tank or motorized valves are required.</div>
                     </div>
                     <div class="config-section">
-                        <h4>Slave Configuration</h4>
+                        <div class="config-label-row"><h4>Slave Configuration</h4><details class="config-info"><summary aria-label="Information about slave configuration">i</summary><div class="config-info-content"><div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div></div></details></div>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
                         <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Upper Turbidity</label>
-                        <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
                         <h4>Other Features</h4>
                         <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
-                        <label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
-                        <label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %}> Multi-Tank Destination Valves</label>
-                        <div class="helper-text">Enable only after every configured tank valve has valid OPEN/CLOSED position feedback. Disabling stops multi-tank scheduling and commands a safe pump-off state.</div>
-                        <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
+                        <div class="config-label-row config-option-row"><label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label><details class="config-info"><summary aria-label="Information about automatic pump control">i</summary><div class="config-info-content"><div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div></div></details></div>
+                        <div class="config-label-row config-option-row"><label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %}> Multi-Tank Destination Valves</label><details class="config-info"><summary aria-label="Information about multi-tank valves">i</summary><div class="config-info-content"><div class="helper-text">Enable only after every configured tank valve has valid OPEN/CLOSED position feedback. Disabling stops multi-tank scheduling and commands a safe pump-off state.</div></div></details></div>
                         <div class="form-group">
-                            <label for="android_sso_session_limit">Android SSO Device Count</label>
+                            <div class="config-label-row"><label for="android_sso_session_limit">Android SSO Device Count</label><details class="config-info"><summary aria-label="Information about Android sign-in limits">i</summary><div class="config-info-content"><div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached; lowering the count signs out the oldest sessions immediately.</div><div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div></div></details></div>
                             <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
                         </div>
-                        <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached; lowering the count signs out the oldest sessions immediately.</div>
-                        <div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div>
                     </div>
                     <div class="config-section" id="pumpConfirmationSensors">
-                        <h4>Pump Confirmation Sensors</h4>
+                        <div class="config-label-row"><h4>Pump Confirmation Sensors</h4><details class="config-info"><summary aria-label="Information about pump confirmation sensors">i</summary><div class="config-info-content"><div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. Municipal flow/pressure detection is configured under Municipal Water Feature.</div></div></details></div>
                         <label class="service-option"><input type="checkbox" name="starter_contactor_sensor_enabled" value="1" {% if service_config.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
                         <label class="service-option"><input type="checkbox" name="motor_current_sensor_enabled" value="1" {% if service_config.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
-                        <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. Municipal flow/pressure detection is configured under Municipal Water Feature.</div>
                     </div>
                     <div class="config-section" id="municipalDetectionSensorOptions">
-                        <h4>Municipal Detection Sensor</h4>
-                        <div class="helper-text">Select only one. Municipal Water Feature must be enabled.</div>
+                        <div class="config-label-row"><h4>Municipal Detection Sensor</h4><details class="config-info"><summary aria-label="Information about municipal detection sensors">i</summary><div class="config-info-content"><div class="helper-text">Select only one. Municipal Water Feature must be enabled.</div></div></details></div>
                         <label class="service-option"><input id="municipalFlowSensorOption" type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('flow')"> Water-flow sensor</label>
                         <label class="service-option"><input id="municipalPressureSensorOption" type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') and not service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('pressure')"> Water-pressure sensor</label>
                     </div>
                 </div>
                 <section id="multiTankConfiguration" class="admin-form{% if not service_config.get('multi_tank_enabled', False) %} hidden-section{% endif %}" {% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}>
-                    <h3>Overhead Tanks / Slaves</h3>
-                    <div class="helper-text">Enable each overhead tank, assign its unique Slave MCU ID, and choose where that tank's dedicated pipe valve is wired. Lower priority numbers are filled first; equal priorities rotate fairly.</div>
+                    <div class="config-label-row"><h3>Overhead Tanks / Slaves</h3><details class="config-info"><summary aria-label="Information about overhead tank configuration">i</summary><div class="config-info-content"><div class="helper-text">Enable each overhead tank, assign its unique Slave MCU ID, and choose where that tank's dedicated pipe valve is wired. Lower priority numbers are filled first; equal priorities rotate fairly.</div></div></details></div>
                     {% for tank in service_config.get('destination_tanks', []) %}
                     <div class="config-sections destination-tank-slot{% if tank.tank_index > 1 and not tank.enabled %} hidden-section{% endif %}" data-destination-tank-index="{{ tank.tank_index }}">
                         <div class="config-section">
@@ -696,10 +714,10 @@ body{font-size:16px}
             </div>
             {% if android_ota_ready %}
             <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device.</div>
-            <button class="btn btn-admin btn-full" type="submit"><span>Queue Android OTA</span></button>
+            <button class="btn btn-admin" type="submit"><span>Queue Android OTA</span></button>
             {% else %}
             <div class="helper-text">Enable Cloud Feed and Local firmware upload before queueing the Android app OTA trigger.</div>
-            <button class="btn btn-admin btn-full" type="submit" disabled><span>Queue Android OTA</span></button>
+            <button class="btn btn-admin" type="submit" disabled><span>Queue Android OTA</span></button>
             {% endif %}
         </form>
         </div>
