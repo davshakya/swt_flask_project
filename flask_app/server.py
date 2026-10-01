@@ -5904,6 +5904,20 @@ _MYSQL_CONNECTION_POOL_LOCK = threading.Lock()
 
 
 def connect_mysql_unpooled():
+    # No application statements have run yet, so retrying connection/session
+    # setup is safe even for callers that will subsequently perform writes.
+    # Keep this bounded: shared-host outages must not tie up workers forever.
+    for attempt in range(2):
+        try:
+            return _connect_mysql_unpooled_once()
+        except Exception as exc:
+            if attempt or not mysql_is_connection_recoverable_error(exc):
+                raise
+            logger.warning("Retrying MySQL connection/session setup after transient disconnect: %s", exc)
+            time.sleep(0.5)
+
+
+def _connect_mysql_unpooled_once():
     global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
@@ -5976,12 +5990,21 @@ def connect_mysql_unpooled():
                     "MySQL database was created or already exists, but Flask still could not connect. "
                     "Check MYSQL_* credentials and database-user permissions."
                 ) from reconnect_exc
-    with conn.cursor() as cursor:
-        cursor.execute("SET time_zone = '+00:00'")
-        cursor.execute(
-            "SET SESSION innodb_lock_wait_timeout = %s",
-            (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
-        )
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SET time_zone = '+00:00'")
+            cursor.execute(
+                "SET SESSION innodb_lock_wait_timeout = %s",
+                (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
+            )
+    except Exception:
+        # Failed session setup previously leaked an open connection, adding
+        # pressure to the shared host during repeated resets.
+        try:
+            conn.close()
+        except Exception:
+            pass
+        raise
     return MySqlConnectionAdapter(conn)
 
 
@@ -12646,6 +12669,7 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
+        "recent_alerts": fetch_recent_service_alerts(device_id=device_id),
         "synchronized_status": synchronized_status,
         # Backward-compatible aliases for clients that adopted the initial
         # cross-project status contract before the nested field was finalized.
@@ -16480,6 +16504,37 @@ def fetch_active_alerts(limit=20, device_id=None):
     return [dict(row) for row in rows]
 
 
+def fetch_recent_service_alerts(device_id=None):
+    """Last three issues, including cleared issues and their current status."""
+    normalized_device_id = normalize_device_id(device_id)
+    # Never expose another customer's history when no device is assigned.
+    if not normalized_device_id:
+        return []
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT alert.id, alert.device_id, alert.kind, alert.severity,
+                   alert.message, alert.created_at, alert.updated_at, alert.active
+            FROM ops_alerts AS alert
+            WHERE alert.device_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM ops_alerts AS newer
+                  WHERE newer.device_id = alert.device_id
+                    AND COALESCE(newer.kind, '') = COALESCE(alert.kind, '')
+                    AND (
+                        newer.active > alert.active
+                        OR (newer.active = alert.active AND newer.updated_at > alert.updated_at)
+                        OR (newer.active = alert.active AND newer.updated_at = alert.updated_at AND newer.id > alert.id)
+                    )
+              )
+            ORDER BY alert.updated_at DESC, alert.id DESC
+            LIMIT 3
+            """,
+            (normalized_device_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def fetch_filtered_alerts(limit=20, severity=None, device_id=None, updated_since=None):
     query = f"""
         SELECT alert.id, alert.device_id, alert.kind, alert.severity, alert.message, alert.created_at, alert.updated_at
@@ -17505,6 +17560,20 @@ def device_command_family(command):
 
 
 def queue_device_command(command, target_device, request_id=None, expires_in_seconds=None):
+    stable_request_id = str(request_id or secrets.token_hex(16))
+    return run_with_database_lock_retries(
+        lambda: _queue_device_command_once(
+            command, target_device, request_id=stable_request_id,
+            expires_in_seconds=expires_in_seconds,
+        ),
+        operation_name="queue device command",
+        attempts=3,
+        initial_delay_s=0.1,
+        retry_connection_errors=False,
+    )
+
+
+def _queue_device_command_once(command, target_device, request_id=None, expires_in_seconds=None):
     normalized_target_device = normalize_device_id(target_device)
     if not normalized_target_device:
         raise ValueError("A target device is required for a queued command.")

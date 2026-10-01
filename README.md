@@ -682,3 +682,10 @@ python ./scripts/run_virtual_devices.py \
 ```
 
 Open `http://127.0.0.1:8765`, `/health`, and `/admin/customers`; then validate normal operation, sensor faults, dry-run, pump failure, device/slave offline, municipal state, telemetry freshness, events/alerts, and command acknowledgements. Use `./scripts/setup_test_env.sh --skip-tests` for startup only or `--reset-database` when test data may be deleted. Full manual pytest commands and troubleshooting are in the [test harness README](../swt_test_cases_project/README.md) and [Word guide](../swt_test_cases_project/docs/SaleWell_Virtual_Device_Test_Setup_WSL.docx).
+
+
+## Android changes reviewed 2026-10-01
+
+Android consumes system_status.recent_alerts as authoritative history, with an active-alert fallback for older servers. Flask GMT-formatted dates are now accepted alongside SQL and ISO dates. The unread badge is Android-local state, not the server active_alert_count. A locally cleared telemetry delay does not update ops_alerts; cloud recovery still depends on backend telemetry evaluation.
+
+See [Android alerts, support, and build versions](../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

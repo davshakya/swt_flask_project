@@ -252,3 +252,10 @@ for device API keys, administrator passwords, database credentials, payment
 card details, or other secrets. It cannot confirm that mains wiring is safe,
 diagnose a hazardous panel remotely, or replace a qualified installer or
 electrician. Pricing and compatibility must be confirmed before purchase.
+
+
+## Android changes reviewed 2026-10-01
+
+When answering Android alert questions, distinguish read from resolved: opening the history clears unread counts, not equipment faults. Only the bell icon pulses for unread alerts. An older telemetry-delay issue may clear locally after a newer fresh reading from the same device, without changing cloud records. Do not claim every fault is resolved because System Health is Good. Support email in the app is support@salewell.co.in.
+
+See [Android alerts, support, and build versions](../../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

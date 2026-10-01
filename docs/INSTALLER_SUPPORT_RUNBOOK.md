@@ -131,3 +131,10 @@ Escalate beyond first-line support when:
 - dry-run or pump-failure alerts appear repeatedly without clear cause
 - firmware upload/update repeatedly fails on known-good Wi-Fi
 - MySQL/MariaDB persistence or hosted deployment health appears compromised
+
+
+## Android changes reviewed 2026-10-01
+
+For ?System Health Good but Tank update delayed remains Active,? inspect the alert timestamp, device identity, and current local versus cloud connectivity. Android repairs old GMT-date cache entries and can show local resolution only with newer fresh same-device telemetry. Reading an alert hides its unread badge without resolving it. Ask customers to use Email Support: support@salewell.co.in and review the prefilled details before sending.
+
+See [Android alerts, support, and build versions](../../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

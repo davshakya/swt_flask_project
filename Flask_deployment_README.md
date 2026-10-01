@@ -511,3 +511,10 @@ Check:
 Upload repo -> create Passenger app -> set device.env ->
 install requirements -> restart app -> test /health and /login/admin
 ```
+
+
+## Android changes reviewed 2026-10-01
+
+Android APK packaging now increments a persistent local counter even after clean. On a fresh build worker, seed SWT_ANDROID_VERSION_CODE above the highest published code. Upload the newly built APK and verify its embedded version; changing a Flask environment value does not upgrade an existing artifact. Local Android alert read status and local telemetry recovery do not mutate backend alert records.
+
+See [Android alerts, support, and build versions](../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.
