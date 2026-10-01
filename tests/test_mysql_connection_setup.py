@@ -25,6 +25,8 @@ def setup_namespace(connect):
         "mysql_connection_config": lambda: dict(host="localhost", port=3306,
                                                 user="test", password="test", database="test"),
         "_MYSQL_RESOLVED_LOCAL_PORT": None,
+        "_MYSQL_RESOLVED_UNIX_SOCKET": None,
+        "discover_local_mysql_socket": lambda _config: None,
         "os": SimpleNamespace(environ={}),
         "env_int": lambda _name, default: default,
         "MySqlDictCursor": object,
@@ -72,6 +74,66 @@ def test_connection_reset_during_handshake_recovers_before_application_work():
     namespace = setup_namespace(connect)
     assert namespace["connect_mysql_unpooled"]() is connection
     assert len(calls) == 2
+
+
+def test_local_reset_recovers_over_socket_and_reuses_successful_transport():
+    calls = []
+    connection = Connection()
+
+    def connect(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise Exception(2003, "Connection reset by peer")
+        return connection
+
+    namespace = setup_namespace(connect)
+    namespace["discover_local_mysql_socket"] = lambda _config: "/run/mysqld/mysqld.sock"
+    assert namespace["connect_mysql_unpooled"]() is connection
+    assert "unix_socket" not in calls[0]
+    assert calls[1]["unix_socket"] == "/run/mysqld/mysqld.sock"
+    namespace["connect_mysql_unpooled"]()
+    assert calls[2]["unix_socket"] == calls[1]["unix_socket"]
+
+
+def test_explicit_socket_is_preserved_during_retry():
+    calls = []
+
+    def connect(**kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise Exception(2006, "MySQL server has gone away")
+        return Connection()
+
+    namespace = setup_namespace(connect)
+    namespace["os"].environ["MYSQL_UNIX_SOCKET"] = "/custom/mysql.sock"
+    namespace["connect_mysql_unpooled"]()
+    assert [call["unix_socket"] for call in calls] == ["/custom/mysql.sock"] * 2
+
+
+def test_failed_socket_recovery_does_not_cache_unverified_transport():
+    namespace = setup_namespace(lambda **_kwargs: (_ for _ in ()).throw(
+        Exception(2006, "MySQL server has gone away")))
+    namespace["discover_local_mysql_socket"] = lambda _config: "/run/mysqld/mysqld.sock"
+    with pytest.raises(RuntimeError):
+        namespace["connect_mysql_unpooled"]()
+    assert namespace["_MYSQL_RESOLVED_UNIX_SOCKET"] is None
+
+
+def test_disappeared_cached_socket_recovers_using_original_tcp_configuration():
+    calls = []
+
+    def connect(**kwargs):
+        calls.append(kwargs)
+        if "unix_socket" in kwargs:
+            raise Exception(2003, "Can't connect: socket file missing")
+        return Connection()
+
+    namespace = setup_namespace(connect)
+    namespace["_MYSQL_RESOLVED_UNIX_SOCKET"] = "/run/mysqld/mysqld.sock"
+    namespace["connect_mysql_unpooled"]()
+    assert len(calls) == 2
+    assert "unix_socket" not in calls[1]
+    assert namespace["_MYSQL_RESOLVED_UNIX_SOCKET"] is None
 
 
 def test_session_setup_reset_closes_failed_connection_and_recovers():

@@ -91,6 +91,7 @@ from flask_app.runtime_utils import (
     parse_simple_dotenv,
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
+from flask_app.mysql_transport import discover_local_mysql_socket
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
 from flask_app.capacity_schema import ensure_capacity_schema
 from flask_app.capacity_ingestion import DeviceIngestionResult, ingest_device_payload
@@ -753,7 +754,9 @@ RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
-MYSQL_OPTIMIZE_ENABLED = env_flag("MYSQL_OPTIMIZE_ENABLED", default=True)
+# OPTIMIZE can rebuild InnoDB tables; shared-host I/O budgets cannot absorb
+# this as implicit routine maintenance. Retention deletes remain enabled.
+MYSQL_OPTIMIZE_ENABLED = env_flag("MYSQL_OPTIMIZE_ENABLED", default=False)
 DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
@@ -5781,7 +5784,11 @@ class MySqlCursorAdapter:
         translated_sql, translated_params = translate_mysql_query(sql, params)
         # Connection loss does not prove that MySQL did not apply a write.
         # Replay only plain reads; writes and DDL fail back to the caller.
-        max_attempts = 2 if statement_allows_connection_retry(translated_sql) else 1
+        retryable_read = statement_allows_connection_retry(translated_sql)
+        max_attempts = 2 if retryable_read and not self.connection_adapter.transaction_has_writes else 1
+        if not retryable_read:
+            # Mark before execution: a failed write may have reached MySQL.
+            self.connection_adapter.transaction_has_writes = True
         attempt = 0
         while attempt < max_attempts:
             try:
@@ -5838,6 +5845,7 @@ class MySqlConnectionAdapter:
         self.pool = pool
         self.pool_created_at = pool_created_at
         self.closed = False
+        self.transaction_has_writes = False
 
     def cursor(self):
         return MySqlCursorAdapter(self, self.connection.cursor())
@@ -5850,8 +5858,11 @@ class MySqlConnectionAdapter:
     def reconnect(self):
         if self.pool is not None:
             self.pool.release(self.connection, self.pool_created_at, discard=True)
+            # If acquisition fails, __exit__ must not release this lease twice.
+            self.closed = True
             self.connection, self.pool_created_at = self.pool.acquire()
             self.closed = False
+            self.transaction_has_writes = False
             return
         try:
             if self.connection is not None:
@@ -5860,12 +5871,17 @@ class MySqlConnectionAdapter:
             pass
         adapter = connect_mysql()
         self.connection = adapter.connection
+        self.transaction_has_writes = False
 
     def commit(self):
-        return self.connection.commit()
+        result = self.connection.commit()
+        self.transaction_has_writes = False
+        return result
 
     def rollback(self):
-        return self.connection.rollback()
+        result = self.connection.rollback()
+        self.transaction_has_writes = False
+        return result
 
     def close(self):
         if self.closed:
@@ -5899,25 +5915,44 @@ class MySqlConnectionAdapter:
 
 
 _MYSQL_RESOLVED_LOCAL_PORT = None
+_MYSQL_RESOLVED_UNIX_SOCKET = None
 _MYSQL_CONNECTION_POOL = None
 _MYSQL_CONNECTION_POOL_LOCK = threading.Lock()
 
 
 def connect_mysql_unpooled():
+    global _MYSQL_RESOLVED_UNIX_SOCKET
     # No application statements have run yet, so retrying connection/session
     # setup is safe even for callers that will subsequently perform writes.
     # Keep this bounded: shared-host outages must not tie up workers forever.
+    configured_socket = os.environ.get("MYSQL_UNIX_SOCKET", "").strip()
+    socket_path = configured_socket or _MYSQL_RESOLVED_UNIX_SOCKET
     for attempt in range(2):
         try:
-            return _connect_mysql_unpooled_once()
+            adapter = _connect_mysql_unpooled_once(unix_socket=socket_path)
+            if socket_path and not configured_socket:
+                if _MYSQL_RESOLVED_UNIX_SOCKET != socket_path:
+                    logger.info("MySQL local connection recovered using Unix socket %s", socket_path)
+                _MYSQL_RESOLVED_UNIX_SOCKET = socket_path
+            return adapter
         except Exception as exc:
-            if attempt or not mysql_is_connection_recoverable_error(exc):
+            cached_socket_unavailable = bool(socket_path and not configured_socket) and (
+                mysql_exception_number(exc) == 2003
+                or mysql_exception_number(exc.__cause__) == 2003
+            )
+            if attempt or not (mysql_is_connection_recoverable_error(exc) or cached_socket_unavailable):
                 raise
+            if not configured_socket:
+                if socket_path:
+                    _MYSQL_RESOLVED_UNIX_SOCKET = None
+                    socket_path = None
+                else:
+                    socket_path = discover_local_mysql_socket(mysql_connection_config())
             logger.warning("Retrying MySQL connection/session setup after transient disconnect: %s", exc)
             time.sleep(0.5)
 
 
-def _connect_mysql_unpooled_once():
+def _connect_mysql_unpooled_once(unix_socket=None):
     global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
@@ -5943,12 +5978,14 @@ def _connect_mysql_unpooled_once():
         "write_timeout": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
+    if unix_socket:
+        connect_kwargs["unix_socket"] = unix_socket
     try:
         conn = pymysql.connect(**connect_kwargs)
     except Exception as exc:
         error_code = getattr(exc, "args", [None])[0]
         configured_port = int(config["port"])
-        if error_code == 2003 and local_mysql_host and configured_port != 3306:
+        if error_code == 2003 and local_mysql_host and configured_port != 3306 and not unix_socket:
             fallback_kwargs = dict(connect_kwargs)
             fallback_kwargs["port"] = 3306
             logger.warning(
@@ -12809,6 +12846,8 @@ def build_db_summary_payload():
                 min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10)),
             ),
             "automatic_write_retries": False,
+            "unix_socket_configured": bool(os.environ.get("MYSQL_UNIX_SOCKET", "").strip()),
+            "recovered_unix_socket": _MYSQL_RESOLVED_UNIX_SOCKET,
             "pool_enabled": CAPACITY_FEATURES.enabled("db_connection_pool"),
             "pool_size": max(1, min(env_int("MYSQL_POOL_SIZE", 2), 4)),
             "pool_max_overflow": max(0, min(env_int("MYSQL_POOL_MAX_OVERFLOW", 1), 2)),
@@ -23772,6 +23811,7 @@ def start_dashboard_summary_reconciler():
 
 
 logger.info("Initializing database")
+logger.info("MySQL recovery policy: local-socket-fallback-v1; transaction-safe-read-retry-v1")
 _mysql_config_for_log = mysql_connection_config()
 logger.info(
     "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
