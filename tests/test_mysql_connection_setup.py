@@ -76,7 +76,7 @@ def test_connection_reset_during_handshake_recovers_before_application_work():
     assert len(calls) == 2
 
 
-def test_local_reset_recovers_over_socket_and_reuses_successful_transport():
+def test_local_socket_is_preferred_and_reused_after_transient_reset():
     calls = []
     connection = Connection()
 
@@ -89,7 +89,7 @@ def test_local_reset_recovers_over_socket_and_reuses_successful_transport():
     namespace = setup_namespace(connect)
     namespace["discover_local_mysql_socket"] = lambda _config: "/run/mysqld/mysqld.sock"
     assert namespace["connect_mysql_unpooled"]() is connection
-    assert "unix_socket" not in calls[0]
+    assert calls[0]["unix_socket"] == "/run/mysqld/mysqld.sock"
     assert calls[1]["unix_socket"] == "/run/mysqld/mysqld.sock"
     namespace["connect_mysql_unpooled"]()
     assert calls[2]["unix_socket"] == calls[1]["unix_socket"]

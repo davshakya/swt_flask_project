@@ -178,7 +178,7 @@ def main() -> int:
                 time.sleep(args.interval)
             except ftplib.all_errors + (OSError, EOFError, RuntimeError) as exc:
                 print(
-                    f"\n--- connection error: {exc}; retrying in {reconnect_delay} seconds ---",
+                    f"\n--- log watcher connection error: {type(exc).__name__}: {exc!s}; retrying in {reconnect_delay} seconds ---",
                     file=sys.stderr,
                 )
                 disconnect(ftp)

@@ -305,7 +305,11 @@ def test_telemetry_pushed_firmware_logs_are_persisted_as_activity_events():
     assert any("SERVICECFG5" in event["message"] for event in events)
 
 
-def test_safety_state_and_peer_sequence_diagnostics_are_persisted():
+def test_safety_state_and_peer_sequence_diagnostics_are_persisted(monkeypatch):
+    # This contract tests the legacy history row, independently of the local
+    # device.env rollout, which may intentionally disable legacy writes.
+    from flask_app.capacity_features import CapacityFeatureRegistry
+    monkeypatch.setattr(server, "CAPACITY_FEATURES", CapacityFeatureRegistry(environ={}))
     device_id = "swt-999-999-999-993"
     payload = {
         "device_id": device_id,

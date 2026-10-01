@@ -92,6 +92,7 @@ from flask_app.runtime_utils import (
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
 from flask_app.mysql_transport import discover_local_mysql_socket
+from flask_app.database_availability import install_database_error_handlers
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
 from flask_app.capacity_schema import ensure_capacity_schema
 from flask_app.capacity_ingestion import DeviceIngestionResult, ingest_device_payload
@@ -946,6 +947,7 @@ app_log_handler.setFormatter(SwtColorFormatter(color_enabled=SWT_LOG_COLOR_ENABL
 logging.basicConfig(level=APP_LOG_LEVEL, handlers=[app_log_handler], force=True)
 
 logger = logging.getLogger("tank_server")
+install_database_error_handlers(app, pymysql.err.OperationalError if pymysql else None, logger)
 device_connection_logger = logging.getLogger("tank_server.device_connection")
 device_connection_logger.setLevel(logging.INFO)
 DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS = max(
@@ -2675,6 +2677,7 @@ def inject_template_globals():
     return {
         "csrf_token": get_csrf_token(),
         "cloud_poll_interval_ms": CLOUD_POLL_INTERVAL_SECONDS * 1000,
+        "pump_threshold_contract": PUMP_CONTROL_CONTRACT,
     }
 
 def is_logged_in():
@@ -5926,27 +5929,27 @@ def connect_mysql_unpooled():
     # setup is safe even for callers that will subsequently perform writes.
     # Keep this bounded: shared-host outages must not tie up workers forever.
     configured_socket = os.environ.get("MYSQL_UNIX_SOCKET", "").strip()
-    socket_path = configured_socket or _MYSQL_RESOLVED_UNIX_SOCKET
+    socket_path = configured_socket or _MYSQL_RESOLVED_UNIX_SOCKET or discover_local_mysql_socket(mysql_connection_config())
     for attempt in range(2):
         try:
             adapter = _connect_mysql_unpooled_once(unix_socket=socket_path)
             if socket_path and not configured_socket:
                 if _MYSQL_RESOLVED_UNIX_SOCKET != socket_path:
-                    logger.info("MySQL local connection recovered using Unix socket %s", socket_path)
+                    logger.info("MySQL local transport selected: Unix socket %s", socket_path)
                 _MYSQL_RESOLVED_UNIX_SOCKET = socket_path
             return adapter
         except Exception as exc:
-            cached_socket_unavailable = bool(socket_path and not configured_socket) and (
+            cached_socket_unavailable = bool(socket_path and not configured_socket) and not mysql_is_connection_recoverable_error(exc) and (
                 mysql_exception_number(exc) == 2003
                 or mysql_exception_number(exc.__cause__) == 2003
             )
             if attempt or not (mysql_is_connection_recoverable_error(exc) or cached_socket_unavailable):
                 raise
             if not configured_socket:
-                if socket_path:
+                if cached_socket_unavailable:
                     _MYSQL_RESOLVED_UNIX_SOCKET = None
                     socket_path = None
-                else:
+                elif not socket_path:
                     socket_path = discover_local_mysql_socket(mysql_connection_config())
             logger.warning("Retrying MySQL connection/session setup after transient disconnect: %s", exc)
             time.sleep(0.5)
@@ -15204,11 +15207,11 @@ def persist_device_events(events, default_device_id=None):
     # Ensure the same deterministic row order for every batch.
     normalized_events.sort(key=lambda item: (item[0] or "", item[1], item[2], item[3], item[4]))
 
-    def persist():
+    def persist(batch_events):
         persisted = 0
         affected_device_ids = set()
         with get_db() as db:
-            for device_id, event_kind, source_table, source_row_id, event_key, event in normalized_events:
+            for device_id, event_kind, source_table, source_row_id, event_key, event in batch_events:
                 details = event.get("details") if isinstance(event.get("details"), dict) else {}
                 event_at = normalize_device_event_time(event.get("time"))
                 severity = str(event.get("severity") or "info").strip().lower() or "info"
@@ -15260,12 +15263,22 @@ def persist_device_events(events, default_device_id=None):
                 persisted += 1
         return persisted, affected_device_ids
 
-    persisted, affected_device_ids = run_with_database_lock_retries(
-        persist,
-        operation_name="persist device events",
-        attempts=4,
-        initial_delay_s=0.25,
-    )
+    # Large snapshot batches used to hold event-row locks for all 320 events.
+    # Commit bounded chunks so command activity is not blocked by an entire
+    # snapshot, and replay only the failed chunk after a deadlock.
+    persisted = 0
+    affected_device_ids = set()
+    batch_size = max(1, min(100, env_int("DEVICE_EVENT_WRITE_BATCH_ROWS", 32)))
+    for offset in range(0, len(normalized_events), batch_size):
+        batch = normalized_events[offset:offset + batch_size]
+        count, device_ids = run_with_database_lock_retries(
+            lambda: persist(batch),
+            operation_name="persist device events",
+            attempts=3,
+            initial_delay_s=0.1,
+        )
+        persisted += count
+        affected_device_ids.update(device_ids)
 
     for affected_device_id in affected_device_ids:
         schedule_dashboard_summary_refresh(affected_device_id)
@@ -23811,7 +23824,7 @@ def start_dashboard_summary_reconciler():
 
 
 logger.info("Initializing database")
-logger.info("MySQL recovery policy: local-socket-fallback-v1; transaction-safe-read-retry-v1")
+logger.info("MySQL recovery policy: socket-first-v2; bounded-event-transactions-v2")
 _mysql_config_for_log = mysql_connection_config()
 logger.info(
     "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
