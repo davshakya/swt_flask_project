@@ -5849,6 +5849,7 @@ class MySqlConnectionAdapter:
         self.pool_created_at = pool_created_at
         self.closed = False
         self.transaction_has_writes = False
+        self.connection_broken = False
 
     def cursor(self):
         return MySqlCursorAdapter(self, self.connection.cursor())
@@ -5866,6 +5867,7 @@ class MySqlConnectionAdapter:
             self.connection, self.pool_created_at = self.pool.acquire()
             self.closed = False
             self.transaction_has_writes = False
+            self.connection_broken = False
             return
         try:
             if self.connection is not None:
@@ -5875,14 +5877,23 @@ class MySqlConnectionAdapter:
         adapter = connect_mysql()
         self.connection = adapter.connection
         self.transaction_has_writes = False
+        self.connection_broken = False
 
     def commit(self):
-        result = self.connection.commit()
+        try:
+            result = self.connection.commit()
+        except Exception:
+            self.connection_broken = True
+            raise
         self.transaction_has_writes = False
         return result
 
     def rollback(self):
-        result = self.connection.rollback()
+        try:
+            result = self.connection.rollback()
+        except Exception:
+            self.connection_broken = True
+            raise
         self.transaction_has_writes = False
         return result
 
@@ -5891,6 +5902,8 @@ class MySqlConnectionAdapter:
             return None
         self.closed = True
         if self.pool is not None:
+            if self.connection_broken:
+                return self.pool.release(self.connection, self.pool_created_at, discard=True)
             return self.pool.release(self.connection, self.pool_created_at)
         return self.connection.close()
 
@@ -5901,8 +5914,13 @@ class MySqlConnectionAdapter:
         if exc_type is None:
             try:
                 self.commit()
-            finally:
-                self.close()
+            except Exception:
+                try:
+                    self.close()
+                except Exception as close_exc:
+                    logger.warning("MySQL close failed after commit failure: %s", close_exc)
+                raise
+            self.close()
             return False
 
         try:
@@ -5913,7 +5931,10 @@ class MySqlConnectionAdapter:
             # failure must not hide the actionable root cause.
             logger.warning("MySQL rollback failed while handling an earlier error: %s", rollback_exc)
         finally:
-            self.close()
+            try:
+                self.close()
+            except Exception as close_exc:
+                logger.warning("MySQL close failed while handling an earlier error: %s", close_exc)
         return False
 
 

@@ -99,3 +99,29 @@ def test_failed_pooled_reconnect_releases_lease_only_once():
             adapter.reconnect()
     assert len(released) == 1
     assert released[0][1] == {"discard": True}
+
+def test_commit_disconnect_discards_connection_without_replaying_write():
+    namespace = adapters()
+    connection = Connection()
+    released = []
+    def fail_commit():
+        raise Exception(2006, 'commit response lost')
+    connection.commit = fail_commit
+    pool = SimpleNamespace(release=lambda *args, **kwargs: released.append(kwargs))
+    adapter = namespace['MySqlConnectionAdapter'](connection, pool=pool, pool_created_at=1)
+    with pytest.raises(Exception, match='commit response lost'):
+        with adapter:
+            adapter.execute('UPDATE example SET value=2')
+    assert connection.calls == ['UPDATE example SET value=2']
+    assert released == [{'discard': True}]
+
+def test_cleanup_failure_preserves_original_database_error():
+    namespace = adapters()
+    connection = Connection()
+    def fail_close():
+        raise RuntimeError('close failed')
+    connection.close = fail_close
+    adapter = namespace['MySqlConnectionAdapter'](connection)
+    with pytest.raises(ValueError, match='original operation failed'):
+        with adapter:
+            raise ValueError('original operation failed')
