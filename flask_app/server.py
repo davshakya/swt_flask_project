@@ -17159,7 +17159,7 @@ def install_firmware_artifact_over_lan(device_id, role, snapshot=None):
         "X-OTA-MD5": authorization["md5"],
         "X-OTA-Expires": str(authorization["expires_at"]),
         "X-OTA-Signature": authorization["signature"],
-        "X-OTA-Size": str(int(artifact.get("size_bytes") or storage_path.stat().st_size)),
+        "X-OTA-Size": str(authorization["size_bytes"]),
     }
     endpoint = f"{base_url}/api/ota/update"
     with storage_path.open("rb") as firmware_stream:
