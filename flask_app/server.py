@@ -9976,14 +9976,14 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     if sensor_distance_cm is not None and data["tank_height_cm"] > 0:
         data["water_depth_cm"] = round(max(0.0, min(data["tank_height_cm"], data["tank_height_cm"] - sensor_distance_cm)), 1)
         data["water_depth_label"] = f"{data['water_depth_cm']:.1f} cm"
-    elif data["tank_height_cm"] > 0:
+    elif level_valid and data["tank_height_cm"] > 0:
         data["water_depth_cm"] = round(max(0.0, min(data["tank_height_cm"], (level / 100.0) * data["tank_height_cm"])), 1)
         data["water_depth_label"] = f"{data['water_depth_cm']:.1f} cm"
     else:
         data["water_depth_cm"] = None
         data["water_depth_label"] = "--"
-    data["remaining_liters"] = liters
-    data["water_available_label"] = f"{liters:.1f} L / {capacity_liters:.1f} L"
+    data["remaining_liters"] = liters if level_valid else None
+    data["water_available_label"] = f"{liters:.1f} L / {capacity_liters:.1f} L" if level_valid else "--"
     lower_level_raw = data.get("lower_tank_level")
     lower_level = None
     if lower_level_raw not in (None, "", "null"):
@@ -19117,6 +19117,20 @@ def mobile_device_status():
         prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
     )
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
+    if request.args.get("overview", "0").strip().lower() in {"1", "true", "yes"}:
+        # Status recovery must not evaluate alerts, read analytics/history, or
+        # consume pending mobile actions while the database is under pressure.
+        return jsonify({
+            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
+            "system_status": {
+                "synchronized_status": build_synchronized_status_payload(
+                    snapshot, device_id=scoped_device_id, service_config=service_config
+                ),
+                "telemetry_status": (snapshot or {}).get("telemetry_status", "no-data"),
+            },
+            "service_config": service_config,
+            "viewer": resolve_mobile_user(),
+        })
     return jsonify({
         "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
