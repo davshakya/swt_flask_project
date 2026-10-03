@@ -14,6 +14,7 @@ def is_transient_database_failure(error):
         if any(text in message for text in (
             "mysql server has gone away", "lost connection to mysql",
             "mysql connection pool exhausted", "lock wait timeout exceeded",
+            "mysql connection recovery cooldown",
             "deadlock found when trying to get lock",
         )):
             return True

@@ -67,3 +67,29 @@ failure cleanup, thread-launch failure, and telemetry-to-summary handoff.
 These fixes address application paths that amplify shared-host thread and
 database pressure. They do not establish or eliminate hosting-side MySQL
 restarts or worker termination. Deployment remains pending.
+
+## Pasted-log follow-up: connection outage cooldown
+
+The supplied 1,000-line watcher transcript spans approximately 08:13–11:27 IST
+on October 3. It contains 64 worker termination messages (`signal: 15`), no
+Python tracebacks, 87 connection/session setup retry warnings, and two
+event-persistence lock-timeout retry warnings. The signal-15 messages establish
+external worker termination, not its cause; deliberate app reloads, host
+timeouts, and resource enforcement cannot be distinguished from this log.
+The FTPS watcher's own EOF/reset messages concern log retrieval, not Flask.
+
+Startup messages confirm Unix-socket transport was already selected. Adding
+socket configuration again would not resolve these observed disconnects.
+
+Connection acquisition now has a thread-safe, process-local cooldown: three
+consecutive failed acquisitions pause attempts for five seconds; one recovery
+probe is allowed afterwards. Success restores normal operation. Existing
+connections are not closed by the cooldown, writes are not replayed, and
+configuration errors do not contribute to its threshold. Requests rejected
+during cooldown use the existing 503 database-unavailable response with a
+five-second Retry-After header. This bounds new connection churn during an
+outage; it cannot prevent the hosting supervisor from terminating workers.
+
+The Passenger revision marker is now `2026-10-03-db-cooldown-worker-limit` so
+new startup logs can distinguish the updated entrypoint. Earlier transcript
+markers do not prove that these local changes have been deployed.

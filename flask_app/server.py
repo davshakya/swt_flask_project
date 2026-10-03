@@ -92,6 +92,7 @@ from flask_app.runtime_utils import (
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
 from flask_app.mysql_transport import discover_local_mysql_socket
+from flask_app.mysql_circuit import MySqlConnectionCircuit
 from flask_app.database_availability import install_database_error_handlers
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
 from flask_app.capacity_schema import ensure_capacity_schema
@@ -5959,6 +5960,7 @@ _MYSQL_RESOLVED_LOCAL_PORT = None
 _MYSQL_RESOLVED_UNIX_SOCKET = None
 _MYSQL_CONNECTION_POOL = None
 _MYSQL_CONNECTION_POOL_LOCK = threading.Lock()
+_MYSQL_CONNECTION_CIRCUIT = MySqlConnectionCircuit()
 
 
 def connect_mysql_unpooled():
@@ -6108,11 +6110,16 @@ def mysql_connection_pool():
 
 
 def connect_mysql():
-    if not CAPACITY_FEATURES.enabled("db_connection_pool"):
-        return connect_mysql_unpooled()
-    pool = mysql_connection_pool()
-    connection, created_at = pool.acquire()
-    return MySqlConnectionAdapter(connection, pool=pool, pool_created_at=created_at)
+    def acquire_connection():
+        if not CAPACITY_FEATURES.enabled("db_connection_pool"):
+            return connect_mysql_unpooled()
+        pool = mysql_connection_pool()
+        connection, created_at = pool.acquire()
+        return MySqlConnectionAdapter(connection, pool=pool, pool_created_at=created_at)
+
+    return _MYSQL_CONNECTION_CIRCUIT.run(
+        acquire_connection, mysql_is_connection_recoverable_error,
+    )
 
 
 def get_db():
