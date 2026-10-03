@@ -460,7 +460,7 @@ body{font-size:16px}
                 <h3>Device Commands</h3>
                 <div class="summary-label">Diagnostics and maintenance</div>
                 <div class="device-command-actions">
-                <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
+                <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Restart the slave first, then the master for device {{ device_id }}? The master will wait for confirmation that the slave rebooted." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>

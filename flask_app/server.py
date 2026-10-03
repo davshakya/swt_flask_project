@@ -804,6 +804,7 @@ dashboard_summary_worker_lock = threading.Lock()
 dashboard_summary_last_refresh_at = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
+SNAPSHOT_CACHE_MAX_ENTRIES = max(1, min(1000, env_int("SNAPSHOT_CACHE_MAX_ENTRIES", 128)))
 DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
     600,
     min(900, env_int("DASHBOARD_SUMMARY_RECONCILE_SECONDS", 600)),
@@ -12400,6 +12401,11 @@ def load_dashboard_snapshot(device_id=None, prefer_capacity=False):
             snapshot = latest_snapshot_with_metrics(db)
         payload = snapshot or build_empty_snapshot_payload()
     if SNAPSHOT_CACHE_TTL_SECONDS > 0:
+        # Bound process memory even when expired devices are never requested again.
+        # Evict before insertion so this also works when the limit is one.
+        if cache_key not in dashboard_snapshot_cache:
+            while len(dashboard_snapshot_cache) >= SNAPSHOT_CACHE_MAX_ENTRIES:
+                dashboard_snapshot_cache.pop(next(iter(dashboard_snapshot_cache), None), None)
         dashboard_snapshot_cache[cache_key] = {
             "created_at": time.time(),
             "payload": dict(payload),
@@ -20821,7 +20827,8 @@ def admin_device_reboot(device_id):
             )
             success = (
                 f"Reboot command queued for {normalized_device_id}. "
-                "The device will restart on its next command poll."
+                "On its next command poll, the controller will restart the slave first, "
+                "then restart the master after the slave's new boot is confirmed."
             )
 
     if request.form.get("return_to") == "device_detail":
