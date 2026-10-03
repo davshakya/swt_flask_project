@@ -1,5 +1,6 @@
 import sys
 import time
+import random
 from functools import wraps
 
 from flask_app import server as flask_server
@@ -57,7 +58,11 @@ def _run_with_database_lock_retries(
             if (not lock_error and not connection_error) or attempt >= total_attempts - 1:
                 raise
             last_exc = exc
-            delay_s = base_delay * (attempt + 1)
+            # Passenger replaces the backend helper with this compatibility
+            # wrapper, so preserve its exponential backoff and jitter here.
+            delay_s = base_delay * (2 ** attempt)
+            if delay_s > 0:
+                delay_s += random.uniform(0.0, min(0.25, delay_s * 0.25))
             flask_server.logger.warning(
                 "Root hotfix retrying %s after recoverable database %s (%s/%s): %s",
                 operation_name,

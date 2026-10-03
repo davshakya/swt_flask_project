@@ -1,5 +1,7 @@
 # SaleWell Smart Tank Documentation
 
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
 ## Current firmware instructions
 
 Use the [firmware README](../../swt_firmware_project/README.md) for the new
@@ -10,7 +12,7 @@ Use the board-specific slave image for firmware upgrades.
 
 The workspace-wide maintained-source index is [`../../docs/DOCUMENTATION_INDEX.md`](../../docs/DOCUMENTATION_INDEX.md).
 
-Last refreshed: `2026-09-21`
+Last refreshed: `2026-10-03`
 
 Municipal-water documentation uses the shared status vocabulary: `Available`,
 `No Flow`, `Disabled`, and controller-level `Offline`. Do not claim that a basic

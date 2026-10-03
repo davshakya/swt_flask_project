@@ -1,6 +1,8 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-09-21`
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
+Last refreshed: `2026-10-03`
 
 ## Firmware board and simulator selection
 

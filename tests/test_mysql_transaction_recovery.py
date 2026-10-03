@@ -125,3 +125,26 @@ def test_cleanup_failure_preserves_original_database_error():
     with pytest.raises(ValueError, match='original operation failed'):
         with adapter:
             raise ValueError('original operation failed')
+
+
+def test_caught_query_disconnect_still_discards_pooled_connection():
+    namespace = adapters()
+    connection = Connection()
+    connection.error = Exception(2006, 'MySQL server has gone away')
+    released = []
+    pool = SimpleNamespace(release=lambda *args, **kwargs: released.append(kwargs))
+    adapter = namespace['MySqlConnectionAdapter'](connection, pool=pool, pool_created_at=1)
+    with pytest.raises(Exception, match='gone away'):
+        adapter.execute('UPDATE example SET value=2')
+    adapter.close()
+    assert released == [{'discard': True}]
+
+
+def test_successful_read_reconnect_clears_broken_connection_flag():
+    namespace = adapters()
+    failed, replacement = Connection(), Connection()
+    failed.error = Exception(2006, 'MySQL server has gone away')
+    adapter = namespace['MySqlConnectionAdapter'](failed)
+    namespace['connect_mysql'] = lambda: namespace['MySqlConnectionAdapter'](replacement)
+    adapter.execute('SELECT * FROM example')
+    assert not adapter.connection_broken

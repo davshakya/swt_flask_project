@@ -1,6 +1,8 @@
 # Installer And Support Runbook
 
-Last refreshed: `2026-08-11`
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
+Last refreshed: `2026-10-03`
 
 Use this runbook to keep installations, handovers, and first-line support consistent across the current SaleWell IoT Solutions stack.
 

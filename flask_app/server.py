@@ -5183,6 +5183,11 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                 finally:
                     telemetry_background_semaphore.release()
 
+                # Summary work uses the same permit. Schedule after releasing
+                # it so the default one-worker limit can still refresh pages.
+                if lease_acquired:
+                    schedule_dashboard_summary_refresh(normalized_device_id)
+
                 with telemetry_postprocess_lock:
                     telemetry_postprocess_last_run_at[
                         normalized_device_id
@@ -5196,11 +5201,19 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                     normalized_device_id
                 )
 
-    threading.Thread(
-        target=worker,
-        name=f"telemetry-postprocess-{normalized_device_id}",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=worker,
+            name=f"telemetry-postprocess-{normalized_device_id}",
+            daemon=True,
+        ).start()
+    except RuntimeError as exc:
+        # A hosting thread limit must not fail an already accepted telemetry
+        # request or leave this device permanently marked as running.
+        with telemetry_postprocess_lock:
+            telemetry_postprocess_running.discard(normalized_device_id)
+            telemetry_postprocess_pending.pop(normalized_device_id, None)
+        logger.warning("Unable to start telemetry postprocess worker for %s: %s", normalized_device_id, exc)
 
 
 def process_telemetry_payload(data, source_ip=None, transport="http", defer_postprocess=False):
@@ -5803,6 +5816,10 @@ class MySqlCursorAdapter:
                 attempt += 1
                 if mysql_is_lock_error(exc):
                     raise
+                if mysql_is_connection_recoverable_error(exc):
+                    # A caller may catch the query error inside the context.
+                    # Never return that failed connection to the pool.
+                    self.connection_adapter.connection_broken = True
                 if not mysql_is_connection_recoverable_error(exc) or attempt >= max_attempts:
                     raise
                 logger.warning(
@@ -12551,6 +12568,15 @@ def schedule_dashboard_summary_refresh(device_id):
             return
         dashboard_summary_refresh_pending.add(normalized_device_id)
 
+    # Bound thread creation as well as database work. Waiting on the summary
+    # lock inside a new thread for every device still exhausts shared-host
+    # process/thread limits during an outage. Summaries are best effort; the
+    # next telemetry/event request can retry a refresh that cannot run now.
+    if not telemetry_background_semaphore.acquire(blocking=False):
+        with dashboard_summary_refresh_lock:
+            dashboard_summary_refresh_pending.discard(normalized_device_id)
+        return
+
     def refresh_after_event_burst():
         try:
             time.sleep(0.2)
@@ -12558,12 +12584,19 @@ def schedule_dashboard_summary_refresh(device_id):
         finally:
             with dashboard_summary_refresh_lock:
                 dashboard_summary_refresh_pending.discard(normalized_device_id)
+            telemetry_background_semaphore.release()
 
-    threading.Thread(
-        target=refresh_after_event_burst,
-        name=f"dashboard-summary-{normalized_device_id}",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=refresh_after_event_burst,
+            name=f"dashboard-summary-{normalized_device_id}",
+            daemon=True,
+        ).start()
+    except RuntimeError as exc:
+        with dashboard_summary_refresh_lock:
+            dashboard_summary_refresh_pending.discard(normalized_device_id)
+        telemetry_background_semaphore.release()
+        logger.warning("Unable to start dashboard summary worker for %s: %s", normalized_device_id, exc)
 
 
 def snapshot_has_live_device_data(snapshot):
