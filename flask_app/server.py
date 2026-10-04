@@ -6133,7 +6133,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-09-21-connected-wifi-ssid-v1"
+DB_SCHEMA_REVISION = "2026-10-04-customer-web-login-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
     "wifi_ssid",
     "direct_peer_repeater_reachable",
@@ -21990,6 +21990,7 @@ def device_detail_page(device_id):
         is_admin=True,
         snapshot=snapshot or {},
         customer_account=account,
+        customer_web_login_available="admin_device_detail_customer_web_login" in app.view_functions,
         service_config=service_config,
         automation_settings=automation_settings,
         pump_threshold_contract=PUMP_CONTROL_CONTRACT,

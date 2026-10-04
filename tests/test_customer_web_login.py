@@ -6,7 +6,7 @@ import secrets
 import sqlite3
 from types import SimpleNamespace
 
-from flask import Flask, abort, redirect, request, session
+from flask import Flask, abort, redirect, render_template_string, request, session
 import pytest
 
 SOURCE = Path(__file__).resolve().parents[1] / "flask_app/server.py"
@@ -88,3 +88,27 @@ def test_existing_accounts_default_to_enabled_after_migration(portal):
     db.execute("ALTER TABLE customer_accounts DROP COLUMN web_login_enabled")
     ns["ensure_customer_accounts_columns"](db)
     assert ns["customer_web_login_enabled"]("tank-a")
+
+
+def test_new_template_tolerates_older_worker_without_login_endpoint():
+    template = SOURCE.parent / "templates/device_detail.html"
+    text = template.read_text(encoding="utf-8")
+    start = text.index("{% if customer_web_login_available|default(false) %}")
+    end = text.index('<div id="deviceCommandsCard"', start)
+    fragment = text[start:end]
+    old_app = Flask(__name__)
+    with old_app.test_request_context():
+        html = render_template_string(fragment, device_id="tank-a", customer_account={"device_id": "tank-a"})
+    assert "Save Website Login" not in html
+
+
+def test_current_worker_renders_login_toggle(portal):
+    app, db, ns = portal
+    text = (SOURCE.parent / "templates/device_detail.html").read_text(encoding="utf-8")
+    start = text.index("{% if customer_web_login_available|default(false) %}")
+    fragment = text[start:text.index('<div id="deviceCommandsCard"', start)]
+    with app.test_request_context():
+        html = render_template_string(fragment, device_id="tank-a", customer_account=ns["fetch_customer_account"]("tank-a"),
+                                      customer_web_login_available=True, csrf_token="csrf")
+    assert '/devices/tank-a/customer-web-login' in html
+    assert "Save Website Login" in html
