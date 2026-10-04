@@ -12,7 +12,6 @@
 :root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--link-blue:#83c5ff;--link-blue-hover:#b7ddff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(12,29,39,.9);--button-line:rgba(154,202,221,.16)}
 }
 *{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:var(--link-blue);text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);text-underline-offset:3px;font-weight:800;transition:color .18s ease,text-decoration-color .18s ease}a:hover{color:var(--link-blue-hover);text-decoration-color:currentColor}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:24px 0 36px;display:grid;gap:14px}.panel{background:linear-gradient(180deg,var(--panel),color-mix(in srgb,var(--panel) 84%,rgba(19,137,165,.08)));border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}.panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:30px;line-height:1.1}.hero-title p{margin:7px 0 0;color:var(--muted);line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit;min-width:0;width:auto}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:auto}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}.summary-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.22);transition:transform .18s ease,border-color .18s ease}.summary-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.summary-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:7px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45}.content-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:13px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.2);transition:transform .18s ease,border-color .18s ease}.detail-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:7px;font-size:19px;font-weight:800;line-height:1.2}.detail-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}.info-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:14px}.info-item{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.2);min-width:0}.info-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.info-value{display:block;margin-top:5px;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.45}.list{list-style:none;padding:0;margin:0;display:grid;gap:9px}.list li{padding:12px 13px;border-radius:14px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}.admin-form{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.2);min-width:0;align-content:start}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700;min-width:0}.service-option input{width:auto}.flag-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}.flag-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.2);font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;min-width:0}.hidden-section{display:none!important}
-.activity-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.activity-page-size{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;font-weight:800}.activity-page-size select{min-height:40px;padding:0 34px 0 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:800 13px "Trebuchet MS","Segoe UI",sans-serif}.activity-count{color:var(--muted);font-size:12px;font-weight:800}.activity-table-wrap{margin-top:12px;border:1px solid var(--line);border-radius:16px;overflow:auto;background:var(--list-bg)}.activity-table{width:100%;border-collapse:collapse;min-width:760px}.activity-table th,.activity-table td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.activity-table th{position:sticky;top:0;background:color-mix(in srgb,var(--panel) 92%,var(--bg) 8%);color:var(--muted);font-size:10px;letter-spacing:.13em;text-transform:uppercase;z-index:1}.activity-table tbody tr:last-child td{border-bottom:0}.activity-message{font-weight:800;line-height:1.35}.activity-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}.activity-node{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary);font-size:12px;font-weight:800}.activity-pagination{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}.activity-page-status{min-width:118px;text-align:center;color:var(--muted);font-size:12px;font-weight:800}
 .peer-diagnostics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:14px}.peer-diagnostic-card{padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.2);min-width:0}.peer-diagnostic-card.alert{grid-column:1/-1;background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,var(--line))}.peer-diagnostic-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.peer-diagnostic-value{display:block;margin-top:6px;font-size:14px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.peer-diagnostic-note{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}
 /* Consistent Key: Value contrast in both color schemes. */
 .summary-label,.detail-label,.info-label,.peer-diagnostic-label{color:var(--primary)!important}
@@ -42,26 +41,8 @@ background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
 border-color:rgba(166,224,235,.18);
 color:var(--text);
 }
-.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty,.activity-count,.activity-page-status,.activity-page-size,.activity-meta{
+.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty{
 color:var(--muted);
-}
-.activity-page-size select,.activity-page-size select option{
-background:#102633;
-color:#f2fbfd;
-}
-.activity-table th{
-color:#dff5fa;
-background:#0e2430;
-}
-.activity-table td,.activity-message{
-color:#f2fbfd;
-}
-.activity-table-wrap{
-background:#0b202b;
-}
-.activity-node{
-background:rgba(85,193,221,.18);
-color:#72dcf4;
 }
 .btn{border-color:rgba(166,224,235,.2)}
 }
@@ -82,12 +63,10 @@ body{font-size:16px}
 .command-group{border-left:4px solid var(--primary)}.command-group.simulation{border-left-color:var(--good)}.command-group.maintenance{border-left-color:var(--warn)}.command-group.destructive{border-left-color:var(--danger)}
 .simulator-section{grid-column:1/-1;border-left-color:var(--good);background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 7%,var(--panel)),color-mix(in srgb,var(--good) 7%,var(--panel)))}.simulator-section>form{margin:0}.simulator-switch{--switch-accent:#16a6c9;width:100%!important;min-height:58px!important;height:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:9px 12px 9px 15px!important;border:1px solid color-mix(in srgb,var(--switch-accent) 24%,var(--line))!important;border-radius:12px!important;background:color-mix(in srgb,var(--switch-accent) 7%,var(--panel))!important;color:var(--text)!important;box-shadow:none!important;text-align:left;cursor:default!important}.simulator-switch:hover,.simulator-switch:focus-visible{transform:none!important;background:color-mix(in srgb,var(--switch-accent) 13%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 50%,var(--line))!important}.simulator-switch-label{min-width:0;font-size:14px;font-weight:800;line-height:1.3}.simulator-switch-state{min-width:30px;color:var(--danger);font-size:11px;font-weight:900;text-align:right}.simulator-switch-track{position:relative;width:50px;height:28px;flex:none;border-radius:999px;background:#8a9ba1;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);transition:background .2s ease;cursor:pointer}.simulator-switch-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .2s ease}.simulator-switch.is-on{background:color-mix(in srgb,var(--switch-accent) 16%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 54%,var(--line))!important}.simulator-switch.is-on .simulator-switch-state{color:var(--good)}.simulator-switch.is-on .simulator-switch-track{background:var(--switch-accent)}.simulator-switch.is-on .simulator-switch-knob{transform:translateX(22px)}.simulator-switch.is-loading{opacity:.65}.simulator-switch[data-tone="municipal"]{--switch-accent:#1687d9}.simulator-switch[data-tone="valve"]{--switch-accent:#e58a18}.simulator-switch[data-tone="lower"]{--switch-accent:#13a37d}.simulator-switch[data-tone="upper"]{--switch-accent:#d64f72}@media(max-width:720px){.simulator-switch{min-height:64px!important}.simulator-switch-label{font-size:15px}}
 .threshold-visual{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--good),var(--warn),var(--danger));position:relative}.threshold-visual::after{content:"";position:absolute;left:var(--threshold);top:-4px;width:4px;height:18px;border-radius:4px;background:var(--text)}
-.log-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.log-tools input,.log-tools select{min-height:38px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text)}.activity-table tr.log-error td{background:color-mix(in srgb,var(--danger) 9%,transparent)}.activity-table tr.log-warning td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
 @media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
 .simulator-switch:disabled{opacity:.48!important;filter:saturate(.35);cursor:not-allowed!important}.simulator-switch:disabled .simulator-switch-track{cursor:not-allowed}
 .device-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.device-meta-item{display:inline-flex;gap:6px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.18);color:var(--muted);font-size:11px}.device-meta-item strong{color:var(--text);font-size:12px}.quick-nav a{border:1px solid transparent}.quick-nav a.is-active{background:var(--primary);color:#fff;border-color:color-mix(in srgb,var(--primary) 70%,#fff);box-shadow:0 6px 14px rgba(19,137,165,.18)}.device-page-panel[hidden],.overview-summary[hidden]{display:none!important}.developer-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.danger-zone{border-color:color-mix(in srgb,var(--danger) 38%,var(--line));background:color-mix(in srgb,var(--danger) 6%,var(--panel))}.danger-zone h3{color:var(--danger)}
-.activity-details{margin-top:5px;color:var(--muted);font-size:11px}.activity-details summary{display:inline-block;cursor:pointer;color:var(--primary);font-weight:800;list-style:none}.activity-details summary::-webkit-details-marker{display:none}.activity-details summary::after{content:" +"}.activity-details[open] summary::after{content:" -"}.activity-details-body{margin-top:6px;padding:8px 10px;border-left:2px solid color-mix(in srgb,var(--primary) 45%,var(--line));background:rgba(255,255,255,.08);line-height:1.45;overflow-wrap:anywhere}
-@media(min-width:721px){ #device-configuration .admin-grid, #device-firmware .firmware-upload-grid{gap:10px} #device-configuration .admin-form, #device-firmware .admin-form{gap:8px;padding:12px;border-radius:13px} #device-configuration .config-section{gap:7px;padding:11px} #device-configuration .service-option{padding:7px 9px;border-radius:10px;font-size:12px} #device-configuration .form-group{gap:4px} #device-configuration .form-group input, #device-configuration .form-group select, #device-firmware .form-group input, #device-firmware .form-group select{min-height:40px;height:40px;padding:7px 10px;font-size:13px;border-radius:10px} #device-configuration .helper-text, #device-firmware .helper-text{font-size:11px;line-height:1.4} #device-configuration .admin-form h3, #device-firmware .admin-form h3{font-size:15px} #device-firmware .firmware-upload-grid .admin-form{grid-template-rows:auto auto auto minmax(32px,1fr) auto;align-self:stretch} #device-firmware>.admin-form{margin-top:10px}.activity-table th,.activity-table td{padding:8px 10px}.activity-table th:first-child,.activity-table td:first-child{width:105px}.activity-table th:nth-child(2),.activity-table td:nth-child(2){width:85px}.activity-table th:last-child,.activity-table td:last-child{width:82px}.activity-message{font-size:13px;line-height:1.3}.activity-meta{font-size:11px;line-height:1.35}}
+@media(min-width:721px){ #device-configuration .admin-grid, #device-firmware .firmware-upload-grid{gap:10px} #device-configuration .admin-form, #device-firmware .admin-form{gap:8px;padding:12px;border-radius:13px} #device-configuration .config-section{gap:7px;padding:11px} #device-configuration .service-option{padding:7px 9px;border-radius:10px;font-size:12px} #device-configuration .form-group{gap:4px} #device-configuration .form-group input, #device-configuration .form-group select, #device-firmware .form-group input, #device-firmware .form-group select{min-height:40px;height:40px;padding:7px 10px;font-size:13px;border-radius:10px} #device-configuration .helper-text, #device-firmware .helper-text{font-size:11px;line-height:1.4} #device-configuration .admin-form h3, #device-firmware .admin-form h3{font-size:15px} #device-firmware .firmware-upload-grid .admin-form{grid-template-rows:auto auto auto minmax(32px,1fr) auto;align-self:stretch} #device-firmware>.admin-form{margin-top:10px}}
 @media(max-width:720px){.device-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.device-meta-item{min-width:0}.quick-nav{display:flex;width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.quick-nav a{white-space:nowrap}.device-action-bar{top:6px;bottom:auto}.device-action-group{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}}
 #device-firmware .firmware-android-ota{grid-template-rows:none;align-content:start}
 #device-firmware .firmware-android-ota>.btn{width:fit-content;max-width:100%;min-height:44px;height:auto;justify-self:start;align-self:start;padding:0 18px;font-size:14px;border-radius:10px}
@@ -163,13 +142,13 @@ body{font-size:16px}
 
     <nav class="device-action-bar" aria-label="Device actions and section navigation">
         <div class="quick-nav">
-            <a href="#device-overview" data-device-tab="overview">Overview</a><a href="#device-memory" data-device-tab="diagnostics">Diagnostics</a>{% if is_admin %}<a href="#device-configuration" data-device-tab="configuration">Configuration</a><a href="#device-firmware" data-device-tab="firmware">Firmware</a>{% endif %}<a href="#device-logs" data-device-tab="logs">Logs</a>
+            <a href="#device-overview" data-device-tab="overview">Overview</a><a href="#device-memory" data-device-tab="diagnostics">Diagnostics</a>{% if is_admin %}<a href="#device-configuration" data-device-tab="configuration">Configuration</a><a href="#device-firmware" data-device-tab="firmware">Firmware</a>{% endif %}
         </div>
         <div class="device-action-group">
             <a class="btn" href="{{ url_for('admin_customers') }}">← Back to Devices</a>
             <button id="deviceRefreshButton" class="btn" type="button">↻ Refresh</button>
             {% if is_admin %}<button id="deviceSaveConfigButton" class="btn btn-admin" type="button"><span>Save Configuration</span></button><button id="deviceRestartButton" class="btn btn-danger" type="button">Restart</button><a class="btn" href="#device-firmware">OTA Update</a>{% endif %}
-            <a class="btn" href="#device-logs">Open Logs</a>
+
         </div>
     </nav>
 
@@ -728,85 +707,7 @@ body{font-size:16px}
     </section>
     {% endif %}
 
-    <section id="device-logs" class="panel section-panel device-page-panel" data-device-page="logs" hidden>
-        <div class="section-head">
-            <div>
-                <div class="eyebrow">Activity Log</div>
-                <p>Showing master and slave activity logs for this device pair.</p>
-            </div>
-        </div>
-        <div class="activity-toolbar">
-            <div class="log-tools">
-                <input id="activitySearch" type="search" placeholder="Search logs" aria-label="Search activity logs">
-                <select id="activitySeverity" aria-label="Filter log severity"><option value="">All levels</option><option value="info">Info</option><option value="success">Success</option><option value="warning">Warning</option><option value="danger">Error/Critical</option></select>
-                <button id="activityPause" class="btn" type="button">Pause auto-scroll</button>
-                <button id="activityCopy" class="btn" type="button">Copy</button>
-                <button id="activityDownload" class="btn" type="button">Download</button>
-            </div>
-            <label class="activity-page-size" for="activityPageSize">Display
-                <select id="activityPageSize">
-                    <option value="10">10 logs</option>
-                    <option value="50">50 logs</option>
-                    <option value="100">100 logs</option>
-                </select>
-            </label>
-            {% set initial_activity_events = initial_events or [] %}
-            <div id="activityCount" class="activity-count">
-                {% if initial_activity_events %}
-                    Showing 1-{{ [initial_activity_events|length, 10]|min }} of {{ initial_activity_events|length }} logs
-                {% else %}
-                    Showing latest device status
-                {% endif %}
-            </div>
-        </div>
-        <div class="activity-table-wrap">
-            <table class="activity-table" aria-label="Master and slave activity log">
-                <thead>
-                    <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">Node</th>
-                        <th scope="col">Activity</th>
-                        <th scope="col">Severity</th>
-                    </tr>
-                </thead>
-                <tbody id="events">
-                    {% if initial_activity_events %}
-                        {% for event in initial_activity_events[:10] %}
-                            {% set event_details = event.get("details") or {} %}
-                            {% set event_severity = (event.get("severity") or "info")|lower %}
-                            {% set event_severity_class = "tone-ok" if event_severity in ["success", "ok"] else ("tone-warn" if event_severity in ["warning", "warn"] else ("tone-bad" if event_severity in ["danger", "error", "critical"] else "tone-info")) %}
-                            <tr>
-                                <td>{{ event.get("time") or "--" }}</td>
-                                <td><span class="activity-node">{{ event_details.get("device_id") or event.get("device_id") or "--" }}</span></td>
-                                <td>
-                                    <div class="activity-message">{{ event.get("message") or "Event" }}</div>
-                                    <div class="activity-meta">{{ event.get("kind", "event")|replace("_", " ")|title }}</div>
-                                </td>
-                                <td><span class="status-pill {{ event_severity_class }}">{{ (event.get("severity") or "info")|title }}</span></td>
-                            </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td>--</td>
-                            <td><span class="activity-node">{{ device_id }}</span></td>
-                            <td>
-                                <div class="activity-message">Live device activity is loading from the current Flask snapshot.</div>
-                                <div class="activity-meta">Current Device Status</div>
-                            </td>
-                            <td><span class="status-pill tone-info">Info</span></td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-        <div class="activity-pagination" aria-label="Activity log pages">
-            <button id="activityFirst" class="btn" type="button" aria-label="First page">&lt;&lt;</button>
-            <button id="activityPrev" class="btn" type="button" aria-label="Previous page">&lt;</button>
-            <div id="activityPageStatus" class="activity-page-status">Page 1 of 1</div>
-            <button id="activityNext" class="btn" type="button" aria-label="Next page">&gt;</button>
-            <button id="activityLast" class="btn" type="button" aria-label="Last page">&gt;&gt;</button>
-        </div>
-    </section>
+
 </div>
 
 <script>
@@ -825,17 +726,8 @@ const INITIAL_SAVED_CONFIG={{ (current_saved_config|default({}, true))|tojson }}
 const localeTools=window.swtLocale||{};
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 let deviceRefreshInFlight=false;
-let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
-let activityRefreshTimer=0;
 let latestHistory=[];
-let activitySearch="";
-let activitySeverity="";
-let activityPaused=false;
-function compactClientNumber(value,digits=1){
-  const number=Number(value);
-  return Number.isFinite(number)?number.toFixed(digits):"not reported";
-}
 function clientTruthy(value,defaultValue=false){
   if(value===undefined||value===null||value==="")return Boolean(defaultValue);
   if(typeof value==="boolean")return value;
@@ -844,76 +736,7 @@ function clientTruthy(value,defaultValue=false){
   if(["0","false","no","off","disabled"].includes(raw))return false;
   return Boolean(value);
 }
-function clientTitle(value,fallback="not reported"){
-  const text=String(value??"").trim();
-  if(!text||text==="--")return fallback;
-  return text.replace(/[_-]+/g," ").replace(/\b\w/g,(char)=>char.toUpperCase());
-}
-function clientHeap(value){
-  const number=Number(value);
-  if(!Number.isFinite(number))return"heap not reported";
-  if(Math.abs(number)>=1048576)return`${(number/1048576).toFixed(1)} MB free`;
-  if(Math.abs(number)>=1024)return`${(number/1024).toFixed(1)} KB free`;
-  return`${Math.round(number)} B free`;
-}
-function isPlaceholderActivityEvent(entry){
-  return String(entry?.message||"").toLowerCase().includes("activity log is ready");
-}
-function normalizeActivityEvents(events){
-  return Array.isArray(events)?events.filter((entry)=>entry&&!isPlaceholderActivityEvent(entry)):[];
-}
-function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceConfig={},automationSettings={}){
-  const time=snapshot.created_at||snapshot.last_sync_at||new Date().toISOString();
-  const telemetry=String(snapshot.telemetry_status||systemStatus.telemetry_status||"live").toLowerCase();
-  const usesSlave=clientTruthy(serviceConfig.slave_device_enabled,true);
-  const sourceMonitoring=clientTruthy(serviceConfig.source_tank_monitoring_enabled,true);
-  const configType=usesSlave?"Master + Slave":"Master Only";
-  const upperSource=usesSlave&&clientTruthy(serviceConfig.slave_upper_sensor_enabled,true)?"Slave":"Master";
-  const events=[];
-  const add=(kind,severity,message,details={})=>{
-    events.push({time,severity,message,kind,details:{device_id:DEVICE_ID,node_role:"master",current_status:true,telemetry_status:telemetry,...details}});
-  };
-  add("device_config_current_status","info",`Live device config: ${configType}; upper sensor ${upperSource}; source tank ${sourceMonitoring?"enabled":"disabled"}; relay ${clientTruthy(serviceConfig.relay_enabled,true)?"enabled":"disabled"}; auto ${clientTruthy(serviceConfig.auto_mode_enabled,false)?"enabled":"disabled"}.`,{configuration_type:configType,upper_sensor_source:upperSource.toLowerCase()});
-  if(snapshot.level!==undefined&&snapshot.level!==null){
-    const level=Number(snapshot.level);
-    const liters=snapshot.remaining_liters!==undefined&&snapshot.remaining_liters!==null?`; ${compactClientNumber(snapshot.remaining_liters)} L available`:"";
-    add("tank_level_current_status",Number.isFinite(level)&&level>20?"success":"warning",`Tank level is ${compactClientNumber(snapshot.level)}%${liters}.`,{level:snapshot.level,remaining_liters:snapshot.remaining_liters});
-  }
-  if(snapshot.motor||snapshot.mode){
-    add("pump_current_status","info",`Pump is ${String(snapshot.motor||"not reported").toUpperCase()} in ${String(snapshot.mode||"unknown").toUpperCase()} mode.`,{motor:snapshot.motor,mode:snapshot.mode});
-  }
-  const masterStatus=onlineOfflineLabel(systemStatus.master_status_label);
-  const slaveStatus=usesSlave?onlineOfflineLabel(systemStatus.slave_status_label):"Disabled";
-  add("node_current_status",masterStatus==="Online"&&["Online","Disabled"].includes(slaveStatus)?"success":"warning",`Master ${masterStatus.toLowerCase()}, slave ${slaveStatus.toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
-  if(usesSlave||snapshot.direct_peer){
-    const age=snapshot.direct_peer_last_packet_age_s;
-    const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
-    const channel=snapshot.direct_peer_wifi_channel||snapshot.direct_peer_config_channel||serviceConfig.direct_peer_wifi_channel;
-    const channelText=channel!==undefined&&channel!==null?`; channel ${channel}`:"";
-    const peerQuality=Number(snapshot.direct_peer_link_quality_pct);
-    const peerQualityText=Number.isFinite(peerQuality)?` | signal ${snapshot.direct_peer_signal||"unknown"} (${Math.round(peerQuality)}%)`:"";
-    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}${peerQualityText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac,direct_peer_signal:snapshot.direct_peer_signal,direct_peer_link_quality_pct:snapshot.direct_peer_link_quality_pct,direct_peer_received_packets:snapshot.direct_peer_received_packets});
-  }
-  if(snapshot.firmware_version||snapshot.slave_firmware_version){
-    add("firmware_current_status","info",`Firmware status: master ${snapshot.firmware_version||"not reported"}; slave ${snapshot.slave_firmware_version||"not reported"}.`,{firmware_version:snapshot.firmware_version,slave_firmware_version:snapshot.slave_firmware_version});
-  }
-  if(snapshot.free_heap!==undefined&&snapshot.free_heap!==null||snapshot.slave_free_heap!==undefined&&snapshot.slave_free_heap!==null){
-    add("memory_current_status","info",`Memory status: master ${clientHeap(snapshot.free_heap)}; slave ${clientHeap(snapshot.slave_free_heap)}.`,{free_heap:snapshot.free_heap,slave_free_heap:snapshot.slave_free_heap});
-  }
-  add("services_current_status","info",`Service status: telemetry ${clientTitle(snapshot.telemetry_service,"not reported")}; command ${clientTitle(snapshot.command_service,"not reported")}; local firmware upload ${clientTruthy(serviceConfig.local_firmware_upload_enabled,true)?"enabled":"disabled"}; simulator ${clientTitle(snapshot.simulator||snapshot.simulator_status,"OFF")}.`,{telemetry_service_label:snapshot.telemetry_service,command_service_label:snapshot.command_service});
-  add("thresholds_current_status","info",`Auto thresholds: start at or below ${automationSettings.auto_start_pct??serviceConfig.auto_start_pct??"not reported"}%; stop at or above ${automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct??"not reported"}%.`,{auto_start_pct:automationSettings.auto_start_pct??serviceConfig.auto_start_pct,auto_stop_pct:automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct});
-  return events;
-}
-let latestEvents=normalizeActivityEvents({{ initial_activity_events|tojson }});
-if(!latestEvents.length){
-  latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
-}
-let activityPage=1;
-let activityPageSize=10;
 let pingWatchToken=0;
-const ACTIVITY_INITIAL_FETCH_LIMIT=20;
-const ACTIVITY_FETCH_LIMIT=50;
-const ACTIVITY_REFRESH_MS=30000;
 const DEVICE_REFRESH_MS=30000;
 const DEVICE_SETUP_PRESETS={
   source_only:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
@@ -1195,7 +1018,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
     statusUrl.searchParams.set("history","0");
     statusUrl.searchParams.set("events","0");
-    statusUrl.searchParams.set("alerts","0");
+  statusUrl.searchParams.set("alerts","0");
     statusUrl.searchParams.set("audit","0");
     const response=await fetch(statusUrl.toString(),{cache:"no-store"});
     const data=await response.json();
@@ -1236,8 +1059,7 @@ document.addEventListener("DOMContentLoaded",()=>{
             !succeeded,
             pingResultDetailLines(snapshot,payload)
           );
-          activityPage=1;
-          preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+          preserveViewport(()=>{loadDevice({silent:true});});
           return;
         }
       }catch(error){
@@ -1257,8 +1079,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         ...pingResultDetailLines(lastSnapshot,payload),
       ]
     );
-    activityPage=1;
-    preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+    preserveViewport(()=>{loadDevice({silent:true});});
   }
   document.addEventListener("keydown",(event)=>{
     if(event.key==="Escape")document.querySelector("[data-result-close]")?dismissResultModal():closeResultModal();
@@ -1405,8 +1226,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
-            activityPage=1;
-            preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+            preserveViewport(()=>{loadDevice({silent:true});});
             if(form.querySelector('input[type="password"]'))form.reset();
           }
           return;
@@ -1974,184 +1794,17 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
   setStableHtml(root,visibleItems.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
-function uniqueFeedItems(items){
-  const seen=new Set();
-  return (items||[]).filter((item)=>{
-    const key=[item.message||item.kind||"event",item.severity||"info"].map((part)=>String(part).trim().toLowerCase()).join("|");
-    if(seen.has(key))return false;
-    seen.add(key);
-    return true;
-  });
-}
-function renderList(id,items,emptyText,formatter){
-  const root=document.getElementById(id);
-  if(!root)return;
-  if(!items.length){
-    setStableHtml(root,`<li><div class="helper-text">${escapeHtml(emptyText)}</div></li>`);
-    return;
-  }
-  setStableHtml(root,items.map((item)=>`<li>${formatter(item)}</li>`).join(""));
-}
-function pairedSlaveDeviceId(deviceId){
-  const parts=String(deviceId||"").split("-");
-  if(parts.length===5&&parts[0]==="swt"&&parts[1]==="000"){
-    parts[1]="100";
-    return parts.join("-");
-  }
-  return "";
-}
-function activityNodeLabel(entry){
-  const details=entry?.details||{};
-  const role=String(details.node_role||entry.node_role||"").trim().toLowerCase();
-  const eventDeviceId=String(details.device_id||entry.device_id||"").trim();
-  const slaveDeviceId=pairedSlaveDeviceId(DEVICE_ID);
-  if(role.includes("slave")||(slaveDeviceId&&eventDeviceId===slaveDeviceId))return "Slave";
-  if(role.includes("master"))return "Master";
-  return "Master";
-}
-function activityMetaFull(entry){
-  const parts=[];
-  if(entry.kind)parts.push(titleCase(entry.kind));
-  if(entry.device_id||entry.details?.device_id)parts.push(entry.device_id||entry.details.device_id);
-  const details=entry.details||{};
-  if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
-  if(details.ping_status)parts.push(`Result ${details.ping_status}`);
-  if(details.last_ping_target)parts.push(`Reported ping ${titleCase(details.last_ping_target)}`);
-  if(details.last_ping_status)parts.push(`Reported ${details.last_ping_status}`);
-  if(details.last_ping_response_ms!==undefined&&details.last_ping_response_ms!==null)parts.push(`Response ${details.last_ping_response_ms} ms`);
-  if(details.last_ping_age_s!==undefined&&details.last_ping_age_s!==null)parts.push(`Ping age ${formatDurationSeconds(details.last_ping_age_s)}`);
-  if(details.last_ping_nonce!==undefined&&details.last_ping_nonce!==null)parts.push(`Ping nonce ${details.last_ping_nonce}`);
-  if(details.current_status)parts.push("Live snapshot");
-  if(details.status_checked_at)parts.push(`Checked ${formatIstDateTime(details.status_checked_at)}`);
-  if(details.telemetry_status)parts.push(`Telemetry ${details.telemetry_status}`);
-  if(details.configuration_type)parts.push(`Config ${details.configuration_type}`);
-  if(details.upper_sensor_source)parts.push(`Upper ${titleCase(details.upper_sensor_source)}`);
-  if(details.slave_device_enabled_label)parts.push(`Slave ${details.slave_device_enabled_label}`);
-  if(details.source_tank_monitoring_label)parts.push(`Lower ${details.source_tank_monitoring_label}`);
-  if(details.relay_enabled_label)parts.push(`Relay ${details.relay_enabled_label}`);
-  if(details.auto_mode_enabled_label)parts.push(`Auto ${details.auto_mode_enabled_label}`);
-  if(details.cloud_feed_enabled_label)parts.push(`Cloud ${details.cloud_feed_enabled_label}`);
-  if(details.telemetry_service_label)parts.push(`Telemetry svc ${details.telemetry_service_label}`);
-  if(details.command_service_label)parts.push(`Command svc ${details.command_service_label}`);
-  if(details.ota_service_label)parts.push(`OTA svc ${details.ota_service_label}`);
-  if(details.master_status_label)parts.push(`Master ${details.master_status_label}`);
-  if(details.slave_status_label)parts.push(`Slave ${details.slave_status_label}`);
-  if(details.peer_state)parts.push(`Peer ${titleCase(details.peer_state)}`);
-  if(details.saved_peer_channel_label)parts.push(`Saved ch ${details.saved_peer_channel_label}`);
-  else if(details.saved_peer_channel!==undefined&&details.saved_peer_channel!==null)parts.push(`Saved ch ${details.saved_peer_channel}`);
-  if(details.direct_peer_config_channel_label)parts.push(`Configured ch ${details.direct_peer_config_channel_label}`);
-  else if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
-  if(details.direct_peer_wifi_channel_label)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel_label}`);
-  else if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel}`);
-  if(details.direct_peer_last_packet_age_label)parts.push(`Peer age ${details.direct_peer_last_packet_age_label}`);
-  else if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
-  if(details.direct_peer_last_packet_bytes!==undefined&&details.direct_peer_last_packet_bytes!==null)parts.push(`Peer bytes ${details.direct_peer_last_packet_bytes}`);
-  if(details.direct_peer_last_pong_age_s!==undefined&&details.direct_peer_last_pong_age_s!==null)parts.push(`Pong age ${formatDurationSeconds(details.direct_peer_last_pong_age_s)}`);
-  if(details.direct_peer_last_pong_nonce!==undefined&&details.direct_peer_last_pong_nonce!==null)parts.push(`Pong nonce ${details.direct_peer_last_pong_nonce}`);
-  if(details.direct_peer_remote_mac)parts.push(`MAC ${details.direct_peer_remote_mac}`);
-  if(details.direct_peer_remote_ip)parts.push(`IP ${details.direct_peer_remote_ip}`);
-  if(details.direct_peer_sync_status)parts.push(`Sync ${details.direct_peer_sync_status}`);
-  if(details.direct_peer_sync_pending)parts.push(`Sync pending${details.direct_peer_sync_channel?` ch ${details.direct_peer_sync_channel}`:""}`);
-  if(details.direct_peer_sync_last_ok_age_s!==undefined&&details.direct_peer_sync_last_ok_age_s!==null)parts.push(`Sync OK ${formatDurationSeconds(details.direct_peer_sync_last_ok_age_s)} ago`);
-  if(details.command_summary)parts.push(details.command_summary);
-  if(details.command)parts.push(`Command ${details.command}`);
-  if(details.firmware_log_level)parts.push(`Firmware ${details.firmware_log_level}`);
-  if(details.firmware_role)parts.push(`Role ${titleCase(details.firmware_role)}`);
-  if(details.device_local_url)parts.push(`Local ${details.device_local_url}`);
-  return parts.join(" | ");
-}
-function activityMeta(entry){
-  const parts=activityMetaFull(entry).split(" | ").filter(Boolean);
-  return parts.slice(0,3).join(" · ");
-}
-function setButtonDisabled(id,disabled){
-  const node=document.getElementById(id);
-  if(node)node.disabled=disabled;
-}
-function renderActivityTable(){
-  const root=document.getElementById("events");
-  if(!root)return;
-  const filteredEvents=latestEvents.filter((entry)=>{
-    const severity=String(entry?.severity||"info").toLowerCase();
-    const severityMatch=!activitySeverity||(activitySeverity==="danger"?["danger","error","critical"].includes(severity):severity===activitySeverity);
-    const searchMatch=!activitySearch||`${entry?.message||""} ${entry?.kind||""} ${activityNodeLabel(entry)}`.toLowerCase().includes(activitySearch);
-    return severityMatch&&searchMatch;
-  });
-  const total=filteredEvents.length;
-  const pageCount=Math.max(1,Math.ceil(total/activityPageSize));
-  activityPage=Math.min(Math.max(1,activityPage),pageCount);
-  const start=(activityPage-1)*activityPageSize;
-  const pageItems=filteredEvents.slice(start,start+activityPageSize);
-  const count=document.getElementById("activityCount");
-  const status=document.getElementById("activityPageStatus");
-  if(count){
-    const first=total?start+1:0;
-    const last=total?Math.min(start+pageItems.length,total):0;
-    count.textContent=total?`Showing ${first}-${last} of ${total} logs`:"No activity logs yet";
-  }
-  if(status)status.textContent=`Page ${activityPage} of ${pageCount}`;
-  setButtonDisabled("activityFirst",activityPage<=1);
-  setButtonDisabled("activityPrev",activityPage<=1);
-  setButtonDisabled("activityNext",activityPage>=pageCount);
-  setButtonDisabled("activityLast",activityPage>=pageCount);
-  if(!pageItems.length){
-    setStableHtml(root,`<tr><td colspan="4"><div class="helper-text">No activity logs for this device pair.</div></td></tr>`);
-    return;
-  }
-  setStableHtml(root,pageItems.map((entry)=>`
-    <tr class="${["danger","error","critical"].includes(String(entry.severity||"").toLowerCase())?"log-error":String(entry.severity||"").toLowerCase().includes("warn")?"log-warning":""}">
-      <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
-      <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
-      <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div>${activityMetaFull(entry)?`<details class="activity-details"><summary>Show details</summary><div class="activity-details-body">${escapeHtml(activityMetaFull(entry))}</div></details>`:""}</td>
-      <td><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></td>
-    </tr>
-  `).join(""));
-}
-function setActivityPage(nextPage){
-  activityPage=nextPage;
-  renderActivityTable();
-}
-async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
-  if(activityRefreshInFlight||activityPaused)return;
-  activityRefreshInFlight=true;
-  try{
-    const eventsUrl=new URL("/events",window.location.origin);
-    eventsUrl.searchParams.set("device_id",DEVICE_ID);
-    eventsUrl.searchParams.set("limit",String(Math.max(10,Math.min(Number(limit)||ACTIVITY_FETCH_LIMIT,ACTIVITY_FETCH_LIMIT))));
-    const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
-    const data=await response.json();
-    if(response.ok&&Array.isArray(data)){
-      const usableEvents=normalizeActivityEvents(data);
-      if(usableEvents.length){
-        latestEvents=usableEvents;
-        renderActivityTable();
-      }else if(!latestEvents.length){
-        latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
-        renderActivityTable();
-      }
-    }
-  }catch(error){
-    console.log("activity refresh error",error);
-  }finally{
-    activityRefreshInFlight=false;
-  }
-}
-async function loadDevice({silent=false,includeHistory=null,includeEvents=null}={}){
+async function loadDevice({silent=false,includeHistory=null}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
   const includeHeavy=!silent&&!latestHistory.length;
   const shouldIncludeHistory=includeHistory===null?includeHeavy:Boolean(includeHistory);
-  const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);
   try{
   const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
   if(!shouldIncludeHistory){
     statusUrl.searchParams.set("history","0");
   }
-  if(shouldIncludeEvents){
-    statusUrl.searchParams.set("events","1");
-  }else{
-    statusUrl.searchParams.set("events","0");
-  }
+  statusUrl.searchParams.set("events","0");
   statusUrl.searchParams.set("alerts","0");
   statusUrl.searchParams.set("audit","0");
   statusUrl.searchParams.set("details",silent?"0":"1");
@@ -2265,35 +1918,15 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   renderMemoryHealth(latestHistory,snapshot,serviceConfig);
   updateSimulatorControls(snapshot,serviceConfig);
 
-  if(Array.isArray(data.events)){
-    const usableEvents=normalizeActivityEvents(data.events);
-    if(usableEvents.length){
-      latestEvents=usableEvents;
-    }else if(!latestEvents.length){
-      latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
-    }
-  }else if(!latestEvents.length){
-    latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
-  }
-  renderActivityTable();
-
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
   setClassName("connection",connectionClass);
   }finally{
     deviceRefreshInFlight=false;
   }
 }
-document.getElementById("activityPageSize")?.addEventListener("change",(event)=>{
-  activityPageSize=Number(event.target.value)||10;
-  activityPage=1;
-  renderActivityTable();
-  if(activityPageSize>latestEvents.length){
-    refreshActivityEvents({limit:activityPageSize});
-  }
-});
 const diagnosticTools=document.getElementById("diagnosticTools");
 [document.getElementById("deviceCommandsCard"),document.getElementById("deviceSimulatorsSection")].forEach((card)=>{if(card&&diagnosticTools)diagnosticTools.appendChild(card);});
-const devicePages={overview:"device-overview",diagnostics:"device-memory",configuration:"device-configuration",firmware:"device-firmware",logs:"device-logs"};
+const devicePages={overview:"device-overview",diagnostics:"device-memory",configuration:"device-configuration",firmware:"device-firmware"};
 function activateDevicePage(page,{updateHash=true}={}){
     const active=devicePages[page]?page:"overview";
     document.querySelectorAll("[data-device-page]").forEach((panel)=>{panel.hidden=panel.dataset.devicePage!==active;});
@@ -2309,39 +1942,20 @@ document.getElementById("deviceRefreshButton")?.addEventListener("click",()=>loa
 document.getElementById("deviceSaveConfigButton")?.addEventListener("click",()=>{document.querySelector(".config-form")?.requestSubmit();});
 document.getElementById("deviceRestartButton")?.addEventListener("click",()=>{document.querySelector('form[action$="/reboot"]')?.requestSubmit();});
 [["auto_start_pct","autoStartOutput"],["auto_stop_pct","autoStopOutput"]].forEach(([inputId,outputId])=>document.getElementById(inputId)?.addEventListener("input",(event)=>setText(outputId,`${event.target.value}%`)));
-document.getElementById("activitySearch")?.addEventListener("input",(event)=>{activitySearch=String(event.target.value||"").trim().toLowerCase();activityPage=1;renderActivityTable();});
-document.getElementById("activitySeverity")?.addEventListener("change",(event)=>{activitySeverity=event.target.value||"";activityPage=1;renderActivityTable();});
-document.getElementById("activityPause")?.addEventListener("click",(event)=>{activityPaused=!activityPaused;event.currentTarget.textContent=activityPaused?"Resume auto-scroll":"Pause auto-scroll";});
-function activityLogText(){return latestEvents.map((entry)=>`${entry.time||"--"}\t${activityNodeLabel(entry)}\t${entry.severity||"info"}\t${entry.message||"Event"}`).join("\n");}
-document.getElementById("activityCopy")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(activityLogText());}catch(error){}});
-document.getElementById("activityDownload")?.addEventListener("click",()=>{const blob=new Blob([activityLogText()],{type:"text/plain;charset=utf-8"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${DEVICE_ID}-activity.log`;link.click();URL.revokeObjectURL(link.href);});
 function refreshLastSeenAge(){const node=document.getElementById("lastSeenAge");if(!node||node.dataset.ageSeconds==="")return;const base=Number(node.dataset.ageSeconds||0);const loaded=Number(node.dataset.loadedAt||Date.now());if(!node.dataset.loadedAt)node.dataset.loadedAt=String(Date.now());node.textContent=`${formatDurationSeconds(base+Math.max(0,(Date.now()-loaded)/1000))} ago`;}
 refreshLastSeenAge();window.setInterval(refreshLastSeenAge,30000);
-document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
-  document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
-  document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));
-document.getElementById("activityLast")?.addEventListener("click",()=>{
-    setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
-  });
-if(latestEvents.length)renderActivityTable();
 function startInitialRefresh(){
-  loadDevice({silent:true,includeHistory:false,includeEvents:false});
-  window.setTimeout(()=>refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT}),700);
-  window.setTimeout(()=>loadDevice({silent:true,includeHistory:true,includeEvents:false}),1600);
+  loadDevice({silent:true,includeHistory:false});
+  window.setTimeout(()=>loadDevice({silent:true,includeHistory:true}),1600);
 }
 if(window.requestAnimationFrame)window.requestAnimationFrame(startInitialRefresh);
 else startInitialRefresh();
-activityRefreshTimer=setInterval(()=>{
-  if(document.hidden)return;
-  refreshActivityEvents({limit:ACTIVITY_FETCH_LIMIT});
-},ACTIVITY_REFRESH_MS);
 deviceRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   loadDevice({silent:true});
 },DEVICE_REFRESH_MS);
 window.swtPageTeardown=()=>{
   if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);
-  if(activityRefreshTimer)clearInterval(activityRefreshTimer);
 };
 })();
 </script>

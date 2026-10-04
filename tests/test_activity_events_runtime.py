@@ -31,7 +31,7 @@ def test_device_detail_template_renders_when_optional_json_context_is_missing():
         )
 
     assert "const INITIAL_SYSTEM_STATUS={};" in html
-    assert "Live device activity is loading from the current Flask snapshot." in html
+    assert 'id="device-logs"' not in html
 
 
 def test_build_events_falls_back_to_current_status_when_device_has_no_activity():

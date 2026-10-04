@@ -21990,7 +21990,6 @@ def device_detail_page(device_id):
     system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
     # Keep the HTML render path cheap and safe. The browser can synthesize
     # current activity rows from the snapshot below, then hydrate from /events.
-    initial_events = []
     initial_info_cards = build_device_detail_info_cards(
         snapshot,
         system_status,
@@ -22025,7 +22024,6 @@ def device_detail_page(device_id):
         outlet_valve_simulator_enabled=outlet_valve_simulator_enabled,
         lower_turbidity_simulator_enabled=lower_turbidity_simulator_enabled,
         upper_turbidity_simulator_enabled=upper_turbidity_simulator_enabled,
-        initial_events=initial_events,
         initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
