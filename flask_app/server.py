@@ -2535,6 +2535,8 @@ def activate_dashboard_identity(role):
 def current_session_auth_marker():
     if not session.get("logged_in"):
         return None
+    if session.get("role") == "customer" and not customer_web_login_enabled(session.get("device_id")):
+        return None
     return current_auth_marker_for_identity(
         session.get("role") or "admin",
         username=session.get("username"),
@@ -2796,6 +2798,8 @@ def stored_dashboard_identity_is_valid(role):
         return False
     username = session.get(f"{prefix}_username")
     device_id = session.get(f"{prefix}_device_id")
+    if role == "customer" and not customer_web_login_enabled(device_id):
+        return False
     stored_auth_marker = str(session.get(f"{prefix}_auth_marker") or "").strip()
     expected_auth_marker = current_auth_marker_for_identity(role, username=username, device_id=device_id)
     platform_session_id = str(session.get(f"{prefix}_platform_session_id") or "").strip()
@@ -3410,6 +3414,8 @@ def handle_role_login(mode):
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         authenticated_user = authenticate_dashboard_user(username, password)
+        if authenticated_user and authenticated_user["role"] == "customer" and not customer_web_login_enabled(authenticated_user.get("device_id")):
+            authenticated_user = None
         if authenticated_user and authenticated_user["role"] == expected_role:
             store_dashboard_identity(authenticated_user)
             session.permanent = True
@@ -6700,6 +6706,7 @@ def ensure_customer_accounts_table(cursor):
             email TEXT,
             password_hash TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
+            web_login_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_enabled INTEGER NOT NULL DEFAULT 1,
             service_updates_enabled INTEGER NOT NULL DEFAULT 1,
             marketing_emails_enabled INTEGER NOT NULL DEFAULT 0,
@@ -6716,6 +6723,7 @@ def ensure_customer_accounts_columns(cursor):
         "display_name": "TEXT",
         "email": "TEXT",
         "active": "INTEGER NOT NULL DEFAULT 1",
+        "web_login_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_enabled": "INTEGER NOT NULL DEFAULT 1",
         "service_updates_enabled": "INTEGER NOT NULL DEFAULT 1",
         "marketing_emails_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -7597,7 +7605,7 @@ def fetch_customer_account(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+            SELECT device_id, display_name, email, password_hash, active, web_login_enabled, cloud_feed_enabled,
                    service_updates_enabled, marketing_emails_enabled, created_at, updated_at
             FROM customer_accounts
             WHERE device_id = ?
@@ -7605,6 +7613,11 @@ def fetch_customer_account(device_id):
             (normalized_device_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def customer_web_login_enabled(device_id):
+    account = fetch_customer_account(device_id)
+    return bool(account and int(account.get("web_login_enabled", 1) or 0) == 1)
 
 
 def list_customer_accounts(limit=100):
@@ -23259,6 +23272,26 @@ def admin_device_detail_turbidity_simulator(device_id, role):
             turbidity_simulator_state="on" if enabled else "off",
         )
     )
+
+
+@app.route("/devices/<device_id>/customer-web-login", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_customer_web_login(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    if not fetch_customer_account(scoped_device_id):
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Customer account not found for this device."))
+    value = request.form.get("web_login_enabled")
+    if value not in {"0", "1"}:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Select enabled or disabled for customer website login."))
+    with get_db() as db:
+        db.execute("UPDATE customer_accounts SET web_login_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                   (int(value), scoped_device_id))
+    log_audit_event(actor=current_actor_username(), action="update_customer_web_login",
+                    target_type="customer_account", target_id=scoped_device_id,
+                    device_id=scoped_device_id, details={"web_login_enabled": value == "1"})
+    message = "Customer website login enabled." if value == "1" else "Customer website login disabled."
+    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
 
 
 @app.route("/devices/<device_id>/customer-profile", methods=["POST"])
