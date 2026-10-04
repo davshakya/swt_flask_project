@@ -2362,7 +2362,7 @@ def normalize_android_sso_session_limit(value, default=DEFAULT_ANDROID_SSO_SESSI
         resolved = int(str(value).strip())
     except (TypeError, ValueError):
         resolved = default
-    return max(1, min(resolved, MAX_ANDROID_SSO_SESSION_LIMIT))
+    return max(0, min(resolved, MAX_ANDROID_SSO_SESSION_LIMIT))
 
 
 def active_platform_session_limit(platform, role, username=None, device_id=None):
@@ -2423,9 +2423,9 @@ def register_active_platform_session(platform, role, username=None, device_id=No
         username=username,
         device_id=device_id,
     )
-    active_sessions = active_sessions[-session_limit:]
+    active_sessions = active_sessions[-session_limit:] if session_limit else []
     set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions))
-    return next_session_id
+    return next_session_id if session_limit else ""
 
 
 def enforce_active_platform_session_limit(platform, role, username=None, device_id=None):
@@ -2435,7 +2435,7 @@ def enforce_active_platform_session_limit(platform, role, username=None, device_
         return 0
     active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
     session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
-    retained_sessions = active_sessions[-session_limit:]
+    retained_sessions = active_sessions[-session_limit:] if session_limit else []
     removed_count = len(active_sessions) - len(retained_sessions)
     if removed_count:
         set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
@@ -2451,7 +2451,7 @@ def active_platform_session_matches(platform, role, username=None, device_id=Non
         return False
     active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
     session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
-    retained_sessions = active_sessions[-session_limit:]
+    retained_sessions = active_sessions[-session_limit:] if session_limit else []
     if retained_sessions != active_sessions:
         set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
         active_sessions = retained_sessions
@@ -18840,6 +18840,11 @@ def mobile_auth_login():
                 "code": "admin_mobile_login_not_allowed",
             }
         ), 403
+    if active_platform_session_limit(
+        SESSION_PLATFORM_ANDROID, authenticated_user.get("role"),
+        username=authenticated_user.get("username"), device_id=authenticated_user.get("device_id"),
+    ) == 0:
+        return jsonify({"error": "Android login is disabled for this customer.", "code": "android_login_disabled"}), 403
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
