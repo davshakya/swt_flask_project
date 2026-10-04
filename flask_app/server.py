@@ -7620,6 +7620,20 @@ def customer_web_login_enabled(device_id):
     return bool(account and int(account.get("web_login_enabled", 1) or 0) == 1)
 
 
+def save_customer_web_login_from_configuration(device_id, form):
+    # Older forms omit this setting: preserve it instead of interpreting it as
+    # an unchecked checkbox. The marker is rendered only for an existing account.
+    if form.get("customer_web_login_present") != "1":
+        return None
+    if not fetch_customer_account(device_id):
+        raise ValueError("Customer account not found for this device.")
+    enabled = "web_login_enabled" in form
+    with get_db() as db:
+        db.execute("UPDATE customer_accounts SET web_login_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                   (int(enabled), device_id))
+    return enabled
+
+
 def list_customer_accounts(limit=100):
     with get_db() as db:
         rows = db.execute(
@@ -22354,6 +22368,7 @@ def admin_device_detail_configuration(device_id):
         save_device_destination_tanks(scoped_device_id, destination_tanks)
         # Generate commands from the saved intent, not the pre-save device snapshot.
         updated_config = fetch_device_service_config(scoped_device_id)
+        web_login_enabled = save_customer_web_login_from_configuration(scoped_device_id, request.form)
     except ValueError as exc:
         return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
     except Exception as exc:
@@ -22466,6 +22481,7 @@ def admin_device_detail_configuration(device_id):
                 "automatic_simulator_commands": automatic_simulator_commands,
                 "automatic_simulator_errors": automatic_simulator_errors,
                 "android_sessions_expired": expired_android_sessions,
+                "customer_web_login_enabled": web_login_enabled,
             },
         )
     except Exception as exc:

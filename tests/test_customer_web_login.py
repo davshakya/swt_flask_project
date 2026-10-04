@@ -19,7 +19,7 @@ def portal():
     app = Flask(__name__)
     app.secret_key = "test-only"
     names = {"ensure_customer_accounts_table", "ensure_customer_accounts_columns",
-             "fetch_customer_account", "customer_web_login_enabled", "customer_auth_marker",
+             "fetch_customer_account", "customer_web_login_enabled", "customer_auth_marker", "save_customer_web_login_from_configuration",
              "current_auth_marker_for_identity", "current_session_auth_marker",
              "stored_dashboard_identity_is_valid", "handle_role_login", "admin_required",
              "csrf_protect", "validate_csrf_or_abort", "admin_device_detail_customer_web_login"}
@@ -93,22 +93,35 @@ def test_existing_accounts_default_to_enabled_after_migration(portal):
 def test_new_template_tolerates_older_worker_without_login_endpoint():
     template = SOURCE.parent / "templates/device_detail.html"
     text = template.read_text(encoding="utf-8")
-    start = text.index("{% if customer_web_login_available|default(false) %}")
-    end = text.index('<div id="deviceCommandsCard"', start)
+    start = text.index("{% if customer_web_login_available|default(false) and customer_account %}")
+    end = text.index('<label class="service-option"><input type="checkbox" name="ai_analysis_enabled"', start)
     fragment = text[start:end]
     old_app = Flask(__name__)
     with old_app.test_request_context():
         html = render_template_string(fragment, device_id="tank-a", customer_account={"device_id": "tank-a"})
-    assert "Save Website Login" not in html
+    assert 'name="web_login_enabled"' not in html
 
 
 def test_current_worker_renders_login_toggle(portal):
     app, db, ns = portal
     text = (SOURCE.parent / "templates/device_detail.html").read_text(encoding="utf-8")
-    start = text.index("{% if customer_web_login_available|default(false) %}")
-    fragment = text[start:text.index('<div id="deviceCommandsCard"', start)]
+    start = text.index("{% if customer_web_login_available|default(false) and customer_account %}")
+    fragment = text[start:text.index('<label class="service-option"><input type="checkbox" name="ai_analysis_enabled"', start)]
     with app.test_request_context():
         html = render_template_string(fragment, device_id="tank-a", customer_account=ns["fetch_customer_account"]("tank-a"),
                                       customer_web_login_available=True, csrf_token="csrf")
-    assert '/devices/tank-a/customer-web-login' in html
-    assert "Save Website Login" in html
+    assert 'type="checkbox" name="web_login_enabled"' in html
+    assert 'name="customer_web_login_present"' in html
+    assert "Save Website Login" not in text
+
+
+def test_configuration_checkbox_saves_both_states_and_preserves_older_forms(portal):
+    app, db, ns = portal
+    save = ns["save_customer_web_login_from_configuration"]
+    assert save("tank-a", {"customer_web_login_present": "1"}) is False
+    assert not ns["customer_web_login_enabled"]("tank-a")
+    assert save("tank-a", {}) is None
+    assert not ns["customer_web_login_enabled"]("tank-a")
+    assert ns["customer_web_login_enabled"]("tank-b")
+    assert save("tank-a", {"customer_web_login_present": "1", "web_login_enabled": "1"}) is True
+    assert ns["customer_web_login_enabled"]("tank-a")
