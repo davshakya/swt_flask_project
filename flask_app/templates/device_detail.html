@@ -705,7 +705,7 @@ body{font-size:16px}
             <div class="form-group">
                 <label for="android_ota_firmware_role">Upgrade Target</label>
                 <select id="android_ota_firmware_role" name="firmware_role">
-                    <option value="all">Master + Slave</option>
+                    <option value="all">All devices</option>
                     <option value="master">Master only</option>
                     <option value="slave">Slave only</option>
                     <option value="repeater1">Repeater 1 only</option>
@@ -713,7 +713,7 @@ body{font-size:16px}
                 </select>
             </div>
             {% if android_ota_ready %}
-            <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device.</div>
+            <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device. All devices includes the master, enabled slave, and repeaters reported by the master.</div>
             <button class="btn btn-admin" type="submit"><span>Queue Android OTA</span></button>
             {% else %}
             <div class="helper-text">Enable Cloud Feed and Local firmware upload before queueing the Android app OTA trigger.</div>
