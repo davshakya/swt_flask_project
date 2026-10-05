@@ -1403,7 +1403,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .page{width:min(1380px,calc(100% - 8px));padding-top:4px}
 .nav{position:relative;top:auto;z-index:50}
 .hero{margin-top:10px}
-.text-size-button{display:inline-grid;place-items:center;flex:0 0 42px;width:42px;min-width:42px;min-height:42px;padding:0;border:1px solid var(--line-strong);border-radius:14px;background:var(--surface-strong);color:var(--brand-deep);font-size:16px;font-weight:900;white-space:nowrap;cursor:pointer}.text-size-button:hover{border-color:var(--brand);background:var(--brand-soft)}
 .book-demo-button,.book-demo-button:link,.book-demo-button:visited{color:#073d2d!important;-webkit-text-fill-color:#073d2d;background:linear-gradient(135deg,rgba(119,238,179,.9),rgba(42,190,129,.78))!important;border:1px solid rgba(26,145,97,.48)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.65),0 9px 24px rgba(25,138,97,.2)!important;backdrop-filter:blur(14px) saturate(145%)}
 .book-demo-button:hover,.book-demo-button:focus-visible{color:#032c20!important;-webkit-text-fill-color:#032c20;background:linear-gradient(135deg,rgba(145,248,198,.96),rgba(53,205,141,.88))!important;border-color:rgba(17,122,79,.68)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.78),0 13px 30px rgba(25,138,97,.3)!important;transform:translateY(-2px)}
 .nav .nav-links{gap:7px;padding:4px;border:1px solid color-mix(in srgb,var(--line-strong) 76%,transparent);border-radius:18px;background:color-mix(in srgb,var(--surface-strong) 72%,transparent);box-shadow:inset 0 1px 0 rgba(255,255,255,.55)}
@@ -1423,7 +1422,6 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
   .nav .nav-links a{min-height:38px;padding:9px 13px;font-size:12px}
   .nav-actions{gap:7px}
   .nav-actions .ghost-link,.nav-actions .button-secondary{min-height:48px;padding:12px 18px;border-radius:16px;font-size:14px}
-  .text-size-button{width:42px;min-width:42px;min-height:42px;font-size:16px}
 }
 @media(min-width:721px){
   .plans-carousel-track .plan-card{font-size:15px;line-height:1.42;gap:11px;padding:18px}
@@ -1441,8 +1439,9 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
 .pricing-whatsapp{width:58px;height:58px;min-height:58px;font-size:0}
 .pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}
 .pricing-chat-launcher{min-height:58px;gap:12px;padding:10px 16px 10px 10px;border-color:rgba(13,147,168,.24);background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(226,248,250,.92));color:#173238}
-.pricing-chat-launcher-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:999px;background:linear-gradient(135deg,var(--brand),var(--brand-deep));color:#fff;font-size:22px;font-weight:950}
-.pricing-chat-launcher-label{white-space:nowrap;font-size:15px}
+.pricing-chat-launcher-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:999px;background:transparent;box-shadow:inset 0 1px 0 rgba(255,255,255,.35);overflow:hidden}
+.pricing-chat-launcher-icon img{display:block;width:100%;height:100%;object-fit:contain}
+.pricing-chat-launcher-label{display:block;white-space:nowrap;font-size:15px;line-height:1.1;text-align:left}
 .shared-chatbot-frame{display:block;width:100%;height:100%;border:0;background:transparent;opacity:0;transition:opacity .15s ease}.pricing-chat-panel.is-ready .shared-chatbot-frame{opacity:1}.shared-chatbot-loading{position:absolute;inset:0;z-index:1;display:grid;place-items:center;padding:24px;background:linear-gradient(135deg,#eee5fb,#fff0e6);color:#173238;font-weight:900;text-align:center}.pricing-chat-panel.is-ready .shared-chatbot-loading{display:none}.pricing-chat-panel{right:0;bottom:0;width:min(420px,calc(100vw - 28px));height:min(620px,calc(100vh - 118px));border-radius:24px;border-color:rgba(126,87,194,.28);background:linear-gradient(180deg,#fbf7ff 0%,#fffaf0 100%);box-shadow:0 34px 90px rgba(69,37,110,.3)}
 .page-jump-controls{position:fixed;right:12px;bottom:150px;z-index:89;display:grid;gap:8px}
 .pricing-support-floats.is-open + .page-jump-controls{display:none}
@@ -1472,9 +1471,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <a href="#faqs">FAQs</a>
         </nav>
         <div class="nav-actions">
-            <a class="ghost-link" href="{{ url_for('dashboard') }}">Homepage</a>
             <a class="button-secondary js-book-plan book-demo-button" href="#enquiry" data-plan="Free Demo" data-segment="Home / Villa">Book Demo</a>
-            <button class="text-size-button" type="button" data-text-size-button aria-label="Change text size" title="Change text size">Aa</button>
         </div>
     </header>
 
@@ -2174,7 +2171,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
         <div class="shared-chatbot-loading" id="sharedChatbotLoading" role="status">Loading SaleWell Tank Advisor…</div>
         <iframe class="shared-chatbot-frame" id="sharedChatbotFrame" title="SaleWell Tank Advisor" src="about:blank" data-chat-src="{{ url_for('dashboard', chat='open', chat_embed='1') }}" allow="clipboard-write"></iframe>
     </section>
-    <button class="pricing-chat-launcher" id="pricingChatLauncher" type="button" aria-controls="pricingChatPanel" aria-expanded="false"><span class="pricing-chat-launcher-icon" aria-hidden="true">?</span><span class="pricing-chat-launcher-label">Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></span></button>
+    <button class="pricing-chat-launcher" id="pricingChatLauncher" type="button" aria-label="Ask SaleWell" aria-controls="pricingChatPanel" aria-expanded="false"><span class="pricing-chat-launcher-icon" aria-hidden="true"><img src="{{ url_for('static', filename='pwa/brand-logo.png') }}" alt=""></span><strong class="pricing-chat-launcher-label" aria-hidden="true">Ask <span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span></strong></button>
 </div>
 
 <nav class="page-jump-controls" aria-label="Page navigation">
@@ -2747,25 +2744,6 @@ window.addEventListener("message", (event) => {
 window.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && pricingSupportFloats?.classList.contains("is-open")) setPricingChatOpen(false);
 });
-const textSizeButton = document.querySelector("[data-text-size-button]");
-const textSizeModes = [
-    { name: "small", label: "Small", size: "14px" },
-    { name: "normal", label: "Normal", size: "15px" },
-    { name: "large", label: "Large", size: "17px" }
-];
-let textSizeIndex = Math.max(0, textSizeModes.findIndex((mode) => mode.name === localStorage.getItem("salewellTextSize")));
-const applyTextSize = () => {
-    const mode = textSizeModes[textSizeIndex];
-    document.documentElement.style.setProperty("--page-text-size", mode.size);
-    textSizeButton?.querySelector("[data-text-size-label]")?.replaceChildren(mode.label);
-    textSizeButton?.setAttribute("aria-label", `Text size: ${mode.label}. Click to change.`);
-};
-textSizeButton?.addEventListener("click", () => {
-    textSizeIndex = (textSizeIndex + 1) % textSizeModes.length;
-    localStorage.setItem("salewellTextSize", textSizeModes[textSizeIndex].name);
-    applyTextSize();
-});
-applyTextSize();
 })();
 </script>
 </body>

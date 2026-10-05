@@ -47,7 +47,8 @@
 .device-table-shell .last-sync-cell.is-stale{color:var(--muted)}
 .device-table-shell .last-sync-cell.is-live{color:var(--text);font-weight:800}
 .device-table-shell .pill{vertical-align:middle}
-.node-status-pill{justify-content:center;width:max-content}
+  .node-status-pill{justify-content:center;width:max-content}
+  .data-path-label{font-weight:900;white-space:nowrap;color:var(--primary)}
 @media (max-width:900px){.split{grid-template-columns:1fr}}
 @media (max-width:700px){.inline-form,.inline-form.inline-form-wide{grid-template-columns:1fr}.searchControls{grid-template-columns:1fr}}
 .admin-control-room{--admin-shell-max:1680px;--admin-surface:linear-gradient(180deg,rgba(255,255,255,.96),rgba(240,248,248,.9));--admin-panel-highlight:linear-gradient(135deg,rgba(8,58,74,.94),rgba(19,121,143,.92));--admin-card:rgba(255,255,255,.7);--admin-card-strong:rgba(255,255,255,.82);--admin-border:rgba(14,84,99,.12);--admin-shadow:0 34px 70px rgba(10,58,72,.18);--admin-text-soft:#506a73;--admin-accent:#0e8096;--admin-accent-strong:#0b5567;--admin-table-row:rgba(255,255,255,.56);--admin-table-row-hover:rgba(240,250,251,.96);--admin-match:rgba(14,128,150,.08)}
@@ -149,6 +150,8 @@
 .admin-table th,.admin-table td{font-size:11px;padding:11px 12px}
 .device-table-shell .admin-table{min-width:1180px}
 .device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:7px 8px}
+.device-table-shell .admin-table .lower-sensor-column{text-align:center!important;vertical-align:middle!important}
+.device-table-shell .admin-table td.lower-sensor-column .node-status-pill{margin-left:auto;margin-right:auto}
 .device-table-shell .admin-table th:nth-child(1){width:15%}.device-table-shell .admin-table th:nth-child(2){width:13%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:6%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:7%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:8%}.device-table-shell .admin-table th:nth-child(10){width:8%}.device-table-shell .admin-table th:nth-child(11){width:7%}.device-table-shell .admin-table th:nth-child(12){width:7%}
 .alert-row-danger td{background:rgba(218,79,99,.08)}
 .alert-row-warning td{background:rgba(245,155,65,.08)}
@@ -440,21 +443,32 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 .device-horizontal-scroll{display:none}
 .device-table-shell{overflow-x:hidden;scrollbar-gutter:stable}
 .device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}
-.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:6px 4px;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left;vertical-align:middle}
-.device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}
-.device-table-shell .admin-table thead th,.device-table-shell .admin-table thead .sort-button{font-size:9px;line-height:1.2;white-space:normal;justify-content:flex-start;text-align:left}
+.device-table-shell .admin-table th,.device-table-shell .admin-table td{padding:6px 4px;overflow:visible;text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:center;vertical-align:middle}
+.device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:4px}
+.device-table-shell .admin-table thead th,.device-table-shell .admin-table thead .sort-button{font-size:9px;line-height:1.2;white-space:normal;justify-content:center;text-align:center}
 .device-table-shell .admin-table td{font-size:10px;line-height:1.25}
-.device-table-shell .admin-table th:nth-child(1){width:14%}.device-table-shell .admin-table th:nth-child(2){width:12%}.device-table-shell .admin-table th:nth-child(3){width:8%}.device-table-shell .admin-table th:nth-child(4){width:8%}.device-table-shell .admin-table th:nth-child(5){width:7%}.device-table-shell .admin-table th:nth-child(6){width:5%}.device-table-shell .admin-table th:nth-child(7){width:8%}.device-table-shell .admin-table th:nth-child(8){width:8%}.device-table-shell .admin-table th:nth-child(9){width:9%}.device-table-shell .admin-table th:nth-child(10){width:6%}.device-table-shell .admin-table th:nth-child(11){width:7%}.device-table-shell .admin-table th:nth-child(12){width:8%}
+.device-table-shell .admin-table th:nth-child(1){width:13%}.device-table-shell .admin-table th:nth-child(2){width:11%}.device-table-shell .admin-table th:nth-child(3){width:7%}.device-table-shell .admin-table th:nth-child(4){width:7%}.device-table-shell .admin-table th:nth-child(5){width:7%}.device-table-shell .admin-table th:nth-child(6){width:7%}.device-table-shell .admin-table th:nth-child(7){width:11%}.device-table-shell .admin-table th:nth-child(8){width:7%}.device-table-shell .admin-table th:nth-child(9){width:7%}.device-table-shell .admin-table th:nth-child(10){width:8%}.device-table-shell .admin-table th:nth-child(11){width:5%}.device-table-shell .admin-table th:nth-child(12){width:5%}.device-table-shell .admin-table th:nth-child(13){width:5%}
 .device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link,.device-table-shell .device-id-cell .device-link,.device-table-shell .device-id-cell .cell-sub,.device-table-shell .admin-table td:nth-child(2) .cell-main,.device-table-shell .admin-table td:nth-child(2) .cell-sub{display:block;max-width:100%;white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
 .device-table-shell .cell-sub{margin-top:2px}.device-table-shell .cell-sub::before{content:""}
-.device-table-shell .last-sync-cell,.device-table-shell .sync-date,.device-table-shell .sync-time{white-space:normal;overflow:visible;text-overflow:clip;text-align:left}
-.device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:left;vertical-align:middle}
-.device-table-shell .admin-table td:nth-child(9) .pill{margin-left:0;margin-right:auto}
+.device-table-shell .last-sync-cell,.device-table-shell .sync-date,.device-table-shell .sync-time{white-space:normal;overflow:visible;text-overflow:clip;text-align:center}
+.device-table-shell .admin-table th:nth-child(10),.device-table-shell .admin-table td:nth-child(10){text-align:center;vertical-align:middle}
+.device-table-shell .admin-table td:nth-child(10) .pill{margin-left:auto;margin-right:auto}
 .device-table-shell .pill,.device-table-shell .last-seen-indicator{max-width:100%;font-size:9px;white-space:nowrap}
 .table-toolbar{flex-wrap:nowrap}
 }
 @media(max-width:900px){.critical-action-grid{grid-template-columns:repeat(2,1fr)}.fleet-toolbar-sticky{position:static}}
-</style>
+  /* Center table content on both axes and remove visual gaps between columns. */
+  .admin-table{border-spacing:0}
+  .admin-table th,.admin-table td{text-align:center;vertical-align:middle;padding-left:2px;padding-right:2px}
+  .admin-table th>*,.admin-table td>*{margin-left:auto;margin-right:auto}
+  .admin-table thead .sort-button{justify-content:center;text-align:center;white-space:nowrap}
+  .device-table-shell .admin-table th:nth-child(3),
+  .device-table-shell .admin-table th:nth-child(3) .sort-button{white-space:nowrap;overflow:visible}
+  @media(min-width:1400px){
+    .device-table-shell .admin-table th:nth-child(3){width:8%}
+    .device-table-shell .admin-table th:nth-child(7){width:10%}
+  }
+  </style>
 {% include '_theme_overrides.html' %}
 </head>
 <body class="admin-control-room">
@@ -569,6 +583,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <a class="hero-primary" href="#global_alerts_panel">Review Alerts</a>
                     <a class="hero-secondary" href="#devices_panel">Jump to Devices</a>
                     <a class="hero-secondary" href="#" data-panel-toggle aria-controls="register_device_panel" aria-expanded="false">Register Device</a>
+                    <a class="hero-secondary" href="{{ url_for('admin_survey_responses') }}">Survey Responses</a>
                     <a class="hero-secondary" href="/account/password">Admin Password</a>
                     <form method="post" action="/logout" style="margin:0"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="hero-secondary" type="submit">Logout</button></form>
                 </div>
@@ -741,7 +756,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                     <div id="device_search_meta" class="searchMeta" aria-live="polite">{% if search_query %}{{ available_devices|length }} device match{% if available_devices|length != 1 %}es{% endif %}{% else %}{{ available_devices|length }} devices{% endif %}</div>
                     <div class="section-badges">
                         <span id="device_visibility_status" class="pill pill-info">{{ available_devices|length }} visible</span>
-                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh 5s</span>
+                        <span id="device_auto_refresh_status" class="pill pill-clear">Auto refresh {{ cloud_poll_interval_ms // 1000 }}s</span>
                         <span class="pill pill-clear">Press Escape in search to clear quickly</span>
                     </div>
                 </div>
@@ -756,10 +771,11 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                             <th>Customer</th>
                             <th><button type="button" class="sort-button" data-device-sort="status" data-sort-default="asc">Master Status</button></th>
                             <th>Slave Status</th>
-                            <th data-tooltip-key="telemetry">Telemetry</th>
-                            <th data-tooltip-key="signal">Signal</th>
+                            <th>Repeater 1</th>
+                            <th>Repeater 2</th>
+                            <th>Active Path</th>
                             <th>Upper Sensor</th>
-                            <th>Lower Sensor</th>
+                            <th class="lower-sensor-column">Lower Sensor</th>
                             <th data-tooltip-key="municipal sensor">Municipal Water</th>
                             <th>Tank</th>
                             <th><button type="button" class="sort-button" data-device-sort="alerts" data-sort-default="desc">Alerts</button></th>
@@ -785,16 +801,17 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
                                 {% set slave_node_label = "Online" if device.slave_status_tone == "online" else "Disabled" if device.slave_status_tone == "clear" else "Offline" %}
                                 <span class="pill node-status-pill pill-{{ device.slave_status_tone or 'offline' }}" data-device-field="slave_status">{{ slave_node_label }}</span>
                             </td>
-                            <td data-device-field="telemetry_status">{{ device.telemetry_status_label or "--" }}</td>
-                            <td data-device-field="wifi_rssi">{{ device.wifi_rssi if device.wifi_rssi is not none else "--" }}</td>
+                            <td><span class="pill node-status-pill pill-{{ device.repeater1_status_tone or 'clear' }}" data-device-field="repeater1_status">{{ device.repeater1_status_label or "Disabled" }}</span></td>
+                            <td><span class="pill node-status-pill pill-{{ device.repeater2_status_tone or 'clear' }}" data-device-field="repeater2_status">{{ device.repeater2_status_label or "Disabled" }}</span></td>
+                            <td><span class="data-path-label" data-device-field="active_data_path">{{ device.active_data_path or "M" }}</span></td>
                             <td>
                                 <span class="pill node-status-pill pill-{{ device.upper_sensor_status_tone or 'offline' }}" data-device-field="upper_sensor_status">{{ "Online" if device.upper_sensor_status_tone == "online" else "Disabled" if device.upper_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
-                            <td>
+                            <td class="lower-sensor-column">
                                 <span class="pill node-status-pill pill-{{ device.lower_sensor_status_tone or 'offline' }}" data-device-field="lower_sensor_status">{{ "Online" if device.lower_sensor_status_tone == "online" else "Disabled" if device.lower_sensor_status_tone == "clear" else "Offline" }}</span>
                             </td>
                             <td>
-                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ "Online" if device.municipal_sensor_status_tone == "online" else "Disabled" if device.municipal_sensor_status_tone == "clear" else "Offline" }}</span>
+                                <span class="pill node-status-pill pill-{{ device.municipal_sensor_status_tone or 'clear' }}" data-device-field="municipal_sensor_status">{{ device.municipal_sensor_status_label or "Disabled" }}</span>
                             </td>
                             <td>
                                 <div class="cell-main" data-device-field="tank_level">
@@ -1338,8 +1355,15 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setTextIfChanged(slave, connectivityLabel(device.slave_status, device.slave_status_tone));
         setPillTone(slave, device.slave_status_tone || "offline");
 
-        setTextIfChanged(row.querySelector('[data-device-field="telemetry_status"]'), device.telemetry_status_label || "--");
-        setTextIfChanged(row.querySelector('[data-device-field="wifi_rssi"]'), device.wifi_rssi ?? "--");
+        const repeater1 = row.querySelector('[data-device-field="repeater1_status"]');
+        setTextIfChanged(repeater1, device.repeater1_status || "Disabled");
+        setPillTone(repeater1, device.repeater1_status_tone || "clear");
+
+        const repeater2 = row.querySelector('[data-device-field="repeater2_status"]');
+        setTextIfChanged(repeater2, device.repeater2_status || "Disabled");
+        setPillTone(repeater2, device.repeater2_status_tone || "clear");
+
+        setTextIfChanged(row.querySelector('[data-device-field="active_data_path"]'), device.active_data_path || "M");
 
         const upper = row.querySelector('[data-device-field="upper_sensor_status"]');
         setTextIfChanged(upper, connectivityLabel(device.upper_sensor_status, device.upper_sensor_status_tone));
@@ -1350,7 +1374,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
         setPillTone(lower, device.lower_sensor_status_tone || "offline");
 
         const municipal = row.querySelector('[data-device-field="municipal_sensor_status"]');
-        setTextIfChanged(municipal, connectivityLabel(device.municipal_sensor_status, device.municipal_sensor_status_tone));
+        setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled");
         setPillTone(municipal, device.municipal_sensor_status_tone || "clear");
 
         setTextIfChanged(row.querySelector('[data-device-field="tank_level"]'), device.tank_level || "--");
@@ -1395,7 +1419,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
             refreshDeviceRows();
             applySort();
             applyFilter();
-            setAutoRefreshStatus("Updated now", "clear");
+            setAutoRefreshStatus("Updated now · every {{ cloud_poll_interval_ms // 1000 }}s", "clear");
         } catch (error) {
             console.warn("Admin device table refresh failed", error);
             setAutoRefreshStatus("Refresh paused", "warning");
@@ -1443,13 +1467,14 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
     document.getElementById("export_visible_devices")?.addEventListener("click", () => {
         const rows = deviceRows.filter((row) => !row.classList.contains("hidden-result"));
         const quote = (value) => `"${String(value || "").replaceAll('"','""')}"`;
-        const lines = [["Device ID","Customer","Status","Telemetry","Signal","Tank","Health","Alerts","Last Seen"]];
+        const lines = [["Device ID","Customer","Status","Repeater 1","Repeater 2","Active Path","Tank","Health","Alerts","Last Seen"]];
         rows.forEach((row) => lines.push([
             row.dataset.deviceId,
             row.dataset.customer,
             row.dataset.online === "1" ? "Online" : "Offline",
-            row.dataset.telemetry,
-            row.dataset.signal,
+            row.querySelector('[data-device-field="repeater1_status"]')?.textContent.trim(),
+            row.querySelector('[data-device-field="repeater2_status"]')?.textContent.trim(),
+            row.querySelector('[data-device-field="active_data_path"]')?.textContent.trim(),
             row.querySelector('[data-device-field="tank_level"]')?.textContent.trim(),
             `${row.dataset.healthScore}%`,
             row.querySelector('[data-device-field="alerts"]')?.textContent.trim(),
@@ -1801,7 +1826,7 @@ button,a,input,.searchInput{min-height:52px;font-size:16px}
 
     applySort();
     applyFilter();
-    window.setInterval(refreshDeviceTable, 5000);
+    window.setInterval(refreshDeviceTable, {{ cloud_poll_interval_ms }});
 })();
 </script>
 </body>

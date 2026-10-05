@@ -32,7 +32,7 @@ text-decoration-color:currentColor;
 .panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}
 .hero,.split,.charts{display:grid;gap:18px;align-items:stretch}.hero{grid-template-columns:minmax(320px,390px) minmax(0,1fr)}.split,.charts{grid-template-columns:repeat(2,minmax(0,1fr))}.grid{display:grid;gap:16px;align-items:stretch}.metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
 .eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 10px;font-weight:800}.muted{color:var(--muted)}h1,h2,h3,p{margin:0}.hero-copy{display:flex;flex-direction:column;gap:18px;justify-content:flex-start;min-width:0}.hero-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.hero-head h1{flex:1;font-size:clamp(2rem,4vw,3.5rem);line-height:.98;letter-spacing:-.03em;max-width:11ch}.hero-actions{display:flex;flex-direction:column;gap:10px;align-items:flex-end;justify-content:flex-start;min-width:min(100%,360px)}.hero-actions>*{margin:0}.hero-actions form{display:flex}.hero-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.live-panel{min-width:220px;text-align:left;background:var(--panel-live-bg);border:1px solid var(--line);display:flex;flex-direction:column;justify-content:center}.sync-strip{width:min(100%,340px);padding:12px 14px;border-radius:20px}.sync-line{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}.sync-detail{color:var(--muted);font-size:13px;line-height:1.45}.hero-lead{font-size:1.06rem;line-height:1.75;color:var(--muted);max-width:62ch}
-.brand-lockup{display:flex;align-items:center;gap:16px}.brand-copy{min-width:0}.brand-copy h1{max-width:none}.brand-title-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.brand-logo{position:relative;display:grid;place-items:center;width:78px;height:78px;flex:0 0 78px;border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(223,242,246,.72));border:1px solid rgba(255,255,255,.58);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 18px 34px rgba(17,52,64,.12);text-decoration:none;color:inherit}.brand-logo:hover{transform:translateY(-1px);filter:brightness(1.03)}.brand-logo::before{content:"";position:absolute;inset:10px;border-radius:20px;background:radial-gradient(circle at 30% 28%,rgba(255,255,255,.5),transparent 40%),linear-gradient(180deg,rgba(19,137,165,.08),rgba(19,137,165,.02))}.brand-logo.is-spinning .logo-wheel{animation:logo-spin 1.4s linear infinite}.brand-logo.is-spinning{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--primary) 12%,transparent)}.brand-logo.is-pending{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--warn) 16%,transparent)}.brand-logo svg{position:relative;z-index:1;width:58px;height:58px;display:block}.logo-wheel{transform-origin:50% 50%}.logo-hub{filter:drop-shadow(0 2px 4px rgba(23,30,165,.24))}.brand-status{margin-top:10px;font-size:13px;color:var(--muted);font-weight:700}.brand-status strong{color:var(--text-strong)}@keyframes logo-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.brand-lockup{display:flex;align-items:center;gap:16px}.brand-copy{min-width:0}.brand-copy h1{max-width:none}.brand-title-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap}.brand-logo{position:relative;display:grid;place-items:center;width:78px;height:78px;flex:0 0 78px;border-radius:24px;background:linear-gradient(145deg,rgba(255,255,255,.9),rgba(223,242,246,.72));border:1px solid rgba(255,255,255,.58);box-shadow:inset 0 1px 0 rgba(255,255,255,.62),0 18px 34px rgba(17,52,64,.12);text-decoration:none;color:inherit}.brand-logo:hover{transform:translateY(-1px);filter:brightness(1.03)}.brand-logo::before{content:"";position:absolute;inset:10px;border-radius:20px;background:radial-gradient(circle at 30% 28%,rgba(255,255,255,.5),transparent 40%),linear-gradient(180deg,rgba(19,137,165,.08),rgba(19,137,165,.02))}.brand-logo.is-spinning .logo-wheel{animation:logo-spin 1.4s linear infinite}.brand-logo.is-spinning{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--primary) 12%,transparent)}.brand-logo.is-pending{box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 20px 38px rgba(17,52,64,.16),0 0 0 6px color-mix(in srgb,var(--warn) 16%,transparent)}.brand-logo svg,.brand-logo img{position:relative;z-index:1;width:58px;height:58px;display:block}.logo-wheel{transform-origin:50% 50%}.logo-hub{filter:drop-shadow(0 2px 4px rgba(23,30,165,.24))}.brand-status{margin-top:10px;font-size:13px;color:var(--muted);font-weight:700}.brand-status strong{color:var(--text-strong)}@keyframes logo-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .status-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;align-items:stretch}.chip{padding:14px 15px;border-radius:20px;background:var(--chip-bg);border:1px solid var(--line);box-shadow:var(--chip-shadow);display:flex;flex-direction:column;justify-content:flex-start;height:100%}.chip strong,.label{display:block;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--primary);margin-bottom:8px;font-weight:800}.statuscopy,.card .value,.customer-hero-stat strong{color:var(--text)}
 .banner{display:none;padding:14px 16px;border-radius:18px;font-weight:700}.banner.show{display:block}.info{background:var(--info-bg);border:1px solid var(--info-line)}.warn{background:var(--warn-bg);border:1px solid var(--warn-line)}.danger{background:var(--danger-bg);border:1px solid var(--danger-line)}
 .tank-wrap{text-align:center;background:var(--tank-wrap-bg);display:flex;flex-direction:column;gap:20px;height:100%}.tank-stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;justify-items:stretch;align-items:start;flex:1}.tank-stack.source-hidden{grid-template-columns:1fr}.tank-block{width:100%;max-width:160px;min-width:0;justify-self:center;display:flex;flex-direction:column;align-items:center;height:100%}.tank-block.is-disabled{opacity:.58}.tank{width:100%;height:252px;margin:0 auto;border:6px solid var(--tank-shell-border);border-radius:30px;padding:12px;background:var(--tank-shell-bg)}.tank-inner{position:relative;height:100%;overflow:hidden;border-radius:18px;background:var(--tank-inner-bg)}.water{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--water-mid);transition:height .7s ease,background .3s ease}
@@ -117,8 +117,9 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 .customer-dashboard .customer-settings-pane,.customer-dashboard .customer-guidance-panel{min-width:0;padding:22px}
 .customer-dashboard .customer-settings-pane{margin:0;border-right:1px solid var(--line)}
 .customer-dashboard .customer-settings-heading{font-weight:800}
-.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
-.customer-dashboard .customer-settings-grid .setting{min-width:0;min-height:128px;padding:14px}
+.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.customer-dashboard .customer-settings-grid .setting{min-width:0;min-height:0;height:auto;padding:12px 14px;justify-content:flex-start;gap:8px}
+.customer-dashboard .customer-settings-grid .setting span{margin-top:0}
 .customer-dashboard .customer-technical-details{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
 .customer-dashboard .customer-technical-details h4{margin:0;font-size:1rem}
 .customer-dashboard .customer-stat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
@@ -204,6 +205,7 @@ canvas{width:100%!important;height:300px!important}.chart-scroll{width:100%;over
 }
 @media (max-width:760px){
 .customer-dashboard .shell{width:min(100% - 18px,var(--customer-shell-max));padding-top:22px}
+.customer-dashboard .customer-settings-grid{grid-template-columns:1fr}
 .customer-dashboard .status-row,.customer-pulse-grid,.customer-dashboard .grid.metrics,.customer-dashboard .glance-grid,.customer-dashboard .customer-hero-meta,.customer-dashboard .customer-stat-grid{grid-template-columns:1fr}
 .customer-dashboard .customer-insight-kpis,.customer-dashboard .chart-summary,.customer-dashboard .technical-grid,.customer-dashboard .header-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
 .customer-dashboard .analytics-toolbar .range-buttons,.customer-dashboard .analytics-toolbar .filters{display:grid;grid-template-columns:1fr;width:100%}.customer-dashboard .analytics-toolbar input[type="date"]{width:100%}
@@ -264,7 +266,7 @@ canvas{height:260px!important}
 /* Compact operational hierarchy and semantic status colors. */
 .ops-sticky{position:sticky;top:8px;z-index:30;display:grid;grid-template-columns:repeat(5,minmax(120px,1fr)) auto;gap:8px;align-items:stretch;margin-bottom:12px;padding:10px;border-radius:20px;background:color-mix(in srgb,var(--panel-strong) 92%,transparent);border:1px solid var(--line);box-shadow:0 12px 32px rgba(17,52,64,.14);backdrop-filter:blur(18px)}
 .ops-sticky-item{display:flex;align-items:center;gap:10px;min-width:0;padding:7px 10px;border-radius:14px;background:var(--chip-bg)}.ops-icon,.section-icon,.event-icon{font-size:20px;line-height:1}.ops-sticky-item span{display:block;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;font-weight:800}.ops-sticky-item strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tone-info{color:var(--primary)}.tone-ok{color:var(--good)}.tone-warn{color:var(--warn)}.tone-bad{color:var(--danger)}
-.hero{gap:12px}.hero .panel{padding:16px}.hero-copy{gap:12px}.hero-lead{line-height:1.45;font-size:.96rem}.brand-logo{width:60px;height:60px;flex-basis:60px;border-radius:18px}.brand-logo svg{width:46px;height:46px}.hero-head h1{font-size:clamp(1.8rem,3vw,2.7rem)}.tank{height:190px}.tank-wrap{gap:12px}.level{font-size:36px;margin-top:9px}.customer-hero-grid{gap:10px}.customer-hero-main,.customer-control-card{min-height:auto}.customer-hero-meta{margin-top:10px}.customer-status-bar{padding:9px 12px}.sync-strip{padding:8px 11px}.hero-actions{gap:7px}
+.hero{gap:12px}.hero .panel{padding:16px}.hero-copy{gap:12px}.hero-lead{line-height:1.45;font-size:.96rem}.brand-logo{width:60px;height:60px;flex-basis:60px;border-radius:18px}.brand-logo svg,.brand-logo img{width:46px;height:46px}.hero-head h1{font-size:clamp(1.8rem,3vw,2.7rem)}.tank{height:190px}.tank-wrap{gap:12px}.level{font-size:36px;margin-top:9px}.customer-hero-grid{gap:10px}.customer-hero-main,.customer-control-card{min-height:auto}.customer-hero-meta{margin-top:10px}.customer-status-bar{padding:9px 12px}.sync-strip{padding:8px 11px}.hero-actions{gap:7px}
 .priority-metrics{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:12px}.priority-card{border-left:4px solid var(--primary)}.priority-card.ok{border-left-color:var(--good)}.priority-card.warn{border-left-color:var(--warn)}.priority-card.bad{border-left-color:var(--danger)}
 .system-health-grid{display:grid;grid-template-columns:minmax(180px,.7fr) repeat(4,minmax(130px,1fr));gap:10px;margin-top:14px}.health-score-card{background:linear-gradient(135deg,color-mix(in srgb,var(--good) 14%,var(--card-bg)),var(--card-bg))}.health-score-card .value{font-size:34px}
 .info-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.info-group{padding:16px;border-radius:22px;background:var(--card-bg);border:1px solid var(--line)}.info-group h3{display:flex;gap:8px;align-items:center;margin-bottom:14px}.info-row{padding:10px 0;border-top:1px solid var(--line)}.info-row:first-of-type{border-top:0}.info-row .value{font-size:22px;font-weight:800}.info-row .subvalue{color:var(--muted);font-size:13px;margin-top:4px}
@@ -331,33 +333,7 @@ canvas{height:260px!important}
                         {% endif %}
                         <div class="brand-title-row">
                             <a id="brandLogo" class="brand-logo" href="/" aria-label="Open homepage" title="Open homepage">
-                        <svg viewBox="0 0 96 96" role="img">
-                            <defs>
-                                <linearGradient id="logoOuterGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#2b7eff"></stop>
-                                    <stop offset="100%" stop-color="#171ea5"></stop>
-                                </linearGradient>
-                                <linearGradient id="logoBladeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#7be1ff"></stop>
-                                    <stop offset="100%" stop-color="#1b45e2"></stop>
-                                </linearGradient>
-                            </defs>
-                            <circle cx="48" cy="48" r="46" fill="#8befff"></circle>
-                            <circle cx="48" cy="48" r="42" fill="url(#logoOuterGradient)" stroke="#cffbff" stroke-width="1.5"></circle>
-                            <g class="logo-wheel">
-                                <rect x="38" y="7" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
-                                <rect x="38" y="61" width="20" height="28" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
-                                <rect x="7" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
-                                <rect x="61" y="38" width="28" height="20" rx="6" fill="url(#logoBladeGradient)" stroke="#d8fdff" stroke-width="1.5"></rect>
-                                <rect x="41" y="24" width="14" height="6" rx="3" fill="#8eebff"></rect>
-                                <rect x="41" y="66" width="14" height="6" rx="3" fill="#8eebff"></rect>
-                                <rect x="24" y="41" width="6" height="14" rx="3" fill="#8eebff"></rect>
-                                <rect x="66" y="41" width="6" height="14" rx="3" fill="#8eebff"></rect>
-                                <circle cx="48" cy="48" r="21" fill="none" stroke="#a7f7ff" stroke-width="4"></circle>
-                                <circle class="logo-hub" cx="48" cy="48" r="11" fill="#2e6ef3"></circle>
-                                <polygon points="48,39 55,43 55,53 48,57 41,53 41,43" fill="#aef7ff" stroke="#d8fdff" stroke-width="1.2"></polygon>
-                            </g>
-                        </svg>
+                        <img class="logo-wheel" src="{{ url_for('static', filename='pwa/brand-logo.png') }}" alt="SaleWell Smart Tank logo">
                             </a>
                             <h1>Dashboard</h1>
                             {% if not is_admin %}<h2 class="sr-only">{{ "Home Water" }} Dashboard</h2>{% endif %}
@@ -553,7 +529,7 @@ canvas{height:260px!important}
         <div class="panel tank-chart-panel"><div class="eyebrow">Tank Trend</div><h3>Tank level history</h3><p id="levelChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-summary"><div class="chart-kpi"><span>Highest</span><strong id="chartLevelHigh">Collecting</strong></div><div class="chart-kpi"><span>Lowest</span><strong id="chartLevelLow">Collecting</strong></div><div class="chart-kpi"><span>Average</span><strong id="chartLevelAverage">Collecting</strong></div><div class="chart-kpi"><span>Current</span><strong id="chartLevelCurrent">Collecting</strong></div><div class="chart-kpi"><span>Fill cycles</span><strong id="chartFillCycles">Collecting</strong></div></div><div class="chart-scroll" tabindex="0" aria-label="Scrollable tank level timeline"><canvas id="levelChart"></canvas></div></div>
         <div class="panel daily-chart-panel"><div class="eyebrow">Daily Use</div><h3>Daily water use</h3><p id="dailyChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable daily water use timeline"><canvas id="dailyChart"></canvas></div></div>
         <div class="panel hourly-chart-panel"><div class="eyebrow">Water Use Timeline</div><h3>Hourly water use</h3><p id="patternChartRange" class="muted">AI/ML analysis · Last 7 days</p><div class="chart-scroll" tabindex="0" aria-label="Scrollable hourly water use timeline"><canvas id="patternChart"></canvas></div></div>
-        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">Telemetry · Selected range</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div><div class="chart-kpi"><span>Duty</span><strong id="chartPumpDuty">Collecting</strong></div></div></div>
+        <div class="panel pump-chart-panel"><div class="eyebrow">Pump Activity</div><h3>Pump activity</h3><p id="motorChartRange" class="muted">Telemetry · Selected range</p><div class="chart-summary"><div class="chart-kpi"><span>Runtime</span><strong id="chartPumpRuntime">Collecting</strong></div><div class="chart-kpi"><span>Starts</span><strong id="chartPumpStarts">Collecting</strong></div><div class="chart-kpi"><span>Average cycle</span><strong id="chartPumpAverage">Collecting</strong></div></div></div>
     </section>
 
     <section class="panel customer-only customer-tools-panel" style="margin-top:18px">
@@ -659,7 +635,10 @@ canvas{height:260px!important}
     {% if not is_admin %}
     <footer class="panel customer-footer" aria-label="Customer support resources">
         <div><strong>Customer resources</strong><p>Installation and safety information for your activated SaleWell Smart Tank account.</p></div>
-        <a class="action-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+        <div class="row">
+            {% if viewer_role == 'customer' and viewer_device_id == 'swt-test-000-000-001' %}<a class="action-link" href="{{ url_for('survey') }}">Take Survey</a>{% endif %}
+            <a class="action-link" href="{{ url_for('installation_guide_download') }}" download>Download Installation Guide (English + हिन्दी)</a>
+        </div>
     </footer>
     {% endif %}
 
@@ -679,7 +658,7 @@ const ANALYTICS_EXPORT_PATH={{ url_for("analytics_csv_export")|tojson }};
 const ANALYTICS_RANGE_STORAGE_KEY="tankDashboardAnalyticsRange";
 const EVENT_FEED_LIMIT=5;
 const EVENT_FEED_FETCH_LIMIT=30;
-const FAST_POLL_MS=10000;
+const FAST_POLL_MS={{ cloud_poll_interval_ms }};
 const ACTIVITY_POLL_MS=30000;
 const ANALYTICS_STALE_MS=300000;
 const ANALYTICS_LIVE_REFRESH_MS=300000;
@@ -953,10 +932,8 @@ function drawMotorActivityTimeline(canvas,title,labels,values,{snapshotTime=null
     const summaryParts=["Green ON","Gray OFF"];
     const completedRuns=Number(pumpActivity?.started_runs??pumpActivity?.completed_runs);
     const avgRunSeconds=Number(pumpActivity?.avg_run_seconds);
-    const dutyCycle=Number(pumpActivity?.duty_cycle_pct);
     if(Number.isFinite(completedRuns)&&completedRuns>0)summaryParts.push(`${Math.round(completedRuns)} runs`);
     if(Number.isFinite(avgRunSeconds)&&avgRunSeconds>0)summaryParts.push(`Avg run ${formatDurationSeconds(avgRunSeconds)}`);
-    if(Number.isFinite(dutyCycle)&&dutyCycle>0)summaryParts.push(`Duty ${dutyCycle.toFixed(1)}%`);
     const summaryText=summaryParts.length?summaryParts.join(" | "):"ON spans are labeled with run duration.";
     ctx.fillStyle=themeVar("--chart-ticks");
     ctx.font='600 11px "Trebuchet MS","Segoe UI",sans-serif';
@@ -1752,8 +1729,7 @@ function updateCustomerAnalyticsKpis(analytics=state.data.analytics){
     const runtime=hasPumpData?formatDurationSeconds(pump.runtime_seconds):"Collecting";
     const starts=hasPumpData?String(Number(pump.started_runs??pump.completed_runs??0)):"Collecting";
     const average=hasPumpData?formatDurationSeconds(pump.avg_run_seconds):"Collecting";
-    const duty=hasPumpData?`${Number(pump.duty_cycle_pct||0).toFixed(1)}%`:"Collecting";
-    setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);setText("chartPumpDuty",duty);
+    setText("chartPumpRuntime",runtime);setText("chartPumpStarts",starts);setText("chartPumpAverage",average);
     const qualityValid=analytics?.analysis?.quality?.usage_physically_plausible!==false;
     const levels=qualityValid?(analytics?.levels?.values||[]).map(Number).filter(Number.isFinite):[];
     const levelValue=(value)=>Number.isFinite(value)?`${value.toFixed(1)}%`:"Collecting";

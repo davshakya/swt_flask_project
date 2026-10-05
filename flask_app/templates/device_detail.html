@@ -12,7 +12,6 @@
 :root{--bg:#07141c;--bg-deep:#0d2430;--panel:rgba(11,26,35,.9);--line:rgba(154,202,221,.12);--text:#e6f4f7;--muted:#9fb7c0;--primary:#55c1dd;--link-blue:#83c5ff;--link-blue-hover:#b7ddff;--good:#46d18f;--warn:#f4b24c;--danger:#ff7d91;--shadow:0 28px 60px rgba(0,0,0,.32);--body-bg:radial-gradient(circle at top left,rgba(85,193,221,.18),transparent 24%),radial-gradient(circle at top right,rgba(70,209,143,.1),transparent 28%),linear-gradient(180deg,var(--bg) 0%,var(--bg-deep) 100%);--list-bg:rgba(12,29,39,.9);--button-line:rgba(154,202,221,.16)}
 }
 *{box-sizing:border-box}body{margin:0;font-family:"Trebuchet MS","Segoe UI",sans-serif;color:var(--text);background:var(--body-bg)}a{color:var(--link-blue);text-decoration-color:color-mix(in srgb,var(--link-blue) 46%,transparent);text-underline-offset:3px;font-weight:800;transition:color .18s ease,text-decoration-color .18s ease}a:hover{color:var(--link-blue-hover);text-decoration-color:currentColor}.shell{width:min(1200px,calc(100% - 28px));margin:0 auto;padding:24px 0 36px;display:grid;gap:14px}.panel{background:linear-gradient(180deg,var(--panel),color-mix(in srgb,var(--panel) 84%,rgba(19,137,165,.08)));border:1px solid var(--line);border-radius:20px;padding:18px;box-shadow:var(--shadow);transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}.panel:hover{border-color:color-mix(in srgb,var(--primary) 28%,var(--line));box-shadow:0 32px 68px rgba(17,52,64,.16)}.eyebrow{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin:0 0 8px;font-weight:800}.hero-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.hero-title h1{margin:0;font-size:30px;line-height:1.1}.hero-title p{margin:7px 0 0;color:var(--muted);line-height:1.45}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 14px;border-radius:12px;border:1px solid var(--button-line);text-decoration:none;font-weight:800;background:transparent;color:var(--text);font-family:inherit;min-width:0;width:auto}.btn-admin{position:relative;overflow:hidden;border:0;background:linear-gradient(120deg,#0ea5e9,#22c55e,#f59e0b,#e11d48);background-size:260% 260%;color:#fff;box-shadow:0 14px 32px rgba(19,137,165,.22);animation:admin-button-glow 6s ease infinite;transition:transform .18s ease,box-shadow .18s ease}.btn-admin::after{content:"";position:absolute;inset:0;background:linear-gradient(105deg,transparent 0%,rgba(255,255,255,.28) 42%,transparent 58%);transform:translateX(-120%);animation:admin-button-shine 3.8s ease-in-out infinite}.btn-admin span{position:relative;z-index:1}.btn-admin:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(19,137,165,.32)}.btn-danger{border:0;background:color-mix(in srgb,var(--danger) 86%,#111 14%);color:#fff}.btn-full{width:auto}@keyframes admin-button-glow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}@keyframes admin-button-shine{0%,55%{transform:translateX(-120%)}80%,100%{transform:translateX(120%)}}.summary-grid{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(155px,1fr))}.summary-card{padding:14px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.22);transition:transform .18s ease,border-color .18s ease}.summary-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.summary-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.summary-value{margin-top:7px;font-size:25px;font-weight:800;letter-spacing:-.03em;line-height:1.05}.summary-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.45}.content-grid{display:grid;gap:14px;grid-template-columns:minmax(0,1.1fr) minmax(320px,.9fr)}.detail-grid{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}.detail-card{padding:13px;border-radius:15px;border:1px solid var(--line);background:rgba(255,255,255,.2);transition:transform .18s ease,border-color .18s ease}.detail-card:hover{transform:translateY(-2px);border-color:color-mix(in srgb,var(--primary) 28%,var(--line))}.detail-card.wide{grid-column:1/-1}.detail-label{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:800}.detail-value{margin-top:7px;font-size:19px;font-weight:800;line-height:1.2}.detail-note{margin-top:7px;font-size:12px;color:var(--muted);line-height:1.5}.info-grid{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-top:14px}.info-item{padding:10px 11px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.2);min-width:0}.info-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.info-value{display:block;margin-top:5px;font-size:13px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.status-pill{display:inline-flex;align-items:center;padding:6px 11px;border-radius:999px;font-size:12px;font-weight:800}.tone-ok{background:color-mix(in srgb, var(--good) 14%, transparent);color:var(--good)}.tone-warn{background:color-mix(in srgb, var(--warn) 14%, transparent);color:var(--warn)}.tone-bad{background:color-mix(in srgb, var(--danger) 14%, transparent);color:var(--danger)}.tone-info{background:color-mix(in srgb, var(--primary) 14%, transparent);color:var(--primary)}.section-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.section-head p{margin:6px 0 0;color:var(--muted);line-height:1.45}.list{list-style:none;padding:0;margin:0;display:grid;gap:9px}.list li{padding:12px 13px;border-radius:14px;background:var(--list-bg);border:1px solid var(--line)}.list-item-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap}.list-title{font-weight:800;line-height:1.4}.list-body{margin-top:6px;line-height:1.55}.list-meta{margin-top:8px;font-size:12px;color:var(--muted)}.helper-text{font-size:13px;color:var(--muted);line-height:1.55}.admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}.admin-form{display:grid;gap:12px;padding:16px;border-radius:16px;border:1px solid var(--line);background:rgba(255,255,255,.2);min-width:0;align-content:start}.admin-form h3{margin:0;font-size:18px}.form-group{display:grid;gap:6px}.form-group label,.checkbox-row{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}.form-group input,.form-group select{width:100%;padding:11px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:inherit}.checkbox-row{display:flex;gap:9px;align-items:center;letter-spacing:0;text-transform:none;color:var(--text)}.checkbox-row input{width:auto}.message{padding:11px 13px;border-radius:14px;border:1px solid var(--line);font-size:13px}.message.success{background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good)}.message.error{background:color-mix(in srgb,var(--danger) 12%,transparent);color:var(--danger)}.admin-actions-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:16px}.service-checklist{display:grid;gap:8px}.service-option{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.24);font-size:13px;font-weight:700;min-width:0}.service-option input{width:auto}.flag-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}.flag-list li{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.2);font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere;min-width:0}.hidden-section{display:none!important}
-.activity-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin-top:16px}.activity-page-size{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;font-weight:800}.activity-page-size select{min-height:40px;padding:0 34px 0 12px;border-radius:11px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text);font:800 13px "Trebuchet MS","Segoe UI",sans-serif}.activity-count{color:var(--muted);font-size:12px;font-weight:800}.activity-table-wrap{margin-top:12px;border:1px solid var(--line);border-radius:16px;overflow:auto;background:var(--list-bg)}.activity-table{width:100%;border-collapse:collapse;min-width:760px}.activity-table th,.activity-table td{padding:12px 13px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}.activity-table th{position:sticky;top:0;background:color-mix(in srgb,var(--panel) 92%,var(--bg) 8%);color:var(--muted);font-size:10px;letter-spacing:.13em;text-transform:uppercase;z-index:1}.activity-table tbody tr:last-child td{border-bottom:0}.activity-message{font-weight:800;line-height:1.35}.activity-meta{margin-top:5px;color:var(--muted);font-size:12px;line-height:1.4}.activity-node{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--primary) 12%,transparent);color:var(--primary);font-size:12px;font-weight:800}.activity-pagination{display:flex;justify-content:flex-end;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.activity-pagination .btn{min-width:0;width:auto;padding:0 12px;font-size:15px}.activity-page-status{min-width:118px;text-align:center;color:var(--muted);font-size:12px;font-weight:800}
 .peer-diagnostics{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));margin-top:14px}.peer-diagnostic-card{padding:12px 13px;border:1px solid var(--line);border-radius:15px;background:rgba(255,255,255,.2);min-width:0}.peer-diagnostic-card.alert{grid-column:1/-1;background:color-mix(in srgb,var(--warn) 10%,transparent);border-color:color-mix(in srgb,var(--warn) 28%,var(--line))}.peer-diagnostic-label{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);font-weight:800}.peer-diagnostic-value{display:block;margin-top:6px;font-size:14px;font-weight:800;line-height:1.35;overflow-wrap:anywhere}.peer-diagnostic-note{display:block;margin-top:5px;color:var(--muted);font-size:12px;line-height:1.45}
 /* Consistent Key: Value contrast in both color schemes. */
 .summary-label,.detail-label,.info-label,.peer-diagnostic-label{color:var(--primary)!important}
@@ -20,15 +19,19 @@
 @media (max-width:960px){.content-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.detail-grid{grid-template-columns:1fr}.hero-title h1{font-size:26px}.summary-value{font-size:26px}}
 .btn{min-height:40px;min-width:0;padding:0 14px;border-radius:11px;background:rgba(255,255,255,.24);line-height:1.15;font-size:13px;cursor:pointer;transition:transform .16s ease,background .16s ease,box-shadow .16s ease,filter .16s ease}.btn:hover{transform:translateY(-1px);background:rgba(255,255,255,.34)}.btn:disabled{cursor:not-allowed;opacity:.56;filter:saturate(.65);transform:none}.hero-actions{align-items:center}.hero-actions form{display:flex}.hero-actions .btn{width:auto;height:40px;background:linear-gradient(135deg,#34b9d6,#1c89a3);border:0;color:#fff;box-shadow:0 8px 18px rgba(19,137,165,.16)}.hero-actions .btn:hover,.hero-actions .btn:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.admin-form .btn{width:auto;height:42px}.btn-admin{animation:none;background:linear-gradient(135deg,#34b9d6,#1c89a3);background-size:auto;box-shadow:0 8px 18px rgba(19,137,165,.16);color:#fff}.btn-admin::after{display:none}.btn-admin:hover,.btn-admin:focus-visible{background:linear-gradient(135deg,#2fb4d0,#168aa2);color:#fff;box-shadow:0 10px 22px rgba(19,137,165,.22);filter:brightness(1.03)}.btn-admin:disabled,.btn-admin:disabled:hover,.btn-admin:disabled:focus-visible{background:linear-gradient(135deg,#7aa6b2,#6f8790);box-shadow:none;color:#eef8fb}.btn-danger{background:linear-gradient(135deg,#f07d8d,#d24561);color:#fff}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ed6b7e,#c93c56);color:#fff;box-shadow:0 10px 22px rgba(218,79,99,.22);filter:brightness(1.03)}.admin-form form{display:grid}.form-group input[type=file]{min-height:44px;padding:8px 10px;background:rgba(255,255,255,.58)}.form-group input[type=file]::file-selector-button{height:28px;margin-right:10px;border:0;border-radius:9px;padding:0 12px;background:linear-gradient(135deg,#34b9d6,#1c89a3);color:#fff;font:800 12px "Trebuchet MS","Segoe UI",sans-serif;cursor:pointer}
-.config-form{grid-column:1/-1}.config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}.config-section{display:grid;gap:9px;padding:13px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.18);min-width:0}.config-section h4{margin:0;font-size:14px}.service-option.is-disabled{opacity:.55}.service-option input:disabled{cursor:not-allowed}.firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:16px;align-items:start}.upload-override{align-items:flex-start}.upload-override strong{display:block}.upload-override span{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.45}
+.config-form{grid-column:1/-1}.config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}.config-section{display:grid;gap:9px;padding:13px;border:1px solid var(--line);border-radius:14px;background:rgba(255,255,255,.18);min-width:0}.config-section h4{margin:0;font-size:14px}.service-option.is-disabled{opacity:.55}.service-option input:disabled{cursor:not-allowed}.firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:16px;align-items:start}.firmware-ota-grid{grid-template-columns:minmax(0,1fr)}.upload-override{align-items:flex-start}.upload-override strong{display:block}.upload-override span{display:block;margin-top:3px;color:var(--muted);font-size:12px;line-height:1.45}
 .hero-head{align-items:center}.hero-actions{justify-content:flex-end}.hero-actions .btn{height:36px;min-height:36px;min-width:0;padding:0 13px;border-radius:10px;font-size:12px}.summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}.summary-card{display:flex;min-height:96px;flex-direction:column;justify-content:flex-start;padding:13px 14px}.summary-value{font-size:24px;overflow-wrap:anywhere}.summary-value.tone-ok,.summary-value.tone-warn,.summary-value.tone-bad,.summary-value.tone-info{display:inline-flex;width:max-content;max-width:100%;padding:0;background:transparent}.summary-note{font-size:11px}.info-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr));align-items:stretch}.info-item{min-height:78px}.admin-grid{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}.admin-form{align-content:start;min-height:100%;padding:15px}.admin-form .btn{width:auto;min-width:0;max-width:none;justify-self:start}.admin-form .btn-full{width:auto;max-width:none}.config-form>.btn{justify-self:end;width:auto;max-width:none}.config-sections{grid-template-columns:repeat(3,minmax(0,1fr));align-items:stretch}.config-section{min-height:0}.message{width:max-content;max-width:100%;padding:9px 12px;border-radius:12px;line-height:1.35}.firmware-upload-grid{align-items:stretch}.firmware-upload-grid .admin-form{grid-template-rows:auto auto auto 1fr auto auto}.firmware-upload-grid .btn{justify-self:start;width:auto}.list li{padding:10px 12px;border-radius:13px}.list-item-head{align-items:center}.status-pill{padding:5px 10px;font-size:11px}
 .admin-grid .admin-form .btn,.admin-grid .admin-form .btn-full,.firmware-upload-grid .btn{width:auto;max-width:none;justify-self:start}.admin-grid .config-form>.btn{justify-self:end;width:auto;max-width:none}.sensor-setup-card{align-content:start}.tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.tank-setup-actions .btn{width:auto;max-width:none;justify-self:start}
 .memory-health{display:grid;gap:12px;margin-top:16px}.memory-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}.memory-chart-wrap{min-height:252px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.18);overflow:hidden}.chart-title{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:12px 14px 0;font-size:12px;font-weight:800;color:var(--text)}.chart-title span{font-size:11px;color:var(--muted);font-weight:800}.chart-series-legend{display:flex;gap:8px;flex-wrap:wrap;padding:8px 14px 0}.chart-series-pill{display:inline-flex;gap:7px;align-items:center;font-size:11px;font-weight:800;color:var(--muted)}.memory-chart{display:block;width:100%;height:208px}.memory-chart text{font:700 11px "Trebuchet MS","Segoe UI",sans-serif;fill:var(--muted)}.memory-grid{stroke:color-mix(in srgb,var(--muted) 22%,transparent);stroke-width:1}.memory-line-master{fill:none;stroke:var(--primary);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.memory-line-slave{fill:none;stroke:var(--warn);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.memory-dot-master{fill:var(--primary)}.memory-dot-slave{fill:var(--warn)}.memory-legend{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.memory-chip{display:inline-flex;gap:8px;align-items:center;padding:7px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.22);font-size:12px;font-weight:800}.memory-swatch{width:9px;height:9px;border-radius:999px;background:var(--primary)}.memory-swatch.slave{background:var(--warn)}.memory-empty{min-height:208px;display:grid;place-items:center;padding:18px;color:var(--muted);font-size:13px;text-align:center}
 .result-modal{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(7,27,36,.5);backdrop-filter:blur(4px)}.result-dialog{width:min(460px,calc(100vw - 24px));padding:18px;border-radius:20px;border:1px solid var(--line);background:var(--panel);box-shadow:0 30px 70px rgba(7,36,47,.28)}.result-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;margin-bottom:14px}.result-head h2{margin:4px 0 0;font-size:1.25rem;letter-spacing:-.03em}.result-close{min-height:38px;padding:8px 12px;border-radius:12px;border:1px solid var(--button-line);background:rgba(255,255,255,.74);color:var(--text);font-weight:800;cursor:pointer}.confirm-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:14px}.confirm-actions .btn{min-width:0}.confirm-actions .btn-danger{border:0}
 .admin-form>form{display:grid;gap:10px;width:100%}.admin-form .btn,.firmware-upload-grid .btn{min-height:44px;height:auto;padding:0 16px;border-radius:14px;font-size:12px;letter-spacing:.01em;box-shadow:0 10px 20px rgba(19,137,165,.14)}.admin-form .btn span,.firmware-upload-grid .btn span{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:42px}.admin-form .btn-admin,.firmware-upload-grid .btn-admin{background:linear-gradient(135deg,#23bfd7 0%,#168aa2 55%,#0f6f82 100%);border:1px solid color-mix(in srgb,var(--primary) 36%,transparent)}.admin-form .btn-admin:hover,.admin-form .btn-admin:focus-visible,.firmware-upload-grid .btn-admin:hover,.firmware-upload-grid .btn-admin:focus-visible{background:linear-gradient(135deg,#30cbe2 0%,#1595ad 58%,#0b758b 100%);box-shadow:0 14px 26px rgba(19,137,165,.22)}.admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}.admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}.tank-setup-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%}.tank-setup-actions .btn{width:100%;justify-self:stretch}.btn-danger{background:linear-gradient(135deg,#ff8292,#d84461);border:1px solid color-mix(in srgb,var(--danger) 38%,transparent);box-shadow:0 10px 20px rgba(218,79,99,.14)}.btn-danger:hover,.btn-danger:focus-visible{background:linear-gradient(135deg,#ff7588,#ca3856);box-shadow:0 14px 26px rgba(218,79,99,.22)}
 @media (max-width:1080px){.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.admin-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.config-sections{grid-template-columns:1fr}.config-form{grid-column:1/-1}}
+.device-command-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;width:100%}.device-command-actions form{display:grid;min-width:0}.device-command-actions .btn{width:100%;height:100%;min-height:58px;font-size:14px}.device-command-actions .btn span{white-space:nowrap}#diagnosticTools #deviceCommandsCard{grid-column:1/-1;width:100%}
+@media (max-width:1100px){.firmware-upload-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:820px){.firmware-upload-grid{grid-template-columns:1fr}}
 @media (max-width:720px){.hero-head{align-items:flex-start}.hero-actions{width:100%;justify-content:flex-start}.hero-actions form,.hero-actions .btn{width:auto}.summary-grid,.admin-grid{grid-template-columns:1fr}.admin-form .btn,.config-form>.btn{width:100%;justify-self:stretch;max-width:none}.tank-setup-actions{grid-template-columns:1fr}.info-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}}
+#multiTankConfiguration{width:100%}#multiTankConfiguration>.config-sections{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:0;border:1px solid var(--line);border-radius:15px;overflow:hidden;background:rgba(255,255,255,.12)}#multiTankConfiguration>.config-sections>.config-section{border:0;border-radius:0;background:transparent;padding:14px 16px}#multiTankConfiguration>.config-sections>.config-section+ .config-section{border-left:1px solid var(--line)}
+@media(max-width:720px){ #multiTankConfiguration>.config-sections{grid-template-columns:1fr} #multiTankConfiguration>.config-sections>.config-section+ .config-section{border-left:0;border-top:1px solid var(--line)}}
 html{font-size:17px}
 body{text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
 @media (prefers-color-scheme: dark){
@@ -38,26 +41,8 @@ background:linear-gradient(180deg,rgba(12,31,42,.96),rgba(8,24,34,.92));
 border-color:rgba(166,224,235,.18);
 color:var(--text);
 }
-.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty,.activity-count,.activity-page-status,.activity-page-size,.activity-meta{
+.hero-title p,.summary-label,.summary-note,.detail-label,.detail-note,.info-label,.helper-text,.list-meta,.section-head p,.chart-title span,.chart-series-pill,.memory-empty{
 color:var(--muted);
-}
-.activity-page-size select,.activity-page-size select option{
-background:#102633;
-color:#f2fbfd;
-}
-.activity-table th{
-color:#dff5fa;
-background:#0e2430;
-}
-.activity-table td,.activity-message{
-color:#f2fbfd;
-}
-.activity-table-wrap{
-background:#0b202b;
-}
-.activity-node{
-background:rgba(85,193,221,.18);
-color:#72dcf4;
 }
 .btn{border-color:rgba(166,224,235,.2)}
 }
@@ -75,15 +60,42 @@ body{font-size:16px}
 .device-action-bar{position:sticky;top:8px;z-index:30;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:9px 11px;border:1px solid var(--line);border-radius:16px;background:color-mix(in srgb,var(--panel) 94%,transparent);box-shadow:0 12px 30px rgba(17,52,64,.16);backdrop-filter:blur(16px)}.device-action-group,.quick-nav{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.device-action-bar .btn{min-height:34px;height:34px;padding:0 10px;font-size:11px}.quick-nav a{padding:7px 9px;border-radius:9px;text-decoration:none;font-size:11px;background:rgba(255,255,255,.24)}
 .summary-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}.summary-card.is-primary{border-left:4px solid var(--primary)}.summary-card.is-healthy{border-left:4px solid var(--good)}.summary-card.is-warning{border-left:4px solid var(--warn)}.summary-card.is-critical{border-left:4px solid var(--danger)}.last-seen-value{font-size:20px}
 .section-panel.is-collapsed>*:not(.section-head){display:none}.section-toggle{min-height:34px;padding:7px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.24);color:var(--text);font:800 11px inherit;cursor:pointer}.section-panel{scroll-margin-top:74px}
-.info-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}.info-tab{min-height:32px;padding:6px 10px;border:1px solid var(--button-line);border-radius:10px;background:rgba(255,255,255,.22);color:var(--text);font-weight:800;cursor:pointer}.info-tab.is-active{background:var(--primary);color:#fff}.info-item.is-tab-hidden{display:none}
 .command-group{border-left:4px solid var(--primary)}.command-group.simulation{border-left-color:var(--good)}.command-group.maintenance{border-left-color:var(--warn)}.command-group.destructive{border-left-color:var(--danger)}
 .simulator-section{grid-column:1/-1;border-left-color:var(--good);background:linear-gradient(135deg,color-mix(in srgb,var(--primary) 7%,var(--panel)),color-mix(in srgb,var(--good) 7%,var(--panel)))}.simulator-section>form{margin:0}.simulator-switch{--switch-accent:#16a6c9;width:100%!important;min-height:58px!important;height:auto!important;display:grid!important;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:9px 12px 9px 15px!important;border:1px solid color-mix(in srgb,var(--switch-accent) 24%,var(--line))!important;border-radius:12px!important;background:color-mix(in srgb,var(--switch-accent) 7%,var(--panel))!important;color:var(--text)!important;box-shadow:none!important;text-align:left;cursor:default!important}.simulator-switch:hover,.simulator-switch:focus-visible{transform:none!important;background:color-mix(in srgb,var(--switch-accent) 13%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 50%,var(--line))!important}.simulator-switch-label{min-width:0;font-size:14px;font-weight:800;line-height:1.3}.simulator-switch-state{min-width:30px;color:var(--danger);font-size:11px;font-weight:900;text-align:right}.simulator-switch-track{position:relative;width:50px;height:28px;flex:none;border-radius:999px;background:#8a9ba1;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);transition:background .2s ease;cursor:pointer}.simulator-switch-knob{position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.3);transition:transform .2s ease}.simulator-switch.is-on{background:color-mix(in srgb,var(--switch-accent) 16%,var(--panel))!important;border-color:color-mix(in srgb,var(--switch-accent) 54%,var(--line))!important}.simulator-switch.is-on .simulator-switch-state{color:var(--good)}.simulator-switch.is-on .simulator-switch-track{background:var(--switch-accent)}.simulator-switch.is-on .simulator-switch-knob{transform:translateX(22px)}.simulator-switch.is-loading{opacity:.65}.simulator-switch[data-tone="municipal"]{--switch-accent:#1687d9}.simulator-switch[data-tone="valve"]{--switch-accent:#e58a18}.simulator-switch[data-tone="lower"]{--switch-accent:#13a37d}.simulator-switch[data-tone="upper"]{--switch-accent:#d64f72}@media(max-width:720px){.simulator-switch{min-height:64px!important}.simulator-switch-label{font-size:15px}}
 .threshold-visual{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--good),var(--warn),var(--danger));position:relative}.threshold-visual::after{content:"";position:absolute;left:var(--threshold);top:-4px;width:4px;height:18px;border-radius:4px;background:var(--text)}
-.log-tools{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.log-tools input,.log-tools select{min-height:38px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.58);color:var(--text)}.activity-table tr.log-error td{background:color-mix(in srgb,var(--danger) 9%,transparent)}.activity-table tr.log-warning td{background:color-mix(in srgb,var(--warn) 8%,transparent)}
 @media(max-width:720px){.device-action-bar{position:sticky;bottom:6px;top:auto}.quick-nav{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}.device-action-group{width:100%;display:grid;grid-template-columns:repeat(2,1fr)}.device-action-bar .btn{width:100%}}
 .simulator-switch:disabled{opacity:.48!important;filter:saturate(.35);cursor:not-allowed!important}.simulator-switch:disabled .simulator-switch-track{cursor:not-allowed}
 .device-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.device-meta-item{display:inline-flex;gap:6px;align-items:center;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.18);color:var(--muted);font-size:11px}.device-meta-item strong{color:var(--text);font-size:12px}.quick-nav a{border:1px solid transparent}.quick-nav a.is-active{background:var(--primary);color:#fff;border-color:color-mix(in srgb,var(--primary) 70%,#fff);box-shadow:0 6px 14px rgba(19,137,165,.18)}.device-page-panel[hidden],.overview-summary[hidden]{display:none!important}.developer-badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}.danger-zone{border-color:color-mix(in srgb,var(--danger) 38%,var(--line));background:color-mix(in srgb,var(--danger) 6%,var(--panel))}.danger-zone h3{color:var(--danger)}
+@media(min-width:721px){ #device-configuration .admin-grid, #device-firmware .firmware-upload-grid{gap:10px} #device-configuration .admin-form, #device-firmware .admin-form{gap:8px;padding:12px;border-radius:13px} #device-configuration .config-section{gap:7px;padding:11px} #device-configuration .service-option{padding:7px 9px;border-radius:10px;font-size:12px} #device-configuration .form-group{gap:4px} #device-configuration .form-group input, #device-configuration .form-group select, #device-firmware .form-group input, #device-firmware .form-group select{min-height:40px;height:40px;padding:7px 10px;font-size:13px;border-radius:10px} #device-configuration .helper-text, #device-firmware .helper-text{font-size:11px;line-height:1.4} #device-configuration .admin-form h3, #device-firmware .admin-form h3{font-size:15px} #device-firmware .firmware-upload-grid .admin-form{grid-template-rows:auto auto auto minmax(32px,1fr) auto;align-self:stretch} #device-firmware>.admin-form{margin-top:10px}}
 @media(max-width:720px){.device-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.device-meta-item{min-width:0}.quick-nav{display:flex;width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}.quick-nav a{white-space:nowrap}.device-action-bar{top:6px;bottom:auto}.device-action-group{display:none}.summary-grid{grid-template-columns:repeat(2,1fr)}}
+#device-firmware .firmware-android-ota{grid-template-rows:none;align-content:start}
+#device-firmware .firmware-android-ota>.btn{width:fit-content;max-width:100%;min-height:44px;height:auto;justify-self:start;align-self:start;padding:0 18px;font-size:14px;border-radius:10px}
+#device-firmware .firmware-android-ota>.btn span{min-height:42px;width:auto}
+/* Runtime settings use consistent rows; help stays available on click or keyboard. */
+#device-configuration .config-form .config-sections{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:stretch}
+#device-configuration .config-form .config-section{align-content:start;grid-auto-rows:max-content;gap:8px;padding:14px}
+#device-configuration .config-form .config-section h4{min-height:32px;display:flex;align-items:center;margin:0;font-size:14px}
+#device-configuration .config-form .service-option{min-height:44px;padding:10px 12px;font-size:13px;line-height:1.4;border-radius:10px;margin:0}
+#device-configuration .config-form .service-option input{width:18px;height:18px;min-height:18px;max-height:18px;flex:0 0 18px;margin:0;padding:0;accent-color:var(--primary)}
+#device-configuration .config-form .config-label-row{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+#device-configuration .config-form .config-label-row>.service-option{flex:1}
+#device-configuration .config-form .config-option-row{min-height:44px;padding:0 6px 0 0;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.24)}
+#device-configuration .config-form .config-option-row>.service-option{min-height:42px;padding:9px 12px 9px 11px;border:0;background:transparent}
+#device-configuration .config-form .service-option{cursor:pointer}
+#device-configuration .config-form .service-option:has(input:disabled){cursor:not-allowed}
+#device-configuration .config-form .service-option:focus-within{outline:2px solid var(--primary);outline-offset:2px}
+#device-configuration .config-form .config-info{position:relative;flex:0 0 32px;font-weight:400}
+#device-configuration .config-form .config-info summary{display:flex;align-items:center;justify-content:center;list-style:none;width:32px;height:32px;border:1px solid var(--line);border-radius:50%;background:var(--panel);color:var(--primary);font-size:14px;font-weight:800;cursor:pointer}
+#device-configuration .config-form .config-info summary::-webkit-details-marker{display:none}
+#device-configuration .config-form .config-info summary:focus-visible{outline:2px solid var(--primary);outline-offset:3px}
+#device-configuration .config-form .config-info[open]{z-index:40}
+#device-configuration .config-form .config-info-content{position:absolute;right:0;top:38px;width:min(300px,calc(100vw - 80px));padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);box-shadow:var(--shadow);max-height:60vh;overflow:auto;overflow-wrap:anywhere}
+#device-configuration .config-form .config-info-content .helper-text{font-size:13px;line-height:1.5;margin:0}
+#device-configuration .config-form .config-info-content .helper-text+.helper-text{margin-top:10px}
+#device-configuration .config-form>.btn,#device-configuration .config-form .tank-setup-actions .btn{width:fit-content;max-width:100%;min-height:44px;align-self:start;justify-self:end;padding:0 18px;font-size:14px;border-radius:10px}
+#device-configuration .config-form .form-group input:not([type=checkbox]):not([type=radio]),#device-configuration .config-form .form-group select{min-height:44px;height:44px;font-size:14px}
+@media(max-width:1000px){ #device-configuration .config-form .config-sections{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:640px){ #device-configuration .config-form .config-sections{grid-template-columns:minmax(0,1fr)} #device-configuration .config-form>.btn,#device-configuration .config-form .tank-setup-actions .btn{width:100%;justify-self:stretch}}
 </style>
 {% include '_theme_overrides.html' %}
 </head>
@@ -114,6 +126,7 @@ body{font-size:16px}
                  <div class="device-meta" aria-label="Device metadata">
                      <span class="device-meta-item">Last seen <strong id="lastSeenAge" data-age-seconds="{{ live_snapshot.get('seconds_since_sync') if live_snapshot.get('seconds_since_sync') is not none else '' }}">--</strong></span>
                      <span class="device-meta-item">Firmware <strong id="firmwareVersion">{{ live_snapshot.get("firmware_version") or live_snapshot.get("swt_version") or "--" }}</strong></span>
+                     <span class="device-meta-item">Connected Wi-Fi <strong id="wifiSsid">{{ live_snapshot.get("wifi_ssid") or "Not connected" }}</strong></span>
                      <span class="device-meta-item">Signal <strong id="rssiSignal">{% if live_snapshot.get("wifi_rssi") is not none %}{{ live_snapshot.get("wifi_rssi") }} dBm{% else %}--{% endif %}</strong></span>
                      <span class="device-meta-item">Uptime <strong id="deviceUptime">{{ live_snapshot.get("uptime_label") or live_snapshot.get("runtime") or "--" }}</strong></span>
                      <span id="lastSeenTimestamp" hidden>{{ live_snapshot.get("last_sync_at") or "No communication yet" }}</span>
@@ -129,13 +142,13 @@ body{font-size:16px}
 
     <nav class="device-action-bar" aria-label="Device actions and section navigation">
         <div class="quick-nav">
-            <a href="#device-overview" data-device-tab="overview">Overview</a><a href="#device-memory" data-device-tab="diagnostics">Diagnostics</a>{% if is_admin %}<a href="#device-configuration" data-device-tab="configuration">Configuration</a><a href="#device-firmware" data-device-tab="firmware">Firmware</a>{% endif %}<a href="#device-logs" data-device-tab="logs">Logs</a>
+            <a href="#device-overview" data-device-tab="overview">Overview</a><a href="#device-memory" data-device-tab="diagnostics">Diagnostics</a>{% if is_admin %}<a href="#device-configuration" data-device-tab="configuration">Configuration</a><a href="#device-firmware" data-device-tab="firmware">Firmware</a>{% endif %}
         </div>
         <div class="device-action-group">
             <a class="btn" href="{{ url_for('admin_customers') }}">← Back to Devices</a>
             <button id="deviceRefreshButton" class="btn" type="button">↻ Refresh</button>
             {% if is_admin %}<button id="deviceSaveConfigButton" class="btn btn-admin" type="button"><span>Save Configuration</span></button><button id="deviceRestartButton" class="btn btn-danger" type="button">Restart</button><a class="btn" href="#device-firmware">OTA Update</a>{% endif %}
-            <a class="btn" href="#device-logs">Open Logs</a>
+
         </div>
     </nav>
 
@@ -223,45 +236,30 @@ body{font-size:16px}
                 <p>Live tank setup, thresholds, services, peer link, and controller status from the latest sync.</p>
             </div>
         </div>
-        <div class="info-grid" style="margin-top:16px">
-            <div class="info-item">
-                <div class="info-label">Tank Health</div>
-                <span id="healthStatus" class="info-value">{% if live_snapshot.get("tank_health") is not none %}{{ live_snapshot.get("tank_health") }}% {{ live_snapshot.get("tank_health_status") or "" }}{% else %}--{% endif %}</span>
-                <div id="healthReason" class="detail-note">{% if live_snapshot.get("tank_health_reasons") %}{{ live_snapshot.get("tank_health_reasons")[0] }}{% else %}--{% endif %}</div>
-            </div>
+        <div id="optionalOverviewGrid" class="info-grid{% if not source_monitoring_active and not lower_turbidity_enabled and not upper_turbidity_enabled and not municipal_enabled %} hidden-section{% endif %}" style="margin-top:16px">
             <div id="sourceCard" class="info-item {% if not source_monitoring_active %}hidden-section{% endif %}">
                 <div class="info-label">Source Tank</div>
                 <span id="sourceLevel" class="info-value">{% if live_snapshot.get("lower_tank_level") is not none %}{{ live_snapshot.get("lower_tank_level") }}%{% else %}--{% endif %}</span>
                 <div id="sourceInfo" class="detail-note">{% if live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") %}{{ live_snapshot.get("lower_water_available_label") or live_snapshot.get("lower_sensor_info") }}{% else %}--{% endif %}</div>
             </div>
-            <div id="lowerTurbidityCard" class="info-item">
+            <div id="lowerTurbidityCard" class="info-item{% if not lower_turbidity_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Lower Tank Turbidity (Master)</div>
                 <span id="lowerTurbidityStatus" class="info-value">{{ lower_turbidity_status|title }}</span>
                 <div id="lowerTurbidityReading" class="detail-note">{% if lower_turbidity_status == "OK" and live_snapshot.get("lower_turbidity_estimated_ntu") is not none and live_snapshot.get("lower_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("lower_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("lower_turbidity_raw_adc", "--") }}{% elif lower_turbidity_status == "DISABLED" %}Enable Master Turbidity in runtime configuration.{% elif lower_turbidity_status == "ERROR" %}Sensor signal unavailable or outside its valid ADC range.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
-            <div id="upperTurbidityCard" class="info-item">
+            <div id="upperTurbidityCard" class="info-item{% if not upper_turbidity_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Upper Tank Turbidity (Slave)</div>
                 <span id="upperTurbidityStatus" class="info-value">{{ upper_turbidity_status|title }}</span>
                 <div id="upperTurbidityReading" class="detail-note">{% if upper_turbidity_status == "OK" and live_snapshot.get("upper_turbidity_estimated_ntu") is not none and live_snapshot.get("upper_turbidity_estimated_ntu")|float(-1) >= 0 %}{{ "%.1f"|format(live_snapshot.get("upper_turbidity_estimated_ntu")|float) }} NTU | ADC {{ live_snapshot.get("upper_turbidity_raw_adc", "--") }}{% elif upper_turbidity_status == "DISABLED" %}Enable Slave Turbidity in runtime configuration.{% elif upper_turbidity_status == "ERROR" %}Sensor or slave telemetry is unavailable.{% else %}Waiting for device telemetry.{% endif %}</div>
             </div>
-            <div id="municipalSensorCard" class="info-item">
+            <div id="municipalSensorCard" class="info-item{% if not municipal_enabled %} hidden-section{% endif %}">
                 <div class="info-label">Municipal Water</div>
                 <span id="municipalSensorStatus" class="info-value">{{ municipal_status|replace("_", " ")|title }}</span>
-                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "UNAVAILABLE" %}No municipal water is currently detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}Waiting for valid municipal sensor telemetry.{% endif %}</div>
+                <div id="municipalSensorReading" class="detail-note">{% if municipal_status == "AVAILABLE" %}Municipal water is detected.{% elif municipal_status == "DISABLED" %}Enable Municipal Water Feature in runtime configuration.{% else %}No municipal water flow is currently detected.{% endif %}</div>
             </div>
         </div>
-        <div class="info-tabs" role="tablist" aria-label="Device information categories"><button class="info-tab is-active" type="button" data-info-tab="overview">Overview</button><button class="info-tab" type="button" data-info-tab="network">Network</button><button class="info-tab" type="button" data-info-tab="sensors">Sensors</button><button class="info-tab" type="button" data-info-tab="configuration">Configuration</button><button class="info-tab" type="button" data-info-tab="firmware">Firmware</button><button class="info-tab" type="button" data-info-tab="diagnostics">Diagnostics</button></div>
         <div id="deviceInfoGrid" class="info-grid">
-            {% if initial_info_cards %}
-                {% for card in initial_info_cards %}
-                <div class="info-item">
-                    <span class="info-label">{{ card.label }}</span>
-                    <strong class="info-value">{{ card.value }}</strong>
-                </div>
-                {% endfor %}
-            {% else %}
-                <div class="helper-text" style="grid-column:1/-1;margin-top:0">Live configuration details are ready and will expand from the latest synced snapshot.</div>
-            {% endif %}
+            <div class="helper-text" style="grid-column:1/-1;margin-top:0">Loading essential device information.</div>
         </div>
     </section>
 
@@ -305,7 +303,7 @@ body{font-size:16px}
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                 <h3>Device Runtime Configuration</h3>
                 <div class="form-group">
-                    <label for="deviceSetupTypeOption">Device Setup Type</label>
+                    <div class="config-label-row"><label for="deviceSetupTypeOption">Device Setup Type</label><details class="config-info"><summary aria-label="Information about device setup">i</summary><div class="config-info-content"><div id="deviceSetupTypeHelp" class="helper-text">Selecting a setup applies compatible tank, municipal-water and valve features. Sensor-controller location and turbidity remain independently configurable.</div></div></details></div>
                     <select id="deviceSetupTypeOption" name="device_setup_type" onchange="window.swtApplyDeviceSetupType&&window.swtApplyDeviceSetupType(this.value)">
                         <option value="source_only" {% if configured_setup_type == "source_only" %}selected{% endif %}>Source Tank → Pump → Upper Tank</option>
                         <option value="borewell_upper" {% if configured_setup_type == "borewell_upper" %}selected{% endif %}>Borewell / Submersible Pump → Upper Tank</option>
@@ -314,10 +312,9 @@ body{font-size:16px}
                         <option value="custom" {% if configured_setup_type == "custom" %}selected{% endif %}>Custom Configuration</option>
                     </select>
                 </div>
-                <div id="deviceSetupTypeHelp" class="helper-text">Selecting a setup applies compatible tank, municipal-water and valve features. Sensor-controller location and turbidity remain independently configurable.</div>
                 <div class="config-sections">
                     <div class="config-section">
-                        <h4>Master Configuration</h4>
+                        <div class="config-label-row"><h4>Master Configuration</h4><details class="config-info"><summary aria-label="Information about master configuration">i</summary><div class="config-info-content"><div class="helper-text">Choose the sensors and outputs installed on the master controller. Select Upper Sensor here when the master reads the overhead tank.</div><div id="municipalDirectUpperHint" class="helper-text{% if not service_config.get('municipal_sensor_enabled') or service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}">Direct municipal setup: Municipal Water → Pump → Upper Tank. No source tank or motorized valves are required.</div></div></details></div>
                         <label class="service-option"><input id="masterUpperSensorOption" type="radio" name="upper_sensor_source" value="master" {% if master_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="lowerSensorOption" type="checkbox" name="source_tank_monitoring_enabled" value="1" {% if service_config.get("source_tank_monitoring_enabled", True) %}checked{% endif %} onchange="window.swtSyncLowerSensorSetupVisibility&&window.swtSyncLowerSensorSetupVisibility();window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Lower Sensor</label>
                         <label class="service-option"><input id="municipalSensorOption" type="checkbox" name="municipal_sensor_enabled" value="1" {% if service_config.get("municipal_sensor_enabled") %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Municipal Water Feature</label>
@@ -327,38 +324,85 @@ body{font-size:16px}
                         <label class="service-option"><input id="relayOption" type="checkbox" name="relay_enabled" value="1" {% if service_config.get("relay_enabled", True) %}checked{% endif %}> Relay</label>
                         <label class="service-option"><input type="checkbox" name="led_display_enabled" value="1" {% if service_config.get("led_display_enabled") %}checked{% endif %}> LED Display</label>
                         <label class="service-option"><input type="checkbox" name="buzzer_enabled" value="1" {% if service_config.get("buzzer_enabled") %}checked{% endif %}> Buzzer</label>
-                        <div id="municipalDirectUpperHint" class="helper-text{% if not service_config.get('municipal_sensor_enabled') or service_config.get('source_tank_monitoring_enabled') %} hidden-section{% endif %}">Direct municipal setup: Municipal Water → Pump → Upper Tank. No source tank or motorized valves are required.</div>
                     </div>
                     <div class="config-section">
-                        <h4>Slave Configuration</h4>
+                        <div class="config-label-row"><h4>Slave Configuration</h4><details class="config-info"><summary aria-label="Information about slave configuration">i</summary><div class="config-info-content"><div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div></div></details></div>
                         <label class="service-option"><input id="slaveDeviceOption" type="checkbox" name="slave_device_enabled" value="1" {% if slave_device_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Use Slave Device</label>
                         <label id="slaveUpperSensorOptionRow" class="service-option"><input id="slaveUpperSensorOption" type="radio" name="upper_sensor_source" value="slave" {% if slave_upper_checked %}checked{% endif %} onchange="window.swtSyncRuntimeConfigurationOptions&&window.swtSyncRuntimeConfigurationOptions()"> Upper Sensor</label>
                         <label class="service-option"><input id="slaveTurbidityOption" type="checkbox" name="slave_turbidity_enabled" value="1" {% if service_config.get("slave_turbidity_enabled", False) %}checked{% endif %}> Upper Turbidity</label>
-                        <div class="helper-text">Only one upper sensor source can be active. When slave is disabled, upper level is read from the Master upper sensor.</div>
                     </div>
                     <div class="config-section">
                         <h4>Other Features</h4>
+                        {% if customer_web_login_available|default(false) and customer_account %}
+                        <input type="hidden" name="customer_web_login_present" value="1">
+                        <label class="service-option"><input id="web_login_enabled" type="checkbox" name="web_login_enabled" value="1" {% if customer_account.get('web_login_enabled', 1) %}checked{% endif %}> Customer Website Login</label>
+                        {% endif %}
                         <label class="service-option"><input type="checkbox" name="ai_analysis_enabled" value="1" {% if service_config.get("ai_analysis_enabled", True) %}checked{% endif %}> AI Analysis</label>
                         <label class="service-option"><input type="checkbox" name="cloud_feed_disabled" value="1" {% if service_config.get("cloud_feed_mode") == "off" %}checked{% endif %}> Cloud Feed Disabled</label>
                         <label class="service-option"><input type="checkbox" name="local_firmware_upload_enabled" value="1" {% if service_config.get("local_firmware_upload_enabled", True) %}checked{% endif %}> Local Firmware Upload</label>
-                        <label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label>
-                        <div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div>
+                        <div class="config-label-row config-option-row"><label class="service-option"><input id="autoModeOption" type="checkbox" name="auto_mode_enabled" value="1" {% if service_config.get("auto_mode_enabled") %}checked{% endif %}> Auto Start/Stop</label><details class="config-info"><summary aria-label="Information about automatic pump control">i</summary><div class="config-info-content"><div class="helper-text">Keep this disabled for first-time installs. Enable or disable automatic pump control here from Flask after the device is online.</div></div></details></div>
+                        <div class="config-label-row config-option-row"><label class="service-option"><input id="multiTankOption" type="checkbox" name="multi_tank_enabled" value="1" {% if service_config.get("multi_tank_enabled", False) %}checked{% endif %}> Multi-Tank Destination Valves</label><details class="config-info"><summary aria-label="Information about multi-tank valves">i</summary><div class="config-info-content"><div class="helper-text">Enable only after every configured tank valve has valid OPEN/CLOSED position feedback. Disabling stops multi-tank scheduling and commands a safe pump-off state.</div></div></details></div>
                         <div class="form-group">
-                            <label for="android_sso_session_limit">Android SSO Device Count</label>
-                            <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="1" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
+                            <div class="config-label-row"><label for="android_sso_session_limit">Android SSO Device Count</label><details class="config-info"><summary aria-label="Information about Android sign-in limits">i</summary><div class="config-info-content"><div class="helper-text">Set 0 to disable Android app login and sign out all existing Android sessions. Set 1 or more to limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached; lowering the count signs out the oldest sessions immediately.</div><div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div></div></details></div>
+                            <input id="android_sso_session_limit" name="android_sso_session_limit" type="number" min="0" max="{{ service_config.get('android_sso_session_limit_max', 10) }}" step="1" inputmode="numeric" value="{{ service_config.get('android_sso_session_limit', 1) }}">
                         </div>
-                        <div class="helper-text">Limit how many Android app sessions can stay signed in for this customer. New logins replace the oldest session after the count is reached.</div>
-                        <div class="helper-text">Server currently allows {{ service_config.get('android_sso_session_limit', 1) }} Android device{{ 's' if service_config.get('android_sso_session_limit', 1) != 1 else '' }} and has {{ android_sso_active_session_count|default(0) }} active Android session{{ 's' if android_sso_active_session_count|default(0) != 1 else '' }} for this customer.</div>
                     </div>
                     <div class="config-section" id="pumpConfirmationSensors">
-                        <h4>Pump Confirmation Sensors</h4>
+                        <div class="config-label-row"><h4>Pump Confirmation Sensors</h4><details class="config-info"><summary aria-label="Information about pump confirmation sensors">i</summary><div class="config-info-content"><div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. Municipal flow/pressure detection is configured under Municipal Water Feature.</div></div></details></div>
                         <label class="service-option"><input type="checkbox" name="starter_contactor_sensor_enabled" value="1" {% if service_config.get('starter_contactor_sensor_enabled') %}checked{% endif %}> Starter-contactor auxiliary sensor</label>
                         <label class="service-option"><input type="checkbox" name="motor_current_sensor_enabled" value="1" {% if service_config.get('motor_current_sensor_enabled') %}checked{% endif %}> Motor-current sensor</label>
-                        <label class="service-option"><input type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %}> Water-flow sensor</label>
-                        <label class="service-option"><input type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') %}checked{% endif %}> Municipal water pressure/availability sensor</label>
-                        <div class="helper-text">Enable only sensors that are physically installed and supported by this firmware build. A disabled sensor is ignored by pump confirmation and safety logic.</div>
+                    </div>
+                    <div class="config-section" id="municipalDetectionSensorOptions">
+                        <div class="config-label-row"><h4>Municipal Detection Sensor</h4><details class="config-info"><summary aria-label="Information about municipal detection sensors">i</summary><div class="config-info-content"><div class="helper-text">Select only one. Municipal Water Feature must be enabled.</div></div></details></div>
+                        <label class="service-option"><input id="municipalFlowSensorOption" type="checkbox" name="water_flow_sensor_enabled" value="1" {% if service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('flow')"> Water-flow sensor</label>
+                        <label class="service-option"><input id="municipalPressureSensorOption" type="checkbox" name="water_pressure_sensor_enabled" value="1" {% if service_config.get('water_pressure_sensor_enabled') and not service_config.get('water_flow_sensor_enabled') %}checked{% endif %} onchange="window.swtSelectMunicipalDetectionSensor&&window.swtSelectMunicipalDetectionSensor('pressure')"> Water-pressure sensor</label>
                     </div>
                 </div>
+                <section id="multiTankConfiguration" class="admin-form{% if not service_config.get('multi_tank_enabled', False) %} hidden-section{% endif %}" {% if not service_config.get('multi_tank_enabled', False) %}hidden{% endif %}>
+                    <div class="config-label-row"><h3>Overhead Tanks / Slaves</h3><details class="config-info"><summary aria-label="Information about overhead tank configuration">i</summary><div class="config-info-content"><div class="helper-text">Enable each overhead tank, assign its unique Slave MCU ID, and choose where that tank's dedicated pipe valve is wired. Lower priority numbers are filled first; equal priorities rotate fairly.</div></div></details></div>
+                    {% for tank in service_config.get('destination_tanks', []) %}
+                    <div class="config-sections destination-tank-slot{% if tank.tank_index > 1 and not tank.enabled %} hidden-section{% endif %}" data-destination-tank-index="{{ tank.tank_index }}">
+                        <div class="config-section">
+                            <h4>Tank {{ tank.tank_index }}</h4>
+                            <label class="service-option"><input type="checkbox" name="tank_{{ tank.tank_index }}_enabled" value="1" {% if tank.enabled %}checked{% endif %}> Enable this tank</label>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_name">Tank name</label>
+                                <input id="tank_{{ tank.tank_index }}_name" name="tank_{{ tank.tank_index }}_name" type="text" maxlength="40" value="{{ tank.tank_name }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_slave_device_id">Slave device ID</label>
+                                <input id="tank_{{ tank.tank_index }}_slave_device_id" name="tank_{{ tank.tank_index }}_slave_device_id" type="text" maxlength="23" value="{{ tank.slave_device_id }}" placeholder="swt-100-000-010-001">
+                            </div>
+                        </div>
+                        <div class="config-section">
+                            <h4>Valve and Fill Policy</h4>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_valve_owner">Valve connected to</label>
+                                <select id="tank_{{ tank.tank_index }}_valve_owner" name="tank_{{ tank.tank_index }}_valve_owner">
+                                    <option value="slave" {% if tank.valve_owner == 'slave' %}selected{% endif %}>This tank's Slave MCU</option>
+                                    <option value="master" {% if tank.valve_owner == 'master' %}selected{% endif %}>Master cabinet</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_priority">Priority (1–8)</label>
+                                <input id="tank_{{ tank.tank_index }}_priority" name="tank_{{ tank.tank_index }}_priority" type="number" min="1" max="8" value="{{ tank.priority }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_start_pct">Start filling at or below (%)</label>
+                                <input id="tank_{{ tank.tank_index }}_start_pct" name="tank_{{ tank.tank_index }}_start_pct" type="number" min="0" max="95" step="0.1" value="{{ tank.start_pct }}">
+                            </div>
+                            <div class="form-group">
+                                <label for="tank_{{ tank.tank_index }}_stop_pct">Stop filling at or above (%)</label>
+                                <input id="tank_{{ tank.tank_index }}_stop_pct" name="tank_{{ tank.tank_index }}_stop_pct" type="number" min="5" max="100" step="0.1" value="{{ tank.stop_pct }}">
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    <div class="tank-setup-actions" id="destinationTankActions">
+                        <button id="addDestinationTank" class="btn btn-admin" type="button"><span>Add Overhead Tank</span></button>
+                        <span id="destinationTankCount" class="helper-text" aria-live="polite"></span>
+                    </div>
+                </section>
                 <button class="btn btn-admin" type="submit"><span>Save Runtime Configuration</span></button>
             </form>
 
@@ -367,25 +411,14 @@ body{font-size:16px}
                 <h3>Tank Auto Thresholds</h3>
                 <div class="form-group">
                     <label for="auto_start_pct">Start Pump At Or Below (%)</label>
-                    <input id="auto_start_pct" name="auto_start_pct" type="range" min="0" max="95" step="0.1" value="{{ automation_settings.get('auto_start_pct', 25) }}"><output id="autoStartOutput" for="auto_start_pct">{{ automation_settings.get('auto_start_pct', 25) }}%</output>
+                    <input id="auto_start_pct" name="auto_start_pct" type="range" min="{{ pump_threshold_contract.auto_start_pct.minimum }}" max="{{ pump_threshold_contract.auto_start_pct.maximum }}" step="0.1" value="{{ automation_settings.get('auto_start_pct', pump_threshold_contract.auto_start_pct.default) }}"><output id="autoStartOutput" for="auto_start_pct">{{ automation_settings.get('auto_start_pct', pump_threshold_contract.auto_start_pct.default) }}%</output>
                 </div>
                 <div class="form-group">
                     <label for="auto_stop_pct">Stop Pump At Or Above (%)</label>
-                    <input id="auto_stop_pct" name="auto_stop_pct" type="range" min="5" max="100" step="0.1" value="{{ automation_settings.get('auto_stop_pct', 95) }}"><output id="autoStopOutput" for="auto_stop_pct">{{ automation_settings.get('auto_stop_pct', 95) }}%</output>
+                    <input id="auto_stop_pct" name="auto_stop_pct" type="range" min="{{ pump_threshold_contract.auto_stop_pct.minimum }}" max="{{ pump_threshold_contract.auto_stop_pct.maximum }}" step="0.1" value="{{ automation_settings.get('auto_stop_pct', pump_threshold_contract.auto_stop_pct.default) }}"><output id="autoStopOutput" for="auto_stop_pct">{{ automation_settings.get('auto_stop_pct', pump_threshold_contract.auto_stop_pct.default) }}%</output>
                 </div>
                 <div class="helper-text">These thresholds are shared across Flask, Android, and firmware. Saving here queues the update for the controller and keeps the cloud copy aligned.</div>
                 <button class="btn btn-admin" type="submit"><span>Save Tank Thresholds</span></button>
-            </form>
-
-            <form class="admin-form" method="post" action="/devices/{{ device_id }}/peer-channel" data-ajax-form>
-                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                <h3>Peer Channel</h3>
-                <div class="form-group">
-                    <label for="direct_peer_wifi_channel">ESP-NOW / 2.4 GHz Channel</label>
-                    <input id="direct_peer_wifi_channel" name="direct_peer_wifi_channel" type="number" min="1" max="13" step="1" inputmode="numeric" value="{{ peer_channel_input_value|default(6) }}">
-                </div>
-                <div class="helper-text">Use the same channel on the slave and the master's 2.4 GHz router link. Saving here queues a PEER_CHANNEL update for the controller pair.</div>
-                <button class="btn btn-admin" type="submit"><span>Save Peer Channel</span></button>
             </form>
 
             <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_customer_profile', device_id=device_id) }}" data-ajax-form>
@@ -409,26 +442,23 @@ body{font-size:16px}
             <div id="deviceCommandsCard" class="admin-form command-group maintenance">
                 <h3>Device Commands</h3>
                 <div class="summary-label">Diagnostics and maintenance</div>
-                <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Queue a reboot for device {{ device_id }}? The controller will restart on its next cloud command check." data-confirm-button="Restart Device">
+                <div class="device-command-actions">
+                <form method="post" action="/admin/customers/{{ device_id }}/reboot" data-ajax-form data-confirm-title="Restart device?" data-confirm-message="Restart the slave first, then the master for device {{ device_id }}? The master will wait for confirmation that the slave rebooted." data-confirm-button="Restart Device">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
                     <button class="btn btn-admin btn-full" type="submit"><span>Restart Device</span></button>
                 </form>
                 <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form data-loading-text="Pinging...">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="target" value="master">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Ping Master</span></button>
-                </form>
-                <form method="post" action="/devices/{{ device_id }}/ping" data-ajax-form data-loading-text="Pinging...">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                    <input type="hidden" name="target" value="slave">
-                    <button class="btn btn-admin btn-full" type="submit"><span>Ping Slave</span></button>
+                    <input type="hidden" name="target" value="all">
+                    <button class="btn btn-admin btn-full" type="submit"><span>Ping All Nodes</span></button>
                 </form>
                 <form method="post" action="/devices/{{ device_id }}/mobile/logout" data-ajax-form data-confirm-title="Log out mobile devices?" data-confirm-message="Sign out all Android app sessions for customer {{ device_id }}? The customer can sign in again on any phone after this." data-confirm-button="Log Out Mobile Devices">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button class="btn btn-admin btn-full" type="submit"><span>Log Out Mobile Devices</span></button>
                 </form>
-                <div class="helper-text">Ping checks use the latest cloud telemetry and direct peer packet age; no local LAN access is required.</div>
+                </div>
+                <div class="helper-text">Ping All Nodes queues a master check and an ESP-NOW slave-path check. A successful slave path also verifies the active repeater route; no local LAN access is required.</div>
             </div>
 
             {% if master_upper_checked or slave_upper_checked %}
@@ -504,17 +534,26 @@ body{font-size:16px}
             <div class="admin-form command-group simulator-section" id="deviceSimulatorsSection">
                 <h3>Device Simulators</h3>
                 <div class="summary-label">Sensor and valve simulation</div>
+                <form id="disableAllSimulatorsForm" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form data-confirm-title="Disable all simulators?" data-confirm-message="Disable every tank, municipal, valve, and turbidity simulator for device {{ device_id }} and use real hardware inputs?" data-confirm-button="Disable All Simulators">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="return_to" value="device_detail">
+                    <input type="hidden" name="simulator_target" value="all">
+                    <input type="hidden" name="simulator_enabled" value="off">
+                    <button id="disableAllSimulatorsButton" class="btn btn-warning btn-full" type="submit"><span>Disable All Simulators for Hardware Testing</span></button>
+                </form>
                 <form id="tankSimulatorForm" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
                     <input type="hidden" name="simulator_target" value="tank">
                     <button id="simulatorToggleButton" class="simulator-switch{% if simulator_enabled|default(false) %} is-on{% endif %}" data-tone="tank" type="submit" role="switch" aria-checked="{{ 'true' if simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Tank Level Simulator</span><span class="simulator-switch-state">{{ "ON" if simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
-                <form id="municipalSimulatorForm" class="{% if not service_config.get('municipal_sensor_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
+                {% set municipal_detection_target = 'water_pressure' if service_config.get('water_pressure_sensor_enabled', False) else 'water_flow' %}
+                {% set municipal_detection_label = 'Water-pressure Sensor Simulator' if municipal_detection_target == 'water_pressure' else 'Water-flow Sensor Simulator' %}
+                <form id="municipalDetectionSimulatorForm" class="{% if not service_config.get('municipal_sensor_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <input type="hidden" name="return_to" value="device_detail">
-                    <input type="hidden" name="simulator_target" value="municipal">
-                    <button id="municipalSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span class="simulator-switch-label">Municipal Water Simulator</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
+                    <input id="municipalDetectionSimulatorTarget" type="hidden" name="simulator_target" value="{{ municipal_detection_target }}">
+                    <button id="municipalDetectionSimulatorToggleButton" class="simulator-switch{% if municipal_simulator_enabled|default(false) %} is-on{% endif %}" data-tone="municipal" type="submit" role="switch" aria-checked="{{ 'true' if municipal_simulator_enabled|default(false) else 'false' }}"><span id="municipalDetectionSimulatorLabel" class="simulator-switch-label">{{ municipal_detection_label }}</span><span class="simulator-switch-state">{{ "ON" if municipal_simulator_enabled|default(false) else "OFF" }}</span><span class="simulator-switch-track" aria-hidden="true"><span class="simulator-switch-knob"></span></span></button>
                 </form>
                 <form id="municipalValveSimulatorForm" class="{% if not service_config.get('municipal_valve_enabled', False) %}hidden-section{% endif %}" method="post" action="/admin/customers/{{ device_id }}/simulator" data-ajax-form>
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -574,6 +613,8 @@ body{font-size:16px}
         <div class="firmware-upload-grid">
             {% set master_firmware = latest_firmware_artifacts.get("master") if latest_firmware_artifacts else none %}
             {% set slave_firmware = latest_firmware_artifacts.get("slave") if latest_firmware_artifacts else none %}
+            {% set repeater1_firmware = latest_firmware_artifacts.get("repeater1") if latest_firmware_artifacts else none %}
+            {% set repeater2_firmware = latest_firmware_artifacts.get("repeater2") if latest_firmware_artifacts else none %}
             <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload master firmware?" data-confirm-message="Store this master firmware binary for device {{ device_id }}? Verify the selected build and profile before continuing." data-confirm-button="Upload Master Firmware">
                 <h3>Master Firmware</h3>
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -592,9 +633,7 @@ body{font-size:16px}
                 {% else %}
                 <div class="helper-text">No master firmware build has been uploaded for this device yet.</div>
                 {% endif %}
-                <div class="helper-text">Master uploads can be stored even when the firmware profile differs from the current {{ firmware_install_profile.label }} install profile. Use the profile details above to choose the correct runtime setup before upgrading.</div>
-                <input type="hidden" name="allow_profile_mismatch" value="0">
-                <label class="service-option upload-override"><input type="checkbox" name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override> <span><strong>Store for recovery/profile change</strong><span>Profile mismatch is allowed for master uploads. Apply the correct MCU runtime configuration before upgrade/install.</span></span></label>
+                <input type="hidden" name="allow_profile_mismatch" value="1">
                 <button class="btn btn-admin" type="submit"><span>Upload Master Firmware</span></button>
             </form>
             <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload slave firmware?" data-confirm-message="Store this slave firmware binary for device {{ device_id }}? Verify that it matches the slave hardware before continuing." data-confirm-button="Upload Slave Firmware">
@@ -617,102 +656,58 @@ body{font-size:16px}
                 {% endif %}
                 <button class="btn btn-admin" type="submit"><span>Upload Slave Firmware</span></button>
             </form>
+            {% for repeater_number, repeater_firmware in [(1, repeater1_firmware), (2, repeater2_firmware)] %}
+            <form class="admin-form" method="post" action="/admin/customers/{{ device_id }}/firmware" enctype="multipart/form-data" data-firmware-upload-form data-confirm-title="Upload repeater {{ repeater_number }} firmware?" data-confirm-message="Store this firmware only for repeater {{ repeater_number }} of device {{ device_id }}? It will not upgrade the master, slave, or other repeater." data-confirm-button="Upload Repeater {{ repeater_number }} Firmware">
+                <h3>Repeater {{ repeater_number }} Firmware</h3>
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="return_to" value="device_detail">
+                <input type="hidden" name="firmware_role" value="repeater{{ repeater_number }}">
+                <div class="form-group">
+                    <label for="repeater{{ repeater_number }}_firmware_file">Repeater {{ repeater_number }} Firmware Binary</label>
+                    <input id="repeater{{ repeater_number }}_firmware_file" name="firmware_file" type="file" accept=".bin,application/octet-stream" required>
+                </div>
+                <div class="form-group">
+                    <label for="repeater{{ repeater_number }}_firmware_notes">Repeater {{ repeater_number }} Release Notes</label>
+                    <input id="repeater{{ repeater_number }}_firmware_notes" name="notes" type="text" placeholder="Repeater {{ repeater_number }} firmware change summary">
+                </div>
+                {% if repeater_firmware %}
+                <div class="helper-text">Latest repeater {{ repeater_number }} build: {{ repeater_firmware.version_label or "--" }} from {{ repeater_firmware.original_filename or "firmware.bin" }}.</div>
+                {% else %}
+                <div class="helper-text">No firmware has been uploaded for repeater {{ repeater_number }} yet.</div>
+                {% endif %}
+                <button class="btn btn-admin" type="submit"><span>Upload Repeater {{ repeater_number }} Firmware</span></button>
+            </form>
+            {% endfor %}
         </div>
+        <div class="firmware-upload-grid firmware-ota-grid">
         {% set android_ota_ready = service_config.get("cloud_feed_enabled") and service_config.get("local_firmware_upload_enabled") %}
-        <form class="admin-form" method="post" action="{{ url_for('admin_device_detail_mobile_firmware_upgrade', device_id=device_id) }}" data-ajax-form data-confirm-title="Queue Android firmware upgrade?" data-confirm-message="Send an Android OTA trigger for device {{ device_id }}? The app will start its normal firmware upgrade flow on the next cloud refresh." data-confirm-button="Queue Upgrade">
+        <form class="admin-form firmware-android-ota" method="post" action="{{ url_for('admin_device_detail_mobile_firmware_upgrade', device_id=device_id) }}" data-ajax-form data-confirm-title="Queue Android firmware upgrade?" data-confirm-message="Send an Android OTA trigger for device {{ device_id }}? The app will start its normal firmware upgrade flow on the next cloud refresh." data-confirm-button="Queue Upgrade">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="return_to" value="device_detail">
             <h3>Android App OTA Trigger</h3>
+            <div class="form-group">
+                <label for="android_ota_firmware_role">Upgrade Target</label>
+                <select id="android_ota_firmware_role" name="firmware_role">
+                    <option value="all">All devices</option>
+                    <option value="master">Master only</option>
+                    <option value="slave">Slave only</option>
+                    <option value="repeater1">Repeater 1 only</option>
+                    <option value="repeater2">Repeater 2 only</option>
+                </select>
+            </div>
             {% if android_ota_ready %}
-            <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device.</div>
-            <button class="btn btn-admin btn-full" type="submit"><span>Queue Android OTA</span></button>
+            <div class="helper-text">Queues an app-only command so the Android client starts its standard local firmware upgrade flow using the latest uploaded firmware artifacts for this device. All devices includes the master, enabled slave, and repeaters reported by the master.</div>
+            <button class="btn btn-admin" type="submit"><span>Queue Android OTA</span></button>
             {% else %}
             <div class="helper-text">Enable Cloud Feed and Local firmware upload before queueing the Android app OTA trigger.</div>
-            <button class="btn btn-admin btn-full" type="submit" disabled><span>Queue Android OTA</span></button>
+            <button class="btn btn-admin" type="submit" disabled><span>Queue Android OTA</span></button>
             {% endif %}
         </form>
+        </div>
     </section>
     {% endif %}
 
-    <section id="device-logs" class="panel section-panel device-page-panel" data-device-page="logs" hidden>
-        <div class="section-head">
-            <div>
-                <div class="eyebrow">Activity Log</div>
-                <p>Showing master and slave activity logs for this device pair.</p>
-            </div>
-        </div>
-        <div class="activity-toolbar">
-            <div class="log-tools">
-                <input id="activitySearch" type="search" placeholder="Search logs" aria-label="Search activity logs">
-                <select id="activitySeverity" aria-label="Filter log severity"><option value="">All levels</option><option value="info">Info</option><option value="success">Success</option><option value="warning">Warning</option><option value="danger">Error/Critical</option></select>
-                <button id="activityPause" class="btn" type="button">Pause auto-scroll</button>
-                <button id="activityCopy" class="btn" type="button">Copy</button>
-                <button id="activityDownload" class="btn" type="button">Download</button>
-            </div>
-            <label class="activity-page-size" for="activityPageSize">Display
-                <select id="activityPageSize">
-                    <option value="10">10 logs</option>
-                    <option value="50">50 logs</option>
-                    <option value="100">100 logs</option>
-                </select>
-            </label>
-            {% set initial_activity_events = initial_events or [] %}
-            <div id="activityCount" class="activity-count">
-                {% if initial_activity_events %}
-                    Showing 1-{{ [initial_activity_events|length, 10]|min }} of {{ initial_activity_events|length }} logs
-                {% else %}
-                    Showing latest device status
-                {% endif %}
-            </div>
-        </div>
-        <div class="activity-table-wrap">
-            <table class="activity-table" aria-label="Master and slave activity log">
-                <thead>
-                    <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">Node</th>
-                        <th scope="col">Activity</th>
-                        <th scope="col">Severity</th>
-                    </tr>
-                </thead>
-                <tbody id="events">
-                    {% if initial_activity_events %}
-                        {% for event in initial_activity_events[:10] %}
-                            {% set event_details = event.get("details") or {} %}
-                            {% set event_severity = (event.get("severity") or "info")|lower %}
-                            {% set event_severity_class = "tone-ok" if event_severity in ["success", "ok"] else ("tone-warn" if event_severity in ["warning", "warn"] else ("tone-bad" if event_severity in ["danger", "error", "critical"] else "tone-info")) %}
-                            <tr>
-                                <td>{{ event.get("time") or "--" }}</td>
-                                <td><span class="activity-node">{{ event_details.get("device_id") or event.get("device_id") or "--" }}</span></td>
-                                <td>
-                                    <div class="activity-message">{{ event.get("message") or "Event" }}</div>
-                                    <div class="activity-meta">{{ event.get("kind", "event")|replace("_", " ")|title }}</div>
-                                </td>
-                                <td><span class="status-pill {{ event_severity_class }}">{{ (event.get("severity") or "info")|title }}</span></td>
-                            </tr>
-                        {% endfor %}
-                    {% else %}
-                        <tr>
-                            <td>--</td>
-                            <td><span class="activity-node">{{ device_id }}</span></td>
-                            <td>
-                                <div class="activity-message">Live device activity is loading from the current Flask snapshot.</div>
-                                <div class="activity-meta">Current Device Status</div>
-                            </td>
-                            <td><span class="status-pill tone-info">Info</span></td>
-                        </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
-        <div class="activity-pagination" aria-label="Activity log pages">
-            <button id="activityFirst" class="btn" type="button" aria-label="First page">&lt;&lt;</button>
-            <button id="activityPrev" class="btn" type="button" aria-label="Previous page">&lt;</button>
-            <div id="activityPageStatus" class="activity-page-status">Page 1 of 1</div>
-            <button id="activityNext" class="btn" type="button" aria-label="Next page">&gt;</button>
-            <button id="activityLast" class="btn" type="button" aria-label="Last page">&gt;&gt;</button>
-        </div>
-    </section>
+
 </div>
 
 <script>
@@ -722,6 +717,7 @@ const INITIAL_SIMULATOR_ENABLED={{ simulator_enabled|tojson }};
 const SIMULATOR_STATE_OVERRIDE={{ simulator_state|tojson }};
 const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};
 const INITIAL_CONFIG_ERROR={{ config_error|tojson }};
+const RESULT_STORAGE_KEY=`swt:device-result:${DEVICE_ID}`;
 const INITIAL_SNAPSHOT={{ (live_snapshot|default({}, true))|tojson }};
 const INITIAL_SYSTEM_STATUS={{ (system_status|default({}, true))|tojson }};
 const INITIAL_SERVICE_CONFIG={{ (service_config|default({}, true))|tojson }};
@@ -730,18 +726,8 @@ const INITIAL_SAVED_CONFIG={{ (current_saved_config|default({}, true))|tojson }}
 const localeTools=window.swtLocale||{};
 const DIRECT_PEER_STALE_AFTER_SECONDS=15;
 let deviceRefreshInFlight=false;
-let activityRefreshInFlight=false;
 let deviceRefreshTimer=0;
-let activityRefreshTimer=0;
 let latestHistory=[];
-let activitySearch="";
-let activitySeverity="";
-let activityPaused=false;
-let activeInfoTab="overview";
-function compactClientNumber(value,digits=1){
-  const number=Number(value);
-  return Number.isFinite(number)?number.toFixed(digits):"not reported";
-}
 function clientTruthy(value,defaultValue=false){
   if(value===undefined||value===null||value==="")return Boolean(defaultValue);
   if(typeof value==="boolean")return value;
@@ -750,74 +736,7 @@ function clientTruthy(value,defaultValue=false){
   if(["0","false","no","off","disabled"].includes(raw))return false;
   return Boolean(value);
 }
-function clientTitle(value,fallback="not reported"){
-  const text=String(value??"").trim();
-  if(!text||text==="--")return fallback;
-  return text.replace(/[_-]+/g," ").replace(/\b\w/g,(char)=>char.toUpperCase());
-}
-function clientHeap(value){
-  const number=Number(value);
-  if(!Number.isFinite(number))return"heap not reported";
-  if(Math.abs(number)>=1048576)return`${(number/1048576).toFixed(1)} MB free`;
-  if(Math.abs(number)>=1024)return`${(number/1024).toFixed(1)} KB free`;
-  return`${Math.round(number)} B free`;
-}
-function isPlaceholderActivityEvent(entry){
-  return String(entry?.message||"").toLowerCase().includes("activity log is ready");
-}
-function normalizeActivityEvents(events){
-  return Array.isArray(events)?events.filter((entry)=>entry&&!isPlaceholderActivityEvent(entry)):[];
-}
-function buildClientSnapshotActivityEvents(snapshot={},systemStatus={},serviceConfig={},automationSettings={}){
-  const time=snapshot.created_at||snapshot.last_sync_at||new Date().toISOString();
-  const telemetry=String(snapshot.telemetry_status||systemStatus.telemetry_status||"live").toLowerCase();
-  const usesSlave=clientTruthy(serviceConfig.slave_device_enabled,true);
-  const sourceMonitoring=clientTruthy(serviceConfig.source_tank_monitoring_enabled,true);
-  const configType=usesSlave?"Master + Slave":"Master Only";
-  const upperSource=usesSlave&&clientTruthy(serviceConfig.slave_upper_sensor_enabled,true)?"Slave":"Master";
-  const events=[];
-  const add=(kind,severity,message,details={})=>{
-    events.push({time,severity,message,kind,details:{device_id:DEVICE_ID,node_role:"master",current_status:true,telemetry_status:telemetry,...details}});
-  };
-  add("device_config_current_status","info",`Live device config: ${configType}; upper sensor ${upperSource}; source tank ${sourceMonitoring?"enabled":"disabled"}; relay ${clientTruthy(serviceConfig.relay_enabled,true)?"enabled":"disabled"}; auto ${clientTruthy(serviceConfig.auto_mode_enabled,false)?"enabled":"disabled"}.`,{configuration_type:configType,upper_sensor_source:upperSource.toLowerCase()});
-  if(snapshot.level!==undefined&&snapshot.level!==null){
-    const level=Number(snapshot.level);
-    const liters=snapshot.remaining_liters!==undefined&&snapshot.remaining_liters!==null?`; ${compactClientNumber(snapshot.remaining_liters)} L available`:"";
-    add("tank_level_current_status",Number.isFinite(level)&&level>20?"success":"warning",`Tank level is ${compactClientNumber(snapshot.level)}%${liters}.`,{level:snapshot.level,remaining_liters:snapshot.remaining_liters});
-  }
-  if(snapshot.motor||snapshot.mode){
-    add("pump_current_status","info",`Pump is ${String(snapshot.motor||"not reported").toUpperCase()} in ${String(snapshot.mode||"unknown").toUpperCase()} mode.`,{motor:snapshot.motor,mode:snapshot.mode});
-  }
-  const masterStatus=onlineOfflineLabel(systemStatus.master_status_label);
-  const slaveStatus=usesSlave?onlineOfflineLabel(systemStatus.slave_status_label):"Disabled";
-  add("node_current_status",masterStatus==="Online"&&["Online","Disabled"].includes(slaveStatus)?"success":"warning",`Master ${masterStatus.toLowerCase()}, slave ${slaveStatus.toLowerCase()}.`,{master_status_label:masterStatus,slave_status_label:slaveStatus});
-  if(usesSlave||snapshot.direct_peer){
-    const age=snapshot.direct_peer_last_packet_age_s;
-    const ageText=age!==undefined&&age!==null?`; last packet ${age}s ago`:"";
-    const channel=snapshot.direct_peer_wifi_channel||snapshot.direct_peer_config_channel||serviceConfig.direct_peer_wifi_channel;
-    const channelText=channel!==undefined&&channel!==null?`; channel ${channel}`:"";
-    add("peer_current_status",Number(age)<=DIRECT_PEER_STALE_AFTER_SECONDS?"success":"warning",`Direct peer ${snapshot.direct_peer||"not reported"}${channelText}${ageText}.`,{direct_peer:snapshot.direct_peer,direct_peer_wifi_channel:snapshot.direct_peer_wifi_channel,direct_peer_config_channel:snapshot.direct_peer_config_channel,direct_peer_last_packet_age_s:age,direct_peer_remote_mac:snapshot.direct_peer_remote_mac});
-  }
-  if(snapshot.firmware_version||snapshot.slave_firmware_version){
-    add("firmware_current_status","info",`Firmware status: master ${snapshot.firmware_version||"not reported"}; slave ${snapshot.slave_firmware_version||"not reported"}.`,{firmware_version:snapshot.firmware_version,slave_firmware_version:snapshot.slave_firmware_version});
-  }
-  if(snapshot.free_heap!==undefined&&snapshot.free_heap!==null||snapshot.slave_free_heap!==undefined&&snapshot.slave_free_heap!==null){
-    add("memory_current_status","info",`Memory status: master ${clientHeap(snapshot.free_heap)}; slave ${clientHeap(snapshot.slave_free_heap)}.`,{free_heap:snapshot.free_heap,slave_free_heap:snapshot.slave_free_heap});
-  }
-  add("services_current_status","info",`Service status: telemetry ${clientTitle(snapshot.telemetry_service,"not reported")}; command ${clientTitle(snapshot.command_service,"not reported")}; local firmware upload ${clientTruthy(serviceConfig.local_firmware_upload_enabled,true)?"enabled":"disabled"}; simulator ${clientTitle(snapshot.simulator||snapshot.simulator_status,"OFF")}.`,{telemetry_service_label:snapshot.telemetry_service,command_service_label:snapshot.command_service});
-  add("thresholds_current_status","info",`Auto thresholds: start at or below ${automationSettings.auto_start_pct??serviceConfig.auto_start_pct??"not reported"}%; stop at or above ${automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct??"not reported"}%.`,{auto_start_pct:automationSettings.auto_start_pct??serviceConfig.auto_start_pct,auto_stop_pct:automationSettings.auto_stop_pct??serviceConfig.auto_stop_pct});
-  return events;
-}
-let latestEvents=normalizeActivityEvents({{ initial_activity_events|tojson }});
-if(!latestEvents.length){
-  latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
-}
-let activityPage=1;
-let activityPageSize=10;
 let pingWatchToken=0;
-const ACTIVITY_INITIAL_FETCH_LIMIT=20;
-const ACTIVITY_FETCH_LIMIT=50;
-const ACTIVITY_REFRESH_MS=30000;
 const DEVICE_REFRESH_MS=30000;
 const DEVICE_SETUP_PRESETS={
   source_only:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
@@ -866,6 +785,20 @@ function syncRuntimeConfigurationOptions(){
   const municipalValve=document.getElementById("municipalValveOption");
   const outletValve=document.getElementById("sourceOutletValveOption");
   const municipalEnabled=Boolean(municipalFeature?.checked);
+  const municipalDetectionOptions=document.getElementById("municipalDetectionSensorOptions");
+  const municipalFlow=document.getElementById("municipalFlowSensorOption");
+  const municipalPressure=document.getElementById("municipalPressureSensorOption");
+  municipalDetectionOptions?.classList.toggle("is-disabled",!municipalEnabled);
+  if(municipalFlow)municipalFlow.disabled=!municipalEnabled;
+  if(municipalPressure)municipalPressure.disabled=!municipalEnabled;
+  if(!municipalEnabled){
+    if(municipalFlow)municipalFlow.checked=false;
+    if(municipalPressure)municipalPressure.checked=false;
+  }else if(municipalFlow?.checked&&municipalPressure?.checked){
+    municipalPressure.checked=false;
+  }else if(!municipalFlow?.checked&&!municipalPressure?.checked&&municipalFlow){
+    municipalFlow.checked=true;
+  }
   const municipalValvesApplicable=Boolean(sourceFeature?.checked);
   document.getElementById("municipalDirectUpperHint")?.classList.toggle("hidden-section",!(municipalEnabled&&!sourceFeature?.checked));
   syncSimulatorControlsWithRuntimeForm();
@@ -889,6 +822,14 @@ function syncRuntimeConfigurationOptions(){
   if(setupSelect)setupSelect.value=currentDeviceSetupType();
   syncUpperSensorSetupLabels();
 }
+function selectMunicipalDetectionSensor(selected){
+  const flow=document.getElementById("municipalFlowSensorOption");
+  const pressure=document.getElementById("municipalPressureSensorOption");
+  if(selected==="flow"&&flow?.checked&&pressure)pressure.checked=false;
+  if(selected==="pressure"&&pressure?.checked&&flow)flow.checked=false;
+  syncSimulatorControlsWithRuntimeForm();
+}
+window.swtSelectMunicipalDetectionSensor=selectMunicipalDetectionSensor;
 function runtimeServiceConfigFromForm(){
   return {
     ...(INITIAL_SERVICE_CONFIG||{}),
@@ -898,6 +839,8 @@ function runtimeServiceConfigFromForm(){
     ),
     source_tank_monitoring_enabled:Boolean(document.getElementById("lowerSensorOption")?.checked),
     municipal_sensor_enabled:Boolean(document.getElementById("municipalSensorOption")?.checked),
+    water_flow_sensor_enabled:Boolean(document.getElementById("municipalFlowSensorOption")?.checked),
+    water_pressure_sensor_enabled:Boolean(document.getElementById("municipalPressureSensorOption")?.checked),
     municipal_valve_enabled:Boolean(document.getElementById("municipalValveOption")?.checked),
     source_outlet_valve_enabled:Boolean(document.getElementById("sourceOutletValveOption")?.checked),
     master_turbidity_enabled:Boolean(document.getElementById("masterTurbidityOption")?.checked),
@@ -956,6 +899,17 @@ document.addEventListener("DOMContentLoaded",()=>{
   function closeResultModal(){
     document.querySelector("[data-result-modal]")?.remove();
   }
+  function clearPersistedResult(){
+    try{window.sessionStorage.removeItem(RESULT_STORAGE_KEY);}catch(error){}
+    const url=new URL(window.location.href);
+    url.searchParams.delete("config_message");
+    url.searchParams.delete("config_error");
+    window.history.replaceState(null,"",`${url.pathname}${url.search}${url.hash}`);
+  }
+  function dismissResultModal(){
+    closeResultModal();
+    clearPersistedResult();
+  }
   function showConfirmModal({title,message,confirmLabel,danger,onConfirm}){
     closeResultModal();
     const previousActive=document.activeElement;
@@ -984,8 +938,10 @@ document.addEventListener("DOMContentLoaded",()=>{
     document.body.appendChild(modal);
     try{modal.querySelector("[data-confirm-accept]").focus({preventScroll:true});}catch(error){}
   }
-  function showResultModal(title,message,isError=false,details=[]){
+  function showResultModal(title,message,isError=false,details=[],persist=true){
     closeResultModal();
+    const result={title:title||"Upload result",message:message||"No result message was returned.",isError:Boolean(isError),details:Array.isArray(details)?details.filter(Boolean):[]};
+    if(persist){try{window.sessionStorage.setItem(RESULT_STORAGE_KEY,JSON.stringify(result));}catch(error){}}
     const modal=document.createElement("div");
     modal.className="result-modal";
     modal.dataset.resultModal="";
@@ -993,20 +949,26 @@ document.addEventListener("DOMContentLoaded",()=>{
     modal.setAttribute("aria-modal","true");
     modal.setAttribute("aria-labelledby","device_result_title");
     modal.innerHTML=`<div class="result-dialog"><div class="result-head"><div><div class="eyebrow">Result</div><h2 id="device_result_title"></h2></div><button class="result-close" type="button" data-result-close>Close</button></div><div class="message"></div></div>`;
-    modal.querySelector("#device_result_title").textContent=title||"Upload result";
+    modal.querySelector("#device_result_title").textContent=result.title;
     const messageNode=modal.querySelector(".message");
-    const detailLines=Array.isArray(details)?details.filter(Boolean):[];
     messageNode.style.whiteSpace="pre-line";
-    messageNode.textContent=[message||"No result message was returned.",...detailLines].filter(Boolean).join("\n");
-    messageNode.classList.add(isError?"error":"success");
-    modal.querySelector("[data-result-close]").addEventListener("click",closeResultModal);
+    messageNode.textContent=[result.message,...result.details].filter(Boolean).join("\n");
+    messageNode.classList.add(result.isError?"error":"success");
+    modal.querySelector("[data-result-close]").addEventListener("click",dismissResultModal);
     document.body.appendChild(modal);
   }
   function showInitialConfigResult(){
     const error=String(INITIAL_CONFIG_ERROR||"").trim();
     const message=String(INITIAL_CONFIG_MESSAGE||"").trim();
-    if(!error&&!message)return;
-    window.requestAnimationFrame(()=>showResultModal(error?"Action failed":"Action saved",error||message,Boolean(error)));
+    if(error||message){
+      window.requestAnimationFrame(()=>showResultModal(error?"Action failed":"Action saved",error||message,Boolean(error)));
+      return;
+    }
+    try{
+      const saved=JSON.parse(window.sessionStorage.getItem(RESULT_STORAGE_KEY)||"null");
+      if(saved?.message&&/ping .* queued/i.test(String(saved.title||""))){clearPersistedResult();return;}
+      if(saved?.message)window.requestAnimationFrame(()=>showResultModal(saved.title,saved.message,Boolean(saved.isError),saved.details||[],false));
+    }catch(error){clearPersistedResult();}
   }
   showInitialConfigResult();
   const sleep=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
@@ -1027,19 +989,21 @@ document.addEventListener("DOMContentLoaded",()=>{
   }
   function pingResultDetailLines(snapshot={},payload={}){
     const target=String(payload.target||snapshot.last_ping_target||"device").trim().toLowerCase();
+    const noncePayload=payload.expected_ping_nonce;
+    const expectedNonce=noncePayload&&typeof noncePayload==="object"?(noncePayload.slave||noncePayload.master):noncePayload;
     const responseMs=Number(snapshot.last_ping_response_ms);
     const lines=[
       `Target: ${titleCase(target)}`,
       `Reported result: ${pingDisplayValue(snapshot.last_ping_status)}`,
       Number.isFinite(responseMs)&&responseMs>=0?`Response time: ${Math.round(responseMs)} ms`:"Response time: Not reported",
-      `Ping nonce: ${pingDisplayValue(snapshot.last_ping_nonce||payload.expected_ping_nonce)}`,
+      `Ping nonce: ${pingDisplayValue(snapshot.last_ping_nonce||expectedNonce)}`,
       `Command id: ${pingDisplayValue(payload.command_id)}`,
       `Queued command: ${pingDisplayValue(payload.queued_command)}`,
       `Ping telemetry age: ${pingAgeDisplay(snapshot.last_ping_age_s)}`,
       `Telemetry status: ${pingDisplayValue(snapshot.telemetry_status)}`,
       `Last sync: ${pingDisplayValue(snapshot.last_sync_at)}`,
     ];
-    if(target==="slave"){
+    if(target==="slave"||target==="all"){
       lines.push(`Saved peer channel: ${pingChannelDisplay(payload.saved_peer_channel)}`);
       lines.push(`Configured peer channel: ${pingChannelDisplay(snapshot.direct_peer_config_channel)}`);
       lines.push(`Master Wi-Fi channel: ${pingChannelDisplay(snapshot.direct_peer_wifi_channel)}`);
@@ -1054,21 +1018,31 @@ document.addEventListener("DOMContentLoaded",()=>{
     const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
     statusUrl.searchParams.set("history","0");
     statusUrl.searchParams.set("events","0");
-    statusUrl.searchParams.set("alerts","0");
+  statusUrl.searchParams.set("alerts","0");
     statusUrl.searchParams.set("audit","0");
     const response=await fetch(statusUrl.toString(),{cache:"no-store"});
     const data=await response.json();
     if(!response.ok)throw new Error(data?.error||`HTTP ${response.status}`);
     return data;
   }
-  async function waitForPingTelemetry(payload){
-    const expectedNonce=Number(payload?.expected_ping_nonce);
+  async function waitForPingTelemetry(payload,progressButton=null){
+    const noncePayload=payload?.expected_ping_nonce;
+    const expectedNonce=Number(
+      noncePayload&&typeof noncePayload==="object"
+        ? (noncePayload.slave||noncePayload.master)
+        : noncePayload
+    );
     if(!Number.isFinite(expectedNonce)||expectedNonce<=0)return;
     const watchToken=++pingWatchToken;
     const target=String(payload?.target||"device").trim().toLowerCase();
-    const targetLabel=titleCase(target||"device");
+    const targetLabel=target==="all"?"All Nodes":titleCase(target||"device");
     let lastSnapshot={};
     for(let attempt=0;attempt<15;attempt+=1){
+      if(progressButton){
+        const percent=Math.min(95,Math.max(8,Math.round(((attempt+1)/15)*100)));
+        progressButton.textContent=`Checking All Nodes… ${percent}%`;
+        progressButton.setAttribute("aria-busy","true");
+      }
       await sleep(attempt===0?2500:4000);
       if(watchToken!==pingWatchToken)return;
       try{
@@ -1081,12 +1055,11 @@ document.addEventListener("DOMContentLoaded",()=>{
           const succeeded=pingStatusSucceeded(reportedStatus);
           showResultModal(
             `Ping ${targetLabel} Result`,
-            `Device reported ping ${targetLabel.toLowerCase()} result: ${reportedStatus}.`,
+            `Device reported the ${targetLabel.toLowerCase()} ping result: ${reportedStatus}.`,
             !succeeded,
             pingResultDetailLines(snapshot,payload)
           );
-          activityPage=1;
-          preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+          preserveViewport(()=>{loadDevice({silent:true});});
           return;
         }
       }catch(error){
@@ -1095,8 +1068,8 @@ document.addEventListener("DOMContentLoaded",()=>{
     }
     if(watchToken!==pingWatchToken)return;
     showResultModal(
-      `Ping ${targetLabel} Pending`,
-      `No firmware ping result has been reported yet for nonce ${expectedNonce}.`,
+      `Ping ${targetLabel} Timed Out`,
+      `No final firmware ping result was reported for nonce ${expectedNonce} before the status-check timeout.`,
       true,
       [
         `Command id: ${pingDisplayValue(payload.command_id)}`,
@@ -1106,11 +1079,10 @@ document.addEventListener("DOMContentLoaded",()=>{
         ...pingResultDetailLines(lastSnapshot,payload),
       ]
     );
-    activityPage=1;
-    preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+    preserveViewport(()=>{loadDevice({silent:true});});
   }
   document.addEventListener("keydown",(event)=>{
-    if(event.key==="Escape")closeResultModal();
+    if(event.key==="Escape")document.querySelector("[data-result-close]")?dismissResultModal():closeResultModal();
   });
   document.querySelectorAll("[data-firmware-upload-form]").forEach((form)=>{
     form.addEventListener("submit",(event)=>{
@@ -1123,29 +1095,57 @@ document.addEventListener("DOMContentLoaded",()=>{
         button.textContent="Uploading...";
       }
       const request=new XMLHttpRequest();
+      const finish=(ok,message)=>{
+        showResultModal(ok?"Upload successful":"Upload failed",message,!ok);
+        if(ok)form.reset();
+        if(button){button.disabled=false;button.textContent=originalLabel;}
+      };
+      let fallbackStarted=false;
+      const sendJsonFallback=async()=>{
+        if(fallbackStarted)return;
+        fallbackStarted=true;
+        const file=form.querySelector('input[name="firmware_file"]')?.files?.[0];
+        if(!file){finish(false,"Choose a compiled firmware .bin file to upload.");return;}
+        try{
+          const dataUrl=await new Promise((resolve,reject)=>{
+            const reader=new FileReader();
+            reader.onload=()=>resolve(String(reader.result||""));
+            reader.onerror=()=>reject(reader.error);
+            reader.readAsDataURL(file);
+          });
+          const response=await fetch(form.action.replace(/\/firmware$/,"/artifact-intake"),{
+            method:"POST",
+            credentials:"same-origin",
+            headers:{"Content-Type":"application/json","Accept":"application/json","X-CSRF-Token":form.querySelector('[name="csrf_token"]')?.value||""},
+            body:JSON.stringify({
+              filename:file.name,
+              content_base64:dataUrl.split(",",2)[1]||"",
+              firmware_role:form.querySelector('[name="firmware_role"]')?.value||"master",
+              notes:form.querySelector('[name="notes"]')?.value||"",
+              allow_profile_mismatch:form.querySelector('[name="allow_profile_mismatch"]')?.value==="1",
+            }),
+          });
+          let payload=null;
+          try{payload=await response.json();}catch(error){payload=null;}
+          const ok=response.ok&&payload?.ok!==false;
+          finish(ok,payload?.message||payload?.error||`Fallback upload returned HTTP ${response.status}.`);
+        }catch(error){finish(false,"Network error while retrying the firmware upload.");}
+      };
       request.open("POST",form.action,true);
       request.setRequestHeader("X-Requested-With","XMLHttpRequest");
       request.addEventListener("load",()=>{
         let payload=null;
         try{payload=JSON.parse(request.responseText||"{}");}catch(error){payload=null;}
+        if(request.status===0||request.status===403){sendJsonFallback();return;}
         const ok=request.status>=200&&request.status<400&&payload?.ok!==false;
-        showResultModal(ok?"Upload successful":"Upload failed",payload?.message||payload?.error||`Server returned HTTP ${request.status}.`,!ok);
-        if(ok)form.reset();
-        if(button){
-          button.disabled=false;
-          button.textContent=originalLabel;
-        }
+        finish(ok,payload?.message||payload?.error||`Server returned HTTP ${request.status}.`);
       });
       request.addEventListener("error",()=>{
-        showResultModal("Upload failed","Network error while uploading firmware.",true);
-        if(button){
-          button.disabled=false;
-          button.textContent=originalLabel;
-        }
+        sendJsonFallback();
       });
+      request.addEventListener("timeout",()=>{sendJsonFallback();});
+      request.addEventListener("abort",()=>{sendJsonFallback();});
       const formData=new FormData(form);
-      const profileOverride=form.querySelector("[data-profile-mismatch-override]");
-      if(profileOverride)formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0");
       request.send(formData);
     });
   });
@@ -1215,13 +1215,18 @@ document.addEventListener("DOMContentLoaded",()=>{
         if(contentType.includes("application/json")){
           const payload=await response.json();
           const failed=payload?.ok===false||!response.ok;
-          showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
-          if(!failed&&payload?.expected_ping_nonce)waitForPingTelemetry(payload);
+          const isQueuedPing=!failed&&String(payload?.status||"").trim().toLowerCase()==="queued"&&Boolean(payload?.expected_ping_nonce);
+          if(isQueuedPing){
+            closeResultModal();
+            clearPersistedResult();
+            await waitForPingTelemetry(payload,button);
+          }else{
+            showResultModal(payload?.title||(failed?"Action failed":"Action saved"),payload?.error||payload?.message||"Request completed.",failed,payload?.detail_lines);
+          }
           if(!failed){
             syncRuntimeConfigurationOptions();
             syncLowerSensorSetupVisibility();
-            activityPage=1;
-            preserveViewport(()=>{loadDevice({silent:true});refreshActivityEvents();});
+            preserveViewport(()=>{loadDevice({silent:true});});
             if(form.querySelector('input[type="password"]'))form.reset();
           }
           return;
@@ -1241,6 +1246,7 @@ document.addEventListener("DOMContentLoaded",()=>{
       }finally{
         if(button){
           button.disabled=false;
+          button.removeAttribute("aria-busy");
           if(button.classList.contains("simulator-switch")){
             button.classList.remove("is-loading");
             button.removeAttribute("aria-busy");
@@ -1578,7 +1584,12 @@ function updateSimulatorControls(snapshot,serviceConfig){
   const usesMunicipal=Boolean(serviceConfig?.municipal_sensor_enabled);
   const usesInletValve=usesMunicipal&&Boolean(serviceConfig?.municipal_valve_enabled);
   const usesOutletValve=usesMunicipal&&Boolean(serviceConfig?.source_outlet_valve_enabled);
-  setVisible("municipalSimulatorForm",usesMunicipal);
+  const usesWaterPressure=Boolean(serviceConfig?.water_pressure_sensor_enabled)&&!Boolean(serviceConfig?.water_flow_sensor_enabled);
+  setVisible("municipalDetectionSimulatorForm",usesMunicipal);
+  const municipalDetectionTarget=document.getElementById("municipalDetectionSimulatorTarget");
+  const municipalDetectionLabel=document.getElementById("municipalDetectionSimulatorLabel");
+  if(municipalDetectionTarget)municipalDetectionTarget.value=usesWaterPressure?"water_pressure":"water_flow";
+  if(municipalDetectionLabel)municipalDetectionLabel.textContent=usesWaterPressure?"Water-pressure Sensor Simulator":"Water-flow Sensor Simulator";
   setVisible("municipalValveSimulatorForm",usesInletValve);
   setVisible("sourceOutletValveSimulatorForm",usesOutletValve);
   setVisible("lowerTurbiditySimulatorForm",Boolean(serviceConfig?.master_turbidity_enabled));
@@ -1587,13 +1598,13 @@ function updateSimulatorControls(snapshot,serviceConfig){
   if(button){
     setSimulatorSwitchState(button,active);
   }
-  setSimulatorSwitchState(document.getElementById("municipalSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
+  setSimulatorSwitchState(document.getElementById("municipalDetectionSimulatorToggleButton"),Boolean(serviceConfig?.municipal_sensor_enabled)&&clientTruthy(snapshot?.municipal_sensor_simulated,false));
   if(Boolean(serviceConfig?.municipal_valve_enabled))setValveSimulatorSwitchState(snapshot);else setSimulatorSwitchState(document.getElementById("municipalValveSimulatorToggleButton"),false);
   setSimulatorSwitchState(document.getElementById("sourceOutletValveSimulatorToggleButton"),Boolean(serviceConfig?.source_outlet_valve_enabled)&&clientTruthy(snapshot?.source_outlet_valve_simulated,false));
   setSimulatorSwitchState(document.getElementById("lowerTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.master_turbidity_enabled)&&clientTruthy(snapshot?.lower_turbidity_simulated,false));
   setSimulatorSwitchState(document.getElementById("upperTurbiditySimulatorToggleButton"),Boolean(serviceConfig?.slave_turbidity_enabled)&&clientTruthy(snapshot?.upper_turbidity_simulated,false));
   setSimulatorFeatureAvailability(button,serviceConfig?.main_sensor_enabled,active,"upper tank sensor");
-  setSimulatorFeatureAvailability(document.getElementById("municipalSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),"municipal water");
+  setSimulatorFeatureAvailability(document.getElementById("municipalDetectionSimulatorToggleButton"),serviceConfig?.municipal_sensor_enabled,clientTruthy(snapshot?.municipal_sensor_simulated,false),usesWaterPressure?"water-pressure sensor":"water-flow sensor");
   setSimulatorFeatureAvailability(document.getElementById("municipalValveSimulatorToggleButton"),serviceConfig?.municipal_valve_enabled,clientTruthy(snapshot?.municipal_valve_simulated,false),"inlet motorized valve");
   setSimulatorFeatureAvailability(document.getElementById("sourceOutletValveSimulatorToggleButton"),serviceConfig?.source_outlet_valve_enabled,clientTruthy(snapshot?.source_outlet_valve_simulated,false),"outlet motorized valve");
   setSimulatorFeatureAvailability(document.getElementById("lowerTurbiditySimulatorToggleButton"),serviceConfig?.master_turbidity_enabled,clientTruthy(snapshot?.lower_turbidity_simulated,false),"lower turbidity");
@@ -1623,14 +1634,13 @@ function turbidityReading(snapshot,serviceConfig,role){
 function municipalSensorStatus(snapshot,serviceConfig){
   if(!Boolean(serviceConfig?.municipal_sensor_enabled))return"DISABLED";
   const status=String(snapshot?.municipal_sensor_state||"").trim().toUpperCase();
-  return ["AVAILABLE","UNAVAILABLE"].includes(status)?status:"WAITING";
+  return status==="AVAILABLE"?"AVAILABLE":"NO FLOW";
 }
 function municipalSensorReading(snapshot,serviceConfig){
   const status=municipalSensorStatus(snapshot,serviceConfig);
   if(status==="DISABLED")return"Enable Municipal Water Feature in runtime configuration.";
   if(status==="AVAILABLE")return"Municipal water is detected.";
-  if(status==="UNAVAILABLE")return"No municipal water is currently detected.";
-  return"Waiting for valid municipal sensor telemetry.";
+  return"No municipal water flow is currently detected.";
 }
 function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,automationSettings,currentSavedConfig){
   const root=document.getElementById("deviceInfoGrid");
@@ -1640,7 +1650,16 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
   const savedServiceConfig=savedConfig.service_config||serviceConfig||{};
   const savedAutomationSettings=savedConfig.automation_settings||automationSettings||{};
   const telemetryStatus=String(snapshot?.telemetry_status||systemStatus?.telemetry_status||"").trim().toLowerCase();
-  const showAllDetails=true;
+  const deviceSensorsOnline=["live","recent","fresh","online"].includes(telemetryStatus);
+  const municipalDetectionSimulated=clientTruthy(snapshot?.municipal_sensor_simulated,false);
+  const municipalFlowOnline=municipalDetectionSimulated||clientTruthy(snapshot?.water_flow_detected,false);
+  const municipalPressureOnline=municipalDetectionSimulated||clientTruthy(snapshot?.water_pressure_detected,false);
+  const sensorSignalStatus=(enabled,validSignal,simulated=false,detail="")=>{
+    if(!enabled)return"Disabled";
+    if(!deviceSensorsOnline||(!simulated&&!validSignal))return"Offline";
+    return `Online · ${simulated?"Simulated":(detail||"Signal detected")}`;
+  };
+  const showAllDetails=false;
   const capacity=savedConfig.tank_capacity_liters??savedServiceConfig.tank_capacity_liters??snapshot.capacity_liters??snapshot.tank_capacity_liters??systemStatus.capacity_liters;
   const sourceCapacity=savedConfig.lower_tank_capacity_liters??savedServiceConfig.lower_tank_capacity_liters??snapshot.lower_tank_capacity_liters??snapshot.source_tank_capacity_liters;
   const sensorDistance=snapshot.sensor_distance_cm!==undefined&&snapshot.sensor_distance_cm!==null?`${snapshot.sensor_distance_cm} cm`:"Distance not reported";
@@ -1697,8 +1716,11 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Device Role",value:infoValue(titleCase(snapshot?.node_role||""),"Not reported")},
     {label:"Architecture",value:isReportedInfoValue(snapshot?.arch_id)?`Arch ${snapshot.arch_id}`:infoValue(snapshot?.architecture_mode,"Not reported")},
     {label:"Source Mode",value:infoValue(titleCase(snapshot.device_source||systemStatus.device_source_mode||""),"Source mode not reported")},
+    {label:"Upper Sensor",value:sensorSignalStatus(mainSensorEnabled,["OK","ON","READY","CONNECTED","HEALTHY"].includes(String(snapshot?.sensor||snapshot?.upper_sensor||"").toUpperCase()),clientTruthy(snapshot?.upper_tank_simulator,clientTruthy(snapshot?.simulator,false)),titleCase(snapshot?.sensor||snapshot?.upper_sensor||"OK")),category:"sensors",show:true},
     {label:"Upper Sensor Source",value:upperSource},
-    {label:"Source Tank Sensor",value:sourceSensorLocation},
+    {label:"Source Tank Sensor",value:sensorSignalStatus(sourceMonitoringEnabled,["OK","ON","READY","CONNECTED","HEALTHY"].includes(String(snapshot?.lower_sensor||"").toUpperCase()),clientTruthy(snapshot?.lower_tank_simulator,false),titleCase(snapshot?.lower_sensor||"OK")),category:"sensors",show:true},
+    {label:"Lower Turbidity Sensor",value:sensorSignalStatus(Boolean(savedServiceConfig?.master_turbidity_enabled),String(snapshot?.lower_turbidity_sensor||"").toUpperCase()==="OK",clientTruthy(snapshot?.lower_turbidity_simulated,false),"OK"),category:"sensors",show:true},
+    {label:"Upper Turbidity Sensor",value:sensorSignalStatus(Boolean(savedServiceConfig?.slave_turbidity_enabled),String(snapshot?.upper_turbidity_sensor||"").toUpperCase()==="OK",clientTruthy(snapshot?.upper_turbidity_simulated,false),"OK"),category:"sensors",show:true},
     {label:"Auto Start/Stop",value:Boolean(autoModeEnabled)?"Enabled":"Disabled"},
     {label:"Inlet Motorized Valve",value:motorizedValveEnabled?"ON":"OFF",category:"configuration"},
     {label:"Inlet Selected Path",value:motorizedValveEnabled?motorizedValvePath:"Disabled",category:"configuration"},
@@ -1725,6 +1747,9 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Direct Peer",value:infoValue(snapshot?.direct_peer,"Not reported")},
     {label:"Peer Config Channel",value:isReportedInfoValue(snapshot?.direct_peer_config_channel)?`${snapshot.direct_peer_config_channel}`:"Not reported"},
     {label:"Peer Active Channel",value:isReportedInfoValue(snapshot?.direct_peer_wifi_channel)?`${snapshot.direct_peer_wifi_channel}`:"Not reported"},
+    {label:"Peer Link Signal",value:isReportedInfoValue(snapshot?.direct_peer_signal)?String(snapshot.direct_peer_signal).toUpperCase():"Not reported"},
+    {label:"Peer Link Quality",value:isReportedInfoValue(snapshot?.direct_peer_link_quality_pct)?`${snapshot.direct_peer_link_quality_pct}%`:"Not reported"},
+    {label:"Peer Packets Received",value:infoValue(snapshot?.direct_peer_received_packets,"Not reported")},
     {label:"Peer Sync",value:formatPeerSyncStatus(snapshot)},
     {label:"Peer Remote IP",value:infoValue(snapshot?.direct_peer_remote_ip,"Waiting for peer")},
     {label:"Peer Remote MAC",value:infoValue(snapshot?.direct_peer_remote_mac,"Waiting for peer")},
@@ -1734,10 +1759,10 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Relay Control",value:Boolean(savedServiceConfig?.relay_enabled)?"Enabled":"Disabled"},
     {label:"Physical Pump State",value:clientTruthy(snapshot?.physical_pump_running,false)?"Running":"Stopped",category:"sensors",show:true},
     {label:"Pump Confirmation",value:infoValue(titleCase(snapshot?.pump_confirmation_source||""),"Relay command fallback"),category:"sensors",show:true},
-    {label:"Starter Contactor Sensor",value:clientTruthy(snapshot?.starter_contactor_active,false)?"Active":(clientTruthy(snapshot?.starter_contactor_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Motor Current Sensor",value:clientTruthy(snapshot?.motor_current_detected,false)?"Current detected":(clientTruthy(snapshot?.motor_current_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Flow Sensor",value:clientTruthy(snapshot?.water_flow_detected,false)?"Flow detected":(clientTruthy(snapshot?.water_flow_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
-    {label:"Water Pressure Sensor",value:clientTruthy(snapshot?.water_pressure_detected,false)?"Pressure detected":(clientTruthy(snapshot?.water_pressure_sensor_enabled,false)?"Ready":"Not installed"),category:"sensors",show:true},
+    {label:"Starter Contactor Sensor",value:sensorSignalStatus(clientTruthy(snapshot?.starter_contactor_sensor_enabled,Boolean(savedServiceConfig?.starter_contactor_sensor_enabled)),clientTruthy(snapshot?.starter_contactor_active,false),clientTruthy(snapshot?.pump_feedback_simulated,false),"Active"),category:"sensors",show:true},
+    {label:"Motor Current Sensor",value:sensorSignalStatus(clientTruthy(snapshot?.motor_current_sensor_enabled,Boolean(savedServiceConfig?.motor_current_sensor_enabled)),clientTruthy(snapshot?.motor_current_detected,false),clientTruthy(snapshot?.pump_feedback_simulated,false),"Current detected"),category:"sensors",show:true},
+    {label:"Water Flow Sensor",value:!clientTruthy(snapshot?.water_flow_sensor_enabled,Boolean(savedServiceConfig?.water_flow_sensor_enabled))?"Disabled":(!deviceSensorsOnline||!municipalFlowOnline?"Offline":`Online · ${municipalDetectionSimulated?"Simulated":"Flow detected"}`),category:"sensors",show:true},
+    {label:"Water Pressure Sensor",value:!clientTruthy(snapshot?.water_pressure_sensor_enabled,Boolean(savedServiceConfig?.water_pressure_sensor_enabled))?"Disabled":(!deviceSensorsOnline||!municipalPressureOnline?"Offline":`Online · ${municipalDetectionSimulated?"Simulated":"Pressure detected"}`),category:"sensors",show:true},
     {label:"Authoritative Pump Runtime",value:formatDurationSeconds(snapshot?.pump_total_runtime_s),category:"sensors",show:true},
     {label:"Last Pump Run",value:formatDurationSeconds(snapshot?.pump_last_run_runtime_s),category:"sensors",show:true},
     {label:"Pump Cycle Counter",value:isReportedInfoValue(snapshot?.pump_cycle_count)?`${snapshot.pump_cycle_count}`:"Not reported",category:"sensors",show:true},
@@ -1756,186 +1781,30 @@ function renderDeviceInfo(snapshot,systemStatus,monitoringSummary,serviceConfig,
     {label:"Cloud Relay",value:relay.enabled?`Enabled, ${relay.pending_count||0} pending`:"Disabled",show:Boolean(relay.enabled)},
     {label:"Relay Last Success",value:formatInfoDateTime(relay.last_success_at)},
     {label:"Relay Last Error",value:relay.last_error?`${relay.last_error}${relay.last_status_code?` (${relay.last_status_code})`:""}`:"No relay error reported",show:Boolean(relay.last_error)},
-  ].filter((item)=>item.show!==false&&(showAllDetails||isReportedInfoValue(item.value)));
+  ];
+  const overviewLabels=new Set([
+    "Firmware","Configuration","Water Routing","Slave Status","Upper Sensor","Upper Sensor Source",
+    "Source Tank Sensor","Inlet Motorized Valve","Inlet Selected Path","Inlet Valve Feedback",
+    "Outlet Motorized Valve","Outlet Selected Path","Outlet Valve Feedback","Tank Capacity","Tank Height",
+    "Source Capacity","Source Height","Auto Start Threshold","Auto Stop Threshold","Water Depth",
+    "Source Water Depth","Simulator","Physical Pump State","Pump Confirmation","Local Device IP","Slave Device IP"
+  ]);
+  const unusedInfoValue=(value)=>/^(--|disabled|off|none|not reported|waiting for peer|distance not reported|source mode not reported|channel not reported|local ip not reported|heap not reported|slave heap not reported|uptime not reported|slave uptime not reported)$/i.test(String(value??"").trim());
+  const visibleItems=items.filter((item)=>item.show!==false&&overviewLabels.has(item.label)&&isReportedInfoValue(item.value)&&!unusedInfoValue(item.value));
   const categoryFor=(label)=>{const text=label.toLowerCase();if(/firmware|architecture/.test(text))return"firmware";if(/sensor|echo|depth|tank|level/.test(text))return"sensors";if(/peer|network|ip|channel|relay|reachability/.test(text))return"network";if(/memory|uptime|error|packet/.test(text))return"diagnostics";if(/auto|service|simulator|configuration|sso|buzzer|led/.test(text))return"configuration";return"overview";};
-  setStableHtml(root,items.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
-  applyInfoTab();
+  setStableHtml(root,visibleItems.map(({label,value,category})=>`<div class="info-item" data-info-category="${category||categoryFor(label)}"><span class="info-label">${escapeHtml(label)}</span><strong class="info-value">${escapeHtml(infoValue(value))}</strong></div>`).join(""));
 }
-function applyInfoTab(){document.querySelectorAll("#deviceInfoGrid [data-info-category]").forEach((item)=>item.classList.toggle("is-tab-hidden",item.dataset.infoCategory!==activeInfoTab));document.querySelectorAll("[data-info-tab]").forEach((button)=>button.classList.toggle("is-active",button.dataset.infoTab===activeInfoTab));}
-function uniqueFeedItems(items){
-  const seen=new Set();
-  return (items||[]).filter((item)=>{
-    const key=[item.message||item.kind||"event",item.severity||"info"].map((part)=>String(part).trim().toLowerCase()).join("|");
-    if(seen.has(key))return false;
-    seen.add(key);
-    return true;
-  });
-}
-function renderList(id,items,emptyText,formatter){
-  const root=document.getElementById(id);
-  if(!root)return;
-  if(!items.length){
-    setStableHtml(root,`<li><div class="helper-text">${escapeHtml(emptyText)}</div></li>`);
-    return;
-  }
-  setStableHtml(root,items.map((item)=>`<li>${formatter(item)}</li>`).join(""));
-}
-function pairedSlaveDeviceId(deviceId){
-  const parts=String(deviceId||"").split("-");
-  if(parts.length===5&&parts[0]==="swt"&&parts[1]==="000"){
-    parts[1]="100";
-    return parts.join("-");
-  }
-  return "";
-}
-function activityNodeLabel(entry){
-  const details=entry?.details||{};
-  const role=String(details.node_role||entry.node_role||"").trim().toLowerCase();
-  const eventDeviceId=String(details.device_id||entry.device_id||"").trim();
-  const slaveDeviceId=pairedSlaveDeviceId(DEVICE_ID);
-  if(role.includes("slave")||(slaveDeviceId&&eventDeviceId===slaveDeviceId))return "Slave";
-  if(role.includes("master"))return "Master";
-  return "Master";
-}
-function activityMeta(entry){
-  const parts=[];
-  if(entry.kind)parts.push(titleCase(entry.kind));
-  if(entry.device_id||entry.details?.device_id)parts.push(entry.device_id||entry.details.device_id);
-  const details=entry.details||{};
-  if(details.ping_target)parts.push(`Ping ${titleCase(details.ping_target)}`);
-  if(details.ping_status)parts.push(`Result ${details.ping_status}`);
-  if(details.last_ping_target)parts.push(`Reported ping ${titleCase(details.last_ping_target)}`);
-  if(details.last_ping_status)parts.push(`Reported ${details.last_ping_status}`);
-  if(details.last_ping_response_ms!==undefined&&details.last_ping_response_ms!==null)parts.push(`Response ${details.last_ping_response_ms} ms`);
-  if(details.last_ping_age_s!==undefined&&details.last_ping_age_s!==null)parts.push(`Ping age ${formatDurationSeconds(details.last_ping_age_s)}`);
-  if(details.last_ping_nonce!==undefined&&details.last_ping_nonce!==null)parts.push(`Ping nonce ${details.last_ping_nonce}`);
-  if(details.current_status)parts.push("Live snapshot");
-  if(details.status_checked_at)parts.push(`Checked ${formatIstDateTime(details.status_checked_at)}`);
-  if(details.telemetry_status)parts.push(`Telemetry ${details.telemetry_status}`);
-  if(details.configuration_type)parts.push(`Config ${details.configuration_type}`);
-  if(details.upper_sensor_source)parts.push(`Upper ${titleCase(details.upper_sensor_source)}`);
-  if(details.slave_device_enabled_label)parts.push(`Slave ${details.slave_device_enabled_label}`);
-  if(details.source_tank_monitoring_label)parts.push(`Lower ${details.source_tank_monitoring_label}`);
-  if(details.relay_enabled_label)parts.push(`Relay ${details.relay_enabled_label}`);
-  if(details.auto_mode_enabled_label)parts.push(`Auto ${details.auto_mode_enabled_label}`);
-  if(details.cloud_feed_enabled_label)parts.push(`Cloud ${details.cloud_feed_enabled_label}`);
-  if(details.telemetry_service_label)parts.push(`Telemetry svc ${details.telemetry_service_label}`);
-  if(details.command_service_label)parts.push(`Command svc ${details.command_service_label}`);
-  if(details.ota_service_label)parts.push(`OTA svc ${details.ota_service_label}`);
-  if(details.master_status_label)parts.push(`Master ${details.master_status_label}`);
-  if(details.slave_status_label)parts.push(`Slave ${details.slave_status_label}`);
-  if(details.peer_state)parts.push(`Peer ${titleCase(details.peer_state)}`);
-  if(details.saved_peer_channel_label)parts.push(`Saved ch ${details.saved_peer_channel_label}`);
-  else if(details.saved_peer_channel!==undefined&&details.saved_peer_channel!==null)parts.push(`Saved ch ${details.saved_peer_channel}`);
-  if(details.direct_peer_config_channel_label)parts.push(`Configured ch ${details.direct_peer_config_channel_label}`);
-  else if(details.direct_peer_config_channel!==undefined&&details.direct_peer_config_channel!==null)parts.push(`Configured ch ${details.direct_peer_config_channel}`);
-  if(details.direct_peer_wifi_channel_label)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel_label}`);
-  else if(details.direct_peer_wifi_channel!==undefined&&details.direct_peer_wifi_channel!==null)parts.push(`Wi-Fi ch ${details.direct_peer_wifi_channel}`);
-  if(details.direct_peer_last_packet_age_label)parts.push(`Peer age ${details.direct_peer_last_packet_age_label}`);
-  else if(details.direct_peer_last_packet_age_s!==undefined&&details.direct_peer_last_packet_age_s!==null)parts.push(`Peer age ${formatDurationSeconds(details.direct_peer_last_packet_age_s)}`);
-  if(details.direct_peer_last_packet_bytes!==undefined&&details.direct_peer_last_packet_bytes!==null)parts.push(`Peer bytes ${details.direct_peer_last_packet_bytes}`);
-  if(details.direct_peer_last_pong_age_s!==undefined&&details.direct_peer_last_pong_age_s!==null)parts.push(`Pong age ${formatDurationSeconds(details.direct_peer_last_pong_age_s)}`);
-  if(details.direct_peer_last_pong_nonce!==undefined&&details.direct_peer_last_pong_nonce!==null)parts.push(`Pong nonce ${details.direct_peer_last_pong_nonce}`);
-  if(details.direct_peer_remote_mac)parts.push(`MAC ${details.direct_peer_remote_mac}`);
-  if(details.direct_peer_remote_ip)parts.push(`IP ${details.direct_peer_remote_ip}`);
-  if(details.direct_peer_sync_status)parts.push(`Sync ${details.direct_peer_sync_status}`);
-  if(details.direct_peer_sync_pending)parts.push(`Sync pending${details.direct_peer_sync_channel?` ch ${details.direct_peer_sync_channel}`:""}`);
-  if(details.direct_peer_sync_last_ok_age_s!==undefined&&details.direct_peer_sync_last_ok_age_s!==null)parts.push(`Sync OK ${formatDurationSeconds(details.direct_peer_sync_last_ok_age_s)} ago`);
-  if(details.command_summary)parts.push(details.command_summary);
-  if(details.command)parts.push(`Command ${details.command}`);
-  if(details.firmware_log_level)parts.push(`Firmware ${details.firmware_log_level}`);
-  if(details.firmware_role)parts.push(`Role ${titleCase(details.firmware_role)}`);
-  if(details.device_local_url)parts.push(`Local ${details.device_local_url}`);
-  return parts.join(" | ");
-}
-function setButtonDisabled(id,disabled){
-  const node=document.getElementById(id);
-  if(node)node.disabled=disabled;
-}
-function renderActivityTable(){
-  const root=document.getElementById("events");
-  if(!root)return;
-  const filteredEvents=latestEvents.filter((entry)=>{
-    const severity=String(entry?.severity||"info").toLowerCase();
-    const severityMatch=!activitySeverity||(activitySeverity==="danger"?["danger","error","critical"].includes(severity):severity===activitySeverity);
-    const searchMatch=!activitySearch||`${entry?.message||""} ${entry?.kind||""} ${activityNodeLabel(entry)}`.toLowerCase().includes(activitySearch);
-    return severityMatch&&searchMatch;
-  });
-  const total=filteredEvents.length;
-  const pageCount=Math.max(1,Math.ceil(total/activityPageSize));
-  activityPage=Math.min(Math.max(1,activityPage),pageCount);
-  const start=(activityPage-1)*activityPageSize;
-  const pageItems=filteredEvents.slice(start,start+activityPageSize);
-  const count=document.getElementById("activityCount");
-  const status=document.getElementById("activityPageStatus");
-  if(count){
-    const first=total?start+1:0;
-    const last=total?Math.min(start+pageItems.length,total):0;
-    count.textContent=total?`Showing ${first}-${last} of ${total} logs`:"No activity logs yet";
-  }
-  if(status)status.textContent=`Page ${activityPage} of ${pageCount}`;
-  setButtonDisabled("activityFirst",activityPage<=1);
-  setButtonDisabled("activityPrev",activityPage<=1);
-  setButtonDisabled("activityNext",activityPage>=pageCount);
-  setButtonDisabled("activityLast",activityPage>=pageCount);
-  if(!pageItems.length){
-    setStableHtml(root,`<tr><td colspan="4"><div class="helper-text">No activity logs for this device pair.</div></td></tr>`);
-    return;
-  }
-  setStableHtml(root,pageItems.map((entry)=>`
-    <tr class="${["danger","error","critical"].includes(String(entry.severity||"").toLowerCase())?"log-error":String(entry.severity||"").toLowerCase().includes("warn")?"log-warning":""}">
-      <td>${escapeHtml(formatIstDateTime(entry.time))}</td>
-      <td><span class="activity-node">${escapeHtml(activityNodeLabel(entry))}</span></td>
-      <td><div class="activity-message">${escapeHtml(entry.message||"Event")}</div><div class="activity-meta">${escapeHtml(activityMeta(entry))}</div></td>
-      <td><span class="status-pill ${severityTone(entry.severity)}">${escapeHtml(titleCase(entry.severity||"info"))}</span></td>
-    </tr>
-  `).join(""));
-}
-function setActivityPage(nextPage){
-  activityPage=nextPage;
-  renderActivityTable();
-}
-async function refreshActivityEvents({limit=ACTIVITY_FETCH_LIMIT}={}){
-  if(activityRefreshInFlight||activityPaused)return;
-  activityRefreshInFlight=true;
-  try{
-    const eventsUrl=new URL("/events",window.location.origin);
-    eventsUrl.searchParams.set("device_id",DEVICE_ID);
-    eventsUrl.searchParams.set("limit",String(Math.max(10,Math.min(Number(limit)||ACTIVITY_FETCH_LIMIT,ACTIVITY_FETCH_LIMIT))));
-    const response=await fetch(eventsUrl.toString(),{cache:"no-store"});
-    const data=await response.json();
-    if(response.ok&&Array.isArray(data)){
-      const usableEvents=normalizeActivityEvents(data);
-      if(usableEvents.length){
-        latestEvents=usableEvents;
-        renderActivityTable();
-      }else if(!latestEvents.length){
-        latestEvents=buildClientSnapshotActivityEvents(INITIAL_SNAPSHOT||{},INITIAL_SYSTEM_STATUS||{},INITIAL_SERVICE_CONFIG||{},INITIAL_AUTOMATION_SETTINGS||{});
-        renderActivityTable();
-      }
-    }
-  }catch(error){
-    console.log("activity refresh error",error);
-  }finally{
-    activityRefreshInFlight=false;
-  }
-}
-async function loadDevice({silent=false,includeHistory=null,includeEvents=null}={}){
+async function loadDevice({silent=false,includeHistory=null}={}){
   if(deviceRefreshInFlight)return;
   deviceRefreshInFlight=true;
   const includeHeavy=!silent&&!latestHistory.length;
   const shouldIncludeHistory=includeHistory===null?includeHeavy:Boolean(includeHistory);
-  const shouldIncludeEvents=includeEvents===null?includeHeavy:Boolean(includeEvents);
   try{
   const statusUrl=new URL(`/devices/${encodeURIComponent(DEVICE_ID)}/status`,window.location.origin);
   if(!shouldIncludeHistory){
     statusUrl.searchParams.set("history","0");
   }
-  if(shouldIncludeEvents){
-    statusUrl.searchParams.set("events","1");
-  }else{
-    statusUrl.searchParams.set("events","0");
-  }
+  statusUrl.searchParams.set("events","0");
   statusUrl.searchParams.set("alerts","0");
   statusUrl.searchParams.set("audit","0");
   statusUrl.searchParams.set("details",silent?"0":"1");
@@ -1998,12 +1867,17 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   setText("deviceHealthScore",snapshot.tank_health!==undefined&&snapshot.tank_health!==null?`${Number(snapshot.tank_health).toFixed(0)}%`:"--");
   setText("deviceHealthNote",firstReason(snapshot.tank_health_reasons,"Sensors, telemetry, pump, and alerts."));
   setText("firmwareVersion",snapshot.firmware_version||snapshot.swt_version||"--");
+  setText("wifiSsid",snapshot.wifi_ssid||"Not connected");
   setText("rssiSignal",snapshot.wifi_rssi!==undefined&&snapshot.wifi_rssi!==null?`${snapshot.wifi_rssi} dBm`:"--");
   setText("rssiNote",snapshot.signal_quality||systemStatus.signal_quality||"Signal not reported");
   setText("deviceUptime",snapshot.uptime_label||snapshot.runtime||"--");
   const lastSeen=document.getElementById("lastSeenAge");if(lastSeen){lastSeen.dataset.ageSeconds=snapshot.seconds_since_sync??"";lastSeen.dataset.loadedAt=String(Date.now());lastSeen.textContent=snapshot.seconds_since_sync!==undefined&&snapshot.seconds_since_sync!==null?`${formatDurationSeconds(snapshot.seconds_since_sync)} ago`:"--";}
   setText("lastSeenTimestamp",lastSync?formatLocaleDateTime(lastSync):"No communication yet");
   setVisible("sourceCard",sourceMonitoringActive);
+  setVisible("lowerTurbidityCard",Boolean(serviceConfig?.master_turbidity_enabled));
+  setVisible("upperTurbidityCard",Boolean(serviceConfig?.slave_turbidity_enabled));
+  setVisible("municipalSensorCard",Boolean(serviceConfig?.municipal_sensor_enabled));
+  setVisible("optionalOverviewGrid",sourceMonitoringActive||Boolean(serviceConfig?.master_turbidity_enabled)||Boolean(serviceConfig?.slave_turbidity_enabled)||Boolean(serviceConfig?.municipal_sensor_enabled));
   if(sourceMonitoringActive){
     setText("sourceLevel",formatPercent(snapshot.lower_tank_level));
     setText("sourceInfo",snapshot.lower_water_available_label||snapshot.lower_sensor_info||"--");
@@ -2044,35 +1918,15 @@ async function loadDevice({silent=false,includeHistory=null,includeEvents=null}=
   renderMemoryHealth(latestHistory,snapshot,serviceConfig);
   updateSimulatorControls(snapshot,serviceConfig);
 
-  if(Array.isArray(data.events)){
-    const usableEvents=normalizeActivityEvents(data.events);
-    if(usableEvents.length){
-      latestEvents=usableEvents;
-    }else if(!latestEvents.length){
-      latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
-    }
-  }else if(!latestEvents.length){
-    latestEvents=buildClientSnapshotActivityEvents(snapshot,systemStatus,serviceConfig,automationSettings);
-  }
-  renderActivityTable();
-
   const connectionClass=`summary-value ${telemetryTone(telemetry)}`;
   setClassName("connection",connectionClass);
   }finally{
     deviceRefreshInFlight=false;
   }
 }
-document.getElementById("activityPageSize")?.addEventListener("change",(event)=>{
-  activityPageSize=Number(event.target.value)||10;
-  activityPage=1;
-  renderActivityTable();
-  if(activityPageSize>latestEvents.length){
-    refreshActivityEvents({limit:activityPageSize});
-  }
-});
 const diagnosticTools=document.getElementById("diagnosticTools");
 [document.getElementById("deviceCommandsCard"),document.getElementById("deviceSimulatorsSection")].forEach((card)=>{if(card&&diagnosticTools)diagnosticTools.appendChild(card);});
-const devicePages={overview:"device-overview",diagnostics:"device-memory",configuration:"device-configuration",firmware:"device-firmware",logs:"device-logs"};
+const devicePages={overview:"device-overview",diagnostics:"device-memory",configuration:"device-configuration",firmware:"device-firmware"};
 function activateDevicePage(page,{updateHash=true}={}){
     const active=devicePages[page]?page:"overview";
     document.querySelectorAll("[data-device-page]").forEach((panel)=>{panel.hidden=panel.dataset.devicePage!==active;});
@@ -2084,49 +1938,66 @@ document.querySelectorAll("[data-device-tab]").forEach((link)=>link.addEventList
 document.querySelectorAll(".device-action-group a[href^='#']").forEach((link)=>link.addEventListener("click",(event)=>{const target=link.getAttribute("href").slice(1);const page=Object.keys(devicePages).find((key)=>devicePages[key]===target);if(page){event.preventDefault();activateDevicePage(page);}}));
 const initialPage=Object.keys(devicePages).find((key)=>`#${devicePages[key]}`===window.location.hash)||"overview";
 activateDevicePage(initialPage,{updateHash:false});
-document.querySelectorAll("[data-info-tab]").forEach((button)=>button.addEventListener("click",()=>{activeInfoTab=button.dataset.infoTab||"overview";applyInfoTab();}));
 document.getElementById("deviceRefreshButton")?.addEventListener("click",()=>loadDevice({silent:false,includeHistory:true,includeEvents:true}));
 document.getElementById("deviceSaveConfigButton")?.addEventListener("click",()=>{document.querySelector(".config-form")?.requestSubmit();});
 document.getElementById("deviceRestartButton")?.addEventListener("click",()=>{document.querySelector('form[action$="/reboot"]')?.requestSubmit();});
 [["auto_start_pct","autoStartOutput"],["auto_stop_pct","autoStopOutput"]].forEach(([inputId,outputId])=>document.getElementById(inputId)?.addEventListener("input",(event)=>setText(outputId,`${event.target.value}%`)));
-document.getElementById("activitySearch")?.addEventListener("input",(event)=>{activitySearch=String(event.target.value||"").trim().toLowerCase();activityPage=1;renderActivityTable();});
-document.getElementById("activitySeverity")?.addEventListener("change",(event)=>{activitySeverity=event.target.value||"";activityPage=1;renderActivityTable();});
-document.getElementById("activityPause")?.addEventListener("click",(event)=>{activityPaused=!activityPaused;event.currentTarget.textContent=activityPaused?"Resume auto-scroll":"Pause auto-scroll";});
-function activityLogText(){return latestEvents.map((entry)=>`${entry.time||"--"}\t${activityNodeLabel(entry)}\t${entry.severity||"info"}\t${entry.message||"Event"}`).join("\n");}
-document.getElementById("activityCopy")?.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(activityLogText());}catch(error){}});
-document.getElementById("activityDownload")?.addEventListener("click",()=>{const blob=new Blob([activityLogText()],{type:"text/plain;charset=utf-8"});const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`${DEVICE_ID}-activity.log`;link.click();URL.revokeObjectURL(link.href);});
 function refreshLastSeenAge(){const node=document.getElementById("lastSeenAge");if(!node||node.dataset.ageSeconds==="")return;const base=Number(node.dataset.ageSeconds||0);const loaded=Number(node.dataset.loadedAt||Date.now());if(!node.dataset.loadedAt)node.dataset.loadedAt=String(Date.now());node.textContent=`${formatDurationSeconds(base+Math.max(0,(Date.now()-loaded)/1000))} ago`;}
 refreshLastSeenAge();window.setInterval(refreshLastSeenAge,30000);
-document.getElementById("activityFirst")?.addEventListener("click",()=>setActivityPage(1));
-  document.getElementById("activityPrev")?.addEventListener("click",()=>setActivityPage(activityPage-1));
-  document.getElementById("activityNext")?.addEventListener("click",()=>setActivityPage(activityPage+1));
-document.getElementById("activityLast")?.addEventListener("click",()=>{
-    setActivityPage(Math.max(1,Math.ceil(latestEvents.length/activityPageSize)));
-  });
-if(latestEvents.length)renderActivityTable();
 function startInitialRefresh(){
-  loadDevice({silent:true,includeHistory:false,includeEvents:false});
-  window.setTimeout(()=>refreshActivityEvents({limit:ACTIVITY_INITIAL_FETCH_LIMIT}),700);
-  window.setTimeout(()=>loadDevice({silent:true,includeHistory:true,includeEvents:false}),1600);
+  loadDevice({silent:true,includeHistory:false});
+  window.setTimeout(()=>loadDevice({silent:true,includeHistory:true}),1600);
 }
 if(window.requestAnimationFrame)window.requestAnimationFrame(startInitialRefresh);
 else startInitialRefresh();
-activityRefreshTimer=setInterval(()=>{
-  if(document.hidden)return;
-  refreshActivityEvents({limit:ACTIVITY_FETCH_LIMIT});
-},ACTIVITY_REFRESH_MS);
 deviceRefreshTimer=setInterval(()=>{
   if(document.hidden)return;
   loadDevice({silent:true});
 },DEVICE_REFRESH_MS);
 window.swtPageTeardown=()=>{
   if(deviceRefreshTimer)clearInterval(deviceRefreshTimer);
-  if(activityRefreshTimer)clearInterval(activityRefreshTimer);
 };
 })();
 </script>
 <script>
 (()=>{
+const multiTankOption=document.getElementById("multiTankOption");
+const multiTankConfiguration=document.getElementById("multiTankConfiguration");
+function syncMultiTankConfiguration(){
+  if(!multiTankOption||!multiTankConfiguration)return;
+  const enabled=multiTankOption.checked;
+  multiTankConfiguration.hidden=!enabled;
+  multiTankConfiguration.classList.toggle("hidden-section",!enabled);
+}
+multiTankOption?.addEventListener("change",syncMultiTankConfiguration);
+syncMultiTankConfiguration();
+const destinationTankSlots=Array.from(document.querySelectorAll("[data-destination-tank-index]"))
+  .sort((left,right)=>Number(left.dataset.destinationTankIndex)-Number(right.dataset.destinationTankIndex));
+const addDestinationTank=document.getElementById("addDestinationTank");
+const destinationTankCount=document.getElementById("destinationTankCount");
+let visibleDestinationTankCount=Math.max(1,...destinationTankSlots
+  .filter((slot)=>slot.querySelector('input[name$="_enabled"]')?.checked)
+  .map((slot)=>Number(slot.dataset.destinationTankIndex)||1));
+function renderDestinationTankSlots(){
+  visibleDestinationTankCount=Math.min(destinationTankSlots.length,visibleDestinationTankCount);
+  destinationTankSlots.forEach((slot,index)=>{
+    slot.classList.toggle("hidden-section",index>=visibleDestinationTankCount);
+  });
+  if(destinationTankCount){
+    destinationTankCount.textContent=`${visibleDestinationTankCount} of ${destinationTankSlots.length} overhead tank slots shown`;
+  }
+  if(addDestinationTank){
+    const complete=visibleDestinationTankCount>=destinationTankSlots.length;
+    addDestinationTank.hidden=complete;
+    addDestinationTank.disabled=complete;
+  }
+}
+addDestinationTank?.addEventListener("click",()=>{
+  visibleDestinationTankCount=Math.min(destinationTankSlots.length,visibleDestinationTankCount+1);
+  renderDestinationTankSlots();
+  destinationTankSlots[visibleDestinationTankCount-1]?.scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+renderDestinationTankSlots();
 document.querySelectorAll(".tank-setup-form").forEach((form)=>{
   const heightInput=form.querySelector("[data-tank-setup-height]");
   const capacityInput=form.querySelector("[data-tank-setup-capacity]");

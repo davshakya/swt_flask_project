@@ -83,6 +83,7 @@ def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
         "id": 42,
         "version_label": "26.1.700",
         "md5": "0123456789abcdef0123456789abcdef",
+        "size_bytes": 4096,
     }
     auth = build_ota_authorization("SWT-000-000-000-001", artifact, "secret-device-key", now=1_800_000_000)
 
@@ -96,6 +97,7 @@ def test_ota_authorization_is_artifact_scoped_and_hmac_signed():
             auth["version"],
             auth["md5"],
             str(auth["expires_at"]),
+            str(auth["size_bytes"]),
         )
     )
     assert auth["signature"] == hmac.new(
@@ -109,3 +111,32 @@ def test_test_device_slave_role_uses_the_slave_mcu_identity():
     assert firmware_role_device_id("swt-test-000-000-001", "master") == "swt-test-000-000-001"
     assert firmware_role_device_id("swt-test-000-000-001", "slave") == "swt-test-100-000-001"
     assert firmware_role_device_id("swt-000-000-000-001", "slave") == "swt-100-000-000-001"
+
+
+def test_ota_image_size_is_signed_and_required():
+    artifact = {"id": 42, "version_label": "26.10.20",
+                "md5": "0123456789abcdef0123456789abcdef", "size_bytes": 4096}
+    original = build_ota_authorization("swt-000-001", artifact, "test-only-key", now=1_800_000_000)
+    changed = build_ota_authorization("swt-000-001", {**artifact, "size_bytes": 4097}, "test-only-key", now=1_800_000_000)
+    assert original["signature"] != changed["signature"]
+    for size in (None, 0, -1, "invalid", 0x100000000):
+        assert build_ota_authorization("swt-000-001", {**artifact, "size_bytes": size}, "test-only-key") is None
+    assert firmware_role_device_id("swt-test-000-000-001", "repeater1") == "swt-test-rep1-000-001"
+    assert firmware_role_device_id("swt-test-000-000-001", "repeater2") == "swt-test-rep2-000-001"
+
+
+def test_flask_keeps_android_ota_without_direct_lan_install_cards():
+    server_source = (PROJECT_ROOT / "flask_app" / "server.py").read_text(encoding="utf-8")
+    template_source = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
+
+    assert "Android App OTA Trigger" in template_source
+    assert "Queue Android OTA" in template_source
+    assert "Direct LAN Install" not in template_source
+    assert "via LAN" not in template_source
+    assert "admin_device_detail_lan_firmware_install" not in template_source
+    assert '@app.route("/devices/<device_id>/firmware/lan-install", methods=["POST"])' in server_source
+    assert "def admin_device_detail_lan_firmware_install(device_id):" in server_source
+    assert 'normalized_role not in {"master", "slave"}' in server_source
+    assert "is_private_device_base_url(base_url)" in server_source
+    assert '"X-OTA-Signature": authorization["signature"]' in server_source
+    assert 'allow_redirects=False' in server_source

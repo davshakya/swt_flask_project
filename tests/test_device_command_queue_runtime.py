@@ -40,9 +40,47 @@ def test_motorized_valve_feature_defaults_off_and_persists_independently():
         assert saved["municipal_sensor_enabled"] is True
         assert saved["municipal_valve_enabled"] is True
         assert saved["source_outlet_valve_enabled"] is True
-        assert server.build_device_service_command(saved).startswith("SERVICECFG11:")
+        assert server.build_device_service_command(saved).startswith("SERVICECFG12:")
         fields = server.build_device_service_command(saved).split(":")
         assert fields[13:15] == ["1", "1"]
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+
+
+def test_municipal_detection_sensors_are_mutually_exclusive():
+    device_id = "swt-municipal-choice-test-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
+    try:
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=True,
+            water_flow_sensor_enabled=True,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is True
+        assert saved["water_pressure_sensor_enabled"] is False
+        assert server.build_device_service_command(saved).split(":")[-3:-1] == ["1", "0"]
+
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=True,
+            water_flow_sensor_enabled=False,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is False
+        assert saved["water_pressure_sensor_enabled"] is True
+        assert server.build_device_service_command(saved).split(":")[-3:-1] == ["0", "1"]
+
+        saved = server.upsert_device_service_config(
+            device_id,
+            municipal_sensor_enabled=False,
+            water_flow_sensor_enabled=True,
+            water_pressure_sensor_enabled=True,
+        )
+        assert saved["water_flow_sensor_enabled"] is False
+        assert saved["water_pressure_sensor_enabled"] is False
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM device_service_configs WHERE device_id = ?", (device_id,))
@@ -92,9 +130,110 @@ def test_turbidity_enablement_survives_old_snapshot_and_requeues_servicecfg9(mon
     )
     sync = server.build_runtime_sync_command(device_id, snapshot=old_snapshot)
     assert sync == {"command": server.build_device_service_command(desired), "reason": "service_config"}
-    assert sync["command"].startswith("SERVICECFG11:")
+    assert sync["command"].startswith("SERVICECFG12:")
     fields = sync["command"].split(":")
     assert fields[11:15] == ["1", "1", "0", "0"]
+
+
+def test_multi_tank_service_defaults_off_and_can_be_enabled_from_flask():
+    device_id = "swt-multi-tank-service-001"
+    with server.get_db() as db:
+        server.ensure_device_multi_tank_configs_table(db)
+        db.execute("DELETE FROM device_multi_tank_configs WHERE device_id = ?", (device_id,))
+    try:
+        assert server.fetch_device_service_config(device_id)["multi_tank_enabled"] is False
+        server.set_device_multi_tank_enabled(device_id, True)
+        enabled = server.fetch_device_service_config(device_id)
+        assert enabled["multi_tank_enabled"] is True
+        assert server.build_device_service_command(enabled).startswith("SERVICECFG12:")
+        assert server.build_device_service_command(enabled).split(":")[-1] == "1"
+        server.set_device_multi_tank_enabled(device_id, False)
+        assert server.fetch_device_service_config(device_id)["multi_tank_enabled"] is False
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_multi_tank_configs WHERE device_id = ?", (device_id,))
+
+
+def test_multiple_slave_tanks_persist_with_independent_valve_owners_and_thresholds():
+    device_id = "swt-multi-slave-config-001"
+    with server.get_db() as db:
+        server.ensure_device_multi_tank_configs_table(db)
+        db.execute("DELETE FROM device_destination_tanks WHERE device_id = ?", (device_id,))
+    try:
+        saved = server.save_device_destination_tanks(device_id, [
+            {
+                "enabled": True,
+                "tank_name": "East Tank",
+                "slave_device_id": "swt-100-000-010-001",
+                "valve_owner": "slave",
+                "priority": 1,
+                "start_pct": 25,
+                "stop_pct": 95,
+            },
+            {
+                "enabled": True,
+                "tank_name": "West Tank",
+                "slave_device_id": "swt-101-000-010-001",
+                "valve_owner": "master",
+                "priority": 2,
+                "start_pct": 30,
+                "stop_pct": 90,
+            },
+        ])
+        assert len(saved) == server.MAX_DESTINATION_TANKS
+        loaded = server.fetch_device_service_config(device_id)["destination_tanks"]
+        assert loaded[0]["slave_device_id"] == "swt-100-000-010-001"
+        assert loaded[0]["valve_owner"] == "slave"
+        assert loaded[1]["slave_device_id"] == "swt-101-000-010-001"
+        assert loaded[1]["valve_owner"] == "master"
+        assert loaded[1]["stop_pct"] == 90.0
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_destination_tanks WHERE device_id = ?", (device_id,))
+
+
+def test_multiple_slave_tanks_reject_duplicate_enabled_slave_ids():
+    duplicate = {
+        "enabled": True,
+        "slave_device_id": "swt-100-000-010-001",
+        "valve_owner": "slave",
+        "priority": 1,
+        "start_pct": 30,
+        "stop_pct": 95,
+    }
+    try:
+        server.normalize_destination_tanks([duplicate, dict(duplicate)])
+        assert False, "duplicate Slave IDs must be rejected"
+    except ValueError as exc:
+        assert "already assigned" in str(exc)
+
+
+def test_multi_tank_commands_are_complete_transaction_and_address_each_slave():
+    commands = server.build_multi_tank_configuration_commands({"destination_tanks": [{
+        "enabled": True,
+        "slave_device_id": "swt-100-000-010-001",
+        "valve_owner": "slave",
+        "priority": 1,
+        "start_pct": 25,
+        "stop_pct": 95,
+    }]})
+    assert len(commands) == server.MAX_DESTINATION_TANKS + 2
+    assert commands[0] == "MTANKBEGIN"
+    assert commands[1] == "MTANKCFG:0:1:slave:1:25.0:95.0:swt-100-000-010-001"
+    assert commands[-1] == "MTANKCOMMIT"
+    assert len({server.device_command_family(command) for command in commands}) == len(commands)
+
+
+def test_multi_tank_rejects_slave_id_too_long_for_peer_packet():
+    try:
+        server.normalize_destination_tanks([{
+            "enabled": True,
+            "slave_device_id": "s" * 24,
+            "valve_owner": "slave",
+        }])
+        assert False, "24-byte Slave IDs do not leave room for a packet terminator"
+    except ValueError as exc:
+        assert "at most 23" in str(exc)
 
 
 def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupes_family():
@@ -172,6 +311,24 @@ def test_device_command_queue_serves_pending_config_commands_in_order_and_dedupe
             ).fetchall()
 
         assert [row["command"] for row in pending_rows] == ["CONFIG_UPPER:60.0:1000.0"]
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+
+
+def test_ping_command_jumps_ahead_of_routine_simulator_commands():
+    device_id = "swt-ping-priority-test-001"
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))
+    try:
+        server.queue_device_command("SIMULATOR_OFF", device_id)
+        server.queue_device_command("MUNICIPAL_SIMULATOR_OFF", device_id)
+        ping_id = server.queue_device_command("PING_MASTER:492095472", device_id)
+
+        queued = server.peek_queued_command(device_id)
+
+        assert queued["id"] == ping_id
+        assert queued["command"] == "PING_MASTER:492095472"
     finally:
         with server.get_db() as db:
             db.execute("DELETE FROM device_command_queue WHERE target_device = ?", (device_id,))

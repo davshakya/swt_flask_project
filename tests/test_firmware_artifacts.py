@@ -7,9 +7,20 @@ from flask_app.firmware_artifacts import (
     build_firmware_artifact_file_response,
     detect_firmware_binary_build_flags,
     detect_firmware_binary_role,
+    extract_firmware_version_label,
     validate_firmware_binary_build_flags,
     validate_firmware_binary_role,
 )
+
+
+def test_extract_firmware_version_accepts_current_and_legacy_formats():
+    assert extract_firmware_version_label(b"demo v26.8.614 SWT_FIRMWARE_ROLE=master") == "v26.8.614"
+    assert extract_firmware_version_label(b"demo 26.1.613 SWT_FIRMWARE_ROLE=master") == "26.1.613"
+
+
+def test_extract_firmware_version_rejects_invalid_current_month():
+    with pytest.raises(ValueError, match=r"vYY\.M\.increment"):
+        extract_firmware_version_label(b"demo v26.13.614 SWT_FIRMWARE_ROLE=master")
 
 
 class FakeResponse:
@@ -22,6 +33,14 @@ class FakeResponse:
 def test_detect_firmware_binary_role_from_embedded_marker():
     assert detect_firmware_binary_role(b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=master") == "master"
     assert detect_firmware_binary_role(b"\xe9demo 26.1.276 SWT_FIRMWARE_ROLE=slave") == "slave"
+    assert detect_firmware_binary_role(b"\xe9demo v26.9.3 SWT repeater started swt_repeater") == "repeater"
+
+
+def test_repeater_binary_can_be_stored_in_either_independent_slot():
+    payload = b"\xe9demo v26.9.3 SWT repeater started swt_repeater"
+
+    assert validate_firmware_binary_role(payload, "repeater1") == "repeater"
+    assert validate_firmware_binary_role(payload, "repeater2") == "repeater"
 
 
 def test_detect_slave_role_ignores_generic_master_route_strings():

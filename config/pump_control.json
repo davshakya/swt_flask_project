@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "auto_start_pct": {
+    "default": 30.0,
+    "minimum": 0.0,
+    "maximum": 95.0
+  },
+  "auto_stop_pct": {
+    "default": 95.0,
+    "minimum": 5.0,
+    "maximum": 100.0
+  }
+}

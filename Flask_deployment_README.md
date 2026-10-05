@@ -1,6 +1,18 @@
 # SaleWell Smart Tank Flask Deployment Guide
 
-Last refreshed: `2026-08-11`
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
+Last refreshed: `2026-10-03`
+
+## Firmware deployment coordination
+
+Firmware now offers an ESP32 slave (`swt_esp32_slave`) alongside the existing
+ESP8266 slave. Select artifacts for the actual board when preparing upgrades.
+Production packaging disables simulation by default and rejects enabled
+simulation; test packaging enables support by default. Maximum ESP32 transmit
+power is a firmware setting and requires flashing both boards, not redeploying
+Flask. Follow the [firmware guide](../swt_firmware_project/README.md) for the
+build, hardware binding, and separate installation steps.
 
 > Documentation map: use [`docs/README.md`](docs/README.md) to find customer, installer, support, development, and production documents. This file is only for cPanel/Passenger deployment.
 
@@ -109,6 +121,7 @@ Upload the whole project folder, including:
 - `passenger_wsgi.py`
 - `requirements.txt`
 - `flask_app/`
+- `config/pump_control.json`
 - `device.env`
 
 Do not upload:
@@ -177,6 +190,8 @@ Why:
 
 Create `device.env` before first production boot, starting from
 `device.env.example`. Legacy `.env` and `flask_app/.env` files are not loaded.
+
+The tracked `config/pump_control.json` file is also required. Do not create it manually on the server and do not place it in `/home/<user>/repositories/config`; it must deploy as `<application-root>/config/pump_control.json`. Passenger imports this file during startup.
 
 ### Recommended `device.env` values
 
@@ -446,6 +461,10 @@ After the basic smoke test, also verify:
 
 ### 500 Internal Server Error
 
+If the Passenger log contains `FileNotFoundError` for `config/pump_control.json`, the deployment omitted the tracked config directory or used an older upload filter. Upload the complete `config/` directory, confirm `<application-root>/config/pump_control.json` exists, and restart the Python application.
+
+The warning `Telemetry history is capped at 65000 rows` is informational and does not cause an HTTP 500. MySQL `server has gone away`, connection resets, and lock-wait timeouts are separate database-capacity/connection issues; investigate them only after the application imports successfully.
+
 Check:
 
 - `stderr.log` in the app directory
@@ -494,3 +513,10 @@ Check:
 Upload repo -> create Passenger app -> set device.env ->
 install requirements -> restart app -> test /health and /login/admin
 ```
+
+
+## Android changes reviewed 2026-10-01
+
+Android APK packaging now increments a persistent local counter even after clean. On a fresh build worker, seed SWT_ANDROID_VERSION_CODE above the highest published code. Upload the newly built APK and verify its embedded version; changing a Flask environment value does not upgrade an existing artifact. Local Android alert read status and local telemetry recovery do not mutate backend alert records.
+
+See [Android alerts, support, and build versions](../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

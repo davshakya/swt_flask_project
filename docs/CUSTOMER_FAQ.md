@@ -239,3 +239,10 @@ for the current written warranty applicable to the quoted product and service.
 
 Yes. Enterprise Modular supports custom dashboards, integrations, multi-site
 deployments, reporting, user roles, and bulk rollout planning.
+
+
+## Android changes reviewed 2026-10-01
+
+The bell number means unread active alerts in the recent service history. Open Alerts to read them and clear their count; this does not mean the underlying problem is fixed. Resolved issues remain in the last-three history. Fresh local readings can clear an old ?Tank update delayed? message locally, but the cloud may still need an update. Use Email Support: support@salewell.co.in in the app menu to prepare a support email.
+
+See [Android alerts, support, and build versions](../../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

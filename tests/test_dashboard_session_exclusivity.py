@@ -59,7 +59,7 @@ def test_dashboard_session_validation_rejects_replaced_browser_session():
     assert "clear_dashboard_identity()" in function_source
 
 
-def test_mobile_tokens_register_and_validate_one_active_android_session_per_user():
+def test_mobile_tokens_register_and_validate_limited_android_sessions_per_user():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     issue_start = source.index("def issue_mobile_token(user):")
     issue_source = source[issue_start : source.index("\ndef resolve_mobile_user", issue_start)]
@@ -71,8 +71,6 @@ def test_mobile_tokens_register_and_validate_one_active_android_session_per_user
     assert '"platform_session_id": platform_session_id' in issue_source
     assert "active_platform_session_matches(" in resolve_source
     assert "SESSION_PLATFORM_ANDROID" in resolve_source
-    assert "register_active_platform_session(" in resolve_source
-    assert "session_id=platform_session_id" in resolve_source
     assert 'g.mobile_auth_error = "session_replaced"' in resolve_source
 
 
@@ -87,11 +85,11 @@ def test_android_sessions_use_configurable_sso_limit():
     assert "def active_platform_session_limit(" in source
     assert "android_sso_session_limit" in source
     assert "serialize_active_platform_sessions(active_sessions)" in register_source
-    assert "active_sessions[-session_limit:]" not in register_source
+    assert "active_sessions[-session_limit:]" in register_source
     assert "active_platform_sessions(platform, role, username=username, device_id=device_id)" in validate_source
 
 
-def test_mobile_login_preserves_existing_android_sessions():
+def test_mobile_login_replaces_oldest_android_session_at_limit():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = source.index("def register_active_platform_session(")
     function_source = source[function_start : source.index("\ndef active_platform_session_matches", function_start)]
@@ -99,7 +97,7 @@ def test_mobile_login_preserves_existing_android_sessions():
     assert "android_sso_login_blocked(" not in function_source
     assert '"code": "android_session_limit_reached"' not in function_source
     assert "active_sessions.append(next_session_id)" in function_source
-    assert "active_platform_session_limit(" not in function_source
+    assert "active_platform_session_limit(" in function_source
 
 
 def test_mobile_logout_clears_the_current_android_session():
@@ -125,15 +123,14 @@ def test_admin_mobile_logout_rotates_mobile_auth_marker():
     assert 'build_auth_marker("customer", normalized_device_id, password_hash, current_mobile_session_epoch(normalized_device_id))' in source
 
 
-def test_admin_runtime_configuration_save_preserves_android_sessions():
+def test_admin_runtime_configuration_enforces_android_session_limit():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     route_start = source.index('@app.route("/devices/<device_id>/configuration", methods=["POST"])')
     function_source = source[route_start : source.index('\n\n@app.route("/devices/<device_id>/mobile/logout"', route_start)]
 
-    assert "clear_active_platform_session(" not in function_source
-    assert "SESSION_PLATFORM_ANDROID" not in function_source
-    assert '"android_sessions_preserved": True' in function_source
-    assert "Android app sessions were signed out" not in function_source
+    assert "enforce_active_platform_session_limit(" in function_source
+    assert "SESSION_PLATFORM_ANDROID" in function_source
+    assert '"android_sessions_expired": expired_android_sessions' in function_source
 
 
 def test_admin_runtime_configuration_returns_before_installation_download_route():
@@ -149,13 +146,13 @@ def test_admin_runtime_configuration_returns_before_installation_download_route(
     assert function_source.rstrip().endswith(")")
 
 
-def test_android_session_validation_does_not_trim_existing_sessions():
+def test_android_session_validation_enforces_existing_session_limit():
     source = SERVER_SOURCE.read_text(encoding="utf-8")
     function_start = source.index("def active_platform_sessions(")
     function_source = source[function_start : source.index("\ndef active_platform_session_count", function_start)]
 
     assert "parse_active_platform_sessions(get_app_setting(setting_key, \"\"))" in function_source
-    assert "active_platform_session_limit(" not in function_source
+    assert "active_platform_session_limit(" in function_source
     assert "set_app_setting(" not in function_source
 
 

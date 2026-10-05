@@ -18,6 +18,12 @@ def firmware_role_device_id(device_id, role):
             return "swt-test-100-" + normalized_device_id[len("swt-test-000-") :]
         if normalized_device_id.startswith("swt-000-"):
             return "swt-100-" + normalized_device_id[len("swt-000-") :]
+    if role in {"repeater1", "repeater2"}:
+        index = "1" if role == "repeater1" else "2"
+        if normalized_device_id.startswith("swt-test-000-"):
+            return f"swt-test-rep{index}-" + normalized_device_id[len("swt-test-000-") :]
+        if normalized_device_id.startswith("swt-000-"):
+            return f"swt-rep{index}-" + normalized_device_id[len("swt-000-") :]
     return normalized_device_id
 
 
@@ -27,7 +33,13 @@ def build_ota_authorization(device_id, artifact, device_key, now=None):
     artifact_id = int((artifact or {}).get("id") or 0)
     version_label = str((artifact or {}).get("version_label") or "").strip()
     md5 = str((artifact or {}).get("md5") or "").strip().lower()
-    if not normalized_device_id or not secret or artifact_id <= 0 or not md5:
+    try:
+        size_bytes = int((artifact or {}).get("size_bytes") or 0)
+    except (TypeError, ValueError):
+        return None
+    if (not normalized_device_id or not secret or artifact_id <= 0 or
+            len(md5) != 32 or any(c not in "0123456789abcdef" for c in md5) or
+            not 0 < size_bytes <= 0xFFFFFFFF):
         return None
 
     expires_at = int(now if now is not None else time.time()) + OTA_AUTH_TTL_SECONDS
@@ -38,6 +50,7 @@ def build_ota_authorization(device_id, artifact, device_key, now=None):
             version_label,
             md5,
             str(expires_at),
+            str(size_bytes),
         )
     )
     signature = hmac.new(secret.encode("utf-8"), message.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -47,6 +60,7 @@ def build_ota_authorization(device_id, artifact, device_key, now=None):
         "version": version_label,
         "md5": md5,
         "expires_at": expires_at,
+        "size_bytes": size_bytes,
         "signature": signature,
     }
 

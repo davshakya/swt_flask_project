@@ -84,7 +84,7 @@ def test_flask_static_assets_have_cache_and_compression_support():
     assert "water_flow_animation.html', embed='1', v='20260813-2'" in login_template
     assert "def should_gzip_response(response):" in server_source
     assert "gzip.compress(payload, compresslevel=6)" in server_source
-    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v10-water-blade-brand";' in service_worker
     assert "/static/marketing/smart-water-tank-hero-ai-1280.webp" in service_worker
 
 
@@ -268,6 +268,18 @@ def test_pricing_page_has_whatsapp_and_working_chatbot_controls():
     assert "url_for('dashboard', chat='open', chat_embed='1')" in pricing
     assert "function setPricingChatOpen(open)" in pricing
     assert 'class="pricing-chat-launcher-icon"' in pricing
+    assert "filename='pwa/brand-logo.png'" in pricing
+    assert 'aria-label="Ask SaleWell"' in pricing
+
+
+def test_public_pages_do_not_show_text_resize_control():
+    homepage = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
+    pricing = (PROJECT_ROOT / "flask_app" / "templates" / "pricing.html").read_text(encoding="utf-8")
+
+    for template in (homepage, pricing):
+        assert 'data-text-size-button' not in template
+        assert 'class="text-size-button"' not in template
+        assert "textSizeModes" not in template
     assert '.pricing-whatsapp svg{width:32px;height:32px;fill:currentColor}' in pricing
     assert '.page-jump-controls{position:fixed;right:12px;bottom:150px' in pricing
     assert '.pricing-support-floats.is-open + .page-jump-controls{display:none}' in pricing
@@ -826,9 +838,88 @@ def test_admin_municipal_sensor_status_uses_reachability_labels_for_simulator():
         },
         {"municipal_sensor_enabled": True},
     )
+    offline_fields = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "offline",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_state": "available",
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": True,
+        },
+        {"municipal_sensor_enabled": True, "water_flow_sensor_enabled": True},
+    )
 
-    assert simulated_fields == ("Reachable", "online")
-    assert unreachable_fields == ("Unreachable", "offline")
+    assert simulated_fields == ("Available", "online")
+    assert unreachable_fields == ("No Flow", "warning")
+    assert offline_fields == ("Offline", "offline")
+
+
+def test_admin_municipal_flow_sensor_requires_simulator_or_detected_flow():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    config = {
+        "municipal_sensor_enabled": True,
+        "water_flow_sensor_enabled": True,
+        "water_pressure_sensor_enabled": False,
+    }
+    disconnected = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": False,
+            "municipal_sensor_reachable": False,
+            "municipal_sensor_state": "offline",
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": False,
+        },
+        config,
+    )
+    detected = server.admin_municipal_sensor_status_fields(
+        {
+            "telemetry_status": "live",
+            "municipal_sensor_enabled": True,
+            "municipal_sensor_simulated": False,
+            "municipal_sensor_state": "available",
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": True,
+        },
+        config,
+    )
+
+    assert disconnected == ("No Flow", "warning")
+    assert detected == ("Available", "online")
+
+
+def test_admin_municipal_column_renders_operational_label_not_generic_connectivity():
+    template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
+
+    assert '{{ device.municipal_sensor_status_label or "Disabled" }}' in template
+    assert 'setTextIfChanged(municipal, device.municipal_sensor_status || "Disabled")' in template
+    assert "connectivityLabel(device.municipal_sensor_status" not in template
+
+
+def test_admin_device_entry_preserves_municipal_detection_telemetry():
+    if str(PROJECT_ROOT / "flask_app") not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT / "flask_app"))
+    import server
+
+    entry = server.build_admin_device_entry(
+        "swt-test-000-000-001",
+        {
+            "device_id": "swt-test-000-000-001",
+            "water_flow_sensor_enabled": True,
+            "water_flow_detected": True,
+            "water_pressure_sensor_enabled": False,
+            "water_pressure_detected": False,
+        },
+    )
+
+    assert entry["water_flow_sensor_enabled"] is True
+    assert entry["water_flow_detected"] is True
+    assert entry["water_pressure_sensor_enabled"] is False
+    assert entry["water_pressure_detected"] is False
 
 
 def test_dashboards_render_company_icon_home_links():
@@ -863,7 +954,7 @@ def test_web_pages_use_short_private_cache_while_live_endpoints_stay_no_store():
     assert 'cache: "no-store"' not in smooth_navigation
     assert "20260812-native-history-v1" in pwa_head
     assert '"/static/js/smooth-navigation.js"' in service_worker
-    assert 'const CACHE_NAME = "swt-pwa-v7-native-history";' in service_worker
+    assert 'const CACHE_NAME = "swt-pwa-v10-water-blade-brand";' in service_worker
 
 
 def test_customer_graphs_refresh_after_live_telemetry_changes():
@@ -950,7 +1041,7 @@ def test_customer_dashboard_pump_activity_shows_metrics_without_graph():
     assert 'id="chartPumpRuntime"' in customer_template
     assert 'id="chartPumpStarts"' in customer_template
     assert 'id="chartPumpAverage"' in customer_template
-    assert 'id="chartPumpDuty"' in customer_template
+    assert 'id="chartPumpDuty"' not in customer_template
     assert "Hourly water use" in customer_template
     assert "data.pattern?.time||[]" in customer_template
     assert 'xScale:"time"' in customer_template
@@ -1000,7 +1091,7 @@ def test_dashboard_prioritizes_live_operations_and_explains_advanced_details():
     assert '.customer-dashboard .panel.customer-tools-panel{padding:0;overflow:hidden}' in customer_template
     assert '.customer-dashboard .customer-tools-grid{display:grid;grid-template-columns:minmax(320px,.78fr) minmax(0,1.22fr);align-items:stretch}' in customer_template
     assert 'class="settings customer-settings-grid"' in customer_template
-    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}' in customer_template
+    assert '.customer-dashboard .customer-settings-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}' in customer_template
     assert '<details class="settings-disclosure" style="margin-top:12px"><summary>Technical details</summary>' not in customer_template
     assert '<div class="customer-technical-details"><h4>Technical details</h4>' in customer_template
     assert "function eventPresentation(event)" in customer_template
@@ -1181,8 +1272,10 @@ def test_device_detail_reduces_density_and_keeps_critical_actions_safe():
     assert 'id="firmwareVersion"' in template
     assert 'id="rssiSignal"' in template
     assert 'id="deviceUptime"' in template
-    assert 'data-info-tab="network"' in template
-    assert 'data-info-tab="sensors"' in template
+    assert 'data-info-tab="network"' not in template
+    assert 'data-info-tab="sensors"' not in template
+    assert "activeInfoTab" not in template
+    assert "applyInfoTab" not in template
     assert 'type="range" min="0" max="95"' in template
     assert 'id="activitySearch"' in template
     assert 'id="activitySeverity"' in template
@@ -1261,7 +1354,7 @@ def test_device_detail_uses_compact_balanced_cards_and_buttons():
     assert ".summary-grid{grid-template-columns:repeat(5,minmax(0,1fr));align-items:stretch}" in device_template
     assert ".admin-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));margin-top:16px;align-items:start}" in device_template
     assert ".config-sections{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));align-items:start}" in device_template
-    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));margin-top:16px;align-items:start}" in device_template
+    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr));margin-top:16px;align-items:start}" in device_template
     assert ".admin-form>form{display:grid;gap:10px;width:100%}" in device_template
     assert ".admin-grid .admin-form:not(.config-form)>.btn,.admin-grid .admin-form:not(.config-form)>form .btn,.firmware-upload-grid .btn{width:100%;justify-self:stretch}" in device_template
     assert ".admin-grid .config-form>.btn{justify-self:end;width:min(100%,280px);max-width:none}" in device_template
@@ -1287,6 +1380,19 @@ def test_device_detail_upload_result_uses_closable_popup():
     assert "const INITIAL_CONFIG_MESSAGE={{ config_message|tojson }};" in device_template
     assert "const INITIAL_CONFIG_ERROR={{ config_error|tojson }};" in device_template
     assert "function showInitialConfigResult()" in device_template
+    assert "const RESULT_STORAGE_KEY=`swt:device-result:${DEVICE_ID}`;" in device_template
+    assert "window.sessionStorage.setItem(RESULT_STORAGE_KEY,JSON.stringify(result))" in device_template
+    assert "window.sessionStorage.removeItem(RESULT_STORAGE_KEY)" in device_template
+    assert 'url.searchParams.delete("config_message")' in device_template
+    assert 'url.searchParams.delete("config_error")' in device_template
+    assert 'addEventListener("click",dismissResultModal)' in device_template
+    assert 'const isQueuedPing=!failed&&String(payload?.status||"").trim().toLowerCase()==="queued"' in device_template
+    assert "await waitForPingTelemetry(payload,button)" in device_template
+    assert "progressButton.textContent=`Checking All Nodes… ${percent}%`" in device_template
+    assert 'noncePayload&&typeof noncePayload==="object"' in device_template
+    assert "Ping ${targetLabel} Timed Out" in device_template
+    assert "<h3>Peer Channel</h3>" not in device_template
+    assert "<h3>Add / Replace Node</h3>" not in device_template
     assert 'request.headers.get("X-Requested-With") == "XMLHttpRequest"' in server_source
     assert '<div class="message success" style="margin-top:14px">{{ config_message }}</div>' not in device_template
     assert '<div class="message error" style="margin-top:14px">{{ config_error }}</div>' not in device_template
@@ -1474,10 +1580,19 @@ def test_release_channel_keeps_firmware_on_device_detail_page():
     assert "syncRuntimeConfigurationOptions" in device_template
     assert "Upload Master Firmware" in device_template
     assert "Upload Slave Firmware" in device_template
-    assert 'name="allow_profile_mismatch" value="0"' in device_template
-    assert 'name="allow_profile_mismatch" value="1" checked data-profile-mismatch-override' in device_template
-    assert 'formData.set("allow_profile_mismatch",profileOverride.checked?"1":"0")' in device_template
-    assert "Store for recovery/profile change" in device_template
+    assert 'name="allow_profile_mismatch" value="1"' in device_template
+    assert "data-profile-mismatch-override" not in device_template
+    assert "Store for recovery/profile change" not in device_template
+    assert "Master uploads can be stored even when" not in device_template
+    assert ".firmware-upload-grid{display:grid;gap:14px;grid-template-columns:repeat(4,minmax(0,1fr))" in device_template
+    assert '<input type="hidden" name="target" value="all">' in device_template
+    assert "Ping All Nodes" in device_template
+    assert "Ping Master" not in device_template
+    assert "Ping Slave" not in device_template
+    assert "grid-template-columns:repeat(3,minmax(0,1fr))" in device_template
+    assert "#diagnosticTools #deviceCommandsCard{grid-column:1/-1;width:100%}" in device_template
+    assert ".device-command-actions .btn{width:100%;height:100%;min-height:58px;font-size:14px}" in device_template
+    assert "def build_device_ping_all_result(device_id):" in server_source
     assert 'request.form.getlist("allow_profile_mismatch")' in server_source
     assert "profile_validation_bypassed = normalized_role == \"master\"" in server_source
     assert "expected_build_flags=None" in server_source
@@ -1613,16 +1728,17 @@ def test_android_cloud_pump_activity_shows_metrics_and_scrollable_chart():
     assert "cloudPumpActivityScroll" not in android_layout
     assert "cloudHourlyPatternChart" not in android_layout
     assert "cloudHourlyPatternCard" not in android_layout
-    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue", "cloudPumpDutyValue"):
+    for metric_id in ("cloudPumpRuntimeValue", "cloudPumpStartsValue", "cloudPumpAverageValue"):
         assert metric_id in android_layout
+    assert "cloudPumpDutyValue" not in android_layout
     assert "binding.cloudPumpRuntimeValue" in android_source
     assert "binding.cloudPumpStartsValue" in android_source
     assert "binding.cloudPumpAverageValue" in android_source
-    assert "binding.cloudPumpDutyValue" in android_source
+    assert "binding.cloudPumpDutyValue" not in android_source
     assert "binding.cloudPumpActivityChart.setChart" not in android_source
 
 
-def test_release_versions_use_year_train_increment_syntax():
+def test_release_versions_use_year_month_increment_syntax():
     android_build = (PROJECT_ROOT.parent / "swt_android_app_project" / "app" / "build.gradle.kts").read_text(
         encoding="utf-8"
     )
@@ -1632,10 +1748,10 @@ def test_release_versions_use_year_train_increment_syntax():
     android_release_helper = (PROJECT_ROOT / "flask_app" / "android_releases.py").read_text(encoding="utf-8")
     firmware_release_helper = (PROJECT_ROOT / "flask_app" / "firmware_artifacts.py").read_text(encoding="utf-8")
 
-    assert 'return "${releaseVersionYearPrefix()}.$train.$patch"' in android_build
-    assert 'return f"{current_version_year_prefix()}.{train}.{patch}"' in firmware_loader
-    assert r"^\d{2}\.[1-9]\d*\.[1-9]\d*$" in android_release_helper
-    assert rb"\b\d{2}\.[1-9]\d*\.[1-9]\d*\b".decode("ascii") in firmware_release_helper
+    assert '"v${releaseVersionYearPrefix()}.${releaseVersionMonth()}.${versionCode.coerceAtLeast(1)}"' in android_build
+    assert 'return f"v{current_version_year_prefix()}.{current_version_month()}.{patch}"' in firmware_loader
+    assert r"v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*" in android_release_helper
+    assert r"v\d{2}\.(?:[1-9]|1[0-2])\.[1-9]\d*" in firmware_release_helper
 
 
 def test_register_device_modal_is_detached_and_shows_progress():
@@ -1662,6 +1778,14 @@ def test_admin_dashboard_renders_online_offline_pie_chart():
 def test_admin_dashboard_uses_compact_aligned_layout():
     admin_template = (PROJECT_ROOT / "flask_app" / "templates" / "admin_customers.html").read_text(encoding="utf-8")
 
+    assert "<th>Repeater 1</th>" in admin_template
+    assert "<th>Repeater 2</th>" in admin_template
+    assert '<th data-tooltip-key="telemetry">Telemetry</th>' not in admin_template
+    assert '<th data-tooltip-key="signal">Signal</th>' not in admin_template
+    assert 'data-device-field="repeater1_status"' in admin_template
+    assert 'data-device-field="repeater2_status"' in admin_template
+    assert "<th>Active Path</th>" in admin_template
+    assert 'data-device-field="active_data_path"' in admin_template
     assert ".admin-control-room{padding:14px}" in admin_template
     assert ".hero-grid{grid-template-columns:minmax(0,1.15fr) minmax(360px,.85fr);gap:16px;align-items:start}" in admin_template
     assert ".hero-panel{padding:18px}" in admin_template
@@ -1673,10 +1797,10 @@ def test_admin_dashboard_uses_compact_aligned_layout():
     assert ".device-table-shell .admin-table{width:100%;min-width:0;table-layout:fixed}" in admin_template
     assert ".device-horizontal-scroll{display:none}" in admin_template
     assert ".searchControls{grid-template-columns:minmax(320px,1fr) auto auto auto" in admin_template
-    assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:left" in admin_template
+    assert "text-overflow:clip;white-space:normal;overflow-wrap:anywhere;text-align:center" in admin_template
     assert ".device-table-shell .cell-main,.device-table-shell .cell-sub,.device-table-shell .device-link" in admin_template
-    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:12px}" in admin_template
-    assert ".device-table-shell .admin-table th:nth-child(9),.device-table-shell .admin-table td:nth-child(9){text-align:left;vertical-align:middle}" in admin_template
+    assert ".device-table-shell .admin-table th:first-child,.device-table-shell .admin-table td:first-child{padding-left:4px}" in admin_template
+    assert ".device-table-shell .admin-table th:nth-child(10),.device-table-shell .admin-table td:nth-child(10){text-align:center;vertical-align:middle}" in admin_template
 
 
 def test_homepage_shows_active_identity_and_logout():

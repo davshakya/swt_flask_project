@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 import threading
 import time
 
@@ -25,6 +26,20 @@ class MySqlConnectionPool:
         self._total = 0
         self._created = 0
         self._recycled = 0
+        if hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=self._after_fork)
+
+    def _after_fork(self):
+        # Never send MySQL QUIT on an inherited socket: the parent still owns
+        # the same server session. Drop child descriptors without protocol I/O.
+        for entry in self._idle:
+            sock = getattr(entry.connection, "_sock", None)
+            if sock is not None:
+                sock.close()
+                entry.connection._sock = None
+        self._condition = threading.Condition()
+        self._idle = []
+        self._total = self._created = self._recycled = 0
 
     def _close(self, connection):
         try:
@@ -41,7 +56,6 @@ class MySqlConnectionPool:
                     candidate = self._idle.pop()
                 elif self._total < self.size + self.max_overflow:
                     self._total += 1
-                    create = True
                     break
                 else:
                     remaining = deadline - time.monotonic()
@@ -74,6 +88,7 @@ class MySqlConnectionPool:
         return connection, time.monotonic()
 
     def release(self, connection, created_at, discard=False):
+        discard = discard or time.monotonic() - created_at >= self.recycle_seconds
         try:
             connection.rollback()
         except Exception:

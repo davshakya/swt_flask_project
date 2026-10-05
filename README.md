@@ -1,6 +1,33 @@
 # SaleWell Smart Tank Flask Backend
 
-Last refreshed: `2026-08-11`
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
+Last refreshed: `2026-10-03`
+
+## Firmware board and simulator selection
+
+The tank node can use ESP8266 (`swt_slave`) or ESP32 (`swt_esp32_slave`).
+Keep uploaded firmware artifacts matched to the installed board and device
+identity. Both ESP32 roles now request maximum driver TX power; this takes
+effect after flashing, not after a backend restart.
+Normal firmware packaging defaults to simulation enabled in test mode and
+disabled in production; production rejects enabled simulation. Runtime admin
+simulator controls remain separate from these build settings.
+See the [firmware guide](../swt_firmware_project/README.md).
+
+## Municipal Sensor and Simulator Status
+
+Admin configuration exposes a separate Municipal Detection Sensor card.
+Water-flow and water-pressure are mutually exclusive, and Municipal Water must
+be enabled before either is active. Diagnostics replace the generic municipal
+simulator with a detector-specific flow/pressure simulator and provide an
+admin-only bulk action to disable every simulator for hardware testing.
+
+Fleet and device-detail pages preserve operational labels instead of converting
+green states to generic `Online`. Municipal Water shows `Available`, `No Flow`,
+`Disabled`, or `Offline` when controller telemetry is stale/offline. The fleet
+entry pipeline preserves flow/pressure enabled and detected telemetry fields so
+initial HTML and automatic refresh agree.
 
 ## Documentation map
 
@@ -38,6 +65,8 @@ Within the wider workspace:
 
 ## What This Project Includes
 
+Cloud telemetry uploads, Android refreshes, and Flask dashboard polling use `SWT_CLOUD_POLL_INTERVAL_SECONDS=30`. Firmware command checks independently use `SWT_CLOUD_COMMAND_POLL_INTERVAL_SECONDS=10`. Local sensor sampling and master/slave safety timing remain at 5 seconds, so lower cloud load does not delay pump protection.
+
 - Device telemetry ingestion through `POST /status`
 - Device command delivery through `/device/command` and `/device/command/ack`
 - Admin and customer login flows with separate scopes
@@ -50,8 +79,14 @@ Within the wider workspace:
 - Admin service controls for source tank monitoring, optional municipal automation, optional upper/lower turbidity monitoring, buzzer, LED, cloud-feed mode, and customer AI access
 - Device-detail current-status cards and activity events for live node reachability, peer channel, peer freshness, and service state
 - Admin delete flow that purges device-scoped data and can keep a deleted-device marker until the device is registered again
-- Firmware artifact upload/download flow for device-scoped master/slave OTA-style updates
+- Firmware artifact upload/download flow for independently scoped master, slave, repeater1, and repeater2 OTA updates
+- Flask and Android OTA remain valid for hardware-bound firmware. Binding is
+  enforced by the target MCU using the MAC compiled during production
+  packaging; Flask continues to issue device-scoped, expiring HMAC
+  authorization for the selected artifact and role.
 - Admin-managed Android APK releases with customer download and in-app update manifest
+- APK update availability is determined from the uploaded APK's monotonic numeric `versionCode`, which must never reset. Android and firmware display names use `vYY.M.<monthlyIncrement>` and reset only that final display component when the UTC month/year changes; uploading the same Android numeric code again does not create an update
+- A successful firmware upload replaces the previous artifact for the same device and selected role (`master`, `slave`, `repeater1`, or `repeater2`). Repeater artifacts use distinct derived device identities and are never shared between indices. A successful Android upload replaces all previous APK releases. Old database rows and obsolete stored files are removed only after the replacement is registered successfully.
 - Optional HTTP relay and notification integration support
 - Optional ML-based tank level forecasting through `/ml/predict`
 - Android update manifests at `/static/version.json` and `/api/mobile/app/update`
@@ -251,6 +286,12 @@ Useful first URLs:
 
 ## Configuration Loading
 
+### Pump automation configuration
+
+The tracked [`config/pump_control.json`](config/pump_control.json) file defines the shared bootstrap defaults and validation bounds for Flask, Android, and firmware. Its current defaults are start at or below `30%` and stop at or above `95%`. Do not move it above this project directory: cPanel deploys this repository independently and Passenger loads the file at import time.
+
+For an installed device, the `device_service_configs.auto_start_pct` and `auto_stop_pct` columns are authoritative. The admin device page and `GET/POST /api/mobile/device/thresholds` read/write the same record and queue `THRESHOLDS:<start>:<stop>` to firmware. A live snapshot may seed an unset record but does not replace an existing saved value.
+
 The app reads local configuration from one canonical file:
 
 1. `./device.env`
@@ -284,6 +325,10 @@ environment variables may still be used when the platform injects them.
 - `SWT_DEVICE_KEYS` or `DEVICE_KEYS`: Comma-separated registry for multi-device auth.
 - `DEVICE_KEYS` format: `device-a:key-a,device-b:key-b,prefix*:shared-key`
 - `DEVICE_AUTH_REQUIRED`: When `1`, every device request must include valid device credentials from config or the database. Keep this enabled in production.
+- Production firmware should also use per-role hardware binding. See
+  [`../swt_firmware_project/docs/FIRMWARE_PROTECTION.md`](../swt_firmware_project/docs/FIRMWARE_PROTECTION.md).
+  The explicit unbound-production option does not weaken Flask authentication,
+  but it permits the same binary to run on another compatible MCU.
 - `AUTO_REGISTER_DEVICE_KEYS`: When `1`, a new device with an allowed ID prefix and a strong API key is registered on its first authenticated `/status` call. Keep this `0` in production unless you intentionally want open first-contact activation.
 - `AUTO_REGISTER_DEVICE_ID_PREFIXES`: Comma-separated allowed ID prefixes for auto-registration, for example `swt-`.
 - `AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH`: Minimum API key length for auto-registration. Use `32` or higher.
@@ -354,7 +399,7 @@ Check [`device.env.example`](device.env.example) for the currently wired backend
 | `/admin/devices/register` | Register device credentials and optional customer account | Admin |
 | `/admin/customers/<device_id>/services` | Update service flags and cloud-feed mode for one device | Admin |
 | `/admin/customers/<device_id>/delete` | Delete a device through the normal admin flow; purges device-scoped rows and keeps the deleted-device marker until re-registration | Admin |
-| `/admin/customers/<device_id>/firmware` | Upload master or slave firmware artifacts for one device; rejects binaries whose embedded role marker does not match the chosen target | Admin |
+| `/admin/customers/<device_id>/firmware` | Upload master, slave, repeater1, or repeater2 firmware artifacts; validates the binary role and keeps both repeater indices separate | Admin |
 | `/admin/releases/android` | Upload a customer Android APK release | Admin |
 | `/admin/releases/android/prune` | Prune old uploaded Android APK releases | Admin |
 | `/admin/customers/<device_id>/reboot` | Queue a reboot command for one device | Admin |
@@ -406,7 +451,7 @@ The mobile API uses signed tokens, not browser sessions.
 | `/api/mobile/device/status` | `GET` | Snapshot + system + monitoring status |
 | `/api/mobile/device/services` | `GET`, `POST` | Read or update device service settings |
 | `/api/mobile/device/local-auth/reset` | `POST` | Queue/reset local firmware auth from an authenticated mobile session |
-| `/api/mobile/device/firmware` | `GET` | Latest device-specific firmware for `role=master` or `role=slave` |
+| `/api/mobile/device/firmware` | `GET` | Latest identity-specific firmware for `role=master`, `slave`, `repeater1`, or `repeater2` |
 | `/api/mobile/device/firmware/<artifact_id>/download` | `GET` | Authenticated firmware artifact download for the scoped device and role |
 | `/api/mobile/app/update` | `GET` | Android update manifest for the latest uploaded APK |
 | `/api/mobile/app/latest.apk` | `GET` | Authenticated latest Android APK download |
@@ -432,9 +477,11 @@ Important tables include:
 - `device_service_configs`: Per-device service/cloud-feed controls used by admin, dashboard, and mobile flows
   including the persisted `device_setup_type`. Existing databases receive this
   column through startup schema maintenance; no manual SQL migration is needed.
-- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave updates
+- `firmware_artifacts`: Uploaded firmware binaries and metadata for device-scoped master/slave/repeater1/repeater2 updates
 - `android_app_releases`: Uploaded Android APK metadata for website downloads and update checks
 - `app_settings`: Persisted app secret and dashboard password settings
+
+The public homepage visitor count is incremented atomically in `app_settings` and the database-confirmed value is rendered with no-store cache headers. This avoids stale per-process counts when Passenger or Gunicorn runs multiple workers.
 
 Important production notes:
 
@@ -637,3 +684,10 @@ python ./scripts/run_virtual_devices.py \
 ```
 
 Open `http://127.0.0.1:8765`, `/health`, and `/admin/customers`; then validate normal operation, sensor faults, dry-run, pump failure, device/slave offline, municipal state, telemetry freshness, events/alerts, and command acknowledgements. Use `./scripts/setup_test_env.sh --skip-tests` for startup only or `--reset-database` when test data may be deleted. Full manual pytest commands and troubleshooting are in the [test harness README](../swt_test_cases_project/README.md) and [Word guide](../swt_test_cases_project/docs/SaleWell_Virtual_Device_Test_Setup_WSL.docx).
+
+
+## Android changes reviewed 2026-10-01
+
+Android consumes system_status.recent_alerts as authoritative history, with an active-alert fallback for older servers. Flask GMT-formatted dates are now accepted alongside SQL and ISO dates. The unread badge is Android-local state, not the server active_alert_count. A locally cleared telemetry delay does not update ops_alerts; cloud recovery still depends on backend telemetry evaluation.
+
+See [Android alerts, support, and build versions](../docs/ANDROID_ALERTS_AND_BUILDS.md) for behavior, limitations, and validation details.

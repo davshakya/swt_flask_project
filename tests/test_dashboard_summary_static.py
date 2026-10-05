@@ -43,9 +43,52 @@ def test_customer_and_mobile_bootstrap_only_read_materialized_summary():
         assert "build_events(" not in route_body
         assert "fetch_audit_events(" not in route_body
 
+    # Android keeps the expensive sections materialized, but its primary tank
+    # and motor snapshot must match the live Flask device table.
+    assert "latest_snapshot = load_dashboard_snapshot(scoped_device_id)" in mobile_body
+    assert 'summary["snapshot"] = strip_ip_address_fields(' in mobile_body
+
 
 def test_dashboard_displays_persisted_summary_last_updated_time():
     template = TEMPLATE.read_text(encoding="utf-8")
 
     assert "payload.last_updated" in template
     assert '"Last updated"' in template
+
+
+def test_device_monitoring_summary_reuses_snapshot_instead_of_scanning_inventory():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def build_monitoring_summary_payload(")
+    function_body = source[function_start : source.index("\n\ndef build_ops_dashboard_payload", function_start)]
+
+    assert "[build_admin_device_entry(normalized_device_id, snapshot=snapshot)]" in function_body
+    assert "else fetch_device_inventory(limit=20)" in function_body
+    assert "device_ids=[normalized_device_id]" not in function_body
+
+
+def test_dashboard_summary_refresh_serializes_and_retries_connection_resets():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    function_start = source.index("def refresh_dashboard_summary(device_id):")
+    function_end = source.index("\n\ndef schedule_dashboard_summary_refresh", function_start)
+    function_body = source[function_start:function_end]
+
+    assert "dashboard_summary_worker_lock = threading.Lock()" in source
+    assert "with dashboard_summary_worker_lock:" in function_body
+    assert "run_with_database_lock_retries(" in function_body
+    assert "attempts=3" in function_body
+    assert "retry_connection_errors=True" in function_body
+
+
+def test_admin_inventory_uses_indexed_latest_row_lookup_and_has_safe_fallback():
+    source = SERVER_SOURCE.read_text(encoding="utf-8")
+    inventory_start = source.index("def fetch_device_inventory(")
+    inventory_body = source[inventory_start : source.index("\n\ndef fetch_device_snapshot", inventory_start)]
+    loader_start = source.index("def load_admin_known_devices(")
+    loader_body = source[loader_start : source.index("\n\ndef refresh_admin_entry_alerts", loader_start)]
+
+    assert "ROW_NUMBER() OVER" not in inventory_body
+    assert "MAX(inventory_source.id) AS latest_id" in inventory_body
+    assert "GROUP BY inventory_source.device_id" in inventory_body
+    assert "idx_tank_data_source_device_id_id" in source
+    assert "except Exception as exc:" in loader_body
+    assert "inventory = []" in loader_body

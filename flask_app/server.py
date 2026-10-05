@@ -1,5 +1,6 @@
 import atexit
 from datetime import datetime, timedelta, timezone
+from flask_app.pump_command_status import pump_confirmation
 from functools import wraps
 import base64
 import copy
@@ -74,7 +75,11 @@ from flask_app.firmware_artifacts import (
     validate_firmware_binary_role,
     extract_firmware_version_label as extract_firmware_version_label_from_payload,
 )
-from flask_app.mobile_firmware_routes import register_mobile_firmware_routes
+from flask_app.mobile_firmware_routes import (
+    build_ota_authorization,
+    firmware_role_device_id,
+    register_mobile_firmware_routes,
+)
 from flask_app.device_key_vault import decrypt_device_key, encrypt_device_key
 from flask_app.rag_routes import public_chat_blueprint, rag_blueprint
 from flask_app.runtime_utils import (
@@ -86,6 +91,9 @@ from flask_app.runtime_utils import (
     parse_simple_dotenv,
 )
 from flask_app.mysql_retry import statement_allows_connection_retry
+from flask_app.mysql_transport import discover_local_mysql_socket
+from flask_app.mysql_circuit import MySqlConnectionCircuit
+from flask_app.database_availability import install_database_error_handlers
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
 from flask_app.capacity_schema import ensure_capacity_schema
 from flask_app.capacity_ingestion import DeviceIngestionResult, ingest_device_payload
@@ -222,8 +230,17 @@ DEVICE_SOURCE_MODE_SETTING = "device_source_mode"
 DEVICE_SIMULATOR_STATE_PREFIX = "device_simulator_state:"
 DEVICE_AUTOMATION_SETTINGS_PREFIX = "device_automation_settings:"
 DEVICE_LOCAL_WEB_PASSWORD_PREFIX = "device_local_web_password:"
-DEFAULT_DEVICE_AUTO_START_PCT = 30.0
-DEFAULT_DEVICE_AUTO_STOP_PCT = 95.0
+PUMP_CONTROL_CONTRACT_PATH = Path(__file__).resolve().parents[1] / "config" / "pump_control.json"
+with PUMP_CONTROL_CONTRACT_PATH.open(encoding="utf-8") as pump_control_contract_file:
+    PUMP_CONTROL_CONTRACT = json.load(pump_control_contract_file)
+PUMP_AUTO_START_CONTRACT = PUMP_CONTROL_CONTRACT["auto_start_pct"]
+PUMP_AUTO_STOP_CONTRACT = PUMP_CONTROL_CONTRACT["auto_stop_pct"]
+DEFAULT_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["default"])
+DEFAULT_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["default"])
+MIN_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["minimum"])
+MAX_DEVICE_AUTO_START_PCT = float(PUMP_AUTO_START_CONTRACT["maximum"])
+MIN_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["minimum"])
+MAX_DEVICE_AUTO_STOP_PCT = float(PUMP_AUTO_STOP_CONTRACT["maximum"])
 CUSTOMER_ACCOUNTS_BOOTSTRAP_ENV = "CUSTOMER_ACCOUNTS_BOOTSTRAP_B64"
 DASHBOARD_PASSWORD_HASH_ENV = "DASHBOARD_PASSWORD_HASH"
 DEVICE_SOURCE_REAL = "real"
@@ -722,6 +739,7 @@ AUTO_REGISTER_DEVICE_ID_PREFIXES = tuple(
 AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH = max(16, env_int("AUTO_REGISTER_DEVICE_KEY_MIN_LENGTH", 32))
 TANK_CAPACITY_LITERS = env_float("TANK_CAPACITY_LITERS", 1000.0)
 STALE_AFTER_SECONDS = env_int("DATA_STALE_AFTER_SECONDS", 300)
+CLOUD_POLL_INTERVAL_SECONDS = max(30, env_int("SWT_CLOUD_POLL_INTERVAL_SECONDS", 30))
 DIRECT_PEER_STALE_AFTER_SECONDS = max(1, env_int("DIRECT_PEER_STALE_AFTER_SECONDS", 15))
 DATA_RETENTION_DAYS = max(1, env_int("DATA_RETENTION_DAYS", 30))
 DEVICE_EVENT_RETENTION_DAYS = max(1, env_int("DEVICE_EVENT_RETENTION_DAYS", DATA_RETENTION_DAYS))
@@ -738,7 +756,9 @@ RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
 OPS_ALERT_RETENTION_DAYS = max(1, env_int("OPS_ALERT_RETENTION_DAYS", 30))
 OPS_AUDIT_RETENTION_DAYS = max(1, env_int("OPS_AUDIT_RETENTION_DAYS", 30))
 DB_MAINTENANCE_ENABLED = env_flag("DB_MAINTENANCE_ENABLED", default=True)
-MYSQL_OPTIMIZE_ENABLED = env_flag("MYSQL_OPTIMIZE_ENABLED", default=True)
+# OPTIMIZE can rebuild InnoDB tables; shared-host I/O budgets cannot absorb
+# this as implicit routine maintenance. Retention deletes remain enabled.
+MYSQL_OPTIMIZE_ENABLED = env_flag("MYSQL_OPTIMIZE_ENABLED", default=False)
 DB_TARGET_SIZE_MB = max(0.0, env_float("DB_TARGET_SIZE_MB", 256.0 if IS_RENDER else 0.0))
 DB_TARGET_SIZE_BYTES = int(DB_TARGET_SIZE_MB * 1024 * 1024)
 DB_MAINTENANCE_MIN_INTERVAL_SECONDS = max(60, env_int("DB_MAINTENANCE_MIN_INTERVAL_SECONDS", 900 if IS_RENDER else 3600))
@@ -780,9 +800,11 @@ dashboard_snapshot_cache = {}
 dashboard_summary_cache = {}
 dashboard_summary_refresh_pending = set()
 dashboard_summary_refresh_lock = threading.Lock()
+dashboard_summary_worker_lock = threading.Lock()
 dashboard_summary_last_refresh_at = {}
 level_forecast_model_cache = {}
 SNAPSHOT_CACHE_TTL_SECONDS = max(0.0, env_float("SNAPSHOT_CACHE_TTL_SECONDS", 2.0))
+SNAPSHOT_CACHE_MAX_ENTRIES = max(1, min(1000, env_int("SNAPSHOT_CACHE_MAX_ENTRIES", 128)))
 DASHBOARD_SUMMARY_RECONCILE_SECONDS = max(
     600,
     min(900, env_int("DASHBOARD_SUMMARY_RECONCILE_SECONDS", 600)),
@@ -927,6 +949,51 @@ app_log_handler.setFormatter(SwtColorFormatter(color_enabled=SWT_LOG_COLOR_ENABL
 logging.basicConfig(level=APP_LOG_LEVEL, handlers=[app_log_handler], force=True)
 
 logger = logging.getLogger("tank_server")
+install_database_error_handlers(app, pymysql.err.OperationalError if pymysql else None, logger)
+device_connection_logger = logging.getLogger("tank_server.device_connection")
+device_connection_logger.setLevel(logging.INFO)
+DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS = max(
+    30, env_int("DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS", 300)
+)
+device_connection_log_lock = threading.Lock()
+device_connection_log_state = {}
+
+
+def log_device_connection_status(device_id, reachable, *, telemetry_status=None, seconds_since_sync=None):
+    """Log connection transitions plus a bounded heartbeat for each device."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return
+    status = "reachable" if bool(reachable) else "unreachable"
+    now_monotonic = time.monotonic()
+    with device_connection_log_lock:
+        previous = device_connection_log_state.get(normalized_device_id)
+        changed = previous is None or previous["status"] != status
+        heartbeat_due = previous is None or (
+            now_monotonic - previous["logged_at"] >= DEVICE_CONNECTION_LOG_HEARTBEAT_SECONDS
+        )
+        if not changed and not heartbeat_due:
+            return
+        device_connection_log_state[normalized_device_id] = {
+            "status": status,
+            "logged_at": now_monotonic,
+        }
+        if len(device_connection_log_state) > 1000:
+            oldest_device_id = min(
+                device_connection_log_state,
+                key=lambda key: device_connection_log_state[key]["logged_at"],
+            )
+            if oldest_device_id != normalized_device_id:
+                device_connection_log_state.pop(oldest_device_id, None)
+    device_connection_logger.info(
+        "Device connection status: device=%s status=%s telemetry=%s seconds_since_sync=%s",
+        normalized_device_id,
+        status,
+        str(telemetry_status or "unknown").strip().lower() or "unknown",
+        seconds_since_sync if seconds_since_sync is not None else "--",
+    )
+
+
 relay_lock = threading.Lock()
 level_forecast_model_lock = threading.Lock()
 db_maintenance_lock = threading.Lock()
@@ -1404,6 +1471,10 @@ def register_device_credentials(device_id, device_key, registration_source="admi
         remote_addr=remote_addr,
         registration_source=registration_source,
     )
+    # Explicit registration restores a previously deleted identity. Without
+    # clearing this marker, authenticated /status requests return HTTP 200 but
+    # process_telemetry_payload silently discards every update as ignored.
+    forget_ignored_device(normalized_device_id)
     remember_registered_device(
         normalized_device_id,
         registration_source=registration_source,
@@ -1534,13 +1605,16 @@ def run_with_database_lock_retries(
     operation_name="database operation",
     attempts=6,
     initial_delay_s=0.5,
+    retry_connection_errors=False,
 ):
     last_exc = None
     for attempt in range(max(1, int(attempts or 1))):
         try:
             return operation()
         except Exception as exc:
-            if not database_is_locked_error(exc) or attempt >= max(1, int(attempts or 1)) - 1:
+            lock_error = database_is_locked_error(exc)
+            connection_error = bool(retry_connection_errors) and mysql_is_connection_recoverable_error(exc)
+            if (not lock_error and not connection_error) or attempt >= max(1, int(attempts or 1)) - 1:
                 raise
             last_exc = exc
             # Back off with jitter so simultaneous web workers do not retry the
@@ -1550,8 +1624,9 @@ def run_with_database_lock_retries(
             if delay_s > 0:
                 delay_s += random.uniform(0.0, min(0.25, delay_s * 0.25))
             logger.warning(
-                "Retrying %s after database lock/deadlock (%s/%s): %s",
+                "Retrying %s after recoverable database %s (%s/%s): %s",
                 operation_name,
+                "lock/deadlock" if lock_error else "connection error",
                 attempt + 1,
                 max(1, int(attempts or 1)),
                 exc,
@@ -1560,6 +1635,24 @@ def run_with_database_lock_retries(
                 time.sleep(delay_s)
     if last_exc is not None:
         raise last_exc
+
+
+def retry_idempotent_database_operation(operation_name, attempts=3, initial_delay_s=0.25):
+    """Retry an operation whose complete transaction is safe to replay."""
+    def decorate(operation):
+        @wraps(operation)
+        def wrapped(*args, **kwargs):
+            return run_with_database_lock_retries(
+                lambda: operation(*args, **kwargs),
+                operation_name=operation_name,
+                attempts=attempts,
+                initial_delay_s=initial_delay_s,
+                retry_connection_errors=True,
+            )
+
+        return wrapped
+
+    return decorate
 
 
 def alert_touch_key(kind, device_id=None):
@@ -2024,6 +2117,8 @@ def purge_device_data_fallback(cursor, normalized_device_id):
         ("registered_devices", "device_id"),
         ("device_auth_keys", "device_id"),
         ("device_service_configs", "device_id"),
+        ("device_multi_tank_configs", "device_id"),
+        ("device_destination_tanks", "device_id"),
         ("device_command_queue", "target_device"),
         ("device_mobile_action_queue", "target_device"),
         ("customer_accounts", "device_id"),
@@ -2180,12 +2275,17 @@ def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
 
 
 def clear_runtime_caches(device_id=None):
-    analytics_cache.clear()
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
+        analytics_cache.clear()
         dashboard_snapshot_cache.clear()
         forget_alert_touches_for_device()
         return
+    # A device update also changes combined analytics, but must not evict
+    # unrelated customers' results and force their history to be read again.
+    for cache_key in list(analytics_cache):
+        if cache_key[2] in {normalized_device_id, "*"}:
+            analytics_cache.pop(cache_key, None)
     for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
         dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
@@ -2262,7 +2362,7 @@ def normalize_android_sso_session_limit(value, default=DEFAULT_ANDROID_SSO_SESSI
         resolved = int(str(value).strip())
     except (TypeError, ValueError):
         resolved = default
-    return max(1, min(resolved, MAX_ANDROID_SSO_SESSION_LIMIT))
+    return max(0, min(resolved, MAX_ANDROID_SSO_SESSION_LIMIT))
 
 
 def active_platform_session_limit(platform, role, username=None, device_id=None):
@@ -2315,8 +2415,31 @@ def register_active_platform_session(platform, role, username=None, device_id=No
     active_sessions = parse_active_platform_sessions(get_app_setting(setting_key, ""))
     active_sessions = [item for item in active_sessions if item != next_session_id]
     active_sessions.append(next_session_id)
+    # Mobile tokens are bearer credentials. Retain only the newest sessions
+    # allowed for this customer, so a new phone displaces the oldest phone.
+    session_limit = active_platform_session_limit(
+        platform,
+        role,
+        username=username,
+        device_id=device_id,
+    )
+    active_sessions = active_sessions[-session_limit:] if session_limit else []
     set_app_setting(setting_key, serialize_active_platform_sessions(active_sessions))
-    return next_session_id
+    return next_session_id if session_limit else ""
+
+
+def enforce_active_platform_session_limit(platform, role, username=None, device_id=None):
+    """Remove oldest sessions after an administrator lowers the allowed count."""
+    setting_key = active_session_setting_key(platform, role, username=username, device_id=device_id)
+    if not setting_key:
+        return 0
+    active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    retained_sessions = active_sessions[-session_limit:] if session_limit else []
+    removed_count = len(active_sessions) - len(retained_sessions)
+    if removed_count:
+        set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
+    return removed_count
 
 
 def active_platform_session_matches(platform, role, username=None, device_id=None, session_id=None):
@@ -2327,6 +2450,11 @@ def active_platform_session_matches(platform, role, username=None, device_id=Non
     if not setting_key:
         return False
     active_sessions = active_platform_sessions(platform, role, username=username, device_id=device_id)
+    session_limit = active_platform_session_limit(platform, role, username=username, device_id=device_id)
+    retained_sessions = active_sessions[-session_limit:] if session_limit else []
+    if retained_sessions != active_sessions:
+        set_app_setting(setting_key, serialize_active_platform_sessions(retained_sessions))
+        active_sessions = retained_sessions
     return any(secrets.compare_digest(active_session_id, supplied_session_id) for active_session_id in active_sessions)
 
 
@@ -2406,6 +2534,8 @@ def activate_dashboard_identity(role):
 
 def current_session_auth_marker():
     if not session.get("logged_in"):
+        return None
+    if session.get("role") == "customer" and not customer_web_login_enabled(session.get("device_id")):
         return None
     return current_auth_marker_for_identity(
         session.get("role") or "admin",
@@ -2548,7 +2678,11 @@ def csrf_protect(view):
 
 @app.context_processor
 def inject_template_globals():
-    return {"csrf_token": get_csrf_token()}
+    return {
+        "csrf_token": get_csrf_token(),
+        "cloud_poll_interval_ms": CLOUD_POLL_INTERVAL_SECONDS * 1000,
+        "pump_threshold_contract": PUMP_CONTROL_CONTRACT,
+    }
 
 def is_logged_in():
     if not bool(session.get("logged_in")):
@@ -2664,6 +2798,8 @@ def stored_dashboard_identity_is_valid(role):
         return False
     username = session.get(f"{prefix}_username")
     device_id = session.get(f"{prefix}_device_id")
+    if role == "customer" and not customer_web_login_enabled(device_id):
+        return False
     stored_auth_marker = str(session.get(f"{prefix}_auth_marker") or "").strip()
     expected_auth_marker = current_auth_marker_for_identity(role, username=username, device_id=device_id)
     platform_session_id = str(session.get(f"{prefix}_platform_session_id") or "").strip()
@@ -3278,6 +3414,8 @@ def handle_role_login(mode):
         username = request.form.get("username", "")
         password = request.form.get("password", "")
         authenticated_user = authenticate_dashboard_user(username, password)
+        if authenticated_user and authenticated_user["role"] == "customer" and not customer_web_login_enabled(authenticated_user.get("device_id")):
+            authenticated_user = None
         if authenticated_user and authenticated_user["role"] == expected_role:
             store_dashboard_identity(authenticated_user)
             session.permanent = True
@@ -3505,6 +3643,62 @@ def admin_reachable_status_fields(enabled, reachable):
     return "Unreachable", "offline"
 
 
+def admin_repeater_status_fields(entry):
+    """Build R1/R2 dashboard states from the controller's route telemetry."""
+    direct_peer_enabled = str(entry.get("direct_peer") or "").strip().lower() not in {"disabled", "off"}
+    raw_hops = entry.get("direct_peer_repeater_hops") or entry.get("direct_peer_repeater_hop_count")
+    try:
+        hop_count = max(0, int(raw_hops)) if direct_peer_enabled else 0
+    except (TypeError, ValueError):
+        hop_count = 0
+
+    active_route = str(entry.get("direct_peer_route") or "").strip().upper()
+    route = active_route or str(entry.get("direct_peer_path") or "").strip().upper()
+    # New firmware reports the route which is actually carrying control data.
+    # LAN reachability only means the fallback is ready; it must not replace a
+    # healthy DIRECT or repeater route in the dashboard. Retain the reachability
+    # fallback only for older firmware which does not report direct_peer_route.
+    route_is_lan = "WIFI_LAN" in route or (
+        not active_route
+        and boolish_enabled(entry.get("direct_peer_lan_reachable"), default=False)
+    )
+    if direct_peer_enabled and ("2_REPEATER" in route or "TWO_REPEATER" in route):
+        hop_count = max(hop_count, 2)
+    elif direct_peer_enabled and "REPEATER" in route:
+        hop_count = max(hop_count, 1)
+
+    try:
+        repeater_age = int(entry.get("direct_peer_repeater_last_packet_age_s"))
+    except (TypeError, ValueError):
+        repeater_age = -1
+    # Older installed firmware only provides a shared repeater heartbeat.
+    if direct_peer_enabled and not route_is_lan and hop_count == 0 and repeater_age >= 0:
+        hop_count = 1
+
+    repeater_fresh = boolish_enabled(entry.get("direct_peer_repeater_reachable"), default=False)
+    result = {}
+    for index in (1, 2):
+        enabled = hop_count >= index
+        label = "Online" if enabled and repeater_fresh else "Offline" if enabled else "Disabled"
+        result[f"repeater{index}_status_label"] = label
+        result[f"repeater{index}_status_tone"] = (
+            "online" if label == "Online" else "offline" if label == "Offline" else "clear"
+        )
+    slave_reachable = str(entry.get("slave_status_tone") or "").strip().lower() == "online"
+    result["active_data_path"] = (
+        "M"
+        if not slave_reachable
+        else "M ↔ WIFI_LAN ↔ S"
+        if route_is_lan
+        else "M ↔ R1 ↔ R2 ↔ S"
+        if repeater_fresh and hop_count >= 2
+        else "M ↔ R1 ↔ S"
+        if repeater_fresh and hop_count >= 1
+        else "M ↔ S"
+    )
+    return result
+
+
 def admin_municipal_sensor_status_fields(entry, service_config=None):
     service_config = service_config or {}
     online = admin_device_is_online(entry)
@@ -3513,17 +3707,13 @@ def admin_municipal_sensor_status_fields(entry, service_config=None):
         default=service_config.get("municipal_sensor_enabled", False),
     )
     state = str(entry.get("municipal_sensor_state") or "").strip().lower()
-    simulated = boolish_enabled(entry.get("municipal_sensor_simulated"), default=False)
-    reachable = boolish_enabled(entry.get("municipal_sensor_reachable"), default=state in {"available", "unavailable"})
     if not enabled:
         return "Disabled", "clear"
     if not online:
-        return "Offline/Stale", "offline"
-    if simulated:
-        reachable = True
-    if reachable:
-        return "Reachable", "online"
-    return "Unreachable", "offline"
+        return "Offline", "offline"
+    if state == "available":
+        return "Available", "online"
+    return "No Flow", "warning"
 
 
 def admin_sensor_reachable(raw_status):
@@ -3716,8 +3906,16 @@ def build_admin_device_entry(device_id, snapshot=None):
         "direct_peer_config_channel": payload.get("direct_peer_config_channel"),
         "direct_peer_wifi_channel": payload.get("direct_peer_wifi_channel"),
         "direct_peer_last_packet_age_s": payload.get("direct_peer_last_packet_age_s"),
+        "direct_peer_repeater_reachable": payload.get("direct_peer_repeater_reachable"),
+        "direct_peer_repeater_last_packet_age_s": payload.get("direct_peer_repeater_last_packet_age_s"),
+        "direct_peer_route": payload.get("direct_peer_route"),
+        "direct_peer_path": payload.get("direct_peer_path"),
+        "direct_peer_repeater_hops": payload.get("direct_peer_repeater_hops"),
+        "direct_peer_lan_reachable": payload.get("direct_peer_lan_reachable"),
         "direct_peer_last_packet_bytes": payload.get("direct_peer_last_packet_bytes"),
         "direct_peer_last_sequence": payload.get("direct_peer_last_sequence"),
+        "direct_peer_received_packets": payload.get("direct_peer_received_packets"),
+        "direct_peer_link_quality_pct": payload.get("direct_peer_link_quality_pct"),
         "direct_peer_duplicate_packets": payload.get("direct_peer_duplicate_packets"),
         "direct_peer_out_of_order_packets": payload.get("direct_peer_out_of_order_packets"),
         "direct_peer_estimated_lost_packets": payload.get("direct_peer_estimated_lost_packets"),
@@ -3738,6 +3936,7 @@ def build_admin_device_entry(device_id, snapshot=None):
         "source_low_float_active": payload.get("source_low_float_active"),
         "wifi": payload.get("wifi"),
         "wifi_rssi": payload.get("wifi_rssi"),
+        "wifi_ssid": payload.get("wifi_ssid"),
         "sensor": payload.get("sensor"),
         "sensor_distance_cm": payload.get("sensor_distance_cm"),
         "sensor_distance_label": sensor_distance_label,
@@ -3757,6 +3956,10 @@ def build_admin_device_entry(device_id, snapshot=None):
         "municipal_sensor_simulated": payload.get("municipal_sensor_simulated"),
         "municipal_sensor_reachable": payload.get("municipal_sensor_reachable"),
         "municipal_sensor_last_updated": payload.get("municipal_sensor_last_updated"),
+        "water_flow_sensor_enabled": payload.get("water_flow_sensor_enabled"),
+        "water_flow_detected": payload.get("water_flow_detected"),
+        "water_pressure_sensor_enabled": payload.get("water_pressure_sensor_enabled"),
+        "water_pressure_detected": payload.get("water_pressure_detected"),
         "motor": payload.get("motor"),
         "mode": payload.get("mode"),
         "registered_account": False,
@@ -3951,6 +4154,7 @@ def build_admin_known_devices(accounts, available_devices, include_registered_de
         )
         entry.update(service_config)
         entry.update(admin_node_status_fields(entry, service_config))
+        entry.update(admin_repeater_status_fields(entry))
         entry.update(admin_relay_sensor_status_fields(entry, service_config))
         entry.update(admin_device_health_fields(entry))
         entry["latest_firmware_artifact"] = fetch_latest_firmware_artifact(device_id)
@@ -3995,9 +4199,23 @@ def filter_admin_search_results(items, search_query):
 
 
 def load_admin_known_devices(accounts, inventory_limit=100):
+    try:
+        inventory = fetch_device_inventory(limit=max(250, int(inventory_limit)))
+    except Exception as exc:
+        # A telemetry-table timeout must not take the customer administration
+        # page down. Registered devices are still useful and will be enriched
+        # again by the live inventory on the next refresh.
+        logger.warning(
+            "Admin device inventory unavailable; showing registered devices without live snapshots: %s",
+            exc,
+        )
+        inventory = []
     return build_admin_known_devices(
         accounts=accounts,
-        available_devices=fetch_device_inventory(limit=inventory_limit),
+        # The admin registry includes up to 200 persisted devices. Load at
+        # least that many live snapshots so registered devices with fresh
+        # telemetry are not rendered offline merely because of pagination.
+        available_devices=inventory,
         include_registered_devices=True,
         seed_configuration=True,
     )
@@ -4973,6 +5191,11 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                 finally:
                     telemetry_background_semaphore.release()
 
+                # Summary work uses the same permit. Schedule after releasing
+                # it so the default one-worker limit can still refresh pages.
+                if lease_acquired:
+                    schedule_dashboard_summary_refresh(normalized_device_id)
+
                 with telemetry_postprocess_lock:
                     telemetry_postprocess_last_run_at[
                         normalized_device_id
@@ -4986,11 +5209,19 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                     normalized_device_id
                 )
 
-    threading.Thread(
-        target=worker,
-        name=f"telemetry-postprocess-{normalized_device_id}",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=worker,
+            name=f"telemetry-postprocess-{normalized_device_id}",
+            daemon=True,
+        ).start()
+    except RuntimeError as exc:
+        # A hosting thread limit must not fail an already accepted telemetry
+        # request or leave this device permanently marked as running.
+        with telemetry_postprocess_lock:
+            telemetry_postprocess_running.discard(normalized_device_id)
+            telemetry_postprocess_pending.pop(normalized_device_id, None)
+        logger.warning("Unable to start telemetry postprocess worker for %s: %s", normalized_device_id, exc)
 
 
 def process_telemetry_payload(data, source_ip=None, transport="http", defer_postprocess=False):
@@ -5005,7 +5236,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     if normalized_device_id and device_is_ignored(normalized_device_id):
         cleaned["device_id"] = normalized_device_id
         cleaned["_telemetry_sync_result"] = "ignored"
-        logger.info("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
+        logger.debug("Ignored telemetry for deleted device %s via %s", normalized_device_id, transport)
         return cleaned
     cleaned["device_source"] = normalize_device_source(cleaned.get("device_source"), default=DEVICE_SOURCE_REAL)
     telemetry_fingerprint = build_telemetry_sync_fingerprint(cleaned)
@@ -5018,7 +5249,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         source_ip=source_ip,
     ):
         cleaned["_telemetry_sync_result"] = "duplicate"
-        logger.info(
+        logger.debug(
             "Skipped duplicate telemetry sync via %s for device %s fingerprint=%s",
             transport,
             cleaned.get("device_id") or "unknown device",
@@ -5065,6 +5296,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("dry_run"),
         cleaned.get("wifi"),
         cleaned.get("wifi_rssi"),
+        cleaned.get("wifi_ssid"),
         cleaned.get("sensor"),
         cleaned.get("device_source"),
         cleaned.get("sensor_info"),
@@ -5123,8 +5355,16 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
         cleaned.get("direct_peer_config_channel"),
         cleaned.get("direct_peer_wifi_channel"),
         cleaned.get("direct_peer_last_packet_age_s"),
+        1 if boolish_enabled(cleaned.get("direct_peer_repeater_reachable"), default=False) else 0,
+        cleaned.get("direct_peer_repeater_last_packet_age_s"),
+        cleaned.get("direct_peer_route"),
+        cleaned.get("direct_peer_path"),
+        cleaned.get("direct_peer_repeater_hops"),
+        1 if boolish_enabled(cleaned.get("direct_peer_lan_reachable"), default=False) else 0,
         cleaned.get("direct_peer_last_packet_bytes"),
         cleaned.get("direct_peer_last_sequence"),
+        cleaned.get("direct_peer_received_packets"),
+        cleaned.get("direct_peer_link_quality_pct"),
         cleaned.get("direct_peer_duplicate_packets"),
         cleaned.get("direct_peer_out_of_order_packets"),
         cleaned.get("direct_peer_estimated_lost_packets"),
@@ -5161,7 +5401,12 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
         cursor = db.cursor()
-        cursor.execute(
+        write_legacy_tank_data = (
+            cursor.execute
+            if CAPACITY_FEATURES.enabled("legacy_tank_data_writes")
+            else lambda *_args, **_kwargs: None
+        )
+        write_legacy_tank_data(
             f"""
             INSERT INTO tank_data (
                 level, motor, mode,
@@ -5171,7 +5416,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 drip, slow_leak, pipe_leak,
                 ai_usage_rate, tomorrow_prediction,
                 dry_run,
-                wifi, wifi_rssi, sensor,
+                wifi, wifi_rssi, wifi_ssid, sensor,
                 device_source,
                 sensor_info, sensor_distance_cm,
                 tank_height_cm, tank_capacity_liters,
@@ -5193,8 +5438,11 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 arch_id, node_role, device_type,
                 direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                 direct_peer_config_channel, direct_peer_wifi_channel,
-                direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
-                direct_peer_last_sequence, direct_peer_duplicate_packets,
+                direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
+                direct_peer_repeater_last_packet_age_s, direct_peer_route, direct_peer_path,
+                direct_peer_repeater_hops, direct_peer_lan_reachable, direct_peer_last_packet_bytes,
+                direct_peer_last_sequence, direct_peer_received_packets, direct_peer_link_quality_pct,
+                direct_peer_duplicate_packets,
                 direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                 direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
                 direct_peer_sync_pending, direct_peer_sync_channel,
@@ -5235,7 +5483,18 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
             )
 
     clear_runtime_caches(cleaned.get("device_id"))
-    logger.info(
+    log_device_connection_status(
+        cleaned.get("device_id"),
+        True,
+        telemetry_status="live",
+        seconds_since_sync=0,
+    )
+    # Telemetry is intentionally high-frequency (often every few seconds per
+    # device).  Logging every successful sample at INFO makes Passenger's
+    # stderr log grow without bound on cPanel and can exhaust the account's
+    # disk/I/O quota.  Operators can still opt into these records with DEBUG;
+    # failures and state-changing events remain visible at higher levels.
+    logger.debug(
         "Saved tank level via %s: %s | Motor: %s | Mode: %s | Device: %s",
         transport,
         cleaned.get("level"),
@@ -5549,7 +5808,11 @@ class MySqlCursorAdapter:
         translated_sql, translated_params = translate_mysql_query(sql, params)
         # Connection loss does not prove that MySQL did not apply a write.
         # Replay only plain reads; writes and DDL fail back to the caller.
-        max_attempts = 2 if statement_allows_connection_retry(translated_sql) else 1
+        retryable_read = statement_allows_connection_retry(translated_sql)
+        max_attempts = 2 if retryable_read and not self.connection_adapter.transaction_has_writes else 1
+        if not retryable_read:
+            # Mark before execution: a failed write may have reached MySQL.
+            self.connection_adapter.transaction_has_writes = True
         attempt = 0
         while attempt < max_attempts:
             try:
@@ -5561,6 +5824,10 @@ class MySqlCursorAdapter:
                 attempt += 1
                 if mysql_is_lock_error(exc):
                     raise
+                if mysql_is_connection_recoverable_error(exc):
+                    # A caller may catch the query error inside the context.
+                    # Never return that failed connection to the pool.
+                    self.connection_adapter.connection_broken = True
                 if not mysql_is_connection_recoverable_error(exc) or attempt >= max_attempts:
                     raise
                 logger.warning(
@@ -5606,6 +5873,8 @@ class MySqlConnectionAdapter:
         self.pool = pool
         self.pool_created_at = pool_created_at
         self.closed = False
+        self.transaction_has_writes = False
+        self.connection_broken = False
 
     def cursor(self):
         return MySqlCursorAdapter(self, self.connection.cursor())
@@ -5618,8 +5887,12 @@ class MySqlConnectionAdapter:
     def reconnect(self):
         if self.pool is not None:
             self.pool.release(self.connection, self.pool_created_at, discard=True)
+            # If acquisition fails, __exit__ must not release this lease twice.
+            self.closed = True
             self.connection, self.pool_created_at = self.pool.acquire()
             self.closed = False
+            self.transaction_has_writes = False
+            self.connection_broken = False
             return
         try:
             if self.connection is not None:
@@ -5628,18 +5901,34 @@ class MySqlConnectionAdapter:
             pass
         adapter = connect_mysql()
         self.connection = adapter.connection
+        self.transaction_has_writes = False
+        self.connection_broken = False
 
     def commit(self):
-        return self.connection.commit()
+        try:
+            result = self.connection.commit()
+        except Exception:
+            self.connection_broken = True
+            raise
+        self.transaction_has_writes = False
+        return result
 
     def rollback(self):
-        return self.connection.rollback()
+        try:
+            result = self.connection.rollback()
+        except Exception:
+            self.connection_broken = True
+            raise
+        self.transaction_has_writes = False
+        return result
 
     def close(self):
         if self.closed:
             return None
         self.closed = True
         if self.pool is not None:
+            if self.connection_broken:
+                return self.pool.release(self.connection, self.pool_created_at, discard=True)
             return self.pool.release(self.connection, self.pool_created_at)
         return self.connection.close()
 
@@ -5650,8 +5939,13 @@ class MySqlConnectionAdapter:
         if exc_type is None:
             try:
                 self.commit()
-            finally:
-                self.close()
+            except Exception:
+                try:
+                    self.close()
+                except Exception as close_exc:
+                    logger.warning("MySQL close failed after commit failure: %s", close_exc)
+                raise
+            self.close()
             return False
 
         try:
@@ -5662,16 +5956,53 @@ class MySqlConnectionAdapter:
             # failure must not hide the actionable root cause.
             logger.warning("MySQL rollback failed while handling an earlier error: %s", rollback_exc)
         finally:
-            self.close()
+            try:
+                self.close()
+            except Exception as close_exc:
+                logger.warning("MySQL close failed while handling an earlier error: %s", close_exc)
         return False
 
 
 _MYSQL_RESOLVED_LOCAL_PORT = None
+_MYSQL_RESOLVED_UNIX_SOCKET = None
 _MYSQL_CONNECTION_POOL = None
 _MYSQL_CONNECTION_POOL_LOCK = threading.Lock()
+_MYSQL_CONNECTION_CIRCUIT = MySqlConnectionCircuit()
 
 
 def connect_mysql_unpooled():
+    global _MYSQL_RESOLVED_UNIX_SOCKET
+    # No application statements have run yet, so retrying connection/session
+    # setup is safe even for callers that will subsequently perform writes.
+    # Keep this bounded: shared-host outages must not tie up workers forever.
+    configured_socket = os.environ.get("MYSQL_UNIX_SOCKET", "").strip()
+    socket_path = configured_socket or _MYSQL_RESOLVED_UNIX_SOCKET or discover_local_mysql_socket(mysql_connection_config())
+    for attempt in range(2):
+        try:
+            adapter = _connect_mysql_unpooled_once(unix_socket=socket_path)
+            if socket_path and not configured_socket:
+                if _MYSQL_RESOLVED_UNIX_SOCKET != socket_path:
+                    logger.info("MySQL local transport selected: Unix socket %s", socket_path)
+                _MYSQL_RESOLVED_UNIX_SOCKET = socket_path
+            return adapter
+        except Exception as exc:
+            cached_socket_unavailable = bool(socket_path and not configured_socket) and not mysql_is_connection_recoverable_error(exc) and (
+                mysql_exception_number(exc) == 2003
+                or mysql_exception_number(exc.__cause__) == 2003
+            )
+            if attempt or not (mysql_is_connection_recoverable_error(exc) or cached_socket_unavailable):
+                raise
+            if not configured_socket:
+                if cached_socket_unavailable:
+                    _MYSQL_RESOLVED_UNIX_SOCKET = None
+                    socket_path = None
+                elif not socket_path:
+                    socket_path = discover_local_mysql_socket(mysql_connection_config())
+            logger.warning("Retrying MySQL connection/session setup after transient disconnect: %s", exc)
+            time.sleep(0.5)
+
+
+def _connect_mysql_unpooled_once(unix_socket=None):
     global _MYSQL_RESOLVED_LOCAL_PORT
     if pymysql is None:
         raise RuntimeError("DB_BACKEND=mysql requires PyMySQL. Install requirements.txt first.")
@@ -5697,12 +6028,14 @@ def connect_mysql_unpooled():
         "write_timeout": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
+    if unix_socket:
+        connect_kwargs["unix_socket"] = unix_socket
     try:
         conn = pymysql.connect(**connect_kwargs)
     except Exception as exc:
         error_code = getattr(exc, "args", [None])[0]
         configured_port = int(config["port"])
-        if error_code == 2003 and local_mysql_host and configured_port != 3306:
+        if error_code == 2003 and local_mysql_host and configured_port != 3306 and not unix_socket:
             fallback_kwargs = dict(connect_kwargs)
             fallback_kwargs["port"] = 3306
             logger.warning(
@@ -5744,12 +6077,21 @@ def connect_mysql_unpooled():
                     "MySQL database was created or already exists, but Flask still could not connect. "
                     "Check MYSQL_* credentials and database-user permissions."
                 ) from reconnect_exc
-    with conn.cursor() as cursor:
-        cursor.execute("SET time_zone = '+00:00'")
-        cursor.execute(
-            "SET SESSION innodb_lock_wait_timeout = %s",
-            (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
-        )
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SET time_zone = '+00:00'")
+            cursor.execute(
+                "SET SESSION innodb_lock_wait_timeout = %s",
+                (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
+            )
+    except Exception:
+        # Failed session setup previously leaked an open connection, adding
+        # pressure to the shared host during repeated resets.
+        try:
+            conn.close()
+        except Exception:
+            pass
+        raise
     return MySqlConnectionAdapter(conn)
 
 
@@ -5775,18 +6117,54 @@ def mysql_connection_pool():
 
 
 def connect_mysql():
-    if not CAPACITY_FEATURES.enabled("db_connection_pool"):
-        return connect_mysql_unpooled()
-    pool = mysql_connection_pool()
-    connection, created_at = pool.acquire()
-    return MySqlConnectionAdapter(connection, pool=pool, pool_created_at=created_at)
+    def acquire_connection():
+        if not CAPACITY_FEATURES.enabled("db_connection_pool"):
+            return connect_mysql_unpooled()
+        pool = mysql_connection_pool()
+        connection, created_at = pool.acquire()
+        return MySqlConnectionAdapter(connection, pool=pool, pool_created_at=created_at)
+
+    return _MYSQL_CONNECTION_CIRCUIT.run(
+        acquire_connection, mysql_is_connection_recoverable_error,
+    )
 
 
 def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-08-15-optional-sensors-valves-v1"
+DB_SCHEMA_REVISION = "2026-10-04-customer-web-login-v1"
+DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
+    "wifi_ssid",
+    "direct_peer_repeater_reachable",
+    "direct_peer_repeater_last_packet_age_s",
+    "direct_peer_route",
+    "direct_peer_path",
+    "direct_peer_repeater_hops",
+    "direct_peer_lan_reachable",
+    "direct_peer_last_sequence",
+    "direct_peer_received_packets",
+    "direct_peer_link_quality_pct",
+    "direct_peer_duplicate_packets",
+    "direct_peer_out_of_order_packets",
+    "direct_peer_estimated_lost_packets",
+)
+
+
+def mysql_tank_data_schema_is_current(db):
+    rows = db.execute(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = DATABASE()
+          AND table_name = 'tank_data'
+        """
+    ).fetchall()
+    existing = {
+        str(row.get("column_name") or row.get("COLUMN_NAME") or "").strip().lower()
+        for row in rows
+    }
+    return all(column.lower() in existing for column in DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS)
 
 
 def init_db_serialized():
@@ -5810,9 +6188,16 @@ def init_db_serialized():
             marker_row = lock_db.execute(
                 "SELECT value FROM app_settings WHERE `key` = 'db_schema_revision' LIMIT 1"
             ).fetchone() if table_row else None
-            if str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION:
+            marker_current = str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION
+            structure_current = mysql_tank_data_schema_is_current(lock_db)
+            if marker_current and structure_current:
                 logger.info("MySQL schema already current at revision %s", DB_SCHEMA_REVISION)
                 return
+            if marker_current and not structure_current:
+                logger.warning(
+                    "MySQL schema marker %s is current but required tank_data columns are missing; repairing schema",
+                    DB_SCHEMA_REVISION,
+                )
             init_db()
             lock_db.execute(
                 """
@@ -5833,6 +6218,7 @@ def init_db_serialized():
 def ensure_tank_data_columns(cursor):
     existing = {row[1] for row in cursor.execute("PRAGMA table_info(tank_data)").fetchall()}
     required = {
+        "wifi_ssid": "VARCHAR(32)",
         "device_source": "TEXT",
         "sensor_info": "TEXT",
         "sensor_distance_cm": "REAL",
@@ -5890,8 +6276,16 @@ def ensure_tank_data_columns(cursor):
         "direct_peer_config_channel": "INTEGER",
         "direct_peer_wifi_channel": "INTEGER",
         "direct_peer_last_packet_age_s": "INTEGER",
+        "direct_peer_repeater_reachable": "INTEGER",
+        "direct_peer_repeater_last_packet_age_s": "INTEGER",
+        "direct_peer_route": "VARCHAR(32)",
+        "direct_peer_path": "VARCHAR(96)",
+        "direct_peer_repeater_hops": "INTEGER",
+        "direct_peer_lan_reachable": "INTEGER NOT NULL DEFAULT 0",
         "direct_peer_last_packet_bytes": "INTEGER",
         "direct_peer_last_sequence": "BIGINT",
+        "direct_peer_received_packets": "BIGINT",
+        "direct_peer_link_quality_pct": "INTEGER",
         "direct_peer_duplicate_packets": "BIGINT",
         "direct_peer_out_of_order_packets": "BIGINT",
         "direct_peer_estimated_lost_packets": "BIGINT",
@@ -5995,6 +6389,7 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             dry_run TEXT,
             wifi TEXT,
             wifi_rssi INTEGER,
+            wifi_ssid VARCHAR(32),
             sensor TEXT,
             device_source TEXT,
             sensor_info TEXT,
@@ -6049,6 +6444,12 @@ def rebuild_tank_data_without_simulator_columns(cursor):
             direct_peer_config_channel INTEGER,
             direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
+            direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
+            direct_peer_repeater_last_packet_age_s INTEGER,
+            direct_peer_route VARCHAR(32),
+            direct_peer_path VARCHAR(96),
+            direct_peer_repeater_hops INTEGER,
+            direct_peer_lan_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -6305,6 +6706,7 @@ def ensure_customer_accounts_table(cursor):
             email TEXT,
             password_hash TEXT NOT NULL,
             active INTEGER NOT NULL DEFAULT 1,
+            web_login_enabled INTEGER NOT NULL DEFAULT 1,
             cloud_feed_enabled INTEGER NOT NULL DEFAULT 1,
             service_updates_enabled INTEGER NOT NULL DEFAULT 1,
             marketing_emails_enabled INTEGER NOT NULL DEFAULT 0,
@@ -6321,6 +6723,7 @@ def ensure_customer_accounts_columns(cursor):
         "display_name": "TEXT",
         "email": "TEXT",
         "active": "INTEGER NOT NULL DEFAULT 1",
+        "web_login_enabled": "INTEGER NOT NULL DEFAULT 1",
         "cloud_feed_enabled": "INTEGER NOT NULL DEFAULT 1",
         "service_updates_enabled": "INTEGER NOT NULL DEFAULT 1",
         "marketing_emails_enabled": "INTEGER NOT NULL DEFAULT 0",
@@ -6345,6 +6748,47 @@ def ensure_customer_password_reset_tokens_table(cursor):
         )
         """
     )
+
+
+def ensure_survey_responses_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS survey_responses(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_token VARCHAR(64) NOT NULL UNIQUE,
+            name VARCHAR(160) NOT NULL,
+            email VARCHAR(255),
+            contact_number VARCHAR(40),
+            overall_experience VARCHAR(32) NOT NULL,
+            primary_use VARCHAR(64) NOT NULL,
+            most_valuable_feature VARCHAR(64) NOT NULL,
+            reliability_rating INTEGER NOT NULL,
+            ease_of_use_rating INTEGER NOT NULL,
+            would_recommend VARCHAR(16) NOT NULL,
+            answers_json LONGTEXT NOT NULL,
+            comments TEXT,
+            submitted_by_role VARCHAR(32),
+            submitted_by_username VARCHAR(255),
+            submitted_by_device_id VARCHAR(255),
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def ensure_survey_responses_columns(cursor):
+    existing = {row[1] for row in cursor.execute("PRAGMA table_info(survey_responses)").fetchall()}
+    required = {
+        "review_status": "VARCHAR(20) NOT NULL DEFAULT 'pending'",
+        "reviewed_at": "TEXT",
+        "reviewed_by": "VARCHAR(255)",
+        "registered_device_id": "VARCHAR(255)",
+        "registration_config_json": "LONGTEXT",
+        "registered_at": "TEXT",
+    }
+    for column, definition in required.items():
+        if column not in existing:
+            cursor.execute(f"ALTER TABLE survey_responses ADD COLUMN {column} {definition}")
 
 
 def ensure_device_service_configs_table(cursor):
@@ -6397,6 +6841,36 @@ def ensure_device_service_configs_table(cursor):
             slave_device_service_state TEXT NOT NULL DEFAULT 'UNKNOWN',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+
+def ensure_device_multi_tank_configs_table(cursor):
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_multi_tank_configs(
+            device_id VARCHAR(64) PRIMARY KEY,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS device_destination_tanks(
+            device_id VARCHAR(64) NOT NULL,
+            tank_index INTEGER NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 0,
+            tank_name VARCHAR(40) NOT NULL,
+            slave_device_id VARCHAR(64),
+            valve_owner VARCHAR(16) NOT NULL DEFAULT 'slave',
+            priority INTEGER NOT NULL DEFAULT 1,
+            start_pct REAL NOT NULL DEFAULT 30,
+            stop_pct REAL NOT NULL DEFAULT 95,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(device_id, tank_index)
         )
         """
     )
@@ -6521,6 +6995,7 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_tank_data_source_created ON tank_data(device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_created ON tank_data(device_id, device_source(16), created_at DESC, id DESC)",
         "CREATE INDEX idx_tank_data_device_source_id ON tank_data(device_id, device_source(16), id DESC)",
+        "CREATE INDEX idx_tank_data_source_device_id_id ON tank_data(device_source(16), device_id, id DESC)",
         "CREATE INDEX idx_tank_data_device_fingerprint ON tank_data(device_id, telemetry_fingerprint, created_at DESC, id DESC)",
         "CREATE INDEX idx_alerts_active ON ops_alerts(active, kind, device_id)",
         "CREATE INDEX idx_alerts_device_active_updated ON ops_alerts(device_id, active, updated_at DESC, id DESC)",
@@ -6538,6 +7013,7 @@ def ensure_performance_indexes(cursor):
         "CREATE INDEX idx_audit_device_created ON ops_audit_log(device_id, created_at DESC, id DESC)",
         "CREATE INDEX idx_customer_accounts_email_updated ON customer_accounts(email, updated_at DESC)",
         "CREATE INDEX idx_customer_password_reset_expires ON customer_password_reset_tokens(expires_at, used_at)",
+        "CREATE INDEX idx_survey_responses_created ON survey_responses(created_at DESC, id DESC)",
         "CREATE INDEX idx_registered_devices_last_seen ON registered_devices(last_seen_at, device_id)",
         "CREATE INDEX idx_device_auth_keys_updated ON device_auth_keys(updated_at, device_id)",
         "CREATE INDEX idx_device_service_configs_updated ON device_service_configs(updated_at, device_id)",
@@ -6685,6 +7161,7 @@ def init_db():
                 dry_run TEXT,
                 wifi TEXT,
                 wifi_rssi INTEGER,
+                wifi_ssid VARCHAR(32),
                 sensor TEXT,
                 device_source TEXT,
                 sensor_info TEXT,
@@ -6743,6 +7220,12 @@ def init_db():
             direct_peer_config_channel INTEGER,
             direct_peer_wifi_channel INTEGER,
             direct_peer_last_packet_age_s INTEGER,
+            direct_peer_repeater_reachable INTEGER NOT NULL DEFAULT 0,
+            direct_peer_repeater_last_packet_age_s INTEGER,
+            direct_peer_route VARCHAR(32),
+            direct_peer_path VARCHAR(96),
+            direct_peer_repeater_hops INTEGER,
+            direct_peer_lan_reachable INTEGER NOT NULL DEFAULT 0,
             direct_peer_last_packet_bytes INTEGER,
             direct_peer_last_pong_age_s INTEGER,
             direct_peer_last_pong_nonce INTEGER,
@@ -6780,8 +7263,11 @@ def init_db():
         ensure_customer_accounts_table(cursor)
         ensure_customer_accounts_columns(cursor)
         ensure_customer_password_reset_tokens_table(cursor)
+        ensure_survey_responses_table(cursor)
+        ensure_survey_responses_columns(cursor)
         ensure_device_service_configs_table(cursor)
         ensure_device_service_configs_columns(cursor)
+        ensure_device_multi_tank_configs_table(cursor)
         ensure_registered_devices_table(cursor)
         ensure_device_auth_keys_table(cursor)
         ensure_ignored_devices_table(cursor)
@@ -6791,7 +7277,6 @@ def init_db():
         seed_default_customer_accounts(cursor)
         ensure_performance_indexes(cursor)
 
-    maybe_reset_device_source_mode_on_boot()
     deleted_counts = purge_configured_virtual_device_records()
     if deleted_counts.get("device_ids"):
         logger.info(
@@ -7120,7 +7605,7 @@ def fetch_customer_account(device_id):
     with get_db() as db:
         row = db.execute(
             """
-            SELECT device_id, display_name, email, password_hash, active, cloud_feed_enabled,
+            SELECT device_id, display_name, email, password_hash, active, web_login_enabled, cloud_feed_enabled,
                    service_updates_enabled, marketing_emails_enabled, created_at, updated_at
             FROM customer_accounts
             WHERE device_id = ?
@@ -7128,6 +7613,25 @@ def fetch_customer_account(device_id):
             (normalized_device_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def customer_web_login_enabled(device_id):
+    account = fetch_customer_account(device_id)
+    return bool(account and int(account.get("web_login_enabled", 1) or 0) == 1)
+
+
+def save_customer_web_login_from_configuration(device_id, form):
+    # Older forms omit this setting: preserve it instead of interpreting it as
+    # an unchecked checkbox. The marker is rendered only for an existing account.
+    if form.get("customer_web_login_present") != "1":
+        return None
+    if not fetch_customer_account(device_id):
+        raise ValueError("Customer account not found for this device.")
+    enabled = "web_login_enabled" in form
+    with get_db() as db:
+        db.execute("UPDATE customer_accounts SET web_login_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                   (int(enabled), device_id))
+    return enabled
 
 
 def list_customer_accounts(limit=100):
@@ -7537,6 +8041,7 @@ def serialize_device_service_config(device_id, payload=None, account=None):
     municipal_sensor_enabled = boolish_enabled(payload.get("municipal_sensor_enabled"), default=False)
     municipal_valve_enabled = boolish_enabled(payload.get("municipal_valve_enabled"), default=False)
     source_outlet_valve_enabled = boolish_enabled(payload.get("source_outlet_valve_enabled"), default=False)
+    multi_tank_enabled = boolish_enabled(payload.get("multi_tank_enabled"), default=False)
     starter_contactor_sensor_enabled = boolish_enabled(payload.get("starter_contactor_sensor_enabled"), default=False)
     motor_current_sensor_enabled = boolish_enabled(payload.get("motor_current_sensor_enabled"), default=False)
     water_flow_sensor_enabled = boolish_enabled(payload.get("water_flow_sensor_enabled"), default=False)
@@ -7610,6 +8115,8 @@ def serialize_device_service_config(device_id, payload=None, account=None):
         "municipal_sensor_enabled": municipal_sensor_enabled,
         "municipal_valve_enabled": municipal_valve_enabled,
         "source_outlet_valve_enabled": source_outlet_valve_enabled,
+        "multi_tank_enabled": multi_tank_enabled,
+        "destination_tanks": list(payload.get("destination_tanks") or []),
         "starter_contactor_sensor_enabled": starter_contactor_sensor_enabled,
         "motor_current_sensor_enabled": motor_current_sensor_enabled,
         "water_flow_sensor_enabled": water_flow_sensor_enabled,
@@ -7684,6 +8191,7 @@ def default_device_service_config(device_id=None, account=None):
             "municipal_sensor_enabled": False,
             "municipal_valve_enabled": False,
             "source_outlet_valve_enabled": False,
+            "multi_tank_enabled": False,
             "starter_contactor_sensor_enabled": False,
             "motor_current_sensor_enabled": False,
             "water_flow_sensor_enabled": False,
@@ -7884,6 +8392,14 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         if row
         else default_device_service_config(normalized_device_id, account=resolved_account)
     )
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        multi_tank_row = db.execute(
+            "SELECT enabled FROM device_multi_tank_configs WHERE device_id = ?",
+            (normalized_device_id,),
+        ).fetchone()
+    stored_config["multi_tank_enabled"] = bool(multi_tank_row and int(multi_tank_row["enabled"] or 0))
+    stored_config["destination_tanks"] = fetch_device_destination_tanks(normalized_device_id)
     live_config = snapshot_device_service_config(
         snapshot,
         device_id=normalized_device_id,
@@ -7891,6 +8407,153 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         existing=stored_config,
     )
     return live_config or stored_config
+
+
+def set_device_multi_tank_enabled(device_id, enabled):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        db.execute(
+            """
+            INSERT INTO device_multi_tank_configs(device_id, enabled, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(device_id) DO UPDATE SET
+                enabled=excluded.enabled,
+                updated_at=CURRENT_TIMESTAMP
+            """,
+            (normalized_device_id, 1 if boolish_enabled(enabled, default=False) else 0),
+        )
+
+
+MAX_DESTINATION_TANKS = 8
+
+
+def default_destination_tank(tank_index):
+    index = max(1, min(int(tank_index), MAX_DESTINATION_TANKS))
+    return {
+        "tank_index": index,
+        "enabled": False,
+        "tank_name": f"Overhead Tank {index}",
+        "slave_device_id": "",
+        "valve_owner": "slave",
+        "priority": index,
+        "start_pct": 30.0,
+        "stop_pct": 95.0,
+    }
+
+
+def fetch_device_destination_tanks(device_id):
+    normalized_device_id = normalize_device_id(device_id)
+    tanks = [default_destination_tank(index) for index in range(1, MAX_DESTINATION_TANKS + 1)]
+    if not normalized_device_id:
+        return tanks
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        rows = db.execute(
+            """
+            SELECT tank_index, enabled, tank_name, slave_device_id, valve_owner,
+                   priority, start_pct, stop_pct
+            FROM device_destination_tanks
+            WHERE device_id = ?
+            ORDER BY tank_index
+            """,
+            (normalized_device_id,),
+        ).fetchall()
+    for row in rows:
+        index = int(row["tank_index"] or 0)
+        if index < 1 or index > MAX_DESTINATION_TANKS:
+            continue
+        tanks[index - 1] = {
+            "tank_index": index,
+            "enabled": bool(int(row["enabled"] or 0)),
+            "tank_name": str(row["tank_name"] or f"Overhead Tank {index}"),
+            "slave_device_id": normalize_device_id(row["slave_device_id"]),
+            "valve_owner": "master" if str(row["valve_owner"] or "").lower() == "master" else "slave",
+            "priority": int(row["priority"] or index),
+            "start_pct": float(row["start_pct"]),
+            "stop_pct": float(row["stop_pct"]),
+        }
+    return tanks
+
+
+def normalize_destination_tanks(tanks):
+    normalized = []
+    enabled_slave_ids = set()
+    for offset, source in enumerate(list(tanks or [])[:MAX_DESTINATION_TANKS]):
+        index = offset + 1
+        source = source or {}
+        enabled = boolish_enabled(source.get("enabled"), default=False)
+        name = str(source.get("tank_name") or f"Overhead Tank {index}").strip()[:40]
+        owner = str(source.get("valve_owner") or "slave").strip().lower()
+        if owner not in {"master", "slave"}:
+            raise ValueError(f"Tank {index}: choose Master or Slave valve ownership.")
+        slave_id = normalize_device_id(source.get("slave_device_id"))
+        try:
+            priority = int(source.get("priority") or index)
+            start_pct = float(source.get("start_pct") or 30.0)
+            stop_pct = float(source.get("stop_pct") or 95.0)
+        except (TypeError, ValueError):
+            raise ValueError(f"Tank {index}: priority and thresholds must be numeric.")
+        if priority < 1 or priority > MAX_DESTINATION_TANKS:
+            raise ValueError(f"Tank {index}: priority must be between 1 and {MAX_DESTINATION_TANKS}.")
+        if start_pct < 0 or stop_pct > 100 or start_pct >= stop_pct:
+            raise ValueError(f"Tank {index}: start level must be below stop level within 0–100%.")
+        if enabled and not slave_id:
+            raise ValueError(f"Tank {index}: an enabled tank requires a Slave device ID.")
+        if len(slave_id) > 23:
+            raise ValueError(f"Tank {index}: Slave device ID must be at most 23 characters.")
+        if enabled and slave_id in enabled_slave_ids:
+            raise ValueError(f"Tank {index}: Slave device ID {slave_id} is already assigned to another tank.")
+        if enabled:
+            enabled_slave_ids.add(slave_id)
+        normalized.append({
+            "tank_index": index,
+            "enabled": enabled,
+            "tank_name": name or f"Overhead Tank {index}",
+            "slave_device_id": slave_id,
+            "valve_owner": owner,
+            "priority": priority,
+            "start_pct": round(start_pct, 1),
+            "stop_pct": round(stop_pct, 1),
+        })
+    while len(normalized) < MAX_DESTINATION_TANKS:
+        normalized.append(default_destination_tank(len(normalized) + 1))
+    return normalized
+
+
+def save_device_destination_tanks(device_id, tanks):
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        raise ValueError("device_id is required")
+    normalized_tanks = normalize_destination_tanks(tanks)
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        for tank in normalized_tanks:
+            db.execute(
+                """
+                INSERT INTO device_destination_tanks(
+                    device_id, tank_index, enabled, tank_name, slave_device_id,
+                    valve_owner, priority, start_pct, stop_pct, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(device_id, tank_index) DO UPDATE SET
+                    enabled=excluded.enabled,
+                    tank_name=excluded.tank_name,
+                    slave_device_id=excluded.slave_device_id,
+                    valve_owner=excluded.valve_owner,
+                    priority=excluded.priority,
+                    start_pct=excluded.start_pct,
+                    stop_pct=excluded.stop_pct,
+                    updated_at=CURRENT_TIMESTAMP
+                """,
+                (
+                    normalized_device_id, tank["tank_index"], 1 if tank["enabled"] else 0,
+                    tank["tank_name"], tank["slave_device_id"] or None, tank["valve_owner"],
+                    tank["priority"], tank["start_pct"], tank["stop_pct"],
+                ),
+            )
+    return normalized_tanks
 
 
 def list_device_service_configs(device_ids=None, accounts_by_device=None, snapshots_by_device=None):
@@ -7936,6 +8599,42 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         )
         for row in rows
     }
+    with get_db() as db:
+        ensure_device_multi_tank_configs_table(db)
+        multi_rows = db.execute(
+            "SELECT device_id, enabled FROM device_multi_tank_configs"
+        ).fetchall()
+        destination_rows = db.execute(
+            """
+            SELECT device_id, tank_index, enabled, tank_name, slave_device_id,
+                   valve_owner, priority, start_pct, stop_pct
+            FROM device_destination_tanks
+            ORDER BY device_id, tank_index
+            """
+        ).fetchall()
+    for multi_row in multi_rows:
+        multi_device_id = normalize_device_id(multi_row["device_id"])
+        if multi_device_id in configs:
+            configs[multi_device_id]["multi_tank_enabled"] = bool(int(multi_row["enabled"] or 0))
+    destinations_by_device = {}
+    for destination_row in destination_rows:
+        destination_device_id = normalize_device_id(destination_row["device_id"])
+        destinations_by_device.setdefault(destination_device_id, {})[int(destination_row["tank_index"])] = {
+            "tank_index": int(destination_row["tank_index"]),
+            "enabled": bool(int(destination_row["enabled"] or 0)),
+            "tank_name": str(destination_row["tank_name"] or ""),
+            "slave_device_id": normalize_device_id(destination_row["slave_device_id"]),
+            "valve_owner": "master" if str(destination_row["valve_owner"] or "").lower() == "master" else "slave",
+            "priority": int(destination_row["priority"]),
+            "start_pct": float(destination_row["start_pct"]),
+            "stop_pct": float(destination_row["stop_pct"]),
+        }
+    for configured_device_id, config in configs.items():
+        stored_destinations = destinations_by_device.get(configured_device_id, {})
+        config["destination_tanks"] = [
+            stored_destinations.get(index, default_destination_tank(index))
+            for index in range(1, MAX_DESTINATION_TANKS + 1)
+        ]
     if normalized_device_ids:
         for normalized_device_id in normalized_device_ids:
             configs.setdefault(
@@ -7971,9 +8670,21 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
                 )
                 or existing
             )
+    multi_enabled_by_device = {
+        normalize_device_id(row["device_id"]): bool(int(row["enabled"] or 0))
+        for row in multi_rows
+    }
+    for configured_device_id, config in configs.items():
+        config["multi_tank_enabled"] = multi_enabled_by_device.get(configured_device_id, False)
+        stored_destinations = destinations_by_device.get(configured_device_id, {})
+        config["destination_tanks"] = [
+            stored_destinations.get(index, default_destination_tank(index))
+            for index in range(1, MAX_DESTINATION_TANKS + 1)
+        ]
     return configs
 
 
+@retry_idempotent_database_operation("upsert device service configuration")
 def upsert_device_service_config(
     device_id,
     device_setup_type=None,
@@ -8088,6 +8799,15 @@ def upsert_device_service_config(
         water_pressure_sensor_enabled,
         default=existing.get("water_pressure_sensor_enabled", False),
     )
+    # Flow and pressure are alternative municipal-availability inputs. Keep old
+    # records/forms deterministic by preferring flow if both arrive enabled.
+    if not resolved_municipal_sensor_enabled:
+        resolved_water_flow_sensor_enabled = False
+        resolved_water_pressure_sensor_enabled = False
+    elif resolved_water_flow_sensor_enabled and resolved_water_pressure_sensor_enabled:
+        resolved_water_pressure_sensor_enabled = False
+    elif not resolved_water_flow_sensor_enabled and not resolved_water_pressure_sensor_enabled:
+        resolved_water_flow_sensor_enabled = True
     resolved_turbidity_monitoring_enabled = boolish_enabled(
         turbidity_monitoring_enabled,
         default=existing.get("turbidity_monitoring_enabled", False),
@@ -8353,7 +9073,11 @@ def build_device_service_command(service_config):
     slave_turbidity_enabled = bool(config.get("slave_turbidity_enabled", turbidity_monitoring_enabled))
     relay_enabled = bool(config.get("relay_enabled", True))
     auto_mode_enabled = bool(config.get("auto_mode_enabled", False))
-    return "SERVICECFG11:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}".format(
+    water_flow_sensor_enabled = municipal_sensor_enabled and bool(config.get("water_flow_sensor_enabled"))
+    water_pressure_sensor_enabled = municipal_sensor_enabled and bool(config.get("water_pressure_sensor_enabled")) and not water_flow_sensor_enabled
+    if municipal_sensor_enabled and not water_flow_sensor_enabled and not water_pressure_sensor_enabled:
+        water_flow_sensor_enabled = True
+    return "SERVICECFG12:{master_upper}:{slave_upper}:{source}:{relay}:{buzzer}:{led}:{ota}:{upload}:{auto_mode}:{municipal}:{master_turbidity}:{slave_turbidity}:{municipal_valve}:{source_outlet_valve}:{starter_aux}:{motor_current}:{water_flow}:{water_pressure}:{multi_tank}".format(
         master_upper=1 if master_upper_sensor_enabled else 0,
         slave_upper=1 if slave_upper_sensor_enabled else 0,
         source=1 if source_tank_enabled else 0,
@@ -8370,9 +9094,30 @@ def build_device_service_command(service_config):
         source_outlet_valve=1 if source_outlet_valve_enabled else 0,
         starter_aux=1 if bool(config.get("starter_contactor_sensor_enabled")) else 0,
         motor_current=1 if bool(config.get("motor_current_sensor_enabled")) else 0,
-        water_flow=1 if bool(config.get("water_flow_sensor_enabled")) else 0,
-        water_pressure=1 if bool(config.get("water_pressure_sensor_enabled")) else 0,
+        water_flow=1 if water_flow_sensor_enabled else 0,
+        water_pressure=1 if water_pressure_sensor_enabled else 0,
+        multi_tank=1 if bool(config.get("multi_tank_enabled", False)) else 0,
     )
+
+
+def build_multi_tank_configuration_commands(service_config):
+    config = service_config or {}
+    commands = ["MTANKBEGIN"]
+    for tank in normalize_destination_tanks(config.get("destination_tanks")):
+        slave_id = tank["slave_device_id"] or "none"
+        commands.append(
+            "MTANKCFG:{index}:{enabled}:{owner}:{priority}:{start:.1f}:{stop:.1f}:{slave}".format(
+                index=tank["tank_index"] - 1,
+                enabled=1 if tank["enabled"] else 0,
+                owner=tank["valve_owner"],
+                priority=tank["priority"],
+                start=tank["start_pct"],
+                stop=tank["stop_pct"],
+                slave=slave_id,
+            )
+        )
+    commands.append("MTANKCOMMIT")
+    return commands
 
 
 def device_automation_settings_key(device_id):
@@ -8457,7 +9202,9 @@ def snapshot_device_automation_settings(snapshot, device_id=None):
     )
     if auto_start_pct is None or auto_stop_pct is None:
         return None
-    if auto_start_pct < 0 or auto_start_pct > 95 or auto_stop_pct < 5 or auto_stop_pct > 100 or auto_start_pct >= auto_stop_pct:
+    if (auto_start_pct < MIN_DEVICE_AUTO_START_PCT or auto_start_pct > MAX_DEVICE_AUTO_START_PCT
+            or auto_stop_pct < MIN_DEVICE_AUTO_STOP_PCT or auto_stop_pct > MAX_DEVICE_AUTO_STOP_PCT
+            or auto_start_pct >= auto_stop_pct):
         return None
     return build_device_automation_settings(
         device_id or snapshot.get("device_id"),
@@ -8611,10 +9358,10 @@ def upsert_device_automation_settings(device_id, auto_start_pct=None, auto_stop_
     if resolved_stop is None:
         resolved_stop = safe_float(existing.get("auto_stop_pct"), DEFAULT_DEVICE_AUTO_STOP_PCT)
 
-    if resolved_start < 0 or resolved_start > 95:
-        raise ValueError("Start level must be between 0 and 95%.")
-    if resolved_stop < 5 or resolved_stop > 100:
-        raise ValueError("Stop level must be between 5 and 100%.")
+    if resolved_start < MIN_DEVICE_AUTO_START_PCT or resolved_start > MAX_DEVICE_AUTO_START_PCT:
+        raise ValueError(f"Start level must be between {MIN_DEVICE_AUTO_START_PCT:g} and {MAX_DEVICE_AUTO_START_PCT:g}%.")
+    if resolved_stop < MIN_DEVICE_AUTO_STOP_PCT or resolved_stop > MAX_DEVICE_AUTO_STOP_PCT:
+        raise ValueError(f"Stop level must be between {MIN_DEVICE_AUTO_STOP_PCT:g} and {MAX_DEVICE_AUTO_STOP_PCT:g}%.")
     if resolved_start >= resolved_stop:
         raise ValueError("Start level must stay below stop level.")
 
@@ -8927,13 +9674,9 @@ def resolve_mobile_user():
             device_id=device_id,
             session_id=platform_session_id,
         ):
-            register_active_platform_session(
-                SESSION_PLATFORM_ANDROID,
-                "customer",
-                username=device_id,
-                device_id=device_id,
-                session_id=platform_session_id,
-            )
+            g.mobile_auth_error = "session_replaced"
+            g.mobile_user = None
+            return None
         service_config = fetch_device_service_config(
             device_id,
             account=customer,
@@ -9285,14 +10028,14 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
     if sensor_distance_cm is not None and data["tank_height_cm"] > 0:
         data["water_depth_cm"] = round(max(0.0, min(data["tank_height_cm"], data["tank_height_cm"] - sensor_distance_cm)), 1)
         data["water_depth_label"] = f"{data['water_depth_cm']:.1f} cm"
-    elif data["tank_height_cm"] > 0:
+    elif level_valid and data["tank_height_cm"] > 0:
         data["water_depth_cm"] = round(max(0.0, min(data["tank_height_cm"], (level / 100.0) * data["tank_height_cm"])), 1)
         data["water_depth_label"] = f"{data['water_depth_cm']:.1f} cm"
     else:
         data["water_depth_cm"] = None
         data["water_depth_label"] = "--"
-    data["remaining_liters"] = liters
-    data["water_available_label"] = f"{liters:.1f} L / {capacity_liters:.1f} L"
+    data["remaining_liters"] = liters if level_valid else None
+    data["water_available_label"] = f"{liters:.1f} L / {capacity_liters:.1f} L" if level_valid else "--"
     lower_level_raw = data.get("lower_tank_level")
     lower_level = None
     if lower_level_raw not in (None, "", "null"):
@@ -9386,7 +10129,10 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
         "direct_peer_config_channel",
         "direct_peer_wifi_channel",
         "direct_peer_last_packet_age_s",
+        "direct_peer_repeater_last_packet_age_s",
         "direct_peer_last_packet_bytes",
+        "direct_peer_received_packets",
+        "direct_peer_link_quality_pct",
         "direct_peer_last_pong_age_s",
         "direct_peer_last_pong_nonce",
         "direct_peer_sync_channel",
@@ -9399,6 +10145,21 @@ def enrich_snapshot(data, motor_cycles=0, leak_events=0):
             data[key] = int(data[key]) if data.get(key) not in (None, "", "null") else None
         except (TypeError, ValueError):
             data[key] = None
+    peer_quality = data.get("direct_peer_link_quality_pct")
+    peer_received = data.get("direct_peer_received_packets") or 0
+    peer_age = data.get("direct_peer_last_packet_age_s")
+    if not peer_received or peer_age is None or peer_age > 60:
+        data["direct_peer_signal"] = "none"
+    elif peer_quality is None:
+        data["direct_peer_signal"] = "not reported"
+    elif peer_quality >= 90:
+        data["direct_peer_signal"] = "excellent"
+    elif peer_quality >= 75:
+        data["direct_peer_signal"] = "good"
+    elif peer_quality >= 50:
+        data["direct_peer_signal"] = "weak"
+    else:
+        data["direct_peer_signal"] = "poor"
     data["direct_peer_sync_pending"] = bool_flag(data.get("direct_peer_sync_pending"))
     apply_source_tank_aliases(data, include_aliases=True)
     data["dry_run_active"] = "YES" if effective_dry_run_active(data) else "NO"
@@ -11125,6 +11886,26 @@ def ai_leakage_alert_eligible(leakage_model):
     )
 
 
+def synchronize_ai_leakage_alert(device_id, leakage_model):
+    """Publish the already-computed AI leak result without recomputing analytics."""
+    model = leakage_model or {}
+    eligible = ai_leakage_alert_eligible(model)
+    status = str(model.get("status") or "").strip().lower()
+    if status == "likely_leak":
+        message = "AI/ML telemetry analysis found a likely leakage pattern."
+    else:
+        message = "AI/ML telemetry analysis found a possible leakage pattern."
+    set_alert(
+        "ai_leakage",
+        "warning",
+        message,
+        device_id=device_id,
+        active=eligible,
+        best_effort=True,
+    )
+    return eligible
+
+
 def build_analysis_payload(
     *,
     quality,
@@ -11589,6 +12370,12 @@ def build_empty_snapshot_payload(device_id=None):
         "direct_peer_config_channel": None,
         "direct_peer_wifi_channel": None,
         "direct_peer_last_packet_age_s": None,
+        "direct_peer_repeater_reachable": False,
+        "direct_peer_repeater_last_packet_age_s": None,
+        "direct_peer_route": None,
+        "direct_peer_path": None,
+        "direct_peer_repeater_hops": 0,
+        "direct_peer_lan_reachable": False,
         "direct_peer_last_packet_bytes": None,
         "direct_peer_last_pong_age_s": None,
         "direct_peer_last_pong_nonce": None,
@@ -11641,6 +12428,11 @@ def load_dashboard_snapshot(device_id=None, prefer_capacity=False):
             snapshot = latest_snapshot_with_metrics(db)
         payload = snapshot or build_empty_snapshot_payload()
     if SNAPSHOT_CACHE_TTL_SECONDS > 0:
+        # Bound process memory even when expired devices are never requested again.
+        # Evict before insertion so this also works when the limit is one.
+        if cache_key not in dashboard_snapshot_cache:
+            while len(dashboard_snapshot_cache) >= SNAPSHOT_CACHE_MAX_ENTRIES:
+                dashboard_snapshot_cache.pop(next(iter(dashboard_snapshot_cache), None), None)
         dashboard_snapshot_cache[cache_key] = {
             "created_at": time.time(),
             "payload": dict(payload),
@@ -11710,6 +12502,7 @@ def persist_dashboard_summary(device_id, payload=None):
         operation_name="persist dashboard summary",
         attempts=4,
         initial_delay_s=0.25,
+        retry_connection_errors=True,
     )
 
     cache_key = f"{active_mode}:{normalized_device_id}"
@@ -11774,9 +12567,24 @@ def refresh_dashboard_summary(device_id):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+
+    def build_and_persist():
+        # Summary generation is idempotent and safe to replay. Serialize it per
+        # Passenger process so paired Master/Slave ingestion cannot open two
+        # expensive refresh transactions against constrained cPanel MySQL at
+        # the same instant.
+        with dashboard_summary_worker_lock:
+            invalidate_dashboard_summary_memory(normalized_device_id)
+            return persist_dashboard_summary(normalized_device_id)
+
     try:
-        invalidate_dashboard_summary_memory(normalized_device_id)
-        return persist_dashboard_summary(normalized_device_id)
+        return run_with_database_lock_retries(
+            build_and_persist,
+            operation_name=f"refresh dashboard summary for {normalized_device_id}",
+            attempts=3,
+            initial_delay_s=0.75,
+            retry_connection_errors=True,
+        )
     except Exception as exc:
         logger.warning("Dashboard summary refresh failed for %s: %s", normalized_device_id, exc)
         return None
@@ -11800,6 +12608,15 @@ def schedule_dashboard_summary_refresh(device_id):
             return
         dashboard_summary_refresh_pending.add(normalized_device_id)
 
+    # Bound thread creation as well as database work. Waiting on the summary
+    # lock inside a new thread for every device still exhausts shared-host
+    # process/thread limits during an outage. Summaries are best effort; the
+    # next telemetry/event request can retry a refresh that cannot run now.
+    if not telemetry_background_semaphore.acquire(blocking=False):
+        with dashboard_summary_refresh_lock:
+            dashboard_summary_refresh_pending.discard(normalized_device_id)
+        return
+
     def refresh_after_event_burst():
         try:
             time.sleep(0.2)
@@ -11807,12 +12624,19 @@ def schedule_dashboard_summary_refresh(device_id):
         finally:
             with dashboard_summary_refresh_lock:
                 dashboard_summary_refresh_pending.discard(normalized_device_id)
+            telemetry_background_semaphore.release()
 
-    threading.Thread(
-        target=refresh_after_event_burst,
-        name=f"dashboard-summary-{normalized_device_id}",
-        daemon=True,
-    ).start()
+    try:
+        threading.Thread(
+            target=refresh_after_event_burst,
+            name=f"dashboard-summary-{normalized_device_id}",
+            daemon=True,
+        ).start()
+    except RuntimeError as exc:
+        with dashboard_summary_refresh_lock:
+            dashboard_summary_refresh_pending.discard(normalized_device_id)
+        telemetry_background_semaphore.release()
+        logger.warning("Unable to start dashboard summary worker for %s: %s", normalized_device_id, exc)
 
 
 def snapshot_has_live_device_data(snapshot):
@@ -11849,7 +12673,19 @@ def build_synchronized_status_payload(snapshot, device_id=None, service_config=N
         else {}
     )
     sensor_status = admin_relay_sensor_status_fields(snapshot, config)
+    node_status = admin_node_status_fields(snapshot, config)
     fresh = snapshot_is_fresh_enough_for_runtime_sync(snapshot)
+    repeater_age = snapshot.get("direct_peer_repeater_last_packet_age_s")
+    try:
+        repeater_age = int(repeater_age)
+    except (TypeError, ValueError):
+        repeater_age = None
+    repeater_reachable = (
+        fresh
+        and boolish_enabled(snapshot.get("direct_peer_repeater_reachable"), default=False)
+        and repeater_age is not None
+        and 0 <= repeater_age <= DIRECT_PEER_STALE_AFTER_SECONDS
+    )
     pump_running = str(
         snapshot.get("pump")
         or snapshot.get("motor")
@@ -11867,6 +12703,25 @@ def build_synchronized_status_payload(snapshot, device_id=None, service_config=N
         "device_id": normalized_device_id,
         "observed_at": snapshot.get("last_sync_at") or snapshot.get("created_at"),
         "telemetry_status": snapshot.get("telemetry_status") or "no-data",
+        "nodes": {
+            "master": {
+                "state": node_status.get("master_status_label") or "Unreachable",
+                "reachable": node_status.get("master_status_tone") == "online",
+                "source": "firmware_telemetry",
+            },
+            "slave": {
+                "state": node_status.get("slave_status_label") or "Unreachable",
+                "reachable": node_status.get("slave_status_tone") == "online",
+                "packet_age_s": snapshot.get("direct_peer_last_packet_age_s"),
+                "source": "firmware_espnow",
+            },
+            "repeater": {
+                "state": "Reachable" if repeater_reachable else "Unreachable",
+                "reachable": repeater_reachable,
+                "packet_age_s": repeater_age,
+                "source": "firmware_espnow",
+            },
+        },
         "pump": {
             "state": "ON" if pump_running else "OFF",
             "mode": str(snapshot.get("mode") or "UNKNOWN").strip().upper(),
@@ -11948,6 +12803,7 @@ def build_system_status_payload(snapshot, device_id=None, service_config=None):
         "free_heap_label": snapshot.get("free_heap_label") if snapshot else "--",
         "active_alert_count": len(active_alerts),
         "active_alerts": active_alerts,
+        "recent_alerts": fetch_recent_service_alerts(device_id=device_id),
         "synchronized_status": synchronized_status,
         # Backward-compatible aliases for clients that adopted the initial
         # cross-project status contract before the nested field was finalized.
@@ -11968,6 +12824,15 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
         [normalized_device_id]
         if normalized_device_id
         else sorted(set(sorted(DEVICE_KEY_MAP.keys()) + list_registered_device_ids(limit=200)))
+    )
+    # Device-detail polling already has this exact device's latest snapshot.
+    # Reusing it avoids a redundant ROW_NUMBER inventory scan that can exceed
+    # the read timeout on shared cPanel MySQL. Fleet summaries still query the
+    # complete inventory when no device is scoped.
+    device_inventory = (
+        [build_admin_device_entry(normalized_device_id, snapshot=snapshot)]
+        if normalized_device_id and snapshot
+        else fetch_device_inventory(limit=20)
     )
     return {
         "api_version": API_VERSION,
@@ -12009,7 +12874,7 @@ def build_monitoring_summary_payload(snapshot, device_id=None):
             "last_status_code": relay_state.get("last_status_code"),
         },
         "alerts": active_alerts,
-        "devices": fetch_device_inventory(limit=20, device_ids=[normalized_device_id] if normalized_device_id else None),
+        "devices": device_inventory,
     }
 
 
@@ -12078,6 +12943,8 @@ def build_db_summary_payload():
                 min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10)),
             ),
             "automatic_write_retries": False,
+            "unix_socket_configured": bool(os.environ.get("MYSQL_UNIX_SOCKET", "").strip()),
+            "recovered_unix_socket": _MYSQL_RESOLVED_UNIX_SOCKET,
             "pool_enabled": CAPACITY_FEATURES.enabled("db_connection_pool"),
             "pool_size": max(1, min(env_int("MYSQL_POOL_SIZE", 2), 4)),
             "pool_max_overflow": max(0, min(env_int("MYSQL_POOL_MAX_OVERFLOW", 1), 2)),
@@ -12477,6 +13344,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         quality=analytics_quality,
         pump_activity_metrics=pump_activity_metrics,
     )
+    synchronize_ai_leakage_alert(latest_row.get("device_id"), leakage_model)
     health = calculate_health(
         snapshot=latest_row,
         leak_events=leak_events,
@@ -12912,23 +13780,42 @@ def telemetry_sync_is_recent_duplicate(device_id, fingerprint, transport=None, s
     if not normalized_device_id or not normalized_fingerprint:
         return False
 
-    with get_db() as db:
-        row = db.execute(
-            """
-            SELECT created_at
-            FROM tank_data
-            WHERE device_id = ?
-              AND telemetry_fingerprint = ?
-            ORDER BY created_at DESC, id DESC
-            LIMIT 1
-            """,
-            (normalized_device_id, normalized_fingerprint),
-        ).fetchone()
-
-    if not row:
-        return False
-
-    created_at = parse_timestamp(row["created_at"])
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT received_at, state_json
+                FROM device_latest_state
+                WHERE device_id = ? AND device_source = ?
+                LIMIT 1
+                """,
+                (normalized_device_id, get_device_source_mode()),
+            ).fetchone()
+        if not row:
+            return False
+        try:
+            stored_state = json.loads(row.get("state_json") or "{}")
+        except (TypeError, ValueError):
+            return False
+        if stored_state.get("telemetry_fingerprint") != normalized_fingerprint:
+            return False
+        created_at = parse_timestamp(row.get("received_at"))
+    else:
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT created_at
+                FROM tank_data
+                WHERE device_id = ?
+                  AND telemetry_fingerprint = ?
+                ORDER BY created_at DESC, id DESC
+                LIMIT 1
+                """,
+                (normalized_device_id, normalized_fingerprint),
+            ).fetchone()
+        if not row:
+            return False
+        created_at = parse_timestamp(row["created_at"])
     if created_at is None:
         return False
     age_seconds = max(0, int((now_utc() - created_at).total_seconds()))
@@ -13099,7 +13986,9 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
                node_role, device_type,
                direct_peer, direct_peer_remote_ip, direct_peer_remote_mac,
                direct_peer_config_channel, direct_peer_wifi_channel,
-               direct_peer_last_packet_age_s, direct_peer_last_packet_bytes,
+               direct_peer_last_packet_age_s, direct_peer_repeater_reachable,
+               direct_peer_repeater_last_packet_age_s, direct_peer_route, direct_peer_path,
+               direct_peer_repeater_hops, direct_peer_lan_reachable, direct_peer_last_packet_bytes,
                direct_peer_last_sequence, direct_peer_duplicate_packets,
                direct_peer_out_of_order_packets, direct_peer_estimated_lost_packets,
                direct_peer_last_pong_age_s, direct_peer_last_pong_nonce,
@@ -13234,6 +14123,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
     def peer_link_state(current):
         if str(current.get("direct_peer") or "").strip().lower() in {"", "disabled", "off"}:
             return "disabled"
+        # A peer age is measured by the master at check-in time. Once the
+        # master telemetry is stale, that stored number is no longer a live
+        # clock and must never keep the slave looking reachable.
+        if not admin_device_is_online(current):
+            return "stale"
         age = peer_packet_age(current)
         if age is None or age < 0:
             return "waiting"
@@ -13247,6 +14141,12 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
             "direct_peer_config_channel": current.get("direct_peer_config_channel"),
             "direct_peer_wifi_channel": current.get("direct_peer_wifi_channel"),
             "direct_peer_last_packet_age_s": current.get("direct_peer_last_packet_age_s"),
+            "direct_peer_repeater_reachable": bool(current.get("direct_peer_repeater_reachable")),
+            "direct_peer_repeater_last_packet_age_s": current.get("direct_peer_repeater_last_packet_age_s"),
+            "direct_peer_route": current.get("direct_peer_route"),
+            "direct_peer_path": current.get("direct_peer_path"),
+            "direct_peer_repeater_hops": current.get("direct_peer_repeater_hops"),
+            "direct_peer_lan_reachable": bool(current.get("direct_peer_lan_reachable")),
             "direct_peer_last_packet_bytes": current.get("direct_peer_last_packet_bytes"),
             "direct_peer_last_pong_age_s": current.get("direct_peer_last_pong_age_s"),
             "direct_peer_last_pong_nonce": current.get("direct_peer_last_pong_nonce"),
@@ -13272,6 +14172,8 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         if state == "reachable":
             return f"Slave peer reachable: {channel_note}, last packet {age}s ago."
         if state == "stale":
+            if not admin_device_is_online(current):
+                return f"Slave peer unavailable because master telemetry is stale; last reported packet age {age}s."
             return f"Slave peer stale: {channel_note}, last packet {age}s ago."
         if state == "waiting":
             return f"Slave peer waiting for accepted packet: {channel_note}."
@@ -13387,7 +14289,11 @@ def build_generated_device_events(limit=12, device_id=None, include_pair=True, r
         if state == "reachable":
             peer_text = f"peer reachable, last slave packet {age_text}"
         elif state == "stale":
-            peer_text = f"peer stale, last slave packet {age_text}"
+            peer_text = (
+                f"peer unavailable because master telemetry is stale, last reported slave packet age {age_text}"
+                if not admin_device_is_online(current)
+                else f"peer stale, last slave packet {age_text}"
+            )
         elif state == "waiting":
             peer_text = "peer waiting for accepted slave packet"
         else:
@@ -14395,11 +15301,11 @@ def persist_device_events(events, default_device_id=None):
     # Ensure the same deterministic row order for every batch.
     normalized_events.sort(key=lambda item: (item[0] or "", item[1], item[2], item[3], item[4]))
 
-    def persist():
+    def persist(batch_events):
         persisted = 0
         affected_device_ids = set()
         with get_db() as db:
-            for device_id, event_kind, source_table, source_row_id, event_key, event in normalized_events:
+            for device_id, event_kind, source_table, source_row_id, event_key, event in batch_events:
                 details = event.get("details") if isinstance(event.get("details"), dict) else {}
                 event_at = normalize_device_event_time(event.get("time"))
                 severity = str(event.get("severity") or "info").strip().lower() or "info"
@@ -14451,12 +15357,22 @@ def persist_device_events(events, default_device_id=None):
                 persisted += 1
         return persisted, affected_device_ids
 
-    persisted, affected_device_ids = run_with_database_lock_retries(
-        persist,
-        operation_name="persist device events",
-        attempts=4,
-        initial_delay_s=0.25,
-    )
+    # Large snapshot batches used to hold event-row locks for all 320 events.
+    # Commit bounded chunks so command activity is not blocked by an entire
+    # snapshot, and replay only the failed chunk after a deadlock.
+    persisted = 0
+    affected_device_ids = set()
+    batch_size = max(1, min(100, env_int("DEVICE_EVENT_WRITE_BATCH_ROWS", 32)))
+    for offset in range(0, len(normalized_events), batch_size):
+        batch = normalized_events[offset:offset + batch_size]
+        count, device_ids = run_with_database_lock_retries(
+            lambda: persist(batch),
+            operation_name="persist device events",
+            attempts=3,
+            initial_delay_s=0.1,
+        )
+        persisted += count
+        affected_device_ids.update(device_ids)
 
     for affected_device_id in affected_device_ids:
         schedule_dashboard_summary_refresh(affected_device_id)
@@ -14852,9 +15768,12 @@ def build_snapshot_activity_events(
             peer_parts.append(f"last packet {format_compact_uptime(peer_age)} ago")
         if snapshot.get("direct_peer_remote_mac"):
             peer_parts.append(f"MAC {snapshot.get('direct_peer_remote_mac')}")
+        peer_is_current = admin_device_is_online(snapshot) and peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS
+        if not admin_device_is_online(snapshot):
+            peer_parts.append("master telemetry stale")
         add_event(
             "peer_current_status",
-            "success" if peer_age is not None and peer_age <= DIRECT_PEER_STALE_AFTER_SECONDS else "warning",
+            "success" if peer_is_current else "warning",
             "; ".join(peer_parts) + ".",
             {
                 "direct_peer": direct_peer,
@@ -15130,6 +16049,62 @@ def build_device_ping_result(device_id, target):
     }
 
 
+def build_device_ping_all_result(device_id):
+    """Queue checks for the controller and the complete ESP-NOW slave path."""
+    master = build_device_ping_result(device_id, "master")
+    slave = build_device_ping_result(device_id, "slave")
+    normalized_device_id = normalize_device_id(device_id)
+    checked_at = now_utc().strftime(TIMESTAMP_FORMAT)
+    message = (
+        "Ping All Nodes queued for the master and complete ESP-NOW slave path. "
+        "Any active repeater route is checked as part of the slave-path response."
+    )
+    event = {
+        "time": checked_at,
+        "severity": "info",
+        "message": message,
+        "kind": "all_nodes_ping_commands_queued",
+        "details": {
+            "event_key": f"{normalized_device_id}:ping_command:all:{master.get('command_id')}:{slave.get('command_id')}",
+            "device_id": normalized_device_id,
+            "current_status": True,
+            "status_checked_at": checked_at,
+            "event_group": "ping_command",
+            "ping_target": "all",
+            "ping_status": "Queued",
+            "master_command_id": master.get("command_id"),
+            "slave_command_id": slave.get("command_id"),
+            "master_ping_nonce": master.get("expected_ping_nonce"),
+            "slave_ping_nonce": slave.get("expected_ping_nonce"),
+            "saved_peer_channel": slave.get("saved_peer_channel"),
+        },
+    }
+    return {
+        "target": "all",
+        "reachable": False,
+        "disabled": False,
+        "status": "Queued",
+        "title": "Ping All Nodes Queued",
+        "message": message,
+        "detail_lines": [
+            "Master: ping command queued",
+            "Slave path: ESP-NOW ping command queued",
+            "Repeaters: verified by the active slave route and repeater packet freshness",
+            f"Master command id: {master.get('command_id') or '--'}",
+            f"Slave command id: {slave.get('command_id') or '--'}",
+            f"Queued at: {checked_at}",
+        ],
+        "saved_peer_channel": slave.get("saved_peer_channel"),
+        "queued_command": [master.get("queued_command"), slave.get("queued_command")],
+        "command_id": [master.get("command_id"), slave.get("command_id")],
+        "expected_ping_nonce": {
+            "master": master.get("expected_ping_nonce"),
+            "slave": slave.get("expected_ping_nonce"),
+        },
+        "event": event,
+    }
+
+
 def describe_command_activity(command):
     normalized = str(command or "").strip().upper()
     details = {
@@ -15263,7 +16238,7 @@ def describe_command_activity(command):
         )
         return details
 
-    if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
+    if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:") or normalized.startswith("SERVICECFG5:") or normalized.startswith("SERVICECFG4:"):
         values = normalized.split(":")[1:]
         labels = [
             "master upper",
@@ -15276,16 +16251,18 @@ def describe_command_activity(command):
             "local upload",
             "auto mode",
         ]
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:") or normalized.startswith("SERVICECFG7:") or normalized.startswith("SERVICECFG6:"):
             labels.append("municipal sensor")
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:") or normalized.startswith("SERVICECFG9:") or normalized.startswith("SERVICECFG8:"):
             labels.extend(("lower turbidity", "upper turbidity"))
         elif normalized.startswith("SERVICECFG7:"):
             labels.append("turbidity monitoring")
-        if normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:"):
+        if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:") or normalized.startswith("SERVICECFG10:"):
             labels.extend(("inlet motorized valve", "outlet motorized valve"))
-            if normalized.startswith("SERVICECFG11:"):
+            if normalized.startswith("SERVICECFG12:") or normalized.startswith("SERVICECFG11:"):
                 labels.extend(("starter auxiliary sensor", "motor current sensor", "water flow sensor", "water pressure sensor"))
+                if normalized.startswith("SERVICECFG12:"):
+                    labels.append("multi-tank destination valves")
         elif normalized.startswith("SERVICECFG9:"):
             labels.append("inlet motorized valve")
 
@@ -15673,6 +16650,37 @@ def fetch_active_alerts(limit=20, device_id=None):
     return [dict(row) for row in rows]
 
 
+def fetch_recent_service_alerts(device_id=None):
+    """Last three issues, including cleared issues and their current status."""
+    normalized_device_id = normalize_device_id(device_id)
+    # Never expose another customer's history when no device is assigned.
+    if not normalized_device_id:
+        return []
+    with get_db() as db:
+        rows = db.execute(
+            """
+            SELECT alert.id, alert.device_id, alert.kind, alert.severity,
+                   alert.message, alert.created_at, alert.updated_at, alert.active
+            FROM ops_alerts AS alert
+            WHERE alert.device_id = ?
+              AND NOT EXISTS (
+                  SELECT 1 FROM ops_alerts AS newer
+                  WHERE newer.device_id = alert.device_id
+                    AND COALESCE(newer.kind, '') = COALESCE(alert.kind, '')
+                    AND (
+                        newer.active > alert.active
+                        OR (newer.active = alert.active AND newer.updated_at > alert.updated_at)
+                        OR (newer.active = alert.active AND newer.updated_at = alert.updated_at AND newer.id > alert.id)
+                    )
+              )
+            ORDER BY alert.updated_at DESC, alert.id DESC
+            LIMIT 3
+            """,
+            (normalized_device_id,),
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
 def fetch_filtered_alerts(limit=20, severity=None, device_id=None, updated_since=None):
     query = f"""
         SELECT alert.id, alert.device_id, alert.kind, alert.severity, alert.message, alert.created_at, alert.updated_at
@@ -15723,32 +16731,71 @@ def resolve_alert_by_id(alert_id):
 
 def fetch_device_inventory(limit=20, device_ids=None):
     normalized_device_ids = [item for item in (normalize_device_id(value) for value in (device_ids or [])) if item]
-    source_clause, source_params = device_source_where_clause(column="candidate.device_source")
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        active_mode = get_device_source_mode()
+        clauses = ["device_source = ?"]
+        params = [active_mode]
+        if normalized_device_ids:
+            placeholders = ",".join("?" for _ in normalized_device_ids)
+            clauses.append(f"device_id IN ({placeholders})")
+            params.extend(normalized_device_ids)
+        params.append(limit)
+        try:
+            with get_db() as db:
+                rows = db.execute(
+                    f"""
+                    SELECT device_id, state_json, received_at
+                    FROM device_latest_state
+                    WHERE {' AND '.join(clauses)}
+                    ORDER BY received_at DESC
+                    LIMIT ?
+                    """,
+                    tuple(params),
+                ).fetchall()
+            inventory = []
+            for row in rows:
+                try:
+                    payload = json.loads(row.get("state_json") or "{}")
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(payload, dict) or not payload:
+                    continue
+                payload["device_id"] = row.get("device_id")
+                payload["device_source"] = active_mode
+                payload["created_at"] = row.get("received_at")
+                snapshot = enrich_snapshot(payload)
+                inventory.append(build_admin_device_entry(snapshot.get("device_id") or "unassigned", snapshot=snapshot))
+            return inventory
+        except Exception as exc:
+            logger.warning("Latest-state inventory unavailable; using legacy inventory: %s", exc)
+
+    # Use the latest ingested row (largest primary key) for each device. The
+    # previous ROW_NUMBER window scanned and sorted the full telemetry history
+    # and could exhaust a Passenger worker on production-sized tables. This
+    # grouped lookup is served by idx_tank_data_source_device_id_id.
+    source_clause, source_params = device_source_where_clause(column="inventory_source.device_source")
     query = """
-        SELECT *
+        SELECT tank_data.*
         FROM tank_data
-        WHERE id IN (
-            SELECT latest.id
-            FROM tank_data latest
-            WHERE latest.id = (
-                SELECT candidate.id
-                FROM tank_data candidate
-                WHERE COALESCE(candidate.device_id, '') = COALESCE(latest.device_id, '')
-                  AND 
+        JOIN (
+            SELECT MAX(inventory_source.id) AS latest_id
+            FROM tank_data AS inventory_source
+            WHERE
     """
     query += source_clause
-    query += """
-                ORDER BY candidate.created_at DESC, candidate.id DESC
-                LIMIT 1
-            )
-        )
-    """
     params = list(source_params)
     if normalized_device_ids:
         placeholders = ",".join("?" for _ in normalized_device_ids)
-        query += f" AND COALESCE(device_id, '') IN ({placeholders})"
+        query += f" AND inventory_source.device_id IN ({placeholders})"
         params.extend(normalized_device_ids)
-    query += " ORDER BY id DESC LIMIT ?"
+    query += """
+              AND inventory_source.device_id IS NOT NULL
+              AND inventory_source.device_id <> ''
+            GROUP BY inventory_source.device_id
+        ) AS latest_inventory ON latest_inventory.latest_id = tank_data.id
+        ORDER BY tank_data.id DESC
+        LIMIT ?
+    """
     params.append(limit)
     with get_db() as db:
         rows = db.execute(query, tuple(params)).fetchall()
@@ -15764,6 +16811,18 @@ def fetch_device_snapshot(device_id, include_transition_counts=True):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
         return None
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        try:
+            with get_db() as db:
+                payload = fetch_latest_state_payload(
+                    db.cursor(),
+                    normalized_device_id,
+                    get_device_source_mode(),
+                )
+            if payload:
+                return enrich_snapshot(payload)
+        except Exception as exc:
+            logger.warning("Latest-state snapshot unavailable for %s; using legacy snapshot: %s", normalized_device_id, exc)
     source_clause, source_params = device_source_where_clause()
     with get_db() as db:
         row = db.execute(
@@ -16143,6 +17202,86 @@ def fetch_latest_firmware_artifacts_by_role(device_id):
     return {role: fetch_latest_firmware_artifact(device_id, role=role) for role in FIRMWARE_ARTIFACT_ROLES}
 
 
+def direct_lan_firmware_target(snapshot, role):
+    """Return a reported, private LAN URL for a directly connected controller."""
+    snapshot = snapshot or {}
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role == "master":
+        candidate = snapshot.get("device_local_url") or snapshot.get("local_device_url") or snapshot.get("device_ip_url")
+    elif normalized_role == "slave":
+        candidate = snapshot.get("direct_peer_remote_ip")
+    else:
+        return None
+    base_url = normalize_device_base_url(candidate)
+    return base_url if is_private_device_base_url(base_url) else None
+
+
+def install_firmware_artifact_over_lan(device_id, role, snapshot=None):
+    """Upload the latest role-specific artifact directly to its reported LAN IP."""
+    normalized_device_id = normalize_device_id(device_id)
+    normalized_role = str(role or "").strip().lower()
+    if normalized_role not in {"master", "slave"}:
+        raise ValueError("Direct LAN installation supports master or slave firmware only.")
+    service_config = fetch_device_service_config(normalized_device_id)
+    if not service_config.get("local_firmware_upload_enabled", False):
+        raise ValueError("Enable Local firmware upload before installing firmware over LAN.")
+    artifact = fetch_latest_firmware_artifact(normalized_device_id, role=normalized_role)
+    if not artifact:
+        raise ValueError(f"Upload a {normalized_role} firmware binary in Flask before installing it over LAN.")
+    storage_path = firmware_artifact_storage_path(artifact.get("stored_filename"))
+    if not storage_path.is_file():
+        raise ValueError(f"The stored {normalized_role} firmware file is missing.")
+    snapshot = snapshot if snapshot is not None else fetch_device_snapshot(normalized_device_id)
+    base_url = direct_lan_firmware_target(snapshot, normalized_role)
+    if not base_url:
+        label = "Local Device IP" if normalized_role == "master" else "Slave Device IP"
+        raise ValueError(f"No valid private {label} has been reported by this device.")
+    target_device_id = firmware_role_device_id(normalized_device_id, normalized_role)
+    device_key = configured_device_key_for_id(target_device_id) or configured_device_key_for_id(normalized_device_id)
+    authorization = build_ota_authorization(target_device_id, artifact, device_key)
+    if authorization is None:
+        raise ValueError(
+            f"OTA authorization is not configured for {target_device_id}. "
+            "Let it complete an authenticated cloud check-in, then retry."
+        )
+    headers = {
+        "User-Agent": "SmartWaterTank-Flask-LAN-Installer/1.0",
+        "Connection": "close",
+        "X-OTA-Device-Id": authorization["device_id"],
+        "X-OTA-Artifact-Id": str(authorization["artifact_id"]),
+        "X-OTA-Version": authorization["version"],
+        "X-OTA-MD5": authorization["md5"],
+        "X-OTA-Expires": str(authorization["expires_at"]),
+        "X-OTA-Signature": authorization["signature"],
+        "X-OTA-Size": str(authorization["size_bytes"]),
+    }
+    endpoint = f"{base_url}/api/ota/update"
+    with storage_path.open("rb") as firmware_stream:
+        response = requests.post(
+            endpoint,
+            headers=headers,
+            files={"firmware_file": (
+                artifact.get("original_filename") or f"{normalized_role}-firmware.bin",
+                firmware_stream,
+                artifact.get("content_type") or "application/octet-stream",
+            )},
+            timeout=(10, 300),
+            allow_redirects=False,
+        )
+    if not 200 <= response.status_code < 300:
+        detail = str(response.text or "").strip()[:240]
+        raise ValueError(
+            f"{normalized_role.title()} rejected the firmware upload (HTTP {response.status_code})"
+            + (f": {detail}" if detail else ".")
+        )
+    return {
+        "role": normalized_role,
+        "endpoint": endpoint,
+        "version": artifact.get("version_label") or "unknown",
+        "artifact_id": artifact.get("id"),
+    }
+
+
 def build_firmware_artifact_payload(artifact, target_device=None, download_endpoint=None):
     return build_firmware_artifact_response_payload(
         artifact,
@@ -16172,6 +17311,14 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
 
     try:
         with get_db() as db:
+            previous_rows = db.execute(
+                """
+                SELECT id, stored_filename
+                FROM firmware_artifacts
+                WHERE target_device = ? AND target_role = ?
+                """,
+                (normalized_device_id, normalized_role),
+            ).fetchall()
             cursor = db.execute(
                 """
                 INSERT INTO firmware_artifacts(
@@ -16194,6 +17341,13 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
                 ),
             )
             artifact_id = int(cursor.lastrowid or 0)
+            db.execute(
+                """
+                DELETE FROM firmware_artifacts
+                WHERE target_device = ? AND target_role = ? AND id <> ?
+                """,
+                (normalized_device_id, normalized_role, artifact_id),
+            )
     except Exception as exc:
         try:
             storage_path.unlink()
@@ -16204,6 +17358,20 @@ def create_firmware_artifact(device_id, uploaded_file, notes="", uploaded_by="ad
     artifact = fetch_firmware_artifact(artifact_id, device_id=normalized_device_id, role=normalized_role)
     if not artifact:
         raise ValueError("Uploaded firmware artifact could not be loaded after it was saved.")
+    active_path = storage_path.resolve()
+    for row in previous_rows:
+        old_filename = str(row["stored_filename"] or "").strip()
+        if not old_filename:
+            continue
+        old_path = firmware_artifact_storage_path(old_filename).resolve()
+        if old_path == active_path:
+            continue
+        try:
+            old_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove replaced firmware artifact %s: %s", old_path, exc)
     return artifact
 
 
@@ -16308,6 +17476,12 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
 
     try:
         with get_db() as db:
+            previous_rows = db.execute(
+                """
+                SELECT id, stored_filename
+                FROM android_app_releases
+                """
+            ).fetchall()
             cursor = db.execute(
                 """
                 INSERT INTO android_app_releases(
@@ -16330,6 +17504,13 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
                 ),
             )
             release_id = int(cursor.lastrowid or 0)
+            db.execute(
+                """
+                DELETE FROM android_app_releases
+                WHERE id <> ?
+                """,
+                (release_id,),
+            )
     except Exception as exc:
         try:
             storage_path.unlink()
@@ -16340,6 +17521,20 @@ def create_android_app_release(uploaded_file, notes="", uploaded_by="admin"):
     release = fetch_android_app_release(release_id)
     if not release:
         raise ValueError("Uploaded Android app release could not be loaded after it was saved.")
+    active_path = storage_path.resolve()
+    for row in previous_rows:
+        old_filename = str(row["stored_filename"] or "").strip()
+        if not old_filename:
+            continue
+        old_path = android_release_storage_path(old_filename).resolve()
+        if old_path == active_path:
+            continue
+        try:
+            old_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            logger.warning("Unable to remove replaced Android release %s: %s", old_path, exc)
     return release
 
 
@@ -16447,6 +17642,13 @@ def device_command_family(command):
         return "reboot"
     if compact.startswith("SERVICECFG"):
         return "service_config"
+    if compact.startswith("MTANKCFG:"):
+        parts = compact.split(":", 2)
+        return f"multi_tank_config:{parts[1]}" if len(parts) > 1 else "multi_tank_config"
+    if compact == "MTANKBEGIN":
+        return "multi_tank_begin"
+    if compact == "MTANKCOMMIT":
+        return "multi_tank_commit"
     if compact.startswith("THRESHOLDS:") or compact.startswith("CONFIG_THRESHOLDS:") or compact.startswith("CONFIG_AUTO:"):
         return "thresholds"
     if (
@@ -16504,6 +17706,20 @@ def device_command_family(command):
 
 
 def queue_device_command(command, target_device, request_id=None, expires_in_seconds=None):
+    stable_request_id = str(request_id or secrets.token_hex(16))
+    return run_with_database_lock_retries(
+        lambda: _queue_device_command_once(
+            command, target_device, request_id=stable_request_id,
+            expires_in_seconds=expires_in_seconds,
+        ),
+        operation_name="queue device command",
+        attempts=3,
+        initial_delay_s=0.1,
+        retry_connection_errors=False,
+    )
+
+
+def _queue_device_command_once(command, target_device, request_id=None, expires_in_seconds=None):
     normalized_target_device = normalize_device_id(target_device)
     if not normalized_target_device:
         raise ValueError("A target device is required for a queued command.")
@@ -16519,7 +17735,15 @@ def queue_device_command(command, target_device, request_id=None, expires_in_sec
         # enough for the normal reconnect/poll recovery path.
         expires_in_seconds = 600 if desired_state in {"ON", "OFF"} else 300
     expires_at = (now_utc() + timedelta(seconds=max(1, int(expires_in_seconds)))).strftime(TIMESTAMP_FORMAT)
-    priority = 100 if desired_state == "OFF" else (50 if desired_state == "ON" else 10)
+    # Explicit pump commands always preempt automation, schedules, diagnostics,
+    # simulator actions, and configuration work. The shared pump family also
+    # coalesces older pending ON/OFF requests so the latest operator intent wins.
+    if normalized_family == "pump":
+        priority = 1000
+    elif normalized_family in {"ping_master", "ping_slave"}:
+        priority = 40
+    else:
+        priority = 10
     with get_db() as db:
         existing_request = db.execute(
             "SELECT id FROM device_command_queue WHERE target_device=? AND request_id=? LIMIT 1",
@@ -16918,7 +18142,11 @@ def pop_device_mobile_action(device_id):
             payload = {"value": payload}
     except (TypeError, ValueError, json.JSONDecodeError):
         payload = {}
+    # Keep payload fields at the top level for mobile clients while retaining the
+    # nested payload for callers that consume the queue's generic envelope.
+    # Canonical queue metadata is applied last so a payload cannot replace it.
     return {
+        **payload,
         "id": row["id"],
         "action": row["action"],
         "payload": payload,
@@ -17412,6 +18640,10 @@ def motor_off():
 @login_required
 def motor_command_status(request_id):
     target_device = current_scope_device_id(request.args.get("device_id", type=str))
+    return device_motor_command_status(target_device, request_id)
+
+
+def device_motor_command_status(target_device, request_id):
     with get_db() as db:
         row = db.execute(
             """
@@ -17426,13 +18658,20 @@ def motor_command_status(request_id):
         if not row:
             return jsonify({"error": "command not found"}), 404
         result = dict(row)
+        # Legacy MQTT acknowledgements record delivery without updating status.
+        if result["status"] == "queued" and result.get("delivered_at"):
+            result["status"] = "delivered"
         if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
-            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE request_id=?", (str(request_id),))
+            db.execute("UPDATE device_command_queue SET status='timed_out', completed_at=CURRENT_TIMESTAMP WHERE target_device=? AND request_id=?", (target_device, str(request_id)))
             result["status"] = "timed_out"
         try:
             result["device_result"] = json.loads(result.pop("result_json") or "{}")
         except (TypeError, ValueError):
             result["device_result"] = {}
+    snapshot = load_dashboard_snapshot(
+        target_device, prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
+    )
+    result.update(pump_confirmation(result, snapshot))
     return jsonify(result)
 
 
@@ -17601,6 +18840,11 @@ def mobile_auth_login():
                 "code": "admin_mobile_login_not_allowed",
             }
         ), 403
+    if active_platform_session_limit(
+        SESSION_PLATFORM_ANDROID, authenticated_user.get("role"),
+        username=authenticated_user.get("username"), device_id=authenticated_user.get("device_id"),
+    ) == 0:
+        return jsonify({"error": "Android login is disabled for this customer.", "code": "android_login_disabled"}), 403
     return jsonify(build_mobile_auth_response_payload(authenticated_user))
 
 
@@ -17630,11 +18874,27 @@ def mobile_bootstrap():
     scoped_device_id = current_mobile_scope_device_id(request.args.get("device_id", type=str))
     viewer = resolve_mobile_user() or {}
     summary = load_persisted_dashboard_summary(scoped_device_id) or empty_dashboard_summary(scoped_device_id)
+    # Events, audit, analytics, and monitoring remain materialized for a fast
+    # cPanel response, but the Android overview must use the same latest
+    # telemetry snapshot as the Flask device table.  Otherwise the configured
+    # summary refresh window can leave Android several minutes behind Flask.
+    latest_snapshot = load_dashboard_snapshot(scoped_device_id)
+    if snapshot_has_live_device_data(latest_snapshot):
+        summary = dict(summary)
+        summary["snapshot"] = strip_ip_address_fields(
+            latest_snapshot,
+            keep_device_local_url=True,
+        )
     summary = overlay_capacity_snapshot(summary, scoped_device_id, "mobile_read_latest_state")
     public_snapshot = summary.get("snapshot") or build_empty_snapshot_payload(scoped_device_id)
     snapshot = public_snapshot
     service_config = resolve_device_service_config(scoped_device_id, snapshot=public_snapshot)
     payload = dict(summary)
+    # Android reads synchronized_status.pump before snapshot.motor. Rebuild it
+    # from the selected live sample, not the older materialized summary.
+    payload["system_status"] = build_system_status_payload(
+        snapshot, device_id=scoped_device_id, service_config=service_config
+    )
     payload.update({
         "events": list(summary.get("events") or [])[:event_limit],
         "audit": list(summary.get("audit") or [])[:audit_limit],
@@ -17830,6 +19090,16 @@ def mobile_motor_on():
     return mobile_queue_command_response("ON", target_device=current_mobile_scope_device_id(request.args.get("device_id", type=str)))
 
 
+@app.route("/api/mobile/motor/command-status/<request_id>")
+@mobile_auth_required
+def mobile_motor_command_status(request_id):
+    response = mobile_customer_cloud_feed_block_response()
+    if response:
+        return response
+    target_device = current_mobile_scope_device_id(request.args.get("device_id", type=str))
+    return device_motor_command_status(target_device, request_id)
+
+
 @app.route("/api/mobile/motor/off", methods=["POST"])
 @mobile_auth_required
 def mobile_motor_off():
@@ -17925,6 +19195,20 @@ def mobile_device_status():
         prefer_capacity=CAPACITY_FEATURES.enabled("mobile_read_latest_state"),
     )
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
+    if request.args.get("overview", "0").strip().lower() in {"1", "true", "yes"}:
+        # Status recovery must not evaluate alerts, read analytics/history, or
+        # consume pending mobile actions while the database is under pressure.
+        return jsonify({
+            "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
+            "system_status": {
+                "synchronized_status": build_synchronized_status_payload(
+                    snapshot, device_id=scoped_device_id, service_config=service_config
+                ),
+                "telemetry_status": (snapshot or {}).get("telemetry_status", "no-data"),
+            },
+            "service_config": service_config,
+            "viewer": resolve_mobile_user(),
+        })
     return jsonify({
         "snapshot": strip_ip_address_fields(snapshot, keep_device_local_url=True),
         "system_status": build_system_status_payload(snapshot, device_id=scoped_device_id),
@@ -18181,6 +19465,39 @@ def mobile_device_peer_channel():
     return jsonify(response_payload)
 
 
+@app.route("/api/mobile/device/replace-node", methods=["POST"])
+@mobile_auth_required
+def mobile_device_replace_node():
+    source_payload = request.get_json(silent=True) or {}
+    target_device = current_mobile_scope_device_id(source_payload.get("device_id"))
+    if not target_device:
+        return jsonify({"error": "device not found"}), 404
+    user = resolve_mobile_user()
+    if not user or user.get("role") not in {"customer", "admin"}:
+        return jsonify({"error": "mobile access required"}), 403
+    role = str(source_payload.get("role") or source_payload.get("target") or "").strip().lower()
+    if role not in {"slave", "repeater"}:
+        return jsonify({"error": "Replacement role must be slave or repeater."}), 400
+    command = f"replace_node:{role}"
+    queue_result = queue_command(command, target_device=target_device)
+    log_audit_event(
+        actor=user.get("username") or current_actor_username(),
+        action="start_node_replacement_mobile", target_type="device",
+        target_id=target_device, device_id=target_device,
+        details={"role": role, "queued_command": command, "source": "mobile_api"},
+    )
+    payload = {
+        "message": f"{role.title()} replacement queued. Pairing channel 6 will open on the next command poll.",
+        "device_id": target_device, "role": role, "queued_command": command,
+    }
+    if isinstance(queue_result, tuple):
+        error_payload, status_code = queue_result
+        payload["queue_error"] = error_payload.get("error")
+        return jsonify(payload), status_code
+    payload.update(queue_result)
+    return jsonify(payload)
+
+
 register_mobile_firmware_routes(
     app,
     mobile_auth_required=mobile_auth_required,
@@ -18197,11 +19514,9 @@ register_mobile_firmware_routes(
 
 
 def device_sync_next_interval(telemetry):
-    critical = build_alert_flags(telemetry) != 0
-    motor_running = str(telemetry.get("motor") or telemetry.get("pump") or "").strip().upper() == "ON"
-    if critical or motor_running:
-        return max(5, env_int("DEVICE_SYNC_ACTIVE_SECONDS", 10))
-    return max(10, env_int("DEVICE_SYNC_IDLE_SECONDS", 60))
+    # Keep the optional combined-sync hint aligned with firmware, Android, and
+    # dashboard cloud polling. Local safety/control loops remain independent.
+    return CLOUD_POLL_INTERVAL_SECONDS
 
 
 @app.route("/api/device/sync", methods=["POST"])
@@ -18264,6 +19579,15 @@ def device_sync():
     command_ack = payload.get("command_ack")
     acknowledgement = None
     if CAPACITY_FEATURES.enabled("sync_command_ack") and isinstance(command_ack, dict):
+        # Older compact-sync firmware omits motor_state in the acknowledgement,
+        # but supplies the actual firmware state in the same authenticated telemetry.
+        command_ack = dict(command_ack)
+        if "motor_state" not in command_ack:
+            if boolish_enabled(telemetry.get("pump_state_confirmed"), default=False):
+                if "physical_pump_running" in telemetry:
+                    command_ack["motor_state"] = "RUNNING" if boolish_enabled(telemetry["physical_pump_running"], default=False) else "OFF"
+            elif telemetry.get("motor") in {"ON", "OFF"}:
+                command_ack["motor_state"] = telemetry["motor"]
         command_source = str(command_ack.get("command_source") or "queue").strip().lower()
         if command_source == "relay":
             acknowledged = acknowledge_relay_command(
@@ -18895,6 +20219,11 @@ def admin_customers_device_table_json():
                 "master_status_tone": device.get("master_status_tone") or "offline",
                 "slave_status": slave_node_label,
                 "slave_status_tone": device.get("slave_status_tone") or "offline",
+                "repeater1_status": device.get("repeater1_status_label") or "Disabled",
+                "repeater1_status_tone": device.get("repeater1_status_tone") or "clear",
+                "repeater2_status": device.get("repeater2_status_label") or "Disabled",
+                "repeater2_status_tone": device.get("repeater2_status_tone") or "clear",
+                "active_data_path": device.get("active_data_path") or "M",
                 "telemetry_status": device.get("telemetry_status") or "no-data",
                 "telemetry_status_label": device.get("telemetry_status_label") or "--",
                 "wifi_rssi": device.get("wifi_rssi") if device.get("wifi_rssi") is not None else "--",
@@ -19530,7 +20859,8 @@ def admin_device_reboot(device_id):
             )
             success = (
                 f"Reboot command queued for {normalized_device_id}. "
-                "The device will restart on its next command poll."
+                "On its next command poll, the controller will restart the slave first, "
+                "then restart the master after the slave's new boot is confirmed."
             )
 
     if request.form.get("return_to") == "device_detail":
@@ -19567,7 +20897,11 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
     config_error = None
     config_message = None
 
-    if not scoped_device_id:
+    requested_role = request.form.get("firmware_role", "all", type=str).strip().lower()
+    allowed_roles = {"all", "master", "slave", "repeater1", "repeater2"}
+    if requested_role not in allowed_roles:
+        config_error = "Choose master/slave, repeater 1, or repeater 2 firmware target."
+    elif not scoped_device_id:
         config_error = "Choose a valid device before queueing an Android OTA trigger."
     else:
         service_config = fetch_device_service_config(scoped_device_id)
@@ -19580,9 +20914,10 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
                 MOBILE_DEVICE_ACTION_START_FIRMWARE_UPGRADE,
                 scoped_device_id,
                 payload={
-                    "message": "Flask requested a firmware upgrade.",
+                    "message": f"Flask requested a {requested_role} firmware upgrade.",
                     "device_id": scoped_device_id,
                     "source": "device_detail",
+                    "firmware_role": requested_role,
                 },
             )
             if isinstance(queue_result, tuple):
@@ -19602,9 +20937,48 @@ def admin_device_detail_mobile_firmware_upgrade(device_id):
                     },
                 )
                 config_message = (
-                    f"Android OTA trigger queued for {scoped_device_id}. "
+                    f"Android OTA trigger queued for {scoped_device_id} ({requested_role}). "
                     "The Android app will start its next firmware upgrade sync on the next cloud refresh."
                 )
+
+    return redirect(
+        url_for(
+            "device_detail_page",
+            device_id=scoped_device_id or device_id,
+            config_error=config_error or "",
+            config_message=config_message or "",
+        )
+    )
+
+
+@app.route("/devices/<device_id>/firmware/lan-install", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_lan_firmware_install(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    config_error = None
+    config_message = None
+    role = request.form.get("firmware_role", "master", type=str).strip().lower()
+    if not scoped_device_id:
+        config_error = "Choose a valid device before installing firmware over LAN."
+    else:
+        try:
+            result = install_firmware_artifact_over_lan(scoped_device_id, role)
+            log_audit_event(
+                actor=current_actor_username(),
+                action="install_device_firmware_over_lan",
+                target_type="device",
+                target_id=scoped_device_id,
+                device_id=scoped_device_id,
+                details=result,
+            )
+            config_message = (
+                f"{result['role'].title()} firmware {result['version']} was accepted over LAN. "
+                "The controller will verify, install, and restart."
+            )
+        except (ValueError, OSError, requests.RequestException) as exc:
+            logger.warning("LAN firmware installation failed for %s/%s: %s", scoped_device_id, role, exc)
+            config_error = f"LAN firmware installation failed: {exc}"
 
     return redirect(
         url_for(
@@ -19701,6 +21075,473 @@ def homepage():
 @admin_required
 def admin_dashboard():
     return redirect(url_for("admin_customers"))
+
+
+SURVEY_QUESTION_LABELS = {
+    "survey_date": "Preferred survey date", "preferred_visit_time": "Preferred visit time",
+    "alternate_phone": "Alternate phone", "installation_address": "Installation address",
+    "landmark_city_pin": "Landmark, city and PIN", "property_type": "Property type",
+    "tank_access": "Tank access", "roof_height": "Roof/platform height from ground",
+    "safe_working_space": "Safe working space", "site_hazards": "Site hazards",
+    "access_safety_notes": "Access/safety notes", "water_source": "Water source",
+    "pump_control": "Existing pump control", "pump_rating": "Pump rating (HP/kW)",
+    "pump_location": "Pump location", "rising_pipe": "Rising pipe size/material",
+    "pipe_run": "Approximate pipe run", "current_issues": "Current water-system issues",
+    "existing_system_notes": "Existing valves, automation or issue details",
+    "tank1_details": "Tank 1: capacity, elevations, pipes, overflow and condition",
+    "tank2_details": "Tank 2: capacity, elevations, pipes, overflow and condition",
+    "tank1_capacity": "Tank 1 capacity (litres)", "different_height_notes": "Different-height tank assessment",
+    "bottoms_connected": "Tank bottoms connected", "lower_tank_overflows": "Lower tank overflows",
+    "recommended_control": "Recommended control arrangement", "hydraulic_notes": "Hydraulic arrangement and reason",
+    "power_near_controller": "Power near controller", "earthing": "Earthing available",
+    "connectivity": "Connectivity", "supply_voltage": "Supply voltage",
+    "weatherproof_enclosure": "Weatherproof enclosure needed", "controller_location": "Controller location",
+    "cable_route_length": "Cable route length", "sensor_locations": "Tank sensor types/locations",
+    "customer_requirements": "Customer requirements", "preferred_installation_date": "Special requirements / preferred installation date",
+    "consent": "Quotation-preparation consent",
+}
+SURVEY_TEST_DEVICE_ID = "swt-test-000-000-001"
+
+
+def parse_survey_answers(response):
+    try:
+        payload = json.loads((response or {}).get("answers_json") or "{}")
+    except (TypeError, ValueError):
+        payload = {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def survey_device_setup_defaults(response, answers=None):
+    """Create an editable setup proposal from survey facts; it is not registered yet."""
+    answers = answers or parse_survey_answers(response)
+    water_source = str(answers.get("water_source") or "").strip().lower()
+    tank2 = str(answers.get("tank2_details") or "").strip().lower()
+    requirements = " ".join(
+        str(answers.get(key) or "")
+        for key in ("customer_requirements", "current_issues", "recommended_control")
+    ).lower()
+    municipal = water_source in {"municipal", "multiple sources"}
+    source_tank = water_source != "municipal"
+    multiple_sources = water_source == "multiple sources"
+    has_second_tank = bool(tank2 and tank2 not in {"not applicable", "n/a", "none", "no"})
+    capacity = normalize_optional_config_float(answers.get("tank1_capacity"))
+    return {
+        "device_setup_type": "hybrid" if multiple_sources else ("municipal_only" if municipal and not source_tank else "source_only"),
+        "source_tank_monitoring_enabled": source_tank,
+        "municipal_sensor_enabled": municipal,
+        "municipal_valve_enabled": multiple_sources,
+        "source_outlet_valve_enabled": multiple_sources,
+        "slave_device_enabled": has_second_tank,
+        "auto_mode_enabled": "automatic" in requirements or "auto" in requirements,
+        "ai_analysis_enabled": True,
+        "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
+        "relay_enabled": True,
+        "buzzer_enabled": True,
+        "led_display_enabled": True,
+        "local_firmware_upload_enabled": True,
+        "upper_tank_capacity_liters": capacity,
+        "tank_capacity_liters": capacity,
+    }
+
+
+def survey_registration_float(form, name, minimum=None, maximum=None):
+    raw = str(form.get(name) or "").strip()
+    if not raw:
+        return None
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name.replace('_', ' ').title()} must be a number.") from exc
+    if minimum is not None and value < minimum:
+        raise ValueError(f"{name.replace('_', ' ').title()} must be at least {minimum:g}.")
+    if maximum is not None and value > maximum:
+        raise ValueError(f"{name.replace('_', ' ').title()} must not exceed {maximum:g}.")
+    return value
+
+
+def survey_test_user_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not activate_dashboard_identity("customer"):
+            return redirect(url_for("customer_login", next=request.path))
+        if current_user_role() != "customer" or current_customer_device_id() != SURVEY_TEST_DEVICE_ID:
+            abort(403)
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def survey_form_values():
+    fields = ("name", "email", "contact_number", *SURVEY_QUESTION_LABELS.keys(), "comments")
+    return {key: str(request.form.get(key, "")).strip() for key in fields}
+
+
+def validate_survey_form(values):
+    errors = {}
+    required = {
+        "name": "Please enter the customer name.", "contact_number": "Please enter the phone or WhatsApp number.",
+        "installation_address": "Please enter the installation address.",
+        "landmark_city_pin": "Please enter the city and PIN code.", "property_type": "Please select the property type.",
+        "tank_access": "Please select the tank access method.", "water_source": "Please select the water source.",
+        "pump_control": "Please select the pump-control method.", "tank1_capacity": "Please enter the primary tank capacity.",
+        "customer_requirements": "Please select the required features.",
+        "consent": "Consent is required to prepare a quotation.",
+    }
+    for field, message in required.items():
+        if not values.get(field):
+            errors[field] = message
+    if len(values.get("name", "")) > 160:
+        errors["name"] = "Name must be 160 characters or fewer."
+    if len(values.get("email", "")) > 255:
+        errors["email"] = "Email must be 255 characters or fewer."
+    if len(values.get("comments", "")) > 5000:
+        errors["comments"] = "Comments must be 5,000 characters or fewer."
+    if values.get("email") and not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", values["email"]):
+        errors["email"] = "Please enter a valid email address."
+    if values.get("contact_number") and not re.fullmatch(r"[0-9+()\-\s]{7,40}", values["contact_number"]):
+        errors["contact_number"] = "Please enter a valid contact number."
+    return errors
+
+
+@app.route("/survey", methods=["GET", "POST"])
+@survey_test_user_required
+@csrf_protect
+def survey():
+    values = {}
+    errors = {}
+    success = request.args.get("submitted") == "1"
+    submission_token = str(request.form.get("submission_token") or secrets.token_hex(24))
+    if request.method == "POST":
+        values = survey_form_values()
+        errors = validate_survey_form(values)
+        if not re.fullmatch(r"[a-f0-9]{48}", submission_token):
+            errors["form"] = "This survey session is invalid. Please reload and try again."
+        if not errors:
+            answers = {key: values[key] for key in SURVEY_QUESTION_LABELS}
+            logged_in = is_logged_in()
+            with get_db() as db:
+                existing = db.execute(
+                    "SELECT id FROM survey_responses WHERE submission_token = ? LIMIT 1", (submission_token,),
+                ).fetchone()
+                if not existing:
+                    db.execute(
+                        """
+                        INSERT INTO survey_responses(
+                            submission_token, name, email, contact_number, overall_experience,
+                            primary_use, most_valuable_feature, reliability_rating, ease_of_use_rating,
+                            would_recommend, answers_json, comments, submitted_by_role,
+                            submitted_by_username, submitted_by_device_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            submission_token, values["name"], values["email"] or None,
+                            values["contact_number"] or None, "Site assessment",
+                            values["property_type"], values["customer_requirements"][:64],
+                            0, 0, "Not applicable", json.dumps(answers, separators=(",", ":")),
+                            values["comments"] or None, session.get("role") if logged_in else None,
+                            session.get("username") if logged_in else None,
+                            session.get("device_id") if logged_in else None,
+                        ),
+                    )
+            return redirect(url_for("survey", submitted=1))
+    return render_template("survey.html", values=values, errors=errors, success=success, submission_token=submission_token)
+
+
+@app.route("/admin/surveys")
+@admin_required
+def admin_survey_responses():
+    search_query = str(request.args.get("q", "")).strip()
+    like_query = f"%{search_query}%"
+    with get_db() as db:
+        if search_query:
+            rows = db.execute(
+                """
+                SELECT * FROM survey_responses
+                WHERE name LIKE ? OR COALESCE(email, '') LIKE ? OR COALESCE(contact_number, '') LIKE ?
+                   OR COALESCE(comments, '') LIKE ? OR COALESCE(submitted_by_username, '') LIKE ?
+                ORDER BY created_at DESC, id DESC LIMIT 500
+                """,
+                (like_query, like_query, like_query, like_query, like_query),
+            ).fetchall()
+        else:
+            rows = db.execute("SELECT * FROM survey_responses ORDER BY created_at DESC, id DESC LIMIT 500").fetchall()
+    return render_template("admin_survey_responses.html", responses=[dict(row) for row in rows], search_query=search_query)
+
+
+@app.route("/admin/surveys/<int:response_id>")
+@admin_required
+def admin_survey_response_detail(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    response = dict(row)
+    response["review_status"] = str(response.get("review_status") or "pending").strip().lower()
+    answers = parse_survey_answers(response)
+    registered_device_id = normalize_device_id(response.get("registered_device_id"))
+    registered_device = None
+    registered_config = None
+    if registered_device_id:
+        with get_db() as db:
+            registered_row = db.execute(
+                "SELECT device_id, registration_source, first_seen_at, last_seen_at, updated_at FROM registered_devices WHERE device_id = ? LIMIT 1",
+                (registered_device_id,),
+            ).fetchone()
+        registered_device = dict(registered_row) if registered_row else {"device_id": registered_device_id}
+        registered_config = fetch_device_service_config(registered_device_id)
+    setup_defaults = survey_device_setup_defaults(response, answers)
+    return render_template(
+        "admin_survey_response_detail.html", response=response, answers=answers,
+        question_labels=SURVEY_QUESTION_LABELS,
+        setup_defaults=setup_defaults,
+        registered_device=registered_device,
+        registered_config=registered_config,
+        registration_success=request.args.get("registered") == "1",
+        deletion_success=request.args.get("deleted") == "1",
+        registration_error=request.args.get("error", "", type=str),
+        review_success=request.args.get("reviewed", "", type=str),
+    )
+
+
+@app.route("/admin/customers/<device_id>/artifact-intake", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_artifact_intake(device_id):
+    """Accept firmware through JSON when a hosting WAF rejects multipart binaries."""
+    normalized_device_id = normalize_device_id(device_id)
+    if not normalized_device_id:
+        return jsonify({"ok": False, "error": "Choose a valid device before uploading firmware."}), 400
+
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return jsonify({"ok": False, "error": "Upload request must be valid JSON."}), 400
+
+    encoded_payload = str(body.get("content_base64") or "")
+    # Reject oversized encoded input before decoding it. Base64 is at most 4/3
+    # of the binary size, plus a few bytes of padding.
+    encoded_limit = ((FIRMWARE_ARTIFACT_MAX_BYTES + 2) // 3) * 4
+    if not encoded_payload or len(encoded_payload) > encoded_limit:
+        return jsonify({"ok": False, "error": "Firmware upload is empty or too large."}), 400
+    try:
+        binary_payload = base64.b64decode(encoded_payload, validate=True)
+    except (ValueError, binascii.Error):
+        return jsonify({"ok": False, "error": "Firmware upload encoding is invalid."}), 400
+
+    filename = Path(str(body.get("filename") or "firmware.bin")).name
+    role = body.get("firmware_role", "master")
+    notes = body.get("notes", "")
+    uploaded_file = type(
+        "JsonFirmwareUpload",
+        (),
+        {
+            "filename": filename,
+            "stream": io.BytesIO(binary_payload),
+            "mimetype": "application/octet-stream",
+        },
+    )()
+    try:
+        normalized_role = normalize_firmware_artifact_role(role)
+        artifact = create_firmware_artifact(
+            normalized_device_id,
+            uploaded_file,
+            notes=notes,
+            uploaded_by=current_actor_username(),
+            role=normalized_role,
+            expected_build_flags=None,
+        )
+        firmware_role = normalize_firmware_artifact_role(artifact.get("target_role") or normalized_role)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="upload_device_firmware_artifact",
+            target_type="device",
+            target_id=normalized_device_id,
+            device_id=normalized_device_id,
+            details={
+                "artifact_id": artifact["id"],
+                "role": firmware_role,
+                "version_label": artifact.get("version_label"),
+                "original_filename": artifact.get("original_filename"),
+                "md5": artifact.get("md5"),
+                "size_bytes": artifact.get("size_bytes"),
+                "notes": artifact.get("notes"),
+                "delivery": "android_local_wifi",
+                "transport": "json_base64_waf_fallback",
+            },
+        )
+        version_suffix = f" ({artifact['version_label']})" if artifact.get("version_label") else ""
+        message = (
+            f"{firmware_role.title()} firmware uploaded for {normalized_device_id}. "
+            f"{artifact['original_filename']}{version_suffix} is now available to the Android app for local Wi-Fi upgrades."
+        )
+        return jsonify({"ok": True, "message": message}), 200
+    except ValueError as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.route("/admin/surveys/<int:response_id>/review", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_review(response_id):
+    decision = str(request.form.get("decision") or "").strip().lower()
+    if decision not in {"accepted", "rejected"}:
+        abort(400)
+    with get_db() as db:
+        row = db.execute("SELECT id, registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+        if not row:
+            abort(404)
+        if row["registered_device_id"] and decision == "rejected":
+            return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Delete the registered device before rejecting this survey."))
+        db.execute(
+            "UPDATE survey_responses SET review_status = ?, reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ?",
+            (decision, current_actor_username(), response_id),
+        )
+    log_audit_event(
+        actor=current_actor_username(), action=f"{decision[:-2]}_survey_response",
+        target_type="survey_response", target_id=str(response_id),
+        details={"review_status": decision},
+    )
+    return redirect(url_for("admin_survey_response_detail", response_id=response_id, reviewed=decision))
+
+
+@app.route("/admin/surveys/<int:response_id>/delete", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_delete(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT id, registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+        if not row:
+            abort(404)
+        if normalize_device_id(row["registered_device_id"]):
+            return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Delete the registered device before deleting this survey."))
+        db.execute("DELETE FROM survey_responses WHERE id = ?", (response_id,))
+    log_audit_event(
+        actor=current_actor_username(), action="delete_survey_response",
+        target_type="survey_response", target_id=str(response_id), details={},
+    )
+    return redirect(url_for("admin_survey_responses", deleted=1))
+
+
+@app.route("/admin/surveys/<int:response_id>/register-device", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_register_device(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT * FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    response = dict(row)
+    if str(response.get("review_status") or "pending").strip().lower() != "accepted":
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Accept this survey before registering a device."))
+    if normalize_device_id(response.get("registered_device_id")):
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="This survey already has a registered device."))
+
+    device_id = request.form.get("device_id", "")
+    device_key = request.form.get("device_key", "")
+    password = request.form.get("password", "")
+    try:
+        normalized_device_id = normalize_device_id(device_id)
+        if not normalized_device_id:
+            raise ValueError("Device ID is required.")
+        if not str(device_key or "").strip():
+            raise ValueError("Device key is required.")
+        if not str(password or "").strip():
+            raise ValueError("Customer password is required.")
+        with get_db() as db:
+            linked = db.execute(
+                "SELECT id FROM survey_responses WHERE registered_device_id = ? AND id <> ? LIMIT 1",
+                (normalized_device_id, response_id),
+            ).fetchone()
+        if linked:
+            raise ValueError("That device is already linked to another survey response.")
+
+        upper_height = survey_registration_float(request.form, "upper_tank_height_cm", 30, 500)
+        upper_capacity = survey_registration_float(request.form, "upper_tank_capacity_liters", 50, 50000)
+        lower_height = survey_registration_float(request.form, "lower_tank_height_cm", 30, 500)
+        lower_capacity = survey_registration_float(request.form, "lower_tank_capacity_liters", 50, 50000)
+        slave_enabled = form_flag("slave_device_enabled", default=False)
+        source_enabled = form_flag("source_tank_monitoring_enabled", default=False)
+        municipal_enabled = form_flag("municipal_sensor_enabled", default=False)
+        setup_payload = {
+            "device_setup_type": str(request.form.get("device_setup_type") or "custom").strip().lower(),
+            "main_sensor_enabled": True,
+            "master_upper_sensor_enabled": not slave_enabled,
+            "slave_device_enabled": slave_enabled,
+            "slave_upper_sensor_enabled": slave_enabled,
+            "source_tank_monitoring_enabled": source_enabled,
+            "municipal_sensor_enabled": municipal_enabled,
+            "municipal_valve_enabled": municipal_enabled and source_enabled and form_flag("municipal_valve_enabled", default=False),
+            "source_outlet_valve_enabled": source_enabled and form_flag("source_outlet_valve_enabled", default=False),
+            "relay_enabled": form_flag("relay_enabled", default=False),
+            "ai_analysis_enabled": form_flag("ai_analysis_enabled", default=False),
+            "cloud_feed_mode": normalize_device_service_cloud_mode(request.form.get("cloud_feed_mode")),
+            "local_firmware_upload_enabled": form_flag("local_firmware_upload_enabled", default=False),
+            "buzzer_enabled": form_flag("buzzer_enabled", default=False),
+            "led_display_enabled": form_flag("led_display_enabled", default=False),
+            "auto_mode_enabled": form_flag("auto_mode_enabled", default=False),
+            "tank_height_cm": upper_height,
+            "tank_capacity_liters": upper_capacity,
+            "upper_tank_height_cm": upper_height,
+            "upper_tank_capacity_liters": upper_capacity,
+            "lower_tank_height_cm": lower_height,
+            "lower_tank_capacity_liters": lower_capacity,
+        }
+
+        register_device_credentials(normalized_device_id, device_key, registration_source="admin_survey", remote_addr=request.remote_addr)
+        account = upsert_customer_account(
+            normalized_device_id,
+            password,
+            display_name=request.form.get("display_name") or response.get("name"),
+            email=request.form.get("email") or response.get("email"),
+            service_updates_enabled=form_flag("service_updates_enabled", default=True),
+            marketing_emails_enabled=form_flag("marketing_emails_enabled", default=False),
+        )
+        saved_config = upsert_device_service_config(normalized_device_id, **setup_payload)
+        with get_db() as db:
+            db.execute(
+                """
+                UPDATE survey_responses
+                SET registered_device_id = ?, registration_config_json = ?, registered_at = CURRENT_TIMESTAMP
+                WHERE id = ? AND registered_device_id IS NULL
+                """,
+                (normalized_device_id, json.dumps(saved_config, separators=(",", ":")), response_id),
+            )
+        log_audit_event(
+            actor=current_actor_username(), action="register_device_from_survey",
+            target_type="survey_response", target_id=str(response_id), device_id=normalized_device_id,
+            details={"customer_email": account.get("email"), "service_config": saved_config},
+        )
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, registered=1))
+    except ValueError as exc:
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error=str(exc)))
+
+
+@app.route("/admin/surveys/<int:response_id>/delete-device", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_survey_delete_device(response_id):
+    with get_db() as db:
+        row = db.execute("SELECT registered_device_id FROM survey_responses WHERE id = ?", (response_id,)).fetchone()
+    if not row:
+        abort(404)
+    normalized_device_id = normalize_device_id(row["registered_device_id"])
+    if not normalized_device_id:
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="This survey has no registered device."))
+    try:
+        delete_known_device(normalized_device_id)
+        with get_db() as db:
+            db.execute(
+                "UPDATE survey_responses SET registered_device_id = NULL, registration_config_json = NULL, registered_at = NULL WHERE id = ?",
+                (response_id,),
+            )
+        log_audit_event(
+            actor=current_actor_username(), action="delete_survey_registered_device",
+            target_type="survey_response", target_id=str(response_id), device_id=normalized_device_id,
+            details={"deleted_device_id": normalized_device_id},
+        )
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, deleted=1))
+    except Exception:
+        logger.exception("Survey device delete failed for %s", normalized_device_id)
+        return redirect(url_for("admin_survey_response_detail", response_id=response_id, error="Device deletion failed. Review the server log and try again."))
 
 
 @app.route("/admin/ops/bootstrap")
@@ -19888,6 +21729,27 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         saved_service_config.get("source_tank_monitoring_enabled"),
         default=True,
     )
+    telemetry_online = str(snapshot.get("telemetry_status") or system_status.get("telemetry_status") or "").strip().lower() in {
+        "live", "recent", "fresh", "online"
+    }
+
+    def municipal_detection_status(enabled, detected, detected_label):
+        if not boolish_enabled(enabled, default=False):
+            return "Disabled"
+        if not telemetry_online:
+            return "Offline"
+        if boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False):
+            return "Online · Simulated"
+        return f"Online · {detected_label}" if boolish_enabled(detected, default=False) else "Offline"
+
+    def sensor_signal_status(enabled, valid_signal, simulated=False, detail="Signal detected"):
+        if not boolish_enabled(enabled, default=False):
+            return "Disabled"
+        if not telemetry_online or not (
+            boolish_enabled(simulated, default=False) or boolish_enabled(valid_signal, default=False)
+        ):
+            return "Offline"
+        return "Online · Simulated" if boolish_enabled(simulated, default=False) else f"Online · {detail}"
     upper_source = snapshot.get("upper_sensor_source") or ("slave" if slave_upper else "master")
     auto_start = (
         current_saved_config.get("auto_start_pct")
@@ -19970,8 +21832,11 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Device Role", device_detail_card_title(snapshot.get("node_role"), "Master Control" if uses_slave else "Master")),
         ("Architecture", f"Arch {snapshot.get('arch_id')}" if snapshot.get("arch_id") not in (None, "") else device_detail_card_display(snapshot.get("architecture_mode"))),
         ("Source Mode", device_detail_card_title(snapshot.get("device_source") or system_status.get("device_source_mode"), "Real")),
+        ("Upper Sensor", sensor_signal_status(True, admin_sensor_reachable(snapshot.get("sensor") or snapshot.get("upper_sensor")), snapshot.get("upper_tank_simulator") or snapshot.get("simulator"), device_detail_card_title(snapshot.get("sensor") or snapshot.get("upper_sensor"), "OK"))),
         ("Upper Sensor Source", device_detail_card_title(upper_source, "Slave" if uses_slave else "Master")),
-        ("Source Tank Sensor", "Disabled" if not source_monitoring else device_detail_card_title(snapshot.get("source_sensor_location") or snapshot.get("lower_sensor_location"), "Source Tank")),
+        ("Source Tank Sensor", sensor_signal_status(source_monitoring, admin_sensor_reachable(snapshot.get("lower_sensor")), snapshot.get("lower_tank_simulator"), device_detail_card_title(snapshot.get("lower_sensor"), "OK"))),
+        ("Lower Turbidity Sensor", sensor_signal_status(saved_service_config.get("master_turbidity_enabled"), str(snapshot.get("lower_turbidity_sensor") or "").upper() == "OK", snapshot.get("lower_turbidity_simulated"), "OK")),
+        ("Upper Turbidity Sensor", sensor_signal_status(saved_service_config.get("slave_turbidity_enabled"), str(snapshot.get("upper_turbidity_sensor") or "").upper() == "OK", snapshot.get("upper_turbidity_simulated"), "OK")),
         ("Auto Start/Stop", device_detail_card_bool(current_saved_config.get("auto_mode_enabled", saved_service_config.get("auto_mode_enabled")), default=False)),
         ("Inlet Motorized Valve", "ON" if motorized_valve_enabled else "OFF"),
         ("Inlet Selected Path", motorized_valve_path if motorized_valve_enabled else "Disabled"),
@@ -19997,15 +21862,18 @@ def build_device_detail_info_cards(snapshot, system_status, service_config, auto
         ("Peer Remote IP", device_detail_card_display(snapshot.get("direct_peer_remote_ip"), "Waiting for peer")),
         ("Peer Remote MAC", device_detail_card_display(snapshot.get("direct_peer_remote_mac"), "Waiting for peer")),
         ("Peer Packet Age", device_detail_card_duration_seconds(snapshot.get("direct_peer_last_packet_age_s"), "0s")),
+        ("Peer Link Signal", device_detail_card_title(snapshot.get("direct_peer_signal"), "Not reported")),
+        ("Peer Link Quality", f"{snapshot.get('direct_peer_link_quality_pct')}%" if snapshot.get("direct_peer_link_quality_pct") is not None else "Not reported"),
+        ("Peer Packets", device_detail_card_display(snapshot.get("direct_peer_received_packets"), "Not reported")),
         ("Cloud Feed Mode", device_detail_card_title(saved_service_config.get("cloud_feed_mode"), "Full")),
         ("AI Analysis", device_detail_card_bool(saved_service_config.get("effective_ai_analysis_enabled", saved_service_config.get("ai_analysis_enabled")), default=True)),
         ("Relay Control", device_detail_card_bool(saved_service_config.get("relay_enabled"), default=True)),
         ("Physical Pump State", "Running" if boolish_enabled(snapshot.get("physical_pump_running"), default=False) else "Stopped"),
         ("Pump Confirmation", device_detail_card_title(snapshot.get("pump_confirmation_source"), "Relay command fallback")),
-        ("Starter Contactor Sensor", "Active" if boolish_enabled(snapshot.get("starter_contactor_active"), default=False) else ("Ready" if boolish_enabled(snapshot.get("starter_contactor_sensor_enabled"), default=False) else "Not installed")),
-        ("Motor Current Sensor", "Current detected" if boolish_enabled(snapshot.get("motor_current_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("motor_current_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Flow Sensor", "Flow detected" if boolish_enabled(snapshot.get("water_flow_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_flow_sensor_enabled"), default=False) else "Not installed")),
-        ("Water Pressure Sensor", "Pressure detected" if boolish_enabled(snapshot.get("water_pressure_detected"), default=False) else ("Ready" if boolish_enabled(snapshot.get("water_pressure_sensor_enabled"), default=False) else "Not installed")),
+        ("Starter Contactor Sensor", sensor_signal_status(snapshot.get("starter_contactor_sensor_enabled", saved_service_config.get("starter_contactor_sensor_enabled")), snapshot.get("starter_contactor_active"), snapshot.get("pump_feedback_simulated"), "Active")),
+        ("Motor Current Sensor", sensor_signal_status(snapshot.get("motor_current_sensor_enabled", saved_service_config.get("motor_current_sensor_enabled")), snapshot.get("motor_current_detected"), snapshot.get("pump_feedback_simulated"), "Current detected")),
+        ("Water Flow Sensor", municipal_detection_status(snapshot.get("water_flow_sensor_enabled", saved_service_config.get("water_flow_sensor_enabled")), snapshot.get("water_flow_detected"), "Flow detected")),
+        ("Water Pressure Sensor", municipal_detection_status(snapshot.get("water_pressure_sensor_enabled", saved_service_config.get("water_pressure_sensor_enabled")), snapshot.get("water_pressure_detected"), "Pressure detected")),
         ("Authoritative Pump Runtime", device_detail_card_duration_seconds(snapshot.get("pump_total_runtime_s"), "Not reported")),
         ("Last Pump Run", device_detail_card_duration_seconds(snapshot.get("pump_last_run_runtime_s"), "Not reported")),
         ("Pump Cycle Counter", device_detail_card_display(snapshot.get("pump_cycle_count"), "Not reported")),
@@ -20127,7 +21995,6 @@ def device_detail_page(device_id):
     system_status = build_system_status_payload(snapshot, device_id=scoped_device_id, service_config=service_config)
     # Keep the HTML render path cheap and safe. The browser can synthesize
     # current activity rows from the snapshot below, then hydrate from /events.
-    initial_events = []
     initial_info_cards = build_device_detail_info_cards(
         snapshot,
         system_status,
@@ -20141,8 +22008,10 @@ def device_detail_page(device_id):
         is_admin=True,
         snapshot=snapshot or {},
         customer_account=account,
+        customer_web_login_available="admin_device_detail_customer_web_login" in app.view_functions,
         service_config=service_config,
         automation_settings=automation_settings,
+        pump_threshold_contract=PUMP_CONTROL_CONTRACT,
         current_saved_config=current_saved_config,
         system_status=system_status,
         peer_channel_input_value=peer_channel_input_value,
@@ -20160,7 +22029,6 @@ def device_detail_page(device_id):
         outlet_valve_simulator_enabled=outlet_valve_simulator_enabled,
         lower_turbidity_simulator_enabled=lower_turbidity_simulator_enabled,
         upper_turbidity_simulator_enabled=upper_turbidity_simulator_enabled,
-        initial_events=initial_events,
         initial_info_cards=initial_info_cards,
         latest_firmware_artifacts=fetch_latest_firmware_artifacts_by_role(scoped_device_id),
         config_message=request.args.get("config_message", "", type=str) or "",
@@ -20363,7 +22231,7 @@ def automatic_simulator_commands_for_setup(setup_type, service_config):
         "set:peer_delay_ms:0",
         f"set:simulator_level:{preset['simulator_upper_level']}",
     ]
-    if config.get("source_tank_monitoring_enabled"):
+    if config.get("source_tank_monitoring_enabled") and "simulator_source_level" in preset:
         commands.append(f"set:simulator_lower_level:{preset['simulator_source_level']}")
     if config.get("municipal_sensor_enabled"):
         commands.append("MUNICIPAL_SIMULATOR_ON")
@@ -20431,9 +22299,30 @@ def admin_device_detail_configuration(device_id):
     setup_type = str(request.form.get("device_setup_type") or "custom").strip().lower()
     setup_features = DEVICE_SETUP_TYPE_FEATURES.get(setup_type)
     municipal_feature_enabled = "municipal_sensor_enabled" in request.form
+    water_flow_sensor_enabled = municipal_feature_enabled and "water_flow_sensor_enabled" in request.form
+    water_pressure_sensor_enabled = (
+        municipal_feature_enabled
+        and not water_flow_sensor_enabled
+        and "water_pressure_sensor_enabled" in request.form
+    )
+    if municipal_feature_enabled and not water_flow_sensor_enabled and not water_pressure_sensor_enabled:
+        water_flow_sensor_enabled = True
     source_tank_enabled = "source_tank_monitoring_enabled" in request.form
     municipal_valve_enabled = "municipal_valve_enabled" in request.form
     source_outlet_valve_enabled = "source_outlet_valve_enabled" in request.form
+    multi_tank_enabled = "multi_tank_enabled" in request.form
+    destination_tanks = [
+        {
+            "enabled": f"tank_{index}_enabled" in request.form,
+            "tank_name": request.form.get(f"tank_{index}_name"),
+            "slave_device_id": request.form.get(f"tank_{index}_slave_device_id"),
+            "valve_owner": request.form.get(f"tank_{index}_valve_owner"),
+            "priority": request.form.get(f"tank_{index}_priority"),
+            "start_pct": request.form.get(f"tank_{index}_start_pct"),
+            "stop_pct": request.form.get(f"tank_{index}_stop_pct"),
+        }
+        for index in range(1, MAX_DESTINATION_TANKS + 1)
+    ]
     auto_mode_enabled = "auto_mode_enabled" in request.form
     if setup_features is not None:
         source_tank_enabled = setup_features["source_tank_monitoring_enabled"]
@@ -20456,8 +22345,8 @@ def admin_device_detail_configuration(device_id):
             source_outlet_valve_enabled=source_outlet_valve_enabled,
             starter_contactor_sensor_enabled=("starter_contactor_sensor_enabled" in request.form),
             motor_current_sensor_enabled=("motor_current_sensor_enabled" in request.form),
-            water_flow_sensor_enabled=("water_flow_sensor_enabled" in request.form),
-            water_pressure_sensor_enabled=("water_pressure_sensor_enabled" in request.form),
+            water_flow_sensor_enabled=water_flow_sensor_enabled,
+            water_pressure_sensor_enabled=water_pressure_sensor_enabled,
             master_turbidity_enabled=("master_turbidity_enabled" in request.form),
             slave_turbidity_enabled=("slave_turbidity_enabled" in request.form),
             relay_enabled=("relay_enabled" in request.form),
@@ -20478,6 +22367,11 @@ def admin_device_detail_configuration(device_id):
             local_firmware_upload_enabled=("local_firmware_upload_enabled" in request.form),
             android_sso_session_limit=request.form.get("android_sso_session_limit"),
         )
+        set_device_multi_tank_enabled(scoped_device_id, multi_tank_enabled)
+        save_device_destination_tanks(scoped_device_id, destination_tanks)
+        # Generate commands from the saved intent, not the pre-save device snapshot.
+        updated_config = fetch_device_service_config(scoped_device_id)
+        web_login_enabled = save_customer_web_login_from_configuration(scoped_device_id, request.form)
     except ValueError as exc:
         return device_detail_action_response(scoped_device_id, error=str(exc), status_code=400)
     except Exception as exc:
@@ -20488,6 +22382,13 @@ def admin_device_detail_configuration(device_id):
             status_code=500,
         )
 
+    expired_android_sessions = enforce_active_platform_session_limit(
+        SESSION_PLATFORM_ANDROID,
+        "customer",
+        username=scoped_device_id,
+        device_id=scoped_device_id,
+    )
+
     queued_command = build_device_service_command(updated_config)
     logger.info(
         "Admin water features saved: device=%s municipal=%s lower_turbidity=%s upper_turbidity=%s command=%s",
@@ -20497,11 +22398,39 @@ def admin_device_detail_configuration(device_id):
         "ON" if updated_config.get("slave_turbidity_enabled") else "OFF",
         queued_command,
     )
-    queue_result, queue_error = safe_queue_device_detail_command(
-        queued_command,
-        scoped_device_id,
-        "Unable to queue runtime configuration update",
-    )
+    queue_result = None
+    queue_error = None
+    # Disabling is queued first for an immediate safe stop. Enabling is queued
+    # only after the complete destination map commits, so firmware cannot run
+    # against an old or partially delivered valve layout.
+    if not updated_config.get("multi_tank_enabled"):
+        queue_result, queue_error = safe_queue_device_detail_command(
+            queued_command,
+            scoped_device_id,
+            "Unable to queue runtime configuration update",
+        )
+    multi_tank_commands = []
+    multi_tank_command_errors = []
+    for command in build_multi_tank_configuration_commands(updated_config):
+        result, error = safe_queue_device_detail_command(
+            command,
+            scoped_device_id,
+            f"Unable to queue multi-tank configuration command {command.split(':', 1)[0]}",
+        )
+        if error:
+            multi_tank_command_errors.append(error)
+        elif result:
+            multi_tank_commands.append(command)
+    if multi_tank_command_errors:
+        queue_error = "; ".join([error for error in [queue_error, *multi_tank_command_errors] if error])
+    if updated_config.get("multi_tank_enabled"):
+        queue_result, service_queue_error = safe_queue_device_detail_command(
+            queued_command,
+            scoped_device_id,
+            "Unable to queue runtime configuration update",
+        )
+        if service_queue_error:
+            queue_error = "; ".join([error for error in [queue_error, service_queue_error] if error])
     simulator_off_commands, simulator_off_errors = disable_orphaned_device_simulators(
         scoped_device_id,
         snapshot,
@@ -20548,11 +22477,14 @@ def admin_device_detail_configuration(device_id):
                 "service_config": updated_config,
                 "device_setup_type": setup_type,
                 "queued_command": queued_command,
+                "multi_tank_commands": multi_tank_commands,
+                "multi_tank_command_errors": multi_tank_command_errors,
                 "queue_error": queue_error,
                 "simulator_off_commands": simulator_off_commands,
                 "automatic_simulator_commands": automatic_simulator_commands,
                 "automatic_simulator_errors": automatic_simulator_errors,
-                "android_sessions_preserved": True,
+                "android_sessions_expired": expired_android_sessions,
+                "customer_web_login_enabled": web_login_enabled,
             },
         )
     except Exception as exc:
@@ -20745,6 +22677,34 @@ def admin_device_detail_peer_channel(device_id):
     )
 
 
+@app.route("/devices/<device_id>/replace-node", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_replace_node(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    role = str(request.form.get("role") or request.form.get("target") or "").strip().lower()
+    if role not in {"slave", "repeater"}:
+        return device_detail_action_response(
+            scoped_device_id, error="Replacement role must be slave or repeater.", status_code=400
+        )
+    command = f"replace_node:{role}"
+    queue_result, queue_error = safe_queue_device_detail_command(
+        command, scoped_device_id, f"Unable to start {role} replacement"
+    )
+    log_audit_event(
+        actor=current_actor_username(), action="start_node_replacement",
+        target_type="device", target_id=scoped_device_id, device_id=scoped_device_id,
+        details={"role": role, "queued_command": command, "queue_error": queue_error},
+    )
+    return device_detail_action_response(
+        scoped_device_id,
+        f"{role.title()} replacement queued. Keep the replacement node powered on in factory pairing mode.",
+        title="Node replacement started",
+        detail_lines=[queue_error] if queue_error else [],
+        queued_command=command, queue_result=queue_result,
+    )
+
+
 @app.route("/devices/<device_id>/ping", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -20752,7 +22712,11 @@ def admin_device_detail_ping(device_id):
     scoped_device_id = current_scope_device_id(device_id)
     target = request.form.get("target") or request.form.get("node") or request.form.get("ping_target")
     try:
-        ping_result = build_device_ping_result(scoped_device_id, target)
+        ping_result = (
+            build_device_ping_all_result(scoped_device_id)
+            if str(target or "").strip().lower() == "all"
+            else build_device_ping_result(scoped_device_id, target)
+        )
     except Exception as exc:
         logger.exception("Device ping failed for %s target=%s", scoped_device_id, target)
         return jsonify({"ok": False, "error": str(exc) or "Unable to ping device node."}), 200
@@ -21053,9 +23017,55 @@ def admin_device_detail_simulator(device_id):
     snapshot = fetch_device_snapshot(scoped_device_id) or {}
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot)
     simulator_target = str(request.form.get("simulator_target") or "tank").strip().lower()
+    if simulator_target == "all":
+        commands = [dependency[2] for dependency in SIMULATOR_FEATURE_DEPENDENCIES]
+        queued_commands = []
+        queue_errors = []
+        for command in commands:
+            result, error = safe_queue_device_detail_command(
+                command,
+                scoped_device_id,
+                f"Unable to queue simulator disable command {command}",
+            )
+            if error:
+                queue_errors.append(error)
+            elif result:
+                queued_commands.append(result.get("command") or command)
+        log_audit_event(
+            actor=current_actor_username(),
+            action="queue_all_simulators_disable",
+            target_type="device",
+            target_id=scoped_device_id,
+            device_id=scoped_device_id,
+            details={
+                "commands": queued_commands,
+                "errors": queue_errors,
+            },
+        )
+        if queue_errors:
+            return redirect(
+                url_for(
+                    "device_detail_page",
+                    device_id=scoped_device_id,
+                    config_error="Some simulator OFF commands could not be queued: " + "; ".join(queue_errors),
+                )
+            )
+        return redirect(
+            url_for(
+                "device_detail_page",
+                device_id=scoped_device_id,
+                config_message="All simulator disable commands queued for real-hardware testing.",
+                simulator_state="off",
+                municipal_simulator_state="off",
+                valve_simulator_state="off",
+                outlet_valve_simulator_state="off",
+            )
+        )
     target_config = {
         "tank": (device_simulator_enabled(scoped_device_id, snapshot=snapshot), "SIMULATOR", "Tank level", bool(service_config.get("main_sensor_enabled")), None),
         "municipal": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Municipal water", bool(service_config.get("municipal_sensor_enabled")), "municipal_feature_enabled"),
+        "water_flow": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Water-flow sensor", bool(service_config.get("municipal_sensor_enabled")) and bool(service_config.get("water_flow_sensor_enabled")), "municipal_feature_enabled"),
+        "water_pressure": (boolish_enabled(snapshot.get("municipal_sensor_simulated"), default=False), "MUNICIPAL_SIMULATOR", "Water-pressure sensor", bool(service_config.get("municipal_sensor_enabled")) and bool(service_config.get("water_pressure_sensor_enabled")), "municipal_feature_enabled"),
         "valve": (boolish_enabled(snapshot.get("municipal_valve_simulated"), default=False), "MUNICIPAL_VALVE_SIMULATOR", "Inlet motorized valve", bool(service_config.get("municipal_valve_enabled")), "municipal_valve_feature_enabled"),
         "outlet_valve": (boolish_enabled(snapshot.get("source_outlet_valve_simulated"), default=False), "SOURCE_OUTLET_VALVE_SIMULATOR", "Outlet motorized valve", bool(service_config.get("source_outlet_valve_enabled")), "source_pump_fill_feature_enabled"),
         "lower_turbidity": (boolish_enabled(snapshot.get("lower_turbidity_simulated"), default=False), "LOWER_TURBIDITY_SIMULATOR", "Lower turbidity", bool(service_config.get("master_turbidity_enabled")), "master_turbidity_enabled"),
@@ -21284,6 +23294,26 @@ def admin_device_detail_turbidity_simulator(device_id, role):
     )
 
 
+@app.route("/devices/<device_id>/customer-web-login", methods=["POST"])
+@admin_required
+@csrf_protect
+def admin_device_detail_customer_web_login(device_id):
+    scoped_device_id = current_scope_device_id(device_id)
+    if not fetch_customer_account(scoped_device_id):
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Customer account not found for this device."))
+    value = request.form.get("web_login_enabled")
+    if value not in {"0", "1"}:
+        return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_error="Select enabled or disabled for customer website login."))
+    with get_db() as db:
+        db.execute("UPDATE customer_accounts SET web_login_enabled = ?, updated_at = CURRENT_TIMESTAMP WHERE device_id = ?",
+                   (int(value), scoped_device_id))
+    log_audit_event(actor=current_actor_username(), action="update_customer_web_login",
+                    target_type="customer_account", target_id=scoped_device_id,
+                    device_id=scoped_device_id, details={"web_login_enabled": value == "1"})
+    message = "Customer website login enabled." if value == "1" else "Customer website login disabled."
+    return redirect(url_for("device_detail_page", device_id=scoped_device_id, config_message=message))
+
+
 @app.route("/devices/<device_id>/customer-profile", methods=["POST"])
 @admin_required
 @csrf_protect
@@ -21365,13 +23395,20 @@ def device_detail_status(device_id):
     # configuration is already embedded in the page and is fetched again only
     # for an explicit/full refresh.
     service_config = resolve_device_service_config(scoped_device_id, snapshot=snapshot) if include_details else {}
+    current_system_status = build_system_status_payload(
+        snapshot,
+        device_id=scoped_device_id,
+        service_config=service_config,
+    )
+    log_device_connection_status(
+        scoped_device_id,
+        current_system_status.get("device") == "online",
+        telemetry_status=current_system_status.get("telemetry_status"),
+        seconds_since_sync=current_system_status.get("seconds_since_sync"),
+    )
     payload = {
         "device_id": scoped_device_id,
-        "system_status": build_system_status_payload(
-            snapshot,
-            device_id=scoped_device_id,
-            service_config=service_config,
-        ),
+        "system_status": current_system_status,
         "monitoring_summary": build_monitoring_summary_payload(snapshot, device_id=scoped_device_id),
         "snapshot": snapshot_payload,
     }
@@ -21441,7 +23478,7 @@ def status():
 @app.route("/last")
 @login_required
 def last():
-    logger.info("Fetching last status")
+    logger.debug("Fetching last status")
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -21457,7 +23494,7 @@ def history():
     if not TELEMETRY_HISTORY_ENABLED:
         return jsonify([])
 
-    logger.info("Fetching history")
+    logger.debug("Fetching history")
     response = customer_cloud_feed_block_response()
     if response:
         return response
@@ -21770,7 +23807,7 @@ def analytics():
         return jsonify({"error": str(exc)}), 400
 
     if TELEMETRY_HISTORY_ENABLED:
-        logger.info("Running analytics engine for %s", label)
+        logger.debug("Running analytics engine for %s", label)
     try:
         payload = build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, device_id=scoped_device_id)
     except Exception as exc:
@@ -21922,6 +23959,7 @@ def start_dashboard_summary_reconciler():
 
 
 logger.info("Initializing database")
+logger.info("MySQL recovery policy: socket-first-v2; bounded-event-transactions-v2")
 _mysql_config_for_log = mysql_connection_config()
 logger.info(
     "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
@@ -21933,6 +23971,9 @@ logger.info(
 logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
 validate_runtime_db_configuration()
 init_db_serialized()
+# Runtime boot settings must be applied even when the schema revision is
+# already current and init_db_serialized() skips init_db().
+maybe_reset_device_source_mode_on_boot()
 ensure_homepage_visitor_count_loaded()
 resolve_relay_alert_when_disabled()
 ensure_app_secret_key_persisted()

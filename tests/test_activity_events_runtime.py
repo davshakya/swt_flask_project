@@ -31,7 +31,7 @@ def test_device_detail_template_renders_when_optional_json_context_is_missing():
         )
 
     assert "const INITIAL_SYSTEM_STATUS={};" in html
-    assert "Live device activity is loading from the current Flask snapshot." in html
+    assert 'id="device-logs"' not in html
 
 
 def test_build_events_falls_back_to_current_status_when_device_has_no_activity():
@@ -179,6 +179,51 @@ def test_build_events_current_node_status_uses_live_snapshot_over_raw_telemetry(
     assert "Live node status: master reachable, slave reachable;" in node_status_event["message"]
 
 
+def test_stale_master_snapshot_never_reports_slave_peer_reachable(monkeypatch):
+    device_id = "swt-999-999-999-992"
+    created_at = server.format_timestamp(server.now_utc() - timedelta(hours=2))
+    stale_snapshot = {
+        "device_id": device_id,
+        "telemetry_status": "stale",
+        "seconds_since_sync": 7200,
+        "node_role": "master",
+        "device_type": "master",
+        "direct_peer": "enabled",
+        "direct_peer_config_channel": 1,
+        "direct_peer_wifi_channel": 1,
+        "direct_peer_last_packet_age_s": 0,
+        "direct_peer_remote_ip": "192.168.1.9",
+        "created_at": created_at,
+    }
+    monkeypatch.setattr(server, "fetch_device_snapshot", lambda _device_id: dict(stale_snapshot))
+
+    with server.get_db() as db:
+        db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+        db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+        db.execute(
+            """
+            INSERT INTO tank_data(
+                device_id, device_source, level, motor, mode, sensor, wifi,
+                direct_peer, direct_peer_config_channel, direct_peer_wifi_channel,
+                direct_peer_last_packet_age_s, node_role, device_type, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (device_id, server.DEVICE_SOURCE_REAL, 50, "OFF", "AUTO", "OK", "OFFLINE",
+             "enabled", 1, 1, 0, "master", "master", created_at),
+        )
+
+    try:
+        events = server.build_events(limit=20, device_id=device_id, sync=False)
+    finally:
+        with server.get_db() as db:
+            db.execute("DELETE FROM device_events WHERE device_id = ?", (device_id,))
+            db.execute("DELETE FROM tank_data WHERE device_id = ?", (device_id,))
+
+    messages = [event.get("message", "") for event in events]
+    assert any("master telemetry is stale" in message for message in messages)
+    assert not any("Slave peer reachable" in message for message in messages)
+
+
 def test_local_firmware_logs_become_activity_events(monkeypatch):
     device_id = "swt-999-999-999-995"
 
@@ -260,7 +305,11 @@ def test_telemetry_pushed_firmware_logs_are_persisted_as_activity_events():
     assert any("SERVICECFG5" in event["message"] for event in events)
 
 
-def test_safety_state_and_peer_sequence_diagnostics_are_persisted():
+def test_safety_state_and_peer_sequence_diagnostics_are_persisted(monkeypatch):
+    # This contract tests the legacy history row, independently of the local
+    # device.env rollout, which may intentionally disable legacy writes.
+    from flask_app.capacity_features import CapacityFeatureRegistry
+    monkeypatch.setattr(server, "CAPACITY_FEATURES", CapacityFeatureRegistry(environ={}))
     device_id = "swt-999-999-999-993"
     payload = {
         "device_id": device_id,

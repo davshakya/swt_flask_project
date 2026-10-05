@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 
-PASSENGER_ENTRYPOINT_REVISION = "2026-08-03.2257-openblas-thread-limit"
+PASSENGER_ENTRYPOINT_REVISION = "2026-10-03-db-cooldown-worker-limit"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
 

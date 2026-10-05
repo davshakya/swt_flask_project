@@ -1,5 +1,26 @@
 # SaleWell Smart Tank Documentation
 
+Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
+
+## Current firmware instructions
+
+Use the [firmware README](../../swt_firmware_project/README.md) for the new
+`swt_esp32_slave` option, ESP32 GPIO profile, master/slave build and install
+commands, simulator mode defaults, and maximum transmit-power behavior.
+Test packaging enables simulation support by default; production disables it.
+Use the board-specific slave image for firmware upgrades.
+
+The workspace-wide maintained-source index is [`../../docs/DOCUMENTATION_INDEX.md`](../../docs/DOCUMENTATION_INDEX.md).
+
+Last refreshed: `2026-10-03`
+
+Municipal-water documentation uses the shared status vocabulary: `Available`,
+`No Flow`, `Disabled`, and controller-level `Offline`. Do not claim that a basic
+three-wire pulse sensor detects physical disconnection; zero flow and an
+unplugged sensor both produce no pulses. Installer documents must also state
+that flow and pressure detection are mutually exclusive runtime choices and
+simulators must be disabled for hardware tests.
+
 Choose the document that matches your work. Customer instructions use simple language. Technical and production documents remain separate so customers are not exposed to server or security details.
 
 ## Customers and installers
@@ -21,6 +42,11 @@ Choose the document that matches your work. Customer instructions use simple lan
 - [Deployment Guide](../Flask_deployment_README.md): cPanel/Passenger upload, configuration, restart, and deployment checks.
 
 ## Document rules
+
+- The cross-platform pump-control contract is [`../config/pump_control.json`](../config/pump_control.json); documentation may explain its values but must not become a competing source of truth.
+- cPanel instructions must include the tracked `config/` directory because Passenger loads the pump contract during startup.
+- UI path names use `M`, `S`, `R1`, `R2`, and `WIFI_LAN` consistently across Flask and Android.
+- Markdown and HTML files are maintained sources. Regenerate derived PDF/DOCX artifacts through their source scripts when their content changes.
 
 - Keep customer instructions short and free of internal credentials.
 - Keep prices and plan details in the FAQ and chatbot knowledge base synchronized.

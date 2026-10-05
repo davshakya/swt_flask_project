@@ -21,7 +21,7 @@ def test_root_gunicorn_config_loads_from_any_working_directory(monkeypatch):
 
     assert config["bind"] == "0.0.0.0:8000"
     assert config["workers"] == 1
-    assert config["threads"] == 4
+    assert config["threads"] == 2
 
 
 def test_flask_uses_device_env_as_its_only_local_config_file():
@@ -59,7 +59,7 @@ def test_root_gunicorn_config_falls_back_when_numeric_env_values_are_invalid(mon
 
     assert config["bind"] == "0.0.0.0:8000"
     assert config["workers"] == 1
-    assert config["threads"] == 4
+    assert config["threads"] == 2
     assert config["timeout"] == 120
     assert config["graceful_timeout"] == 30
     assert config["keepalive"] == 5
@@ -91,7 +91,7 @@ print(json.dumps({{"bind": config["bind"], "workers": config["workers"], "thread
 
     assert result.returncode == 0, result.stderr
     payload = json.loads(result.stdout.strip())
-    assert payload == {"bind": "0.0.0.0:8000", "workers": 1, "threads": 4}
+    assert payload == {"bind": "0.0.0.0:8000", "workers": 1, "threads": 2}
 
 
 def test_server_import_falls_back_when_startup_numeric_env_values_are_invalid():
