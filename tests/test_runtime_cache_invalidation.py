@@ -47,3 +47,16 @@ def test_global_invalidation_still_clears_every_device():
     assert state["analytics_cache"] == {}
     assert state["dashboard_snapshot_cache"] == {}
     assert forgotten == [None]
+
+
+def test_routine_telemetry_keeps_analytics_but_invalidates_live_snapshots():
+    state, _ = load_invalidator()
+    cache = state["analytics_cache"]
+    cache[("start", "end", "tank-a", "real", "v1")] = object()
+    snapshots = state["dashboard_snapshot_cache"]
+    snapshots.update({f"{source}:real:{device}": object()
+                      for source in ("legacy", "capacity")
+                      for device in ("tank-a", "tank-b", "__latest__")})
+    state["clear_runtime_caches"]("tank-a", invalidate_analytics=False)
+    assert len(cache) == 1
+    assert set(snapshots) == {"legacy:real:tank-b", "capacity:real:tank-b"}

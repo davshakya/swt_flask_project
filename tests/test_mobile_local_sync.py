@@ -65,13 +65,10 @@ def test_telemetry_worker_debounces_before_taking_permit_and_uses_cross_process_
     worker_start = server_source.index("def schedule_telemetry_postprocess(")
     worker_body = server_source[worker_start : server_source.index("\n\ndef process_telemetry_payload", worker_start)]
 
-    assert worker_body.index("time.sleep(remaining)") < worker_body.index(
-        "telemetry_background_semaphore.acquire"
-    )
-    assert "fcntl.LOCK_EX | fcntl.LOCK_NB" in worker_body
-    assert "fcntl.LOCK_UN" in worker_body
+    assert worker_body.index("telemetry_background_semaphore.release()") < worker_body.index("time.sleep(min(retry_seconds, 1.0))")
+    assert 'with background_lease("telemetry:" + normalized_device_id, signature)' in worker_body
     assert "lease_db = get_db()" not in worker_body
-    assert "telemetry_postprocess_pending[normalized_device_id] = pending" in worker_body
+    assert "telemetry_postprocess_pending.setdefault(normalized_device_id, pending)" in worker_body
 
 
 def test_android_local_sync_duplicate_payload_is_deduplicated(monkeypatch):

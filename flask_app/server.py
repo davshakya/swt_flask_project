@@ -94,8 +94,10 @@ from flask_app.mysql_retry import statement_allows_connection_retry
 from flask_app.mysql_transport import discover_local_mysql_socket
 from flask_app.mysql_circuit import MySqlConnectionCircuit
 from flask_app.database_availability import install_database_error_handlers
+from flask_app.background_lease import background_lease
+from flask_app.history_sampling import HISTORY_TRANSITION_FIELDS, legacy_history_sample_due
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
-from flask_app.capacity_schema import ensure_capacity_schema
+from flask_app.capacity_schema import CAPACITY_TABLES, ensure_capacity_schema
 from flask_app.capacity_ingestion import DeviceIngestionResult, ingest_device_payload
 from flask_app.capacity_state import build_alert_flags, upsert_device_latest_state
 from flask_app.capacity_history import store_narrow_history_if_due
@@ -747,6 +749,7 @@ TELEMETRY_HISTORY_ENABLED = env_flag("TELEMETRY_HISTORY_ENABLED", default=True)
 TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS = max(1, env_int("TELEMETRY_LOCAL_SYNC_DEDUPE_WINDOW_SECONDS", 10))
 LOCAL_SYNC_TRANSPORTS = {"android_local_wifi", "dashboard_local_wifi"}
 MAX_TELEMETRY_ROWS_PER_DEVICE = max(0, env_int("MAX_TELEMETRY_ROWS_PER_DEVICE", 65000))
+LEGACY_HISTORY_MIN_INTERVAL_SECONDS = max(0, min(60, env_int("LEGACY_HISTORY_MIN_INTERVAL_SECONDS", 30)))
 DEVICE_COMMAND_RETENTION_DAYS = max(1, env_int("DEVICE_COMMAND_RETENTION_DAYS", 7))
 RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS = max(30, env_int("RUNTIME_SYNC_COMMAND_MIN_INTERVAL_SECONDS", 600))
 RUNTIME_SYNC_MANUAL_COMMAND_COOLDOWN_SECONDS = max(
@@ -2274,19 +2277,24 @@ def normalize_device_source(value, default=DEVICE_SOURCE_REAL):
     return default
 
 
-def clear_runtime_caches(device_id=None):
+def clear_runtime_caches(device_id=None, *, invalidate_analytics=True):
     normalized_device_id = normalize_device_id(device_id)
     if not normalized_device_id:
-        analytics_cache.clear()
+        if invalidate_analytics:
+            analytics_cache.clear()
         dashboard_snapshot_cache.clear()
         forget_alert_touches_for_device()
         return
     # A device update also changes combined analytics, but must not evict
     # unrelated customers' results and force their history to be read again.
-    for cache_key in list(analytics_cache):
-        if cache_key[2] in {normalized_device_id, "*"}:
-            analytics_cache.pop(cache_key, None)
+    if invalidate_analytics:
+        for cache_key in list(analytics_cache):
+            if cache_key[2] in {normalized_device_id, "*"}:
+                analytics_cache.pop(cache_key, None)
     for mode in (DEVICE_SOURCE_REAL, DEVICE_SOURCE_VIRTUAL):
+        for source in ("legacy", "capacity"):
+            dashboard_snapshot_cache.pop(f"{source}:{mode}:{normalized_device_id}", None)
+            dashboard_snapshot_cache.pop(f"{source}:{mode}:__latest__", None)
         dashboard_snapshot_cache.pop(f"{mode}:{normalized_device_id}", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_REAL}:__latest__", None)
     dashboard_snapshot_cache.pop(f"{DEVICE_SOURCE_VIRTUAL}:__latest__", None)
@@ -4328,6 +4336,21 @@ def relay_headers_for_device(device_id):
 
 
 def latest_snapshot_with_metrics(db):
+    if CAPACITY_FEATURES.enabled("latest_state_writes"):
+        latest = db.execute(
+            "SELECT device_id, state_json, received_at FROM device_latest_state "
+            "WHERE device_source = ? ORDER BY received_at DESC LIMIT 1",
+            (get_device_source_mode(),),
+        ).fetchone()
+        if latest:
+            try:
+                payload = json.loads(latest.get("state_json") or "{}")
+            except (TypeError, ValueError):
+                payload = None
+            if isinstance(payload, dict) and payload:
+                payload["created_at"] = latest["received_at"]
+                payload["device_id"] = latest["device_id"]
+                return enrich_snapshot(payload)
     row = fetch_latest_row(db)
     if not row:
         return None
@@ -5059,7 +5082,7 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
                 cleaned.get("device_id") or "unknown device",
                 exc,
             )
-        clear_runtime_caches(cleaned.get("device_id"))
+        clear_runtime_caches(cleaned.get("device_id"), invalidate_analytics=False)
         record_device_simulator_state(
             cleaned.get("device_id"),
             simulator_payload_enabled(cleaned),
@@ -5100,6 +5123,9 @@ def postprocess_telemetry_payload(cleaned, raw_firmware_logs=None, source_ip=Non
             exc,
         )
 
+        return False
+    return True
+
 
 def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=None, transport="http", latest_row_id=None):
     normalized_device_id = normalize_device_id((cleaned or {}).get("device_id"))
@@ -5110,7 +5136,8 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
         # Keep only the newest payload for a device. A five-second telemetry
         # interval must not create an unbounded number of database threads.
         telemetry_postprocess_pending[normalized_device_id] = work_item
-        if normalized_device_id in telemetry_postprocess_running:
+        if (normalized_device_id in telemetry_postprocess_running
+                or len(telemetry_postprocess_running) >= TELEMETRY_BACKGROUND_MAX_WORKERS):
             return
         telemetry_postprocess_running.add(normalized_device_id)
 
@@ -5123,34 +5150,13 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                         None,
                     )
 
-                    last_run = telemetry_postprocess_last_run_at.get(
-                        normalized_device_id,
-                        0.0,
-                    )
-
                     if pending is None:
                         return
-
-                remaining = 30.0 - (
-                    time.monotonic() - last_run
-                )
-
-                if remaining > 0:
-                    # Debouncing does not consume the scarce database-work
-                    # permit. Otherwise one quiet device can block all other
-                    # devices for the full 30-second coalescing interval.
-                    time.sleep(remaining)
-
-                    with telemetry_postprocess_lock:
-                        pending = telemetry_postprocess_pending.pop(
-                            normalized_device_id,
-                            pending,
-                        )
 
                 acquired = telemetry_background_semaphore.acquire(blocking=False)
                 if not acquired:
                     with telemetry_postprocess_lock:
-                        telemetry_postprocess_pending[normalized_device_id] = pending
+                        telemetry_postprocess_pending.setdefault(normalized_device_id, pending)
                     # Keep the coalesced newest payload queued and let this
                     # device worker retry. Returning here made processing rely
                     # on another telemetry request to create a replacement
@@ -5161,6 +5167,10 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                         normalized_device_id,
                     )
                     time.sleep(0.5)
+                    with telemetry_postprocess_lock:
+                        other_devices_waiting = any(key != normalized_device_id for key in telemetry_postprocess_pending)
+                    if other_devices_waiting:
+                        return
                     continue
 
                 try:
@@ -5170,26 +5180,29 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                     # Use a zero-wait filesystem lease instead of GET_LOCK:
                     # holding a MySQL connection for this whole job can exhaust
                     # shared-host connection limits and trigger error 2006.
-                    lease_file = None
-                    lease_acquired = True
-                    if fcntl is not None:
-                        lease_digest = hashlib.sha256(normalized_device_id.encode("utf-8")).hexdigest()[:32]
-                        lease_path = Path(tempfile.gettempdir()) / f"swt-telemetry-{lease_digest}.lock"
-                        lease_file = lease_path.open("a+")
-                        try:
-                            fcntl.flock(lease_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        except BlockingIOError:
-                            lease_acquired = False
-                    try:
+                    lease_acquired = False
+                    # Fault, pump and sensor transitions must not wait behind
+                    # the cooldown for routine configuration/event maintenance.
+                    state_fields = ("device_source", *HISTORY_TRANSITION_FIELDS)
+                    signature = json.dumps([pending[0].get(field) for field in state_fields], default=str)
+                    with background_lease("telemetry:" + normalized_device_id, signature) as claim:
+                        lease_acquired, retry_seconds = claim
                         if lease_acquired:
-                            postprocess_telemetry_payload(*pending)
-                    finally:
-                        if lease_file is not None:
-                            if lease_acquired:
-                                fcntl.flock(lease_file.fileno(), fcntl.LOCK_UN)
-                            lease_file.close()
+                            if postprocess_telemetry_payload(*pending) is False:
+                                raise RuntimeError("telemetry postprocessing did not complete")
+                        else:
+                            with telemetry_postprocess_lock:
+                                telemetry_postprocess_pending.setdefault(normalized_device_id, pending)
                 finally:
                     telemetry_background_semaphore.release()
+
+                if not lease_acquired:
+                    time.sleep(min(retry_seconds, 1.0))
+                    with telemetry_postprocess_lock:
+                        other_devices_waiting = any(key != normalized_device_id for key in telemetry_postprocess_pending)
+                    if other_devices_waiting:
+                        return
+                    continue
 
                 # Summary work uses the same permit. Schedule after releasing
                 # it so the default one-worker limit can still refresh pages.
@@ -5201,13 +5214,21 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
                         normalized_device_id
                     ] = time.monotonic()
 
-                    if normalized_device_id not in telemetry_postprocess_pending:
-                        return
+                # Release this slot after a completed job so queued devices
+                # get a turn instead of spawning a thread for every device.
+                return
+        except Exception as exc:
+            with telemetry_postprocess_lock:
+                telemetry_postprocess_pending.setdefault(normalized_device_id, pending)
+            logger.warning("Telemetry background work deferred for %s: %s", normalized_device_id, exc)
+            time.sleep(5)
         finally:
             with telemetry_postprocess_lock:
-                telemetry_postprocess_running.discard(
-                    normalized_device_id
-                )
+                telemetry_postprocess_running.discard(normalized_device_id)
+                next_item = next((item for key, item in telemetry_postprocess_pending.items()
+                                  if key not in telemetry_postprocess_running), None)
+            if next_item is not None:
+                schedule_telemetry_postprocess(*next_item)
 
     try:
         threading.Thread(
@@ -5220,7 +5241,7 @@ def schedule_telemetry_postprocess(cleaned, raw_firmware_logs=None, source_ip=No
         # request or leave this device permanently marked as running.
         with telemetry_postprocess_lock:
             telemetry_postprocess_running.discard(normalized_device_id)
-            telemetry_postprocess_pending.pop(normalized_device_id, None)
+            # Keep the newest work queued; the next request retries startup.
         logger.warning("Unable to start telemetry postprocess worker for %s: %s", normalized_device_id, exc)
 
 
@@ -5401,11 +5422,20 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
     placeholders = ",".join("?" for _ in insert_values)
     with get_db() as db:
         cursor = db.cursor()
-        write_legacy_tank_data = (
-            cursor.execute
-            if CAPACITY_FEATURES.enabled("legacy_tank_data_writes")
-            else lambda *_args, **_kwargs: None
-        )
+        save_history = CAPACITY_FEATURES.enabled("legacy_tank_data_writes")
+        # Never sample the sole live-status store. Older deployments retain
+        # every report until latest-state storage has been explicitly enabled.
+        if save_history and CAPACITY_FEATURES.enabled("latest_state_writes") and LEGACY_HISTORY_MIN_INTERVAL_SECONDS > 0:
+            history_columns = ("created_at", "level", "lower_tank_level", *HISTORY_TRANSITION_FIELDS)
+            previous_history = cursor.execute(
+                "SELECT " + ", ".join(history_columns) + " FROM tank_data "
+                "WHERE device_id = ? AND device_source = ? ORDER BY id DESC LIMIT 1",
+                (cleaned.get("device_id"), cleaned.get("device_source")),
+            ).fetchone()
+            save_history = legacy_history_sample_due(
+                previous_history, cleaned, received_at, interval=LEGACY_HISTORY_MIN_INTERVAL_SECONDS,
+            )
+        write_legacy_tank_data = cursor.execute if save_history else lambda *_args, **_kwargs: None
         write_legacy_tank_data(
             f"""
             INSERT INTO tank_data (
@@ -5464,7 +5494,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
             """,
             insert_values,
         )
-        latest_row_id = cursor.lastrowid
+        latest_row_id = cursor.lastrowid if save_history else None
         if CAPACITY_FEATURES.enabled("latest_state_writes"):
             cleaned["_latest_state_write_result"] = upsert_device_latest_state(
                 cursor,
@@ -5482,7 +5512,7 @@ def process_telemetry_payload(data, source_ip=None, transport="http", defer_post
                 level_delta_pct=max(0.0, env_float("CAPACITY_HISTORY_LEVEL_DELTA_PCT", 2.0)),
             )
 
-    clear_runtime_caches(cleaned.get("device_id"))
+    clear_runtime_caches(cleaned.get("device_id"), invalidate_analytics=False)
     log_device_connection_status(
         cleaned.get("device_id"),
         True,
@@ -6133,7 +6163,7 @@ def get_db():
     return connect_mysql()
 
 
-DB_SCHEMA_REVISION = "2026-10-04-customer-web-login-v1"
+DB_SCHEMA_REVISION = "2026-10-05-server-pressure-v1"
 DB_SCHEMA_REQUIRED_TANK_DATA_COLUMNS = (
     "wifi_ssid",
     "direct_peer_repeater_reachable",
@@ -6190,7 +6220,16 @@ def init_db_serialized():
             ).fetchone() if table_row else None
             marker_current = str((marker_row or {}).get("value") or "") == DB_SCHEMA_REVISION
             structure_current = mysql_tank_data_schema_is_current(lock_db)
-            if marker_current and structure_current:
+            capacity_current = True
+            if CAPACITY_FEATURES.enabled("capacity_schema"):
+                placeholders = ",".join("?" for _ in CAPACITY_TABLES)
+                table_count = lock_db.execute(
+                    "SELECT COUNT(*) AS table_count FROM information_schema.tables "
+                    "WHERE table_schema = DATABASE() AND table_name IN (" + placeholders + ")",
+                    CAPACITY_TABLES,
+                ).fetchone()
+                capacity_current = int((table_count or {}).get("table_count") or 0) == len(CAPACITY_TABLES)
+            if marker_current and structure_current and capacity_current:
                 logger.info("MySQL schema already current at revision %s", DB_SCHEMA_REVISION)
                 return
             if marker_current and not structure_current:
@@ -8393,7 +8432,6 @@ def fetch_device_service_config(device_id, account=None, snapshot=None):
         else default_device_service_config(normalized_device_id, account=resolved_account)
     )
     with get_db() as db:
-        ensure_device_multi_tank_configs_table(db)
         multi_tank_row = db.execute(
             "SELECT enabled FROM device_multi_tank_configs WHERE device_id = ?",
             (normalized_device_id,),
@@ -8414,7 +8452,6 @@ def set_device_multi_tank_enabled(device_id, enabled):
     if not normalized_device_id:
         raise ValueError("device_id is required")
     with get_db() as db:
-        ensure_device_multi_tank_configs_table(db)
         db.execute(
             """
             INSERT INTO device_multi_tank_configs(device_id, enabled, updated_at)
@@ -8450,7 +8487,6 @@ def fetch_device_destination_tanks(device_id):
     if not normalized_device_id:
         return tanks
     with get_db() as db:
-        ensure_device_multi_tank_configs_table(db)
         rows = db.execute(
             """
             SELECT tank_index, enabled, tank_name, slave_device_id, valve_owner,
@@ -8529,7 +8565,6 @@ def save_device_destination_tanks(device_id, tanks):
         raise ValueError("device_id is required")
     normalized_tanks = normalize_destination_tanks(tanks)
     with get_db() as db:
-        ensure_device_multi_tank_configs_table(db)
         for tank in normalized_tanks:
             db.execute(
                 """
@@ -8600,7 +8635,6 @@ def list_device_service_configs(device_ids=None, accounts_by_device=None, snapsh
         for row in rows
     }
     with get_db() as db:
-        ensure_device_multi_tank_configs_table(db)
         multi_rows = db.execute(
             "SELECT device_id, enabled FROM device_multi_tank_configs"
         ).fetchall()
@@ -8923,9 +8957,109 @@ def upsert_device_service_config(
         default=existing.get("slave_device_service_state", "UNKNOWN"),
     )
 
+    config_columns = (
+        'device_id',
+        'device_setup_type',
+        'main_sensor_enabled',
+        'master_upper_sensor_enabled',
+        'slave_device_enabled',
+        'slave_upper_sensor_enabled',
+        'source_tank_monitoring_enabled',
+        'municipal_sensor_enabled',
+        'municipal_valve_enabled',
+        'source_outlet_valve_enabled',
+        'starter_contactor_sensor_enabled',
+        'motor_current_sensor_enabled',
+        'water_flow_sensor_enabled',
+        'water_pressure_sensor_enabled',
+        'turbidity_monitoring_enabled',
+        'master_turbidity_enabled',
+        'slave_turbidity_enabled',
+        'relay_enabled',
+        'ai_analysis_enabled',
+        'cloud_feed_mode',
+        'ota_enabled',
+        'local_firmware_upload_enabled',
+        'buzzer_enabled',
+        'led_display_enabled',
+        'auto_mode_enabled',
+        'android_sso_session_limit',
+        'tank_height_cm',
+        'tank_capacity_liters',
+        'upper_tank_height_cm',
+        'upper_tank_capacity_liters',
+        'lower_tank_height_cm',
+        'lower_tank_capacity_liters',
+        'auto_start_pct',
+        'auto_stop_pct',
+        'direct_peer_wifi_channel',
+        'telemetry_service_state',
+        'command_service_state',
+        'relay_service_state',
+        'ota_service_state',
+        'local_firmware_upload_service_state',
+        'buzzer_service_state',
+        'led_display_service_state',
+        'lower_tank_service_state',
+        'slave_device_service_state',
+    )
+    config_values = (
+        normalized_device_id,
+        resolved_device_setup_type,
+        1 if resolved_main_sensor_enabled else 0,
+        1 if resolved_master_upper_sensor_enabled else 0,
+        1 if resolved_slave_device_enabled else 0,
+        1 if resolved_slave_upper_sensor_enabled else 0,
+        1 if resolved_source_tank_monitoring_enabled else 0,
+        1 if resolved_municipal_sensor_enabled else 0,
+        1 if resolved_municipal_valve_enabled else 0,
+        1 if resolved_source_outlet_valve_enabled else 0,
+        1 if resolved_starter_contactor_sensor_enabled else 0,
+        1 if resolved_motor_current_sensor_enabled else 0,
+        1 if resolved_water_flow_sensor_enabled else 0,
+        1 if resolved_water_pressure_sensor_enabled else 0,
+        1 if resolved_turbidity_monitoring_enabled else 0,
+        1 if resolved_master_turbidity_enabled else 0,
+        1 if resolved_slave_turbidity_enabled else 0,
+        1 if resolved_relay_enabled else 0,
+        1 if resolved_ai_analysis_enabled else 0,
+        resolved_cloud_feed_mode,
+        1 if resolved_ota_enabled else 0,
+        1 if resolved_local_firmware_upload_enabled else 0,
+        1 if resolved_buzzer_enabled else 0,
+        1 if resolved_led_display_enabled else 0,
+        1 if resolved_auto_mode_enabled else 0,
+        resolved_android_sso_session_limit,
+        resolved_tank_height_cm,
+        resolved_tank_capacity_liters,
+        resolved_upper_tank_height_cm,
+        resolved_upper_tank_capacity_liters,
+        resolved_lower_tank_height_cm,
+        resolved_lower_tank_capacity_liters,
+        resolved_auto_start_pct,
+        resolved_auto_stop_pct,
+        resolved_direct_peer_wifi_channel,
+        resolved_telemetry_service_state,
+        resolved_command_service_state,
+        resolved_relay_service_state,
+        resolved_ota_service_state,
+        resolved_local_firmware_upload_service_state,
+        resolved_buzzer_service_state,
+        resolved_led_display_service_state,
+        resolved_lower_tank_service_state,
+        resolved_slave_device_service_state,
+            )
     with get_db() as db:
-        db.execute(
-            """
+        stored = db.execute(
+            "SELECT " + ", ".join(config_columns) + " FROM device_service_configs WHERE device_id = ?",
+            (normalized_device_id,),
+        ).fetchone()
+        config_changed = stored is None or any(
+            stored.get(column) != value for column, value in zip(config_columns, config_values)
+        )
+        if config_changed:
+            db.execute(
+                """
             INSERT INTO device_service_configs(
                 device_id, device_setup_type, main_sensor_enabled, master_upper_sensor_enabled,
                 slave_device_enabled, slave_upper_sensor_enabled,
@@ -8992,53 +9126,8 @@ def upsert_device_service_config(
                 slave_device_service_state=excluded.slave_device_service_state,
                 updated_at=CURRENT_TIMESTAMP
             """,
-            (
-                normalized_device_id,
-                resolved_device_setup_type,
-                1 if resolved_main_sensor_enabled else 0,
-                1 if resolved_master_upper_sensor_enabled else 0,
-                1 if resolved_slave_device_enabled else 0,
-                1 if resolved_slave_upper_sensor_enabled else 0,
-                1 if resolved_source_tank_monitoring_enabled else 0,
-                1 if resolved_municipal_sensor_enabled else 0,
-                1 if resolved_municipal_valve_enabled else 0,
-                1 if resolved_source_outlet_valve_enabled else 0,
-                1 if resolved_starter_contactor_sensor_enabled else 0,
-                1 if resolved_motor_current_sensor_enabled else 0,
-                1 if resolved_water_flow_sensor_enabled else 0,
-                1 if resolved_water_pressure_sensor_enabled else 0,
-                1 if resolved_turbidity_monitoring_enabled else 0,
-                1 if resolved_master_turbidity_enabled else 0,
-                1 if resolved_slave_turbidity_enabled else 0,
-                1 if resolved_relay_enabled else 0,
-                1 if resolved_ai_analysis_enabled else 0,
-                resolved_cloud_feed_mode,
-                1 if resolved_ota_enabled else 0,
-                1 if resolved_local_firmware_upload_enabled else 0,
-                1 if resolved_buzzer_enabled else 0,
-                1 if resolved_led_display_enabled else 0,
-                1 if resolved_auto_mode_enabled else 0,
-                resolved_android_sso_session_limit,
-                resolved_tank_height_cm,
-                resolved_tank_capacity_liters,
-                resolved_upper_tank_height_cm,
-                resolved_upper_tank_capacity_liters,
-                resolved_lower_tank_height_cm,
-                resolved_lower_tank_capacity_liters,
-                resolved_auto_start_pct,
-                resolved_auto_stop_pct,
-                resolved_direct_peer_wifi_channel,
-                resolved_telemetry_service_state,
-                resolved_command_service_state,
-                resolved_relay_service_state,
-                resolved_ota_service_state,
-                resolved_local_firmware_upload_service_state,
-                resolved_buzzer_service_state,
-                resolved_led_display_service_state,
-                resolved_lower_tank_service_state,
-                resolved_slave_device_service_state,
-            ),
-        )
+                config_values,
+            )
 
     persisted_local_web_password = str(local_web_password or "").strip()
     if persisted_local_web_password:
@@ -9054,7 +9143,7 @@ def upsert_device_service_config(
                 cloud_feed_enabled=desired_cloud_feed_enabled,
             )
 
-    return fetch_device_service_config(normalized_device_id)
+    return fetch_device_service_config(normalized_device_id) if config_changed else existing
 
 
 def build_device_service_command(service_config):
@@ -12517,13 +12606,7 @@ def persist_dashboard_summary(device_id, payload=None):
                 (normalized_device_id, active_mode, encoded, source_updated_at, updated_at),
             )
 
-    run_with_database_lock_retries(
-        persist_summary,
-        operation_name="persist dashboard summary",
-        attempts=4,
-        initial_delay_s=0.25,
-        retry_connection_errors=True,
-    )
+    persist_summary()
 
     cache_key = f"{active_mode}:{normalized_device_id}"
     dashboard_summary_cache[cache_key] = copy.deepcopy(summary)
@@ -13035,6 +13118,31 @@ def build_db_summary_payload():
     }
 
 
+def read_recent_persisted_analytics(cache_key, now_ts=None):
+    """Reuse a fresh result across Passenger processes without a history scan."""
+    raw = get_app_setting(analytics_last_valid_setting_key(cache_key))
+    if not raw:
+        return None
+    try:
+        record = json.loads(raw)
+        saved_at = parse_timestamp(record.get("saved_at"))
+        age = (now_utc() - saved_at).total_seconds() if saved_at else float("inf")
+        if (record.get("schema") != ANALYTICS_LAST_VALID_SCHEMA_VERSION
+                or record.get("cache_key") != [str(part) for part in cache_key]
+                or not 0 <= age < ANALYTICS_CACHE_TTL_SECONDS):
+            return None
+        payload = record.get("payload")
+        if not analytics_payload_has_valid_result(payload):
+            return None
+    except (TypeError, ValueError):
+        return None
+    current = time.time() if now_ts is None else now_ts
+    analytics_cache[cache_key] = {"created_at": current - age, "payload": payload}
+    while len(analytics_cache) > ANALYTICS_CACHE_MAX_ENTRIES:
+        analytics_cache.pop(next(iter(analytics_cache)), None)
+    return copy_analytics_payload(payload)
+
+
 def build_analytics(start_dt, end_exclusive, label, device_id=None):
     normalized_device_id = normalize_device_id(device_id)
     cache_key = build_analytics_cache_key(start_dt, end_exclusive, normalized_device_id)
@@ -13042,6 +13150,9 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
     cached_payload = read_cached_analytics(cache_key, now_ts=now_ts)
     if cached_payload is not None:
         return cached_payload
+    shared_payload = read_recent_persisted_analytics(cache_key, now_ts=now_ts)
+    if shared_payload is not None:
+        return shared_payload
     # Analytics requests are read-only.  Event generation/persistence runs on
     # telemetry ingestion or the summary worker, never in a dashboard request,
     # where it could contend with device and retention writers.
@@ -13629,9 +13740,14 @@ def build_dashboard_analytics_singleflight(start_dt, end_exclusive, label, devic
     """Serialize expensive builds for the same device and date window."""
     cache_key = build_analytics_cache_key(start_dt, end_exclusive, device_id)
     with analytics_build_lock(cache_key):
-        # build_analytics re-checks its cache after this lock is acquired, so
-        # queued requests reuse the first request's result.
-        return build_dashboard_analytics(start_dt, end_exclusive, label, device_id=device_id)
+        lease_key = "analytics:" + repr(cache_key)
+        for attempt in range(5):
+            with background_lease(lease_key, "", interval=0) as (acquired, _retry):
+                if acquired:
+                    return build_dashboard_analytics(start_dt, end_exclusive, label, device_id=device_id)
+            # Never occupy a request worker indefinitely behind analytics.
+            time.sleep(0.2)
+        raise RuntimeError("Analytics refresh is already running; retry shortly")
 
 
 def analytics_csv_filename_token(value, fallback):
@@ -23807,7 +23923,7 @@ def dashboard_local_sync():
         local_status["device_id"] = local_device_id
 
     local_status["device_source"] = normalize_device_source(local_status.get("device_source"), default=DEVICE_SOURCE_REAL)
-    cleaned = process_telemetry_payload(local_status, source_ip="dashboard_local_wifi", transport="dashboard_local_wifi")
+    cleaned = process_telemetry_payload(local_status, source_ip="dashboard_local_wifi", transport="dashboard_local_wifi", defer_postprocess=True)
     refreshed_snapshot = load_dashboard_snapshot(local_status.get("device_id") or scoped_device_id)
     refresh_operational_alerts(refreshed_snapshot if snapshot_has_live_device_data(refreshed_snapshot) else None)
     return jsonify(

@@ -2,6 +2,8 @@
 import ast
 from pathlib import Path
 import threading
+import json
+from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
@@ -84,6 +86,11 @@ def test_worker_failure_releases_permit_and_pending_marker(start_error, refresh_
     assert namespace['telemetry_background_semaphore'].acquire(blocking=False)
 
 
+@contextmanager
+def ready_background_lease(*args, **kwargs):
+    yield True, 0
+
+
 def telemetry_scheduler(start_error=False):
     namespace, tasks, refreshed = scheduler(start_error=start_error)
     source = Path(__file__).resolve().parents[1] / 'flask_app' / 'server.py'
@@ -91,11 +98,15 @@ def telemetry_scheduler(start_error=False):
     function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
                     and node.name == 'schedule_telemetry_postprocess')
     namespace.update({
+        'TELEMETRY_BACKGROUND_MAX_WORKERS': 1,
         'telemetry_postprocess_lock': threading.Lock(),
         'telemetry_postprocess_pending': {},
         'telemetry_postprocess_running': set(),
         'telemetry_postprocess_last_run_at': {},
         'fcntl': None,
+        'json': json,
+        'HISTORY_TRANSITION_FIELDS': ('motor', 'sensor', 'dry_run'),
+        'background_lease': ready_background_lease,
         'postprocess_telemetry_payload': lambda *args: refreshed.append(args[0]['device_id']),
     })
     exec(compile(ast.Module(body=[function], type_ignores=[]), str(source), 'exec'), namespace)
@@ -118,4 +129,20 @@ def test_telemetry_thread_limit_does_not_fail_request_or_stick_running_marker():
     namespace['schedule_telemetry_postprocess']({'device_id': 'device'})
     assert not tasks
     assert not namespace['telemetry_postprocess_running']
+    assert namespace['telemetry_postprocess_pending']['device'][0] == {'device_id': 'device'}
+
+
+def test_telemetry_burst_bounds_threads_and_drains_other_devices_with_latest_payload():
+    namespace, tasks, refreshed = telemetry_scheduler()
+    processed = []
+    namespace['postprocess_telemetry_payload'] = lambda payload, *args: processed.append(dict(payload))
+    schedule = namespace['schedule_telemetry_postprocess']
+    schedule({'device_id': 'first', 'level': 1})
+    schedule({'device_id': 'second', 'level': 2})
+    schedule({'device_id': 'second', 'level': 3})
+    assert len(tasks) == 1
+    while tasks:
+        tasks.pop(0)()
+    assert processed == [{'device_id': 'first', 'level': 1}, {'device_id': 'second', 'level': 3}]
     assert not namespace['telemetry_postprocess_pending']
+    assert not namespace['telemetry_postprocess_running']
