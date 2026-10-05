@@ -199,6 +199,7 @@ def test_runtime_configuration_save_persists_queues_and_returns_json(monkeypatch
     monkeypatch.setattr(server, "current_scope_device_id", lambda value: value)
     monkeypatch.setattr(server, "fetch_device_snapshot", lambda value: {})
     monkeypatch.setattr(server, "upsert_device_service_config", lambda *args, **kwargs: saved_config)
+    monkeypatch.setattr(server, "fetch_device_service_config", lambda *args, **kwargs: saved_config)
     monkeypatch.setattr(server, "build_device_service_command", lambda config: "SERVICECFG10:test")
     monkeypatch.setattr(server, "safe_queue_device_detail_command", lambda *args, **kwargs: (queue_result, ""))
     monkeypatch.setattr(server, "disable_orphaned_device_simulators", lambda *args, **kwargs: ([], []))

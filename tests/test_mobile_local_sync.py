@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from flask_app import server
+from flask_app.capacity_features import CapacityFeatureRegistry
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -73,7 +74,9 @@ def test_telemetry_worker_debounces_before_taking_permit_and_uses_cross_process_
     assert "telemetry_postprocess_pending[normalized_device_id] = pending" in worker_body
 
 
-def test_android_local_sync_duplicate_payload_is_deduplicated():
+def test_android_local_sync_duplicate_payload_is_deduplicated(monkeypatch):
+    monkeypatch.setattr(server, "TELEMETRY_HISTORY_ENABLED", True)
+    monkeypatch.setattr(server, "CAPACITY_FEATURES", CapacityFeatureRegistry(environ={"FEATURE_LEGACY_TANK_DATA_WRITES": "true"}))
     device_id = "swt-android-sync-dedupe-001"
     payload = {
         "device_id": device_id,

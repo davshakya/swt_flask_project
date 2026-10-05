@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import pytest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -9,6 +10,73 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from flask_app import server
+
+
+@pytest.mark.parametrize("flag", ["leak", "pipe_leak", "slow_leak", "drip"])
+def test_firmware_boolean_flags_publish_and_clear_cloud_alert(monkeypatch, flag):
+    calls = []
+    monkeypatch.setattr(server, "set_alert", lambda *args, **kwargs: calls.append((args, kwargs)))
+    server.evaluate_snapshot_alerts({"device_id": "leak-test", flag: True})
+    alert = next(call for call in calls if call[0][0] == "leak")
+    assert alert[0][1] == "warning"
+    assert alert[1]["active"] is True
+    assert alert[1]["device_id"] == "leak-test"
+    calls.clear()
+    server.evaluate_snapshot_alerts({"device_id": "leak-test", flag: False})
+    alert = next(call for call in calls if call[0][0] == "leak")
+    assert alert[1]["active"] is False
+
+
+@pytest.mark.parametrize("value, active", [(True, True), (False, False), ("YES", True), ("NO", False), ("on", True), ("OFF", False), (1, True), (0, False), (None, False)])
+def test_alert_flag_parsing_accepts_legacy_and_compact_values(value, active):
+    assert server.bool_flag(value) is active
+
+
+def test_quiet_hours_context_is_included_in_firmware_alert(monkeypatch):
+    calls = []
+    monkeypatch.setattr(server, "set_alert", lambda *args, **kwargs: calls.append((args, kwargs)))
+    server.evaluate_snapshot_alerts({"device_id": "quiet-test", "slow_leak": True,
+        "leak_detected_during_quiet_hours": True})
+    alert = next(call for call in calls if call[0][0] == "leak")
+    assert alert[1]["active"] is True
+    assert "overnight" in alert[0][2]
+
+
+def test_usage_rates_exclude_filling_time():
+    usage = server.estimate_level_history_usage(
+        ["2026-10-05 00:00:00", "2026-10-05 00:10:00", "2026-10-05 00:20:00"],
+        [50, 60, 58], [1, 0, 0],
+    )
+    assert round(usage["valid_hours"], 6) == round(1 / 3, 6)
+    assert round(usage["off_pump_hours"], 6) == round(1 / 6, 6)
+    assert usage["total_usage"] == 2
+    assert usage["consumption_rate_segments"] == [12]
+
+
+def test_small_accumulated_drops_use_elapsed_loss_time():
+    usage = server.estimate_level_history_usage(
+        ["2026-10-05 00:00:00", "2026-10-05 00:01:00", "2026-10-05 00:02:00", "2026-10-05 00:03:00"],
+        [80, 79.94, 79.88, 79.82], [0, 0, 0, 0],
+    )
+    assert usage["valid_drop_count"] == 1
+    assert abs(usage["consumption_rate_segments"][0] - 3.6) < 0.001
+
+
+def test_frequent_samples_accumulate_a_valid_loss_rate():
+    usage = server.estimate_level_history_usage(
+        [f"2026-10-05 00:00:{second:02d}" for second in (0, 10, 20, 30, 40, 50)] + ["2026-10-05 00:01:00"],
+        [80 - index * 0.2 for index in range(7)], [0] * 7,
+    )
+    assert usage["valid_drop_count"] == 1
+    assert abs(usage["consumption_rate_segments"][0] - 72) < 0.001
+
+
+def test_unknown_fill_state_does_not_supply_off_pump_evidence():
+    usage = server.estimate_level_history_usage(
+        ["2026-10-05 00:00:00", "2026-10-05 00:10:00"], [80, 70], [None, 0],
+    )
+    assert usage["off_pump_hours"] == 0
+    assert usage["total_usage"] == 0
 
 
 def test_ai_leakage_result_is_synchronized_to_active_alerts(monkeypatch):

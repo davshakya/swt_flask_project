@@ -9784,7 +9784,10 @@ def safe_float(value, default=0.0):
 
 
 def bool_flag(value):
-    return str(value).upper() == "YES"
+    # LAN/legacy payloads use YES/NO; compact device sync uses JSON booleans.
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().upper() in {"YES", "TRUE", "1", "ON", "ACTIVE"}
 
 
 def append_reason(reasons, message):
@@ -11004,17 +11007,23 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
     valid_hours = 0.0
     valid_drop_count = 0
     usage_floor = None
+    off_pump_hours = 0.0
+    rate_usage = 0.0
+    rate_started_at = None
 
     for index in range(size):
         created_at = parse_timestamp(safe_times[index])
         level = safe_float(safe_levels[index], None) if safe_levels[index] is not None else None
         if created_at is None or level is None:
             usage_floor = None
+            rate_usage = 0.0
+            rate_started_at = None
             continue
         date_key = created_at.date().isoformat()
         daily_usage.setdefault(date_key, 0.0)
         if index == 0:
             usage_floor = level
+            rate_started_at = created_at
             continue
         previous_at = parse_timestamp(safe_times[index - 1])
         previous_level = safe_float(safe_levels[index - 1], None) if safe_levels[index - 1] is not None else None
@@ -11027,14 +11036,20 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
         )
         if not valid_interval:
             usage_floor = level
+            rate_usage = 0.0
+            rate_started_at = created_at
             continue
         valid_hours += delta_hours
         interval_fill = safe_states[index - 1] == 1
-        if interval_fill:
+        if interval_fill or safe_states[index - 1] is None:
             usage_floor = level
+            rate_usage = 0.0
+            rate_started_at = created_at
             continue
+        off_pump_hours += delta_hours
         if usage_floor is None:
             usage_floor = previous_level
+            rate_started_at = previous_at
         usage = max(0.0, usage_floor - level)
         if usage >= ANALYTICS_MIN_USAGE_DELTA_PCT:
             total_usage += usage
@@ -11042,9 +11057,13 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
             hourly_usage[created_at.hour] += usage
             hour_key = created_at.replace(minute=0, second=0, microsecond=0).strftime(TIMESTAMP_FORMAT)
             hourly_timeline[hour_key] = hourly_timeline.get(hour_key, 0.0) + usage
-            if delta_hours >= (1.0 / 60.0):
+            rate_usage += usage
+            loss_hours = (created_at - rate_started_at).total_seconds() / 3600.0 if rate_started_at else delta_hours
+            if loss_hours >= (1.0 / 60.0):
                 valid_drop_count += 1
-                rate_segments.append(usage / delta_hours)
+                rate_segments.append(rate_usage / loss_hours)
+                rate_usage = 0.0
+                rate_started_at = created_at
             usage_floor = level
 
     return {
@@ -11053,6 +11072,7 @@ def estimate_level_history_usage(time_values, level_values, fill_states):
         "hourly_timeline": hourly_timeline,
         "total_usage": total_usage,
         "valid_hours": valid_hours,
+        "off_pump_hours": off_pump_hours,
         "valid_drop_count": valid_drop_count,
         "consumption_rate_segments": rate_segments,
     }
@@ -11803,7 +11823,7 @@ def build_leakage_ai_model(
             "sufficient_for_anomaly",
             quality_score >= 60 and valid_hours >= 2 and valid_drop_count >= 3,
         )
-    )
+    ) and valid_hours >= 2 and valid_drop_count >= 3
     if quality_score < 60:
         score *= 0.82
         reasons.append("Telemetry quality is limited, so the model reduced confidence.")
@@ -13194,11 +13214,12 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         motor_cycles = inferred_motor_metrics["completed_runs"]
     refill_events = motor_cycles
 
-    mean_consumption_rate = total_usage / valid_hours if valid_hours > 0 else 0.0
+    off_pump_hours = level_usage["off_pump_hours"]
+    mean_consumption_rate = total_usage / off_pump_hours if off_pump_hours > 0 else 0.0
     consumption_rate = robust_consumption_rate(
         mean_consumption_rate,
         consumption_rate_segments,
-        valid_hours,
+        off_pump_hours,
         valid_drop_count,
     )
     current_level = float(prev_level)
@@ -13339,7 +13360,7 @@ def build_analytics(start_dt, end_exclusive, label, device_id=None):
         usage_change_pct=usage_change_pct,
         motor_cycles=motor_cycles,
         refill_events=refill_events,
-        valid_hours=valid_hours,
+        valid_hours=off_pump_hours,
         valid_drop_count=valid_drop_count,
         quality=analytics_quality,
         pump_activity_metrics=pump_activity_metrics,
@@ -13649,6 +13670,11 @@ TELEMETRY_SYNC_FINGERPRINT_FIELDS = (
     "drip",
     "slow_leak",
     "pipe_leak",
+    "leak_loss_pct_per_hour",
+    "leak_confirmed_windows",
+    "leak_tank_index",
+    "leak_quiet_hours_active",
+    "leak_detected_during_quiet_hours",
     "dry_run",
     "wifi",
     "sensor",
@@ -16615,7 +16641,9 @@ def evaluate_snapshot_alerts(snapshot):
     set_alert(
         "leak",
         "warning",
-        "Leak-related alert reported by firmware.",
+        ("Possible overnight leakage: sustained tank-level loss during quiet hours. Check taps, toilets, pipes, and appliances."
+         if bool_flag(snapshot.get("leak_detected_during_quiet_hours")) else
+         "Sustained tank-level loss reported by firmware. Check for open taps or possible leakage."),
         device_id=device_id,
         active=leak_active,
         best_effort=True,
