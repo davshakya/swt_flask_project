@@ -25,7 +25,7 @@ def test_survey_setup_defaults_use_available_site_data():
     assert setup["source_tank_monitoring_enabled"] is True
     assert setup["municipal_valve_enabled"] is True
     assert setup["slave_device_enabled"] is True
-    assert setup["auto_mode_enabled"] is True
+    assert setup["auto_mode_enabled"] is False
     assert setup["upper_tank_capacity_liters"] == 1500
 
 
@@ -39,6 +39,8 @@ def test_survey_registration_route_has_server_side_acceptance_gate():
     assert "Accept this survey before registering a device." in route
     assert "register_device_credentials(" in route
     assert "upsert_device_service_config(" in route
+    assert '"auto_mode_enabled": False' in route
+    assert 'form_flag("auto_mode_enabled"' not in route
 
 
 def test_explicit_device_registration_restores_deleted_device_telemetry():

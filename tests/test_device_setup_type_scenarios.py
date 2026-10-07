@@ -24,7 +24,7 @@ def test_every_setup_has_complete_features_and_automatic_scenario_levels():
         assert isinstance(preset["municipal_sensor_enabled"], bool)
         assert isinstance(preset["municipal_valve_enabled"], bool)
         assert isinstance(preset["source_outlet_valve_enabled"], bool)
-        assert preset["auto_mode_enabled"] is True
+        assert preset["auto_mode_enabled"] is False
         assert 0 <= preset["simulator_upper_level"] <= 100
         if preset["source_tank_monitoring_enabled"]:
             assert 0 <= preset["simulator_source_level"] <= 100
@@ -106,13 +106,19 @@ def test_setup_type_is_serialized_and_persistable():
     assert payload["device_setup_type"] == "borewell_upper"
 
 
-def test_device_detail_lists_every_setup_and_enables_auto_mode_on_selection():
+def test_device_detail_setup_selection_does_not_enable_auto_mode():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "device_detail.html").read_text(encoding="utf-8")
     for setup_type in EXPECTED_SETUPS:
         assert f'value="{setup_type}"' in template
         assert f"{setup_type}:" in template
-    assert 'setChecked("autoModeOption",preset.auto);' in template
-    assert "borewell_upper:{source:false,municipal:false,inlet:false,outlet:false,auto:true}" in template
+    assert 'setChecked("autoModeOption",preset.auto);' not in template
+    assert "borewell_upper:{source:false,municipal:false,inlet:false,outlet:false}" in template
+
+
+def test_new_survey_registration_keeps_auto_mode_off_until_device_detail():
+    registration = (PROJECT_ROOT / "flask_app" / "templates" / "admin_survey_response_detail.html").read_text(encoding="utf-8")
+    assert 'name="auto_mode_enabled"' not in registration
+    assert "Auto Start/Stop stays disabled at registration." in registration
 
 
 def test_configuration_route_persists_setup_and_queues_scenario_for_test_firmware():

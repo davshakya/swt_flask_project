@@ -739,10 +739,10 @@ function clientTruthy(value,defaultValue=false){
 let pingWatchToken=0;
 const DEVICE_REFRESH_MS=30000;
 const DEVICE_SETUP_PRESETS={
-  source_only:{source:true,municipal:false,inlet:false,outlet:false,auto:true},
-  borewell_upper:{source:false,municipal:false,inlet:false,outlet:false,auto:true},
-  municipal_direct:{source:false,municipal:true,inlet:false,outlet:false,auto:true},
-  dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true,auto:true},
+  source_only:{source:true,municipal:false,inlet:false,outlet:false},
+  borewell_upper:{source:false,municipal:false,inlet:false,outlet:false},
+  municipal_direct:{source:false,municipal:true,inlet:false,outlet:false},
+  dual_source_pumped:{source:true,municipal:true,inlet:true,outlet:true},
 };
 function currentDeviceSetupType(){
   const state={
@@ -764,7 +764,6 @@ function applyDeviceSetupType(type){
   setChecked("municipalSensorOption",preset.municipal);
   setChecked("municipalValveOption",preset.inlet);
   setChecked("sourceOutletValveOption",preset.outlet);
-  setChecked("autoModeOption",preset.auto);
   setChecked("relayOption",true);
   syncLowerSensorSetupVisibility();
   syncRuntimeConfigurationOptions();

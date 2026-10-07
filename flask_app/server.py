@@ -21260,10 +21260,6 @@ def survey_device_setup_defaults(response, answers=None):
     answers = answers or parse_survey_answers(response)
     water_source = str(answers.get("water_source") or "").strip().lower()
     tank2 = str(answers.get("tank2_details") or "").strip().lower()
-    requirements = " ".join(
-        str(answers.get(key) or "")
-        for key in ("customer_requirements", "current_issues", "recommended_control")
-    ).lower()
     municipal = water_source in {"municipal", "multiple sources"}
     source_tank = water_source != "municipal"
     multiple_sources = water_source == "multiple sources"
@@ -21276,7 +21272,9 @@ def survey_device_setup_defaults(response, answers=None):
         "municipal_valve_enabled": multiple_sources,
         "source_outlet_valve_enabled": multiple_sources,
         "slave_device_enabled": has_second_tank,
-        "auto_mode_enabled": "automatic" in requirements or "auto" in requirements,
+        # Survey requirements can recommend automation, but first activation
+        # must be an explicit action from the registered device detail page.
+        "auto_mode_enabled": False,
         "ai_analysis_enabled": True,
         "cloud_feed_mode": DEVICE_SERVICE_CLOUD_FEED_FULL,
         "relay_enabled": True,
@@ -21621,7 +21619,9 @@ def admin_survey_register_device(response_id):
             "local_firmware_upload_enabled": form_flag("local_firmware_upload_enabled", default=False),
             "buzzer_enabled": form_flag("buzzer_enabled", default=False),
             "led_display_enabled": form_flag("led_display_enabled", default=False),
-            "auto_mode_enabled": form_flag("auto_mode_enabled", default=False),
+            # Registration is commissioning-only; automation is enabled later
+            # from the registered device detail page after manual review.
+            "auto_mode_enabled": False,
             "tank_height_cm": upper_height,
             "tank_capacity_liters": upper_capacity,
             "upper_tank_height_cm": upper_height,
@@ -22323,7 +22323,7 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "simulator_route": "source_only",
         "simulator_upper_level": 20,
         "simulator_source_level": 80,
-        "auto_mode_enabled": True,
+        "auto_mode_enabled": False,
     },
     "borewell_upper": {
         # A borewell/submersible pump feeds the upper tank directly. It has no
@@ -22334,7 +22334,7 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "source_outlet_valve_enabled": False,
         "simulator_route": "borewell",
         "simulator_upper_level": 20,
-        "auto_mode_enabled": True,
+        "auto_mode_enabled": False,
     },
     "municipal_direct": {
         "source_tank_monitoring_enabled": False,
@@ -22343,7 +22343,7 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "source_outlet_valve_enabled": False,
         "simulator_route": "municipal_direct",
         "simulator_upper_level": 20,
-        "auto_mode_enabled": True,
+        "auto_mode_enabled": False,
     },
     "dual_source_pumped": {
         "source_tank_monitoring_enabled": True,
@@ -22353,7 +22353,7 @@ DEVICE_SETUP_TYPE_FEATURES = {
         "simulator_route": "dual_source_pumped",
         "simulator_upper_level": 70,
         "simulator_source_level": 20,
-        "auto_mode_enabled": True,
+        "auto_mode_enabled": False,
     },
 }
 
