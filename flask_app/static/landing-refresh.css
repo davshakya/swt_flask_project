@@ -43,3 +43,38 @@
  .value-grid,.confidence-grid,.trust-grid,.price-preview-grid{grid-template-columns:1fr}
  .comparison-table th,.comparison-table td{font-size:13px;padding:12px 10px}
 }
+
+/* Keep text and cards within their section, including narrow grid columns. */
+.page .hero,.page .section{box-sizing:border-box;min-width:0;max-width:100%}
+.page .section{width:100%;--section-block-inset:32px;--section-inline-inset:32px}
+.page .section *,.page .hero *{box-sizing:border-box}
+.page .section :is(div,article,figure,details),.page .hero > *{min-width:0;max-width:100%}
+.page .section :is(h2,h3,h4,p,li,strong,summary),.hero-copy :is(h1,p,li){overflow-wrap:anywhere;word-break:normal}
+.page .section :is(h2,h3,h4,p){text-align:left}
+.page .section :is(.value-grid,.proof-grid,.use-case-grid,.trust-grid,.price-preview-grid,.social-proof-grid){align-items:stretch;gap:18px}
+.page .section :is(.card,.trust-item,.price-preview,.social-stat,.mini-proof){height:auto;align-self:stretch;min-width:0;max-width:100%}
+.page .section .card{display:flex;flex-direction:column;align-items:flex-start;gap:12px;padding:22px}
+.page .section .card > *{max-width:100%;margin:0}
+.page .section .card .card-tag{white-space:normal;overflow-wrap:anywhere;line-height:1.5;letter-spacing:.08em}
+.page .section .card h3{font-size:19px;line-height:1.4;min-height:4.2em;width:100%}
+.page .section .card p{line-height:1.65;width:100%}
+.page .section .card ul{padding-left:20px;width:100%;line-height:1.65}
+.page .section .card li+li{margin-top:6px}
+.page .section .feature-icon{flex-shrink:0;margin-bottom:0}
+.page .section .urgency-banner{height:auto;clear:both;margin-top:24px;padding:18px;gap:16px;align-items:start}
+.page .section .urgency-copy strong{display:block;line-height:1.5}
+.page .section .urgency-copy p{margin:8px 0 0;line-height:1.65}
+.page .section .section-header{width:100%;align-items:start}
+.page .section .section-header h2{max-width:100%;margin:12px 0 0}
+.page .section .comparison-table-wrap{width:100%;max-width:100%;overflow-x:auto}
+.page .section :is(.media-split,.confidence-grid,.support-layout){align-items:start}
+.page .section figure{margin:0;max-width:100%}
+.page .section :is(.conversion-strip,.conversion-actions){min-width:0;flex-wrap:wrap}
+.page .section .conversion-actions > *{max-width:100%;white-space:normal;text-align:center}
+@media(max-width:760px){
+ .page .section{--section-block-inset:24px;--section-inline-inset:20px}
+ .page .section :is(.value-grid,.proof-grid,.use-case-grid,.trust-grid,.price-preview-grid,.social-proof-grid){grid-template-columns:minmax(0,1fr)}
+ .page .section .card h3{min-height:0}
+ .page .section .urgency-banner{grid-template-columns:minmax(0,1fr)}
+ .page .section .conversion-actions{width:100%}
+}
