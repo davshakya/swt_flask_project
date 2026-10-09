@@ -1,0 +1,112 @@
+<style>
+.booking-progress{margin:16px 0;color:#137d90;font-size:14px;font-weight:600}
+.booking-progress[hidden],.booking-thanks[hidden]{display:none!important}
+.booking-progress progress{display:block;width:100%;height:10px;margin-top:8px;accent-color:#159eb4}
+.booking-error{color:#b42318}
+.booking-thanks{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(9,47,58,.55)}
+.booking-thanks-panel{position:relative;box-sizing:border-box;width:min(440px,100%);padding:36px 28px;border-radius:24px;background:#fff;color:#093342;text-align:center;box-shadow:0 24px 80px rgba(9,47,58,.25)}
+.booking-thanks-check{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 18px;border-radius:50%;background:#def6ee;color:#147b57;font-size:32px}
+.booking-thanks-panel h2{margin:0 0 12px;font-size:28px;color:#093342}
+.booking-thanks-panel p{margin:0 0 24px;line-height:1.6;color:#45616b}
+.booking-thanks-panel button{border:0;border-radius:12px;padding:12px 28px;background:#137d90;color:#fff;font:inherit;font-weight:700;cursor:pointer}
+</style>
+<template id="bookingProgressTemplate">
+    <div class="booking-progress" role="status" aria-live="polite" hidden>
+        <span>Submitting your booking. Please wait…</span>
+        <progress aria-label="Booking submission in progress"></progress>
+    </div>
+    <div class="booking-error" role="alert" hidden></div>
+</template>
+<div class="booking-thanks" id="bookingThanks" hidden>
+    <div class="booking-thanks-panel" role="dialog" aria-modal="true" aria-labelledby="bookingThanksTitle" aria-describedby="bookingThanksDescription">
+        <div class="booking-thanks-check" aria-hidden="true">✓</div>
+        <h2 id="bookingThanksTitle">Thank you!</h2>
+        <p id="bookingThanksDescription">Your booking request has been received. The SaleWell team will contact you soon to arrange your demo and discuss your tank setup.</p>
+        <button type="button" id="bookingThanksClose">Done</button>
+    </div>
+</div>
+<script>
+(() => {
+    const form = document.getElementById("enquiryForm");
+    if (!form) return;
+    const feedback = document.getElementById("bookingProgressTemplate").content.cloneNode(true);
+    (form.querySelector(".form-actions") || form.lastElementChild).before(feedback);
+    const progress = form.querySelector(".booking-progress");
+    const error = form.querySelector(".booking-error");
+    const thanks = document.getElementById("bookingThanks");
+    const done = document.getElementById("bookingThanksClose");
+    let pending = false;
+    let previousFocus = null;
+    let previousOverflow = "";
+
+    function showThankYou() {
+        previousFocus = document.activeElement;
+        const modal = document.getElementById("enquiryModal");
+        modal?.classList.remove("is-open");
+        modal?.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        thanks.hidden = false;
+        done.focus();
+    }
+
+    function closeThankYou() {
+        thanks.hidden = true;
+        document.body.style.overflow = previousOverflow;
+        const focusTarget = previousFocus?.closest("#enquiryModal")
+            ? document.querySelector('.js-book-plan, [href="#enquiry"]') : previousFocus;
+        focusTarget?.focus();
+    }
+
+    done.addEventListener("click", closeThankYou);
+    thanks.addEventListener("click", event => {
+        if (event.target === thanks) closeThankYou();
+    });
+    document.addEventListener("keydown", event => {
+        if (thanks.hidden) return;
+        if (event.key === "Escape") closeThankYou();
+        if (event.key === "Tab") {
+            event.preventDefault();
+            done.focus();
+        }
+    });
+
+    window.SWTBookingUI = {
+        async submit(bookingForm, data = new FormData(bookingForm)) {
+            if (pending) return false;
+            pending = true;
+            progress.hidden = false;
+            error.hidden = true;
+            bookingForm.setAttribute("aria-busy", "true");
+            const controller = new AbortController();
+            const timeout = window.setTimeout(() => controller.abort(), 30000);
+            try {
+                const response = await fetch(bookingForm.action, {
+                    method: "POST", body: data, credentials: "same-origin",
+                    headers: {Accept: "application/json"},
+                    signal: controller.signal,
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) throw new Error(result.error || "Your booking could not be submitted. Please try again.");
+                showThankYou();
+                return true;
+            } catch (failure) {
+                error.textContent = failure instanceof SyntaxError || failure instanceof TypeError || failure.name === "AbortError"
+                    ? "We could not confirm your booking. Please try again; your details have been kept."
+                    : failure.message;
+                error.hidden = false;
+                return false;
+            } finally {
+                window.clearTimeout(timeout);
+                pending = false;
+                progress.hidden = true;
+                bookingForm.removeAttribute("aria-busy");
+            }
+        },
+    };
+    {% if sales_success|default(false) %}
+    showThankYou();
+    {% endif %}
+})();
+</script>

@@ -5764,6 +5764,7 @@ body.chatbot-open .page-jump-controls{display:none}
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" id="landingModeInput" name="landing_mode" value="{{ login_mode }}">
             <input type="hidden" name="return_to" value="homepage">
+            <input type="hidden" name="booking_token" value="{{ booking_token }}">
             {% if sales_success %}
             <div class="banner success">{{ sales_success }}</div>
             {% endif %}
@@ -5952,7 +5953,7 @@ const enquirySubmitButton = document.getElementById("enquirySubmitButton");
 const bodyDefaultRole = document.body.dataset.defaultLoginMode === "admin" ? "admin" : "customer";
 const onDedicatedLoginRoute = {{ "true" if on_dedicated_login_route|default(false) else "false" }};
 const shouldAutoOpenLogin = {{ "true" if show_login_modal|default(false) else "false" }};
-const shouldAutoOpenEnquiry = {{ "true" if sales_success or sales_error else "false" }};
+const shouldAutoOpenEnquiry = {{ "true" if sales_error else "false" }};
 const publicSalesEnquiryPath = "{{ url_for('sales_enquiry') }}";
 const roleContent = {
     customer: {
@@ -6111,11 +6112,17 @@ function updateEnquirySubmitState(forceVisible = false) {
     if (!enquiryForm || !enquirySubmitButton) return false;
     const validFields = enquiryFields().map((field) => validateEnquiryField(field, forceVisible));
     const isReady = validFields.length > 0 && validFields.every(Boolean);
-    enquirySubmitButton.disabled = !isReady;
-    enquirySubmitButton.setAttribute("aria-disabled", isReady ? "false" : "true");
+    enquirySubmitButton.disabled = enquirySubmitting || !isReady;
+    enquirySubmitButton.setAttribute("aria-disabled", enquirySubmitButton.disabled ? "true" : "false");
     return isReady;
 }
 
+let enquirySubmitting = false;
+window.addEventListener("pageshow", () => {
+    enquirySubmitting = false;
+    if (enquirySubmitButton) enquirySubmitButton.textContent = "Book Demo";
+    updateEnquirySubmitState();
+});
 if (enquiryForm) {
     enquiryFields().forEach((field) => {
         field.addEventListener("blur", () => {
@@ -6139,11 +6146,26 @@ if (enquiryForm) {
         updateEnquirySubmitState();
     });
     enquiryForm.addEventListener("submit", (event) => {
+        if (enquirySubmitting) {
+            event.preventDefault();
+            return;
+        }
         const isReady = updateEnquirySubmitState(true);
         if (!isReady) {
             event.preventDefault();
             const firstInvalid = enquiryFields().find((field) => !validateEnquiryField(field, true));
             firstInvalid?.focus();
+        }
+        if (!event.defaultPrevented) {
+            event.preventDefault();
+            enquirySubmitting = true;
+            enquirySubmitButton.disabled = true;
+            enquirySubmitButton.textContent = "Submitting...";
+            window.SWTBookingUI.submit(enquiryForm).finally(() => {
+                enquirySubmitting = false;
+                enquirySubmitButton.textContent = "Book Demo";
+                updateEnquirySubmitState();
+            });
         }
     });
     updateEnquirySubmitState();
@@ -6948,6 +6970,7 @@ async function submitCompletedEnquiry() {
     formData.set("csrf_token", form.querySelector('[name="csrf_token"]')?.value || "");
     formData.set("landing_mode", document.getElementById("landingModeInput")?.value || "customer");
     formData.set("return_to", "homepage");
+    formData.set("booking_token", form.querySelector('[name="booking_token"]')?.value || "");
     formData.set("name", chatCompletedBooking.name || "");
     formData.set("phone", chatCompletedBooking.phone || "");
     formData.set("email", chatCompletedBooking.email || "");
@@ -6959,13 +6982,8 @@ async function submitCompletedEnquiry() {
     chatEnquirySubmitting = true;
     appendChatMessage("Submitting your request now.", "bot");
     try {
-        const response = await fetch(form.action, {
-            method: "POST",
-            body: formData,
-            credentials: "same-origin",
-            redirect: "follow",
-        });
-        if (!response.ok) {
+        const submitted = await window.SWTBookingUI.submit(form, formData);
+        if (!submitted) {
             appendChatMessage("I could not submit the booking yet. Please check the details and try again.", "bot");
             return;
         }
@@ -7812,5 +7830,6 @@ document.querySelectorAll("[data-page-jump]").forEach((button) => {
     });
 });
 </script>
+{% include '_booking_feedback.html' %}
 </body>
 </html>

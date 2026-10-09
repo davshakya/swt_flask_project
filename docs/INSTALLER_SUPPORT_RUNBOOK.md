@@ -1,5 +1,17 @@
 # Installer And Support Runbook
 
+Current Wi-Fi and command reference (2026-10-07): [setup, generic device-number build/upgrade, automatic master discovery, and password-free progress logs](../../docs/WIFI_BUILD_UPGRADE_LOGS.md).
+
+For the current ESP32 master, the hotspot name uses the last six device-ID
+characters (example: `SWT_MASTER_SETUP_00-008`). It starts immediately without
+saved Wi-Fi, or after 90 seconds of a saved-network outage. Use the local
+maintenance login at `http://192.168.4.1/wifi/recovery`; new router credentials
+are tested for up to 45 seconds and saved after five stable seconds. A failed
+trial retains the previous network, and setup does not reboot the controller.
+The Android device Wi-Fi flow supports both the setup hotspot and an existing
+network. Never include Wi-Fi passwords or API keys in logs or support captures.
+
+
 Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
 
 Last refreshed: `2026-10-03`
@@ -34,7 +46,7 @@ Recommended order at site:
 1. mount the enclosure and sensor safely
 2. confirm relay output is fail-safe with motor off
 3. power the controller
-4. provision Wi-Fi through `SMART_TANK_SETUP` if needed
+4. provision Wi-Fi through `SWT_MASTER_SETUP_<device-suffix>` if needed
 5. open the local firmware UI
 6. confirm current level, motor status, and sensor health
 7. confirm Flask receives telemetry
@@ -113,7 +125,7 @@ Ask for these first:
 ### Router changed or password changed
 
 - use the Wi-Fi reset path
-- reconnect to `SMART_TANK_SETUP`
+- reconnect to `SWT_MASTER_SETUP_<device-suffix>`
 - reprovision the device
 
 ### Firmware update fails

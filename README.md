@@ -1,5 +1,8 @@
 # SaleWell Smart Tank Flask Backend
 
+Current Wi-Fi and command reference (2026-10-07): [setup, generic device-number build/upgrade, automatic master discovery, and password-free progress logs](../docs/WIFI_BUILD_UPGRADE_LOGS.md).
+
+
 Firmware workflow updated 2026-10-03: [build, automatic hardware MAC detection, latest-package install, and repeater recovery](../swt_firmware_project/docs/CURRENT_FIRMWARE_WORKFLOW.md).
 
 Last refreshed: `2026-10-03`

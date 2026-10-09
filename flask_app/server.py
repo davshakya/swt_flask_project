@@ -95,6 +95,7 @@ from flask_app.mysql_transport import discover_local_mysql_socket
 from flask_app.mysql_circuit import MySqlConnectionCircuit
 from flask_app.database_availability import install_database_error_handlers
 from flask_app.background_lease import background_lease
+from flask_app.booking_queue import BookingQueue
 from flask_app.history_sampling import HISTORY_TRANSITION_FIELDS, legacy_history_sample_due
 from flask_app.capacity_features import BoundedRequestMetrics, CapacityFeatureRegistry
 from flask_app.capacity_schema import CAPACITY_TABLES, ensure_capacity_schema
@@ -2688,6 +2689,7 @@ def csrf_protect(view):
 def inject_template_globals():
     return {
         "csrf_token": get_csrf_token(),
+        "booking_token": secrets.token_urlsafe(24),
         "cloud_poll_interval_ms": CLOUD_POLL_INTERVAL_SECONDS * 1000,
         "pump_threshold_contract": PUMP_CONTROL_CONTRACT,
     }
@@ -20130,6 +20132,59 @@ def whatsapp_send_integration():
     return jsonify({"ok": sent, "status": status, "provider": WHATSAPP_PROVIDER}), response_status
 
 
+sales_booking_queue = BookingQueue(SALES_ENQUIRY_BACKUP_PATH.with_suffix(".queue.sqlite3"))
+sales_booking_worker_lock = threading.Lock()
+sales_booking_worker = None
+sales_booking_wake = threading.Event()
+sales_booking_stop = threading.Event()
+
+
+def start_sales_booking_worker():
+    global sales_booking_worker
+    with sales_booking_worker_lock:
+        if sales_booking_worker is not None and sales_booking_worker.is_alive():
+            return
+
+        def archive(cleaned, metadata):
+            states = metadata.get("notification_states", {})
+            append_sales_enquiry_backup(
+                cleaned, metadata,
+                support_email_sent=states.get("support_email") == "sent",
+                confirmation_email_sent=states.get("confirmation_email") == "sent",
+                whatsapp_team_sent=states.get("whatsapp_team") == "sent",
+                whatsapp_customer_sent=states.get("whatsapp_customer") == "sent",
+            )
+            return True
+
+        def audit(cleaned, metadata):
+            log_audit_event(actor="public-lead", action="sales_enquiry_submitted",
+                            target_type="sales_enquiry", details=metadata)
+            return True
+
+        def loop():
+            handlers = {
+                "support_email": send_sales_enquiry_email,
+                "confirmation_email": lambda cleaned, metadata: send_sales_enquiry_confirmation_email(cleaned),
+                "whatsapp_team": lambda cleaned, metadata: post_whatsapp_webhook(
+                    build_sales_enquiry_whatsapp_messages(cleaned, metadata)["team"], "Sales enquiry team"),
+                "whatsapp_customer": lambda cleaned, metadata: post_whatsapp_webhook(
+                    build_sales_enquiry_whatsapp_messages(cleaned, metadata)["customer"], "Sales enquiry customer confirmation")
+                    if cleaned.get("phone") else False,
+                "audit": audit,
+                "archive": archive,
+            }
+            while not sales_booking_stop.is_set():
+                try:
+                    sales_booking_queue.process(handlers, logger)
+                except Exception:
+                    logger.exception("Sales booking queue processing failed")
+                sales_booking_wake.wait(5)
+                sales_booking_wake.clear()
+
+        sales_booking_worker = threading.Thread(target=loop, name="sales-booking-notifications", daemon=True)
+        sales_booking_worker.start()
+
+
 @app.route("/sales/enquiry", methods=["GET", "POST"])
 @app.route("/sales/enquiry/", methods=["GET", "POST"])
 @app.route("/book-demo", methods=["GET", "POST"])
@@ -20154,6 +20209,8 @@ def sales_enquiry():
 
     if errors:
         sales_error = " ".join(errors)
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify(ok=False, error=sales_error), 400
         if return_to == "pricing":
             return render_template(
                 "pricing.html",
@@ -20171,37 +20228,23 @@ def sales_enquiry():
         ), 400
 
     lead_details = dict(cleaned)
+    lead_details["booking_token"] = str(request.form.get("booking_token") or "")[:128]
     lead_details["landing_mode"] = landing_mode
     lead_details["next_url"] = next_url
     lead_details["remote_addr"] = request.headers.get("X-Forwarded-For", request.remote_addr)
-    log_audit_event(
-        actor="public-lead",
-        action="sales_enquiry_submitted",
-        target_type="sales_enquiry",
-        details=lead_details,
-    )
-    support_email_sent = send_sales_enquiry_email(cleaned, lead_details)
-    confirmation_email_sent = send_sales_enquiry_confirmation_email(cleaned)
-    whatsapp_team_sent, whatsapp_customer_sent = send_sales_enquiry_whatsapp_messages(cleaned, lead_details)
-    append_sales_enquiry_backup(
-        cleaned,
-        lead_details,
-        support_email_sent=support_email_sent,
-        confirmation_email_sent=confirmation_email_sent,
-        whatsapp_team_sent=whatsapp_team_sent,
-        whatsapp_customer_sent=whatsapp_customer_sent,
-    )
-    logger.info(
-        "Sales enquiry submitted for %s (%s). support_email_sent=%s confirmation_email_sent=%s whatsapp_team_sent=%s whatsapp_customer_sent=%s backup=%s",
-        cleaned["name"],
-        cleaned["phone"],
-        support_email_sent,
-        confirmation_email_sent,
-        whatsapp_team_sent,
-        whatsapp_customer_sent,
-        SALES_ENQUIRY_BACKUP_PATH,
-    )
-    enquiry_status = "success" if support_email_sent else "saved_email_pending"
+    try:
+        booking_id, created = sales_booking_queue.enqueue(cleaned, lead_details)
+    except Exception:
+        logger.exception("Could not persist sales booking")
+        if request.accept_mimetypes.best == "application/json":
+            return jsonify(ok=False, error="Your booking could not be saved. Please try again shortly."), 503
+        return "Your booking could not be saved. Please try again shortly.", 503
+    logger.info("Sales booking %s %s; notifications queued", booking_id, "accepted" if created else "duplicate suppressed")
+    start_sales_booking_worker()
+    sales_booking_wake.set()
+    if request.accept_mimetypes.best == "application/json":
+        return jsonify(ok=True, booking_id=booking_id)
+    enquiry_status = "success"
     if return_to == "pricing":
         return redirect(url_for("pricing_page", enquiry=enquiry_status))
     return redirect(url_for("dashboard", enquiry=enquiry_status))
@@ -21197,7 +21240,10 @@ def admin_delete_known_device(device_id):
 
 @app.route("/")
 def dashboard():
-    homepage_visitor_count = increment_homepage_visitor_count()
+    homepage_visitor_count = (
+        (homepage_visitor_count_cached or 0) if request.args.get("enquiry") == "success"
+        else increment_homepage_visitor_count()
+    )
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
@@ -21207,7 +21253,10 @@ def dashboard():
 
 @app.route("/homepage")
 def homepage():
-    homepage_visitor_count = increment_homepage_visitor_count()
+    homepage_visitor_count = (
+        (homepage_visitor_count_cached or 0) if request.args.get("enquiry") == "success"
+        else increment_homepage_visitor_count()
+    )
     return render_login_page(
         mode="customer",
         next_url=resolve_next_url(dashboard_home_url("customer")),
@@ -24149,6 +24198,8 @@ if LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
     )
 if device_keys_look_default():
     logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
+start_sales_booking_worker()
+atexit.register(sales_booking_stop.set)
 start_relay_drain_worker()
 start_mqtt_bridge()
 start_dashboard_summary_reconciler()

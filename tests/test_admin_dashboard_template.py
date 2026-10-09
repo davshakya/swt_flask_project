@@ -68,7 +68,7 @@ def test_booking_form_requires_typed_client_side_validation():
     assert 'const finalNote = noteLines.join("\\n") || "Demo booking requested via SaleWell chatbot."' in template
     assert 'formData.set("return_to", "homepage")' in template
     assert "field.setCustomValidity(message)" in template
-    assert "enquirySubmitButton.disabled = !isReady" in template
+    assert "enquirySubmitButton.disabled = enquirySubmitting || !isReady" in template
     assert 'class="field-warning" id="lead_phone_warning"' in template
 
 

@@ -2226,6 +2226,7 @@ appearance:none;border:1px solid var(--line-strong);background:var(--surface-str
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" id="landingModeInput" name="landing_mode" value="customer">
             <input type="hidden" name="return_to" value="pricing">
+            <input type="hidden" name="booking_token" value="{{ booking_token }}">
             {% if sales_success %}
             <div class="banner success">{{ sales_success }}</div>
             {% endif %}
@@ -2300,7 +2301,7 @@ const animationFrame = document.getElementById("planAnimationFrame");
 const animationModalTitle = document.getElementById("animationModalTitle");
 const closeAnimationButtons = document.querySelectorAll("[data-close-animation]");
 const bookingButtons = document.querySelectorAll(".js-book-plan");
-const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) else "false" }};
+const shouldOpenPricingBooking = {{ "true" if open_booking_modal|default(false) and not sales_success else "false" }};
 const planWizard = document.getElementById("planWizard");
 const wizardPlan = document.getElementById("wizardPlan");
 const wizardPrice = document.getElementById("wizardPrice");
@@ -2626,7 +2627,7 @@ function updateEnquirySubmitState() {
     if (!enquiryForm || !enquirySubmitButton) return;
     const fields = Array.from(enquiryForm.querySelectorAll("[required]"));
     const valid = fields.every((field) => validateField(field, false));
-    enquirySubmitButton.disabled = !valid;
+    enquirySubmitButton.disabled = enquirySubmitting || !valid;
 }
 
 function openEnquiryModal(fill = {}) {
@@ -2673,6 +2674,12 @@ closeEnquiryButtons.forEach((button) => {
     button.addEventListener("click", closeEnquiryModal);
 });
 
+let enquirySubmitting = false;
+window.addEventListener("pageshow", () => {
+    enquirySubmitting = false;
+    if (enquirySubmitButton) enquirySubmitButton.textContent = "Book Demo";
+    updateEnquirySubmitState();
+});
 if (enquiryForm) {
     enquiryForm.addEventListener("input", (event) => {
         if (event.target.matches("input,select,textarea")) validateField(event.target, false);
@@ -2680,12 +2687,27 @@ if (enquiryForm) {
     });
     enquiryForm.addEventListener("change", updateEnquirySubmitState);
     enquiryForm.addEventListener("submit", (event) => {
+        if (enquirySubmitting) {
+            event.preventDefault();
+            return;
+        }
         const fields = Array.from(enquiryForm.querySelectorAll("[required]"));
         const valid = fields.every((field) => validateField(field, true));
         updateEnquirySubmitState();
         if (!valid) {
             event.preventDefault();
             fields.find((field) => !field.checkValidity())?.focus();
+        }
+        if (!event.defaultPrevented) {
+            event.preventDefault();
+            enquirySubmitting = true;
+            enquirySubmitButton.disabled = true;
+            enquirySubmitButton.textContent = "Submitting...";
+            window.SWTBookingUI.submit(enquiryForm).finally(() => {
+                enquirySubmitting = false;
+                enquirySubmitButton.textContent = "Book Demo";
+                updateEnquirySubmitState();
+            });
         }
     });
     updateEnquirySubmitState();
@@ -2746,5 +2768,6 @@ window.addEventListener("keydown", (event) => {
 });
 })();
 </script>
+{% include '_booking_feedback.html' %}
 </body>
 </html>
