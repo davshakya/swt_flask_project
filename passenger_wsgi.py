@@ -10,7 +10,7 @@ from pathlib import Path
 import sys
 
 
-PASSENGER_ENTRYPOINT_REVISION = "2026-10-03-db-cooldown-worker-limit"
+PASSENGER_ENTRYPOINT_REVISION = "2026-10-09-booking-cron-worker"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
 
@@ -40,6 +40,9 @@ for module_name, module in list(sys.modules.items()):
     sys.modules.pop(module_name, None)
 
 importlib.invalidate_caches()
-sys.stderr.write(f"[SaleWell] Loading Passenger entrypoint {PASSENGER_ENTRYPOINT_REVISION}\n")
+sys.stderr.write(
+    f"[SaleWell] Loading Passenger entrypoint {PASSENGER_ENTRYPOINT_REVISION} "
+    f"pid={os.getpid()} parent_pid={os.getppid()}\n"
+)
 sys.stderr.flush()
 from server import app as application

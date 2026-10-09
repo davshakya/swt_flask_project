@@ -35,3 +35,40 @@ The original JSONL backup is still written after notification processing. The
 queue remains the authoritative record if the backup or MySQL audit fails.
 These changes remove MySQL and notification calls from successful booking
 requests; they do not repair hosting-level MySQL disconnects or startup delays.
+
+Recovery on shared hosting without Terminal
+------------------------------------------
+
+Upload the updated server, queue module and `scripts/run_booking_notifications.py`.
+In Setup Python App, use Execute Python Script with:
+
+    scripts/run_booking_notifications.py
+
+This only inspects bookings and writes `data/sales_enquiries.queue.status.json`
+(or the corresponding configured queue path). Download that JSON with File
+Manager to see each channel's state. It contains IDs and delivery states, not
+customer details or SMTP credentials.
+
+To deliver pending channels once, use:
+
+    scripts/run_booking_notifications.py --drain
+
+Already sent and uncertain channels will not be resent. A drain handles up to
+20 bookings. Configure cPanel Cron Jobs to run this every minute, using the
+Python executable from the application's virtual environment activation command:
+
+    /home/salewellco/virtualenv/repositories/swt_flask_project/3.11/bin/python /home/salewellco/repositories/swt_flask_project/scripts/run_booking_notifications.py --drain >> /home/salewellco/repositories/swt_flask_project/data/booking-worker.log 2>&1
+
+The executable above is an example; use the actual virtualenv path shown by
+cPanel. Cron loads `device.env`; variables set only in the Python Selector UI
+may need to be added to that server-only file for cron. Never commit passwords.
+
+After cron is configured, set `SALES_BOOKING_BACKGROUND_ENABLED=false` in the
+web application's environment and restart it once. Intake still saves bookings
+and wakes no delivery thread; cron owns notification delivery. The runner skips
+MySQL startup maintenance and all web background workers. Its audit channel
+may still attempt a MySQL write after sending notifications.
+
+Frequent SIGTERM events themselves still require the hosting provider to
+identify the shutdown trigger. This runner removes notification delivery's
+dependency on the lifetime of a web worker.

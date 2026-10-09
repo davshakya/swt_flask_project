@@ -20139,40 +20139,46 @@ sales_booking_wake = threading.Event()
 sales_booking_stop = threading.Event()
 
 
+def sales_booking_handlers():
+    def archive(cleaned, metadata):
+        states = metadata.get("notification_states", {})
+        append_sales_enquiry_backup(
+            cleaned, metadata,
+            support_email_sent=states.get("support_email") == "sent",
+            confirmation_email_sent=states.get("confirmation_email") == "sent",
+            whatsapp_team_sent=states.get("whatsapp_team") == "sent",
+            whatsapp_customer_sent=states.get("whatsapp_customer") == "sent",
+        )
+        return True
+
+    def audit(cleaned, metadata):
+        log_audit_event(actor="public-lead", action="sales_enquiry_submitted",
+                        target_type="sales_enquiry", details=metadata)
+        return True
+
+    return {
+        "support_email": send_sales_enquiry_email,
+        "confirmation_email": lambda cleaned, metadata: send_sales_enquiry_confirmation_email(cleaned),
+        "whatsapp_team": lambda cleaned, metadata: post_whatsapp_webhook(
+            build_sales_enquiry_whatsapp_messages(cleaned, metadata)["team"], "Sales enquiry team"),
+        "whatsapp_customer": lambda cleaned, metadata: post_whatsapp_webhook(
+            build_sales_enquiry_whatsapp_messages(cleaned, metadata)["customer"], "Sales enquiry customer confirmation")
+            if cleaned.get("phone") else False,
+        "audit": audit,
+        "archive": archive,
+    }
+
+
 def start_sales_booking_worker():
+    if env_flag("SWT_BOOKING_WORKER_ONLY") or not env_flag("SALES_BOOKING_BACKGROUND_ENABLED", default=True):
+        return
     global sales_booking_worker
     with sales_booking_worker_lock:
         if sales_booking_worker is not None and sales_booking_worker.is_alive():
             return
 
-        def archive(cleaned, metadata):
-            states = metadata.get("notification_states", {})
-            append_sales_enquiry_backup(
-                cleaned, metadata,
-                support_email_sent=states.get("support_email") == "sent",
-                confirmation_email_sent=states.get("confirmation_email") == "sent",
-                whatsapp_team_sent=states.get("whatsapp_team") == "sent",
-                whatsapp_customer_sent=states.get("whatsapp_customer") == "sent",
-            )
-            return True
-
-        def audit(cleaned, metadata):
-            log_audit_event(actor="public-lead", action="sales_enquiry_submitted",
-                            target_type="sales_enquiry", details=metadata)
-            return True
-
         def loop():
-            handlers = {
-                "support_email": send_sales_enquiry_email,
-                "confirmation_email": lambda cleaned, metadata: send_sales_enquiry_confirmation_email(cleaned),
-                "whatsapp_team": lambda cleaned, metadata: post_whatsapp_webhook(
-                    build_sales_enquiry_whatsapp_messages(cleaned, metadata)["team"], "Sales enquiry team"),
-                "whatsapp_customer": lambda cleaned, metadata: post_whatsapp_webhook(
-                    build_sales_enquiry_whatsapp_messages(cleaned, metadata)["customer"], "Sales enquiry customer confirmation")
-                    if cleaned.get("phone") else False,
-                "audit": audit,
-                "archive": archive,
-            }
+            handlers = sales_booking_handlers()
             while not sales_booking_stop.is_set():
                 try:
                     sales_booking_queue.process(handlers, logger)
@@ -24151,60 +24157,61 @@ def start_dashboard_summary_reconciler():
     return worker
 
 
-logger.info("Initializing database")
-logger.info("MySQL recovery policy: socket-first-v2; bounded-event-transactions-v2")
-_mysql_config_for_log = mysql_connection_config()
-logger.info(
-    "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
-    _mysql_config_for_log.get("host"),
-    _mysql_config_for_log.get("port"),
-    _mysql_config_for_log.get("database"),
-    _mysql_config_for_log.get("user"),
-)
-logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
-validate_runtime_db_configuration()
-init_db_serialized()
-# Runtime boot settings must be applied even when the schema revision is
-# already current and init_db_serialized() skips init_db().
-maybe_reset_device_source_mode_on_boot()
-ensure_homepage_visitor_count_loaded()
-resolve_relay_alert_when_disabled()
-ensure_app_secret_key_persisted()
-maybe_reset_admin_password_on_boot()
-if APP_SECRET_KEY_SOURCE == "env":
-    logger.info("APP_SECRET_KEY loaded from environment.")
-elif APP_SECRET_KEY_SOURCE == "default":
-    logger.warning("APP_SECRET_KEY fallback is active because no persistent secret could be loaded. Set APP_SECRET_KEY before production.")
-else:
-    logger.info("APP_SECRET_KEY loaded from persistent storage at %s.", APP_SECRET_KEY_SOURCE)
-if not TELEMETRY_HISTORY_ENABLED:
-    logger.warning("Telemetry history persistence is disabled. This deployment keeps only the latest snapshot per device.")
-elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:
-    logger.warning(
-        "Telemetry history is capped at %s rows per device with %s-day retention.",
-        MAX_TELEMETRY_ROWS_PER_DEVICE,
-        DATA_RETENTION_DAYS,
-    )
-if is_default_dashboard_password():
-    logger.warning("Dashboard is using default login credentials. Change LOGIN_USERNAME and LOGIN_PASSWORD before production.")
-if app.secret_key == DEFAULT_APP_SECRET_KEY:
-    logger.warning("APP_SECRET_KEY is using the default value. Change it before production.")
-if DEVICE_KEYS_SOURCE != "default":
-    logger.info("Device key registry loaded from %s.", DEVICE_KEYS_SOURCE)
-if LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+if not env_flag("SWT_BOOKING_WORKER_ONLY"):
+    logger.info("Initializing database")
+    logger.info("MySQL recovery policy: socket-first-v2; bounded-event-transactions-v2")
+    _mysql_config_for_log = mysql_connection_config()
     logger.info(
-        "Loaded %s local virtual device auth entries from env files.",
-        len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP),
+        "Database backend resolved to MySQL: host=%s port=%s database=%s user=%s",
+        _mysql_config_for_log.get("host"),
+        _mysql_config_for_log.get("port"),
+        _mysql_config_for_log.get("database"),
+        _mysql_config_for_log.get("user"),
     )
-if device_keys_look_default():
-    logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
-start_sales_booking_worker()
-atexit.register(sales_booking_stop.set)
-start_relay_drain_worker()
-start_mqtt_bridge()
-start_dashboard_summary_reconciler()
-atexit.register(stop_mqtt_bridge)
-atexit.register(dashboard_summary_reconciler_stop.set)
+    logger.info("SaleWell deploy marker: %s", DEPLOY_MARKER)
+    validate_runtime_db_configuration()
+    init_db_serialized()
+    # Runtime boot settings must be applied even when the schema revision is
+    # already current and init_db_serialized() skips init_db().
+    maybe_reset_device_source_mode_on_boot()
+    ensure_homepage_visitor_count_loaded()
+    resolve_relay_alert_when_disabled()
+    ensure_app_secret_key_persisted()
+    maybe_reset_admin_password_on_boot()
+    if APP_SECRET_KEY_SOURCE == "env":
+        logger.info("APP_SECRET_KEY loaded from environment.")
+    elif APP_SECRET_KEY_SOURCE == "default":
+        logger.warning("APP_SECRET_KEY fallback is active because no persistent secret could be loaded. Set APP_SECRET_KEY before production.")
+    else:
+        logger.info("APP_SECRET_KEY loaded from persistent storage at %s.", APP_SECRET_KEY_SOURCE)
+    if not TELEMETRY_HISTORY_ENABLED:
+        logger.warning("Telemetry history persistence is disabled. This deployment keeps only the latest snapshot per device.")
+    elif MAX_TELEMETRY_ROWS_PER_DEVICE > 0:
+        logger.warning(
+            "Telemetry history is capped at %s rows per device with %s-day retention.",
+            MAX_TELEMETRY_ROWS_PER_DEVICE,
+            DATA_RETENTION_DAYS,
+        )
+    if is_default_dashboard_password():
+        logger.warning("Dashboard is using default login credentials. Change LOGIN_USERNAME and LOGIN_PASSWORD before production.")
+    if app.secret_key == DEFAULT_APP_SECRET_KEY:
+        logger.warning("APP_SECRET_KEY is using the default value. Change it before production.")
+    if DEVICE_KEYS_SOURCE != "default":
+        logger.info("Device key registry loaded from %s.", DEVICE_KEYS_SOURCE)
+    if LOCAL_VIRTUAL_DEVICE_AUTH_MAP:
+        logger.info(
+            "Loaded %s local virtual device auth entries from env files.",
+            len(LOCAL_VIRTUAL_DEVICE_AUTH_MAP),
+        )
+    if device_keys_look_default():
+        logger.warning("DEVICE_KEYS is using placeholder values. Replace them before production.")
+    start_sales_booking_worker()
+    atexit.register(sales_booking_stop.set)
+    start_relay_drain_worker()
+    start_mqtt_bridge()
+    start_dashboard_summary_reconciler()
+    atexit.register(stop_mqtt_bridge)
+    atexit.register(dashboard_summary_reconciler_stop.set)
 
 
 if __name__ == "__main__":

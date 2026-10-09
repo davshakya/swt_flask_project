@@ -3,6 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import logging
 import threading
+import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +22,29 @@ def test_concurrent_duplicate_bookings_are_saved_once(tmp_path):
     assert len({booking_id for booking_id, _ in results}) == 1
     assert sum(created for _, created in results) == 1
     assert BookingQueue(path).enqueue({"email": "b@example.com"}, {})[1]
+
+
+def test_old_queue_schema_is_upgraded_without_losing_bookings(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE bookings(id INTEGER PRIMARY KEY,fingerprint TEXT,created REAL,payload TEXT,states TEXT)")
+        db.execute("INSERT INTO bookings VALUES(1,'old',0,'[{},{}]','{}')")
+    queue = BookingQueue(path)
+    assert queue.status() == [{"booking_id": 1, "complete": False, "states": {}}]
+    calls = []
+    queue.process({"email": lambda *_: calls.append("sent") or True}, logging.getLogger(__name__))
+    assert calls == ["sent"]
+    assert queue.status()[0]["complete"]
+
+
+def test_cpanel_runner_inspects_without_sending_or_booting_mysql(tmp_path):
+    path = tmp_path / "queue.sqlite3"
+    BookingQueue(path).enqueue({"email": "private@example.com"}, {})
+    script = Path(__file__).parents[1] / "scripts/run_booking_notifications.py"
+    result = subprocess.run([sys.executable, str(script), "--queue", str(path)], capture_output=True, text=True, check=True)
+    assert "private@example.com" not in result.stdout
+    assert "Initializing database" not in result.stderr
+    assert json.loads(path.with_suffix(".status.json").read_text())[0]["states"] == {}
 
 
 def test_pending_work_survives_restart_and_completed_channels_are_not_resent(tmp_path):

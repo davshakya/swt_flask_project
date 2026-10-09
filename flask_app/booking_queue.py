@@ -23,8 +23,17 @@ class BookingQueue:
                 created REAL NOT NULL, payload TEXT NOT NULL, states TEXT NOT NULL,
                 complete INTEGER NOT NULL DEFAULT 0, submission_key TEXT UNIQUE
             )""")
+            # Queues created by an earlier deployment must retain their bookings.
+            db.execute("BEGIN IMMEDIATE")
+            columns = {row[1] for row in db.execute("PRAGMA table_info(bookings)")}
+            if "complete" not in columns:
+                db.execute("ALTER TABLE bookings ADD COLUMN complete INTEGER NOT NULL DEFAULT 0")
+            if "submission_key" not in columns:
+                db.execute("ALTER TABLE bookings ADD COLUMN submission_key TEXT")
             db.execute("CREATE INDEX IF NOT EXISTS booking_fingerprint ON bookings(fingerprint, created)")
             db.execute("CREATE INDEX IF NOT EXISTS booking_pending ON bookings(complete, id)")
+            db.execute("CREATE UNIQUE INDEX IF NOT EXISTS booking_submission ON bookings(submission_key)")
+            db.commit()
             with db:
                 yield db
         finally:
@@ -58,6 +67,7 @@ class BookingQueue:
             with self.connect() as db:
                 rows = db.execute("SELECT id,payload,states FROM bookings WHERE complete=0 ORDER BY id LIMIT 20").fetchall()
             for booking_id, payload, raw_states in rows:
+                logger.info("Booking %s notification processing started", booking_id)
                 cleaned, metadata = json.loads(payload)
                 states = json.loads(raw_states)
                 metadata["notification_states"] = states
@@ -75,10 +85,15 @@ class BookingQueue:
                         states[channel] = "review"
                         logger.exception("Booking %s %s failed; review before resending", booking_id, channel)
                     self.save_states(booking_id, states)
-                    if states[channel] != "sent":
-                        logger.warning("Booking %s %s status=%s", booking_id, channel, states[channel])
+                    log = logger.info if states[channel] == "sent" else logger.warning
+                    log("Booking %s %s status=%s", booking_id, channel, states[channel])
                 states["complete"] = True
                 self.save_states(booking_id, states)
+
+    def status(self):
+        with self.connect() as db:
+            return [{"booking_id": row[0], "complete": bool(row[1]), "states": json.loads(row[2])}
+                    for row in db.execute("SELECT id,complete,states FROM bookings ORDER BY id DESC LIMIT 100")]
 
     def save_states(self, booking_id, states):
         with self.connect() as db:
