@@ -29,9 +29,9 @@ def test_landing_page_uses_compressed_responsive_marketing_images():
 
     assert 'rel="preload" as="image" type="image/webp"' in template
     assert "smart-water-tank-hero-ai-1280.webp" in template
-    assert template.count("<source type=\"image/webp\"") >= 6
-    assert template.count('decoding="async"') >= 6
-    assert template.count('width="1536" height="1024"') >= 6
+    assert template.count("<source type=\"image/webp\"") >= 5
+    assert template.count('decoding="async"') >= 5
+    assert template.count('width="1536" height="1024"') >= 5
 
 
 def test_login_popup_inputs_use_a_visible_caret_and_selection():
@@ -232,9 +232,9 @@ def test_water_flow_animation_exposes_every_supply_plan_on_first_render():
 def test_homepage_how_it_works_links_to_full_water_flow_animation():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
-    assert 'class="button animation-page-link"' in template
+    assert 'class="landing-text-link animation-page-link"' in template
     assert "url_for('static', filename='marketing/water_flow_animation.html')" in template
-    assert '>See Water Flow Animation</a>' in template
+    assert 'See the water flow animation' in template
 
 
 def test_public_headers_share_brand_spacing_and_equal_title_text_size():
@@ -1827,8 +1827,8 @@ def test_homepage_template_has_valid_jinja_syntax():
 def test_landing_page_has_compact_conversion_and_mobile_contact_content():
     template = (PROJECT_ROOT / "flask_app" / "templates" / "login.html").read_text(encoding="utf-8")
 
-    assert "Prevent overflow, protect your motor and control your pump from anywhere." in template
-    assert '>Buy Now</a>' in template
+    assert "Water under control." in template
+    assert '>Explore pricing</a>' in template
     assert 'id="buyer-confidence"' in template
     assert 'aria-label="Pricing preview"' in template
     assert "From &#8377;4,999" in template

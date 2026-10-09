@@ -4607,6 +4607,7 @@ body.chatbot-open .page-jump-controls{display:none}
 .page-jump-button:hover{transform:translateY(-2px);border-color:var(--primary)}
 @media(max-width:760px){.page{width:calc(100% - 8px);padding-top:4px}.nav .nav-links{gap:5px;padding:3px}.nav .nav-links a,.nav .nav-links a:nth-child(n){min-height:34px;padding:7px 9px;font-size:11px}.page-jump-controls{right:8px;bottom:62px}.page-jump-button{width:38px;height:38px;font-size:18px}}
 </style>
+<link rel="stylesheet" href="{{ url_for('static', filename='landing-refresh.css') }}">
 </head>
 <body class="{% if request.args.get('chat_embed') == '1' %}chat-only{% endif %}" data-default-login-mode="{{ login_mode }}">
 <div class="page">
@@ -4644,22 +4645,21 @@ body.chatbot-open .page-jump-controls{display:none}
     <section class="hero" aria-label="SaleWell Smart Tank landing hero">
         <div class="hero-copy surface">
             <div class="eyebrow"><span class="salewell-brand"><span class="salewell-sale">Sale</span><span class="salewell-well">Well</span></span> Smart Tank</div>
-            <p class="hero-kicker">Smart water tank automation for homes, apartments and managed properties.</p>
-            <h1 class="hero-title">Prevent overflow, protect your motor and control your pump from anywhere.</h1>
-            <p class="hero-text">Monitor water levels in real time, automate pump decisions and receive reliable alerts from one mobile and web dashboard.</p>
+            <p class="hero-kicker">Smart water tank monitoring &amp; pump control</p>
+            <h1 class="hero-title">Water under control.
+                <span>One less thing to worry about.</span></h1>
+            <p class="hero-text">See your tank level, protect your pump and stay ahead of overflow. Choose local phone access or a cloud-connected setup for control away from home.</p>
 
-            <div class="hero-bullet-grid" aria-label="Hero product benefits">
-                <div class="hero-bullet">&#10003; Protect the pump<span>Avoid dry-run damage that can cost &#8377;5,000 to &#8377;15,000.</span></div>
-                <div class="hero-bullet">&#10003; Stop overflow waste<span>Get alerts before water spills from the overhead tank.</span></div>
-                <div class="hero-bullet">&#10003; Control from phone<span>Check level and pump state without climbing to the roof.</span></div>
-                <div class="hero-bullet">&#10003; Catch leaks early<span>Spot unusual water loss before it becomes a repair bill.</span></div>
-            </div>
+            <ul class="hero-reassurance" aria-label="Key benefits">
+                <li>Live water levels</li><li>Pump protection</li><li>Overflow alerts</li>
+            </ul>
 
             <div class="hero-actions">
-                <a class="button is-primary-cta book-demo-button" href="#enquiry">Book Demo</a>
-                <a class="button-secondary is-primary-cta" href="{{ url_for('pricing_page') }}">Buy Now</a>
-                <a class="button-secondary is-primary-cta" href="#demo">Watch 2-Min Video</a>
+                <a class="button is-primary-cta book-demo-button" href="#enquiry">Book a Free Demo <span aria-hidden="true">&rarr;</span></a>
+                <a class="button-secondary" href="{{ url_for('pricing_page') }}">Explore pricing</a>
             </div>
+            <p class="hero-booking-note">Start with a site check. We help you choose the right kit before you buy.</p>
+        </div>
         </div>
 
         <aside class="hero-preview surface" aria-label="Live dashboard preview">
@@ -4735,11 +4735,21 @@ body.chatbot-open .page-jump-controls{display:none}
         <div class="social-proof-note">Site coverage and monitoring volume depend on project size, tank count and installation scope.</div>
     </section>
 
+    <section id="how-it-works" class="section surface landing-steps">
+        <div class="section-header"><div><div class="eyebrow">How it works</div><h2>From tank to phone, in three simple steps.</h2></div></div>
+        <div class="landing-step-grid">
+            <article><span class="landing-step-number">01</span><h3>Monitor the water</h3><p>A powered tank sensor sends water-level readings wirelessly to the controller near your pump.</p></article>
+            <article><span class="landing-step-number">02</span><h3>Protect the pump</h3><p>The controller manages configured pump controls and safety protections using the tank readings.</p></article>
+            <article><span class="landing-step-number">03</span><h3>Stay informed</h3><p>Check your setup from your phone. Cloud-connected plans add remote access, history and alerts.</p></article>
+        </div>
+        <a class="landing-text-link animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See the water flow animation <span aria-hidden="true">&rarr;</span></a>
+    </section>
+
     <section id="benefits" class="section surface">
         <div class="section-header">
             <div>
                 <div class="eyebrow">Why It Matters</div>
-                <h2>Problems this system solves every day.</h2>
+                <h2>Less waste. Fewer checks. More peace of mind.</h2>
             </div>
         </div>
 
@@ -4793,8 +4803,8 @@ body.chatbot-open .page-jump-controls{display:none}
         <div class="urgency-banner">
             <div class="urgency-pill">Cost Of Waiting</div>
             <div class="urgency-copy">
-                <strong>One repair or one month of overflow waste can cost more than the setup.</strong>
-                <p>Protect against dry-run damage, refill delays, overflow waste and avoidable site visits.</p>
+                <strong>Find out what your tank and pump need.</strong>
+                <p>Book a free setup check for a recommendation based on your property.</p>
             </div>
         </div>
     </section>
@@ -4803,7 +4813,7 @@ body.chatbot-open .page-jump-controls{display:none}
         <div class="section-header">
             <div>
                 <div class="eyebrow">Compare Options</div>
-                <h2>Manual checking vs float valve vs smart system.</h2>
+                <h2>See what a smarter setup adds.</h2>
             </div>
         </div>
 
@@ -4822,6 +4832,14 @@ body.chatbot-open .page-jump-controls{display:none}
                     <tr><td>Automatic Start/Stop Pump</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                     <tr><td>Leak detection</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                     <tr><td>Mobile alerts</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <details class="landing-comparison-more">
+            <summary>Compare all features</summary>
+            <div class="comparison-table-wrap"><table class="comparison-table">
+                <thead><tr><th>Feature</th><th>Manual</th><th>Float Valve</th><th>Smart System</th></tr></thead>
+                <tbody>
                     <tr><td>Remote pump control</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                     <tr><td>Pump Usage history</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                     <tr><td>Estimated Pump Electricity Cost</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
@@ -4829,52 +4847,8 @@ body.chatbot-open .page-jump-controls{display:none}
                     <tr><td>Schedule Pump Start/Stop Times</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                     <tr><td>Water Consumption Insights</td><td class="no">&#10006; No</td><td class="no">&#10006; No</td><td class="yes">&#10004; Yes</td></tr>
                 </tbody>
-            </table>
-        </div>
-    </section>
-
-    <section class="section surface" id="before-after">
-        <div class="section-header">
-            <div>
-                <div class="eyebrow">Before vs After</div>
-                <h2>From daily water stress to daily control.</h2>
-            </div>
-        </div>
-
-        <div class="before-after-compare">
-            <article class="compare-column">
-                <div class="card-tag">Before Installation</div>
-                <h3>Manual checks and late action</h3>
-                <p>Without live status, water problems are usually noticed after waste, complaints or pump stress has already started.</p>
-                <ul>
-                    <li>Someone still checks the tank manually</li>
-                    <li>Overflow or low water may continue until reported</li>
-                </ul>
-            </article>
-            <div class="compare-arrow" aria-hidden="true">&rarr;</div>
-            <article class="compare-column is-after">
-                <div class="card-tag">After Installation</div>
-                <h3>Live visibility and faster response</h3>
-                <p>Customers and service teams get one place to monitor tank level, pump status, alerts and next actions.</p>
-                <ul>
-                    <li>Daily checks move from the roof to the phone</li>
-                    <li>Overflow and shortage risk become visible earlier</li>
-                </ul>
-            </article>
-            <div class="compare-cost-strip">
-                <div>
-                    <strong>One motor repair can cost &#8377;5,000 to &#8377;15,000.</strong>
-                    <p>A quick demo helps you compare that risk with the cost of early alerts and pump protection.</p>
-                </div>
-                <div class="compare-cost-actions">
-                    {% if show_pricing_links|default(false) %}
-                    <a class="button-secondary" href="{{ url_for('pricing_page') }}">Compare Pricing</a>
-                    {% else %}
-                    <a class="button-secondary book-demo-button" href="#enquiry">Book Demo</a>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
+            </table></div>
+        </details>
     </section>
 
     <section id="demo" class="section surface">
@@ -5430,67 +5404,11 @@ body.chatbot-open .page-jump-controls{display:none}
         </div>
     </section>
 
-    <section id="how-it-works" class="section surface">
-        <div class="section-header">
-            <div>
-                <div class="eyebrow">How It Works</div>
-                <h2>From installation to daily use in 4 practical steps.</h2>
-                <div class="guide-actions">
-                    <a class="button animation-page-link" href="{{ url_for('static', filename='marketing/water_flow_animation.html') }}" target="_blank" rel="noopener">See Water Flow Animation</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="media-split">
-            <figure class="visual" aria-label="Smart water tank controls illustration">
-                <picture>
-                    <source type="image/webp" srcset="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai-960.webp') }} 960w, {{ url_for('static', filename='marketing/smart-water-tank-controls-ai-1280.webp') }} 1280w" sizes="(max-width: 900px) 100vw, 48vw">
-                    <img src="{{ url_for('static', filename='marketing/smart-water-tank-controls-ai.png') }}" alt="AI-generated smart water tank controller, pump room hardware and mobile dashboard." width="1536" height="1024" loading="lazy" decoding="async">
-                </picture>
-                <figcaption class="visual-copy">
-                    <strong>Install once and see everything from your phone.</strong>
-                    <p>The tank sensor node connects directly to the main controller. Home Control adds local app access, while Home Cloud Pro adds cloud-based remote access.</p>
-                </figcaption>
-            </figure>
-
-            <div class="steps">
-                <article class="step">
-                        <div class="step-number" aria-label="Step 1">&#128230;</div>
-                    <div>
-                        <strong>Wireless sensor installed in the tank</strong>
-                        <p>A compact smart sensor node is placed at the overhead or main tank. It needs power, but no long signal wire is needed between the tank and main controller.</p>
-                    </div>
-                </article>
-                <article class="step">
-                        <div class="step-number" aria-label="Step 2">&#128295;</div>
-                    <div>
-                        <strong>Tank readings travel wirelessly</strong>
-                        <p>Water-level readings go directly to the main controller without needing home Wi-Fi or an internet connection.</p>
-                    </div>
-                </article>
-                <article class="step">
-                        <div class="step-number" aria-label="Step 3">&#128241;</div>
-                    <div>
-                        <strong>Main controller handles pump safety</strong>
-                        <p>The main device stays near the pump/control area, receives tank readings wirelessly, and manages alerts, relay control and dashboard updates.</p>
-                    </div>
-                </article>
-                <article class="step">
-                        <div class="step-number" aria-label="Step 4">&#10004;</div>
-                    <div>
-                        <strong>Choose local or cloud app access</strong>
-                        <p>Home Control connects locally without an external router. Home Cloud Pro adds remote dashboards, history and AI through the internet.</p>
-                    </div>
-                </article>
-            </div>
-        </div>
-    </section>
-
     <section id="solutions" class="section surface">
         <div class="section-header">
             <div>
                 <div class="eyebrow">Property Types</div>
-                <h2>Where this system pays back fastest.</h2>
+                <h2>A setup that fits your property.</h2>
             </div>
         </div>
 
