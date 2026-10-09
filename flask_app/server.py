@@ -459,6 +459,13 @@ def service_worker():
     return response
 @app.after_request
 def apply_security_headers(response):
+    runtime_started_at = getattr(g, 'runtime_request_started_at', None)
+    if runtime_started_at is not None:
+        elapsed = time.perf_counter() - runtime_started_at
+        if elapsed >= max(0.1, env_float('SLOW_REQUEST_SECONDS', 3.0)) or response.status_code >= 500:
+            rule = request.url_rule.rule if request.url_rule is not None else 'unmatched'
+            logger.warning('Request completed pid=%s method=%s route=%s status=%s elapsed_ms=%.0f',
+                           os.getpid(), request.method, rule, response.status_code, elapsed * 1000)
     request_started_at = getattr(g, "capacity_request_started_at", None)
     if request_started_at is not None:
         route_rule = request.url_rule.rule if request.url_rule is not None else "unmatched"
@@ -496,6 +503,7 @@ def apply_security_headers(response):
 
 @app.before_request
 def start_capacity_request_timing():
+    g.runtime_request_started_at = time.perf_counter()
     if CAPACITY_FEATURES.enabled("request_timing") or CAPACITY_FEATURES.enabled("capacity_metrics"):
         g.capacity_request_started_at = time.perf_counter()
 
@@ -583,6 +591,8 @@ def detect_git_short_commit():
     )
     if env_commit:
         return env_commit[:8]
+    if env_flag('SWT_CPANEL_RUNTIME'):
+        return None
 
     try:
         result = subprocess.run(
@@ -607,6 +617,8 @@ def detect_git_branch():
     )
     if env_branch:
         return env_branch
+    if env_flag('SWT_CPANEL_RUNTIME'):
+        return None
 
     try:
         result = subprocess.run(
@@ -637,6 +649,8 @@ def detect_version_sequence():
         if digits:
             return str(int(digits))
 
+    if env_flag('SWT_CPANEL_RUNTIME'):
+        return datetime.now(timezone.utc).strftime('%j')
     try:
         result = subprocess.run(
             ["git", "-c", f"safe.directory={PROJECT_ROOT}", "rev-list", "--count", "HEAD"],
@@ -1603,6 +1617,14 @@ def database_is_locked_error(exc):
     )
 
 
+def database_retry_attempts(attempts):
+    total = max(1, int(attempts or 1))
+    if has_request_context():
+        # Avoid six lock waits and exponential sleeps inside a web request.
+        return min(total, max(1, min(3, env_int('MYSQL_WEB_RETRY_ATTEMPTS', 2))))
+    return total
+
+
 def run_with_database_lock_retries(
     operation,
     *,
@@ -1612,13 +1634,14 @@ def run_with_database_lock_retries(
     retry_connection_errors=False,
 ):
     last_exc = None
-    for attempt in range(max(1, int(attempts or 1))):
+    total_attempts = database_retry_attempts(attempts)
+    for attempt in range(total_attempts):
         try:
             return operation()
         except Exception as exc:
             lock_error = database_is_locked_error(exc)
             connection_error = bool(retry_connection_errors) and mysql_is_connection_recoverable_error(exc)
-            if (not lock_error and not connection_error) or attempt >= max(1, int(attempts or 1)) - 1:
+            if (not lock_error and not connection_error) or attempt >= total_attempts - 1:
                 raise
             last_exc = exc
             # Back off with jitter so simultaneous web workers do not retry the
@@ -1632,7 +1655,7 @@ def run_with_database_lock_retries(
                 operation_name,
                 "lock/deadlock" if lock_error else "connection error",
                 attempt + 1,
-                max(1, int(attempts or 1)),
+                total_attempts,
                 exc,
             )
             if delay_s > 0:
@@ -6055,9 +6078,9 @@ def _connect_mysql_unpooled_once(unix_socket=None):
         "charset": "utf8mb4",
         "cursorclass": MySqlDictCursor,
         "autocommit": False,
-        "connect_timeout": max(5, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 10)),
-        "read_timeout": max(10, env_int("MYSQL_READ_TIMEOUT_SECONDS", 25)),
-        "write_timeout": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
+        "connect_timeout": max(2, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 5 if env_flag('SWT_CPANEL_RUNTIME') else 10)),
+        "read_timeout": max(2, env_int("MYSQL_READ_TIMEOUT_SECONDS", 8 if env_flag('SWT_CPANEL_RUNTIME') else 25)),
+        "write_timeout": max(2, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 8 if env_flag('SWT_CPANEL_RUNTIME') else 25)),
         "ssl": {"ca": ssl_ca} if ssl_ca else None,
     }
     if unix_socket:
@@ -6114,7 +6137,7 @@ def _connect_mysql_unpooled_once(unix_socket=None):
             cursor.execute("SET time_zone = '+00:00'")
             cursor.execute(
                 "SET SESSION innodb_lock_wait_timeout = %s",
-                (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10))),),
+                (max(1, min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 3 if env_flag('SWT_CPANEL_RUNTIME') else 10))),),
             )
     except Exception:
         # Failed session setup previously leaked an open connection, adding
@@ -13040,12 +13063,12 @@ def build_db_summary_payload():
         "ssl_ca_configured": bool(os.environ.get("MYSQL_SSL_CA", "").strip()),
         "connection_policy": {
             "auto_create_database": mysql_auto_create_database_enabled(),
-            "connect_timeout_seconds": max(5, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 10)),
-            "read_timeout_seconds": max(10, env_int("MYSQL_READ_TIMEOUT_SECONDS", 25)),
-            "write_timeout_seconds": max(10, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 25)),
+            "connect_timeout_seconds": max(2, env_int("MYSQL_CONNECT_TIMEOUT_SECONDS", 5 if env_flag('SWT_CPANEL_RUNTIME') else 10)),
+            "read_timeout_seconds": max(2, env_int("MYSQL_READ_TIMEOUT_SECONDS", 8 if env_flag('SWT_CPANEL_RUNTIME') else 25)),
+            "write_timeout_seconds": max(2, env_int("MYSQL_WRITE_TIMEOUT_SECONDS", 8 if env_flag('SWT_CPANEL_RUNTIME') else 25)),
             "lock_wait_timeout_seconds": max(
                 1,
-                min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 10)),
+                min(60, env_int("MYSQL_LOCK_WAIT_TIMEOUT_SECONDS", 3 if env_flag('SWT_CPANEL_RUNTIME') else 10)),
             ),
             "automatic_write_retries": False,
             "unix_socket_configured": bool(os.environ.get("MYSQL_UNIX_SOCKET", "").strip()),
@@ -23766,6 +23789,10 @@ def health():
     mysql_config = mysql_connection_config()
     return {
         "status": "ok",
+        "deployment_id": os.environ.get("SWT_DEPLOYMENT_ID", ""),
+        "runtime_profile": "cpanel" if env_flag('SWT_CPANEL_RUNTIME') else "default",
+        "mysql_pool_enabled": CAPACITY_FEATURES.enabled('db_connection_pool'),
+        "mysql_web_retry_attempts": database_retry_attempts(6),
         "deploy_marker": DEPLOY_MARKER,
         "database": mysql_config.get("database"),
         "database_backend": DB_BACKEND,

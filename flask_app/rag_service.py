@@ -16,12 +16,29 @@ import requests
 for _thread_env in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_thread_env, "1")
 
-try:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-    from sklearn.metrics.pairwise import cosine_similarity
-except Exception:  # Keep Passenger online when optional ML wheels are unavailable.
-    TfidfVectorizer = None
-    cosine_similarity = None
+TfidfVectorizer = None
+cosine_similarity = None
+_ml_import_attempted = False
+_ml_import_lock = threading.Lock()
+
+
+def retrieval_vectorizer():
+    """Keep optional numerical libraries out of normal web-worker startup."""
+    global TfidfVectorizer, cosine_similarity, _ml_import_attempted
+    cpanel = os.environ.get('SWT_CPANEL_RUNTIME', '').lower() in {'1', 'true', 'yes', 'on'}
+    enabled = os.environ.get('RAG_TFIDF_ENABLED', 'false' if cpanel else 'true').lower()
+    if enabled not in {'1', 'true', 'yes', 'on'}:
+        return None
+    with _ml_import_lock:
+        if not _ml_import_attempted:
+            _ml_import_attempted = True
+            try:
+                from sklearn.feature_extraction.text import TfidfVectorizer as vectorizer
+                from sklearn.metrics.pairwise import cosine_similarity as similarity
+                TfidfVectorizer, cosine_similarity = vectorizer, similarity
+            except Exception:  # The existing lexical fallback remains usable.
+                TfidfVectorizer = cosine_similarity = None
+    return TfidfVectorizer
 
 SUPPORTED_SUFFIXES = {".md", ".txt", ".rst", ".docx", ".html"}
 DEFAULT_EXCLUDES = {".git", ".venv", "node_modules", "mysql-data", "data"}
@@ -181,6 +198,9 @@ class RagIndex:
         if not force and fingerprint == self._fingerprint:
             return len(self._chunks)
         with self._lock:
+            # Another request may have rebuilt the same corpus while waiting.
+            if not force and fingerprint == self._fingerprint:
+                return len(self._chunks)
             chunks, root = [], workspace_root().resolve()
             for path in files:
                 try:
@@ -188,7 +208,8 @@ class RagIndex:
                 except ValueError:
                     source = str(path.resolve())
                 chunks.extend(chunk_text(read_document(path), source))
-            vectorizer = TfidfVectorizer(stop_words="english", ngram_range=(1, 2), max_features=30000) if TfidfVectorizer else None
+            vectorizer_class = retrieval_vectorizer() if chunks else None
+            vectorizer = vectorizer_class(stop_words="english", ngram_range=(1, 2), max_features=30000) if vectorizer_class else None
             self._matrix = vectorizer.fit_transform([c.text for c in chunks]) if chunks and vectorizer else None
             self._chunks, self._vectorizer, self._fingerprint = chunks, vectorizer, fingerprint
         return len(self._chunks)

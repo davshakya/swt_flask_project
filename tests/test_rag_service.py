@@ -27,6 +27,7 @@ def test_index_has_lexical_fallback_without_sklearn(tmp_path, monkeypatch):
     (tmp_path / "support.md").write_text("Pump contactor safety and manual stop guidance.", encoding="utf-8")
     monkeypatch.setattr(service, "TfidfVectorizer", None)
     monkeypatch.setattr(service, "cosine_similarity", None)
+    monkeypatch.setattr(service, '_ml_import_attempted', True)
     results = service.RagIndex([tmp_path]).search("pump safety", limit=1)
     assert results and results[0].source.endswith("support.md")
 

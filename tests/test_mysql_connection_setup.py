@@ -29,6 +29,8 @@ def setup_namespace(connect):
         "discover_local_mysql_socket": lambda _config: None,
         "os": SimpleNamespace(environ={}),
         "env_int": lambda _name, default: default,
+        "env_flag": lambda _name: False,
+        "database_retry_attempts": lambda attempts: max(1, int(attempts)),
         "MySqlDictCursor": object,
         "MySqlConnectionAdapter": lambda conn: conn,
         "logger": logging.getLogger(__name__),

@@ -13,6 +13,7 @@ import socket
 import sys
 import time
 import zlib
+from pathlib import Path
 
 
 DEFAULT_HOST = "ftp.salewell.co.in"
@@ -28,6 +29,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user", default=DEFAULT_USER)
     parser.add_argument("--remote-file", default="stderr.log")
     parser.add_argument("--interval", type=float, default=2.0)
+    parser.add_argument("--once", action="store_true", help="download one snapshot and exit")
+    parser.add_argument("--output", type=Path, help="save log contents to this local file")
     parser.add_argument(
         "--tail-bytes",
         type=int,
@@ -133,6 +136,12 @@ def main() -> int:
     offset: int | None = None
     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
     reconnect_delay = 5
+    output_handle = None
+    snapshot_temp = None
+    if args.output:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_temp = args.output.with_name(f'{args.output.name}.{os.getpid()}.tmp') if args.once else None
+        output_handle = (snapshot_temp or args.output).open("w", encoding="utf-8")
     print(
         f"Following {args.remote_file} on {args.host}:{args.port} "
         f"using {'FTP' if args.plain_ftp else 'explicit FTPS'} (Ctrl+C to stop)...",
@@ -167,7 +176,7 @@ def main() -> int:
                         received += len(chunk)
                         text = decoder.decode(chunk, final=False)
                         if text:
-                            print(text, end="", flush=True)
+                            print(text, end="", flush=True, file=output_handle or sys.stdout)
 
                     ftp.retrbinary(
                         f"RETR {args.remote_file}", display, blocksize=64 * 1024, rest=offset
@@ -175,19 +184,36 @@ def main() -> int:
                     offset += received
 
                 reconnect_delay = 5
+                if args.once:
+                    if args.output:
+                        remainder = decoder.decode(b'', final=True)
+                        if remainder:
+                            output_handle.write(remainder)
+                        output_handle.close()
+                        output_handle = None
+                        snapshot_temp.replace(args.output)
+                        print(f"Log snapshot saved to {args.output}", file=sys.stderr)
+                    return 0
                 time.sleep(args.interval)
             except ftplib.all_errors + (OSError, EOFError, RuntimeError) as exc:
+                action = 'snapshot failed' if args.once else f'retrying in {reconnect_delay} seconds'
                 print(
-                    f"\n--- log watcher connection error: {type(exc).__name__}: {exc!s}; retrying in {reconnect_delay} seconds ---",
+                    f"\n--- log watcher connection error: {type(exc).__name__}: {exc!s}; {action} ---",
                     file=sys.stderr,
                 )
                 disconnect(ftp)
                 ftp = None
+                if args.once:
+                    return 1
                 time.sleep(reconnect_delay)
                 reconnect_delay = min(60, reconnect_delay * 2)
     except KeyboardInterrupt:
         print("\nStopped.", file=sys.stderr)
     finally:
+        if output_handle is not None:
+            output_handle.close()
+        if snapshot_temp is not None:
+            snapshot_temp.unlink(missing_ok=True)
         disconnect(ftp)
         if instance_lock is not None:
             instance_lock.close()

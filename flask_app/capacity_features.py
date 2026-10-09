@@ -65,7 +65,9 @@ class CapacityFeatureRegistry:
         self._configured = {
             name: env_flag(
                 f"FEATURE_{name.upper()}",
-                default=definition.default,
+                default=definition.default or (
+                    name == 'db_connection_pool' and env_flag('SWT_CPANEL_RUNTIME', environ=self._environ)
+                ),
                 environ=self._environ,
             )
             for name, definition in self._definitions.items()

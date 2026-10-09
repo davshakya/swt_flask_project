@@ -5,14 +5,17 @@ callable. Pin imports to this checkout so another cached ``server`` or
 ``flask_app`` package on the shared host cannot serve an older deployment.
 """
 import importlib
+import json
 import os
 from pathlib import Path
 import sys
+import time
 
 
 PASSENGER_ENTRYPOINT_REVISION = "2026-10-09-booking-cron-worker"
 PROJECT_ROOT = Path(__file__).resolve().parent
 project_path = str(PROJECT_ROOT)
+os.environ.setdefault('SWT_CPANEL_RUNTIME', 'true')
 
 # Shared cPanel accounts can have a high reported CPU count but a low process
 # limit.  Keep optional NumPy/scikit-learn imports from exhausting it during
@@ -45,4 +48,37 @@ sys.stderr.write(
     f"pid={os.getpid()} parent_pid={os.getppid()}\n"
 )
 sys.stderr.flush()
+try:
+    deployment = json.loads((PROJECT_ROOT / '.swt-deployment.json').read_text())
+except (OSError, ValueError):
+    deployment = {}
+if not isinstance(deployment, dict):
+    deployment = {}
+os.environ['SWT_DEPLOYMENT_ID'] = str(deployment.get('id', ''))
+for source, target in (('git_commit', 'GIT_COMMIT'), ('git_branch', 'GIT_BRANCH'),
+                       ('build_number', 'SWT_BUILD_NUMBER')):
+    value = deployment.get(source)
+    if isinstance(value, str) and value:
+        os.environ.setdefault(target, value)
 from server import app as application
+
+# A short, process-local observer uses no subprocesses and records no command
+# arguments or environment values. It stops automatically after deployment.
+try:
+    if deployment.get('collect_diagnostics') and time.time() < float(deployment.get('diagnostics_expires', 0)):
+        import threading
+        import importlib.util
+
+        def observe_processes():
+            try:
+                spec = importlib.util.spec_from_file_location(
+                    'salewell_host_diagnostics', PROJECT_ROOT / 'scripts' / 'collect_host_diagnostics.py')
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+                module.collect(30)
+            except Exception as exc:
+                sys.stderr.write(f'[SaleWell] Process diagnostics unavailable: {type(exc).__name__}\n')
+
+        threading.Thread(target=observe_processes, name='deploy-diagnostics', daemon=True).start()
+except Exception as exc:
+    sys.stderr.write(f'[SaleWell] Process diagnostics unavailable: {type(exc).__name__}\n')

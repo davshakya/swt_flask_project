@@ -48,6 +48,9 @@ def _run_with_database_lock_retries(
 ):
     last_exc = None
     total_attempts = max(1, int(attempts or 1))
+    budget = getattr(flask_server, 'database_retry_attempts', None)
+    if callable(budget):
+        total_attempts = budget(total_attempts)
     base_delay = max(0.0, float(initial_delay_s or 0.0))
     for attempt in range(total_attempts):
         try:
