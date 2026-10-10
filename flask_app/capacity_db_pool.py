@@ -23,6 +23,7 @@ class MySqlConnectionPool:
         self.wait_seconds = max(1, min(int(wait_seconds), 30))
         self._condition = threading.Condition()
         self._idle = []
+        self._connections = {}
         self._total = 0
         self._created = 0
         self._recycled = 0
@@ -32,13 +33,17 @@ class MySqlConnectionPool:
     def _after_fork(self):
         # Never send MySQL QUIT on an inherited socket: the parent still owns
         # the same server session. Drop child descriptors without protocol I/O.
-        for entry in self._idle:
-            sock = getattr(entry.connection, "_sock", None)
+        for connection in self._connections.values():
+            sock = getattr(connection, "_sock", None)
             if sock is not None:
-                sock.close()
-                entry.connection._sock = None
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+                connection._sock = None
         self._condition = threading.Condition()
         self._idle = []
+        self._connections = {}
         self._total = self._created = self._recycled = 0
 
     def _close(self, connection):
@@ -73,6 +78,7 @@ class MySqlConnectionPool:
                 self._close(candidate.connection)
                 with self._condition:
                     self._total -= 1
+                    self._connections.pop(id(candidate.connection), None)
                     self._recycled += 1
                     self._condition.notify()
 
@@ -85,9 +91,15 @@ class MySqlConnectionPool:
             raise
         with self._condition:
             self._created += 1
+            self._connections[id(connection)] = connection
         return connection, time.monotonic()
 
     def release(self, connection, created_at, discard=False):
+        with self._condition:
+            # A lease inherited across fork no longer belongs to this pool.
+            # Do not send rollback/QUIT on its parent's MySQL session.
+            if id(connection) not in self._connections:
+                return
         discard = discard or time.monotonic() - created_at >= self.recycle_seconds
         try:
             connection.rollback()
@@ -99,6 +111,7 @@ class MySqlConnectionPool:
                 self._idle.append(_IdleConnection(connection, created_at))
             else:
                 self._total -= 1
+                self._connections.pop(id(connection), None)
             self._condition.notify()
         if not retain:
             self._close(connection)

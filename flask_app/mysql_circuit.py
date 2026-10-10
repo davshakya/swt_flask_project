@@ -1,5 +1,6 @@
 """Bound connection attempts during a shared-host database outage."""
 import threading
+import os
 import time
 
 
@@ -8,6 +9,16 @@ class MySqlConnectionCircuit:
         self.failure_limit = failure_limit
         self.cooldown_seconds = cooldown_seconds
         self.clock = clock
+        self._lock = threading.Lock()
+        self._failures = 0
+        self._retry_at = 0.0
+        self._probe = False
+        self._generation = 0
+        if hasattr(os, 'register_at_fork'):
+            os.register_at_fork(after_in_child=self._after_fork)
+
+    def _after_fork(self):
+        # The parent's threads and in-flight probes do not exist in the child.
         self._lock = threading.Lock()
         self._failures = 0
         self._retry_at = 0.0
