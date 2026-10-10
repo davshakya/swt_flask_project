@@ -1,0 +1,7 @@
+---
+# The Python application runs directly from this repository checkout.
+# Passenger reloads the Flask application after this restart marker changes.
+deployment:
+  tasks:
+    - /bin/mkdir -p /home/salewellco/repositories/swt_flask_project/tmp
+    - /bin/touch /home/salewellco/repositories/swt_flask_project/tmp/restart.txt
