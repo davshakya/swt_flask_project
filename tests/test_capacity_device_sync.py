@@ -48,7 +48,6 @@ def test_device_sync_combines_ingestion_ack_command_and_interval(monkeypatch):
 
     monkeypatch.setattr(server, "ingest_device_sync", ingest)
     monkeypatch.setattr(server, "acknowledge_queued_command_id", lambda device_id, command_id, result=None: True)
-    monkeypatch.setattr(server, "clear_mqtt_command", lambda device_id: None)
     monkeypatch.setattr(
         server,
         "peek_queued_command",

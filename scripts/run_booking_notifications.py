@@ -26,7 +26,7 @@ def run(argv=None):
     queue = BookingQueue(args.queue or backup.with_suffix(".queue.sqlite3"))
     if args.drain:
         # Load the existing notification configuration and handlers, but skip
-        # MySQL initialization, web background workers, MQTT and reconciler boot.
+        # MySQL initialization, web background workers and reconciler boot.
         os.environ["SWT_BOOKING_WORKER_ONLY"] = "true"
         from flask_app import server
         queue.process(server.sales_booking_handlers(), server.logger)

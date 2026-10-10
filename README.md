@@ -131,7 +131,7 @@ operators through `/system/status`.
 - customer dashboard for tank level, pump state, alert status, events, analytics, and local sync
 - admin dashboard for device registration, customer mapping, customer password reset, service flags, peer channel, firmware artifacts, Android releases, reboot commands, delete/purge, and data-source mode
 - operational monitoring for last-seen status, stale telemetry, alerts, audit log, command delivery, and database summary
-- optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, HTTP relay, and MQTT telemetry/command channels
+- optional integrations for SMTP email, WhatsApp webhook, Slack/Telegram-style alert hooks, and HTTP relay
 
 
 ## Repository Layout

@@ -102,9 +102,6 @@ def test_server_import_falls_back_when_startup_numeric_env_values_are_invalid():
             "TANK_CAPACITY_LITERS": "not-a-number",
             "DATA_RETENTION_DAYS": "bad",
             "DB_TARGET_SIZE_MB": "",
-            "MQTT_BROKER_PORT": "bad-port",
-            "MQTT_KEEPALIVE_SEC": "",
-            "MQTT_QOS": "bad",
             "SNAPSHOT_CACHE_TTL_SECONDS": "",
         }
     )
@@ -118,9 +115,6 @@ print(json.dumps({
     "tank_capacity_liters": server.TANK_CAPACITY_LITERS,
     "data_retention_days": server.DATA_RETENTION_DAYS,
     "db_target_size_mb": server.DB_TARGET_SIZE_MB,
-    "mqtt_broker_port": server.MQTT_BROKER_PORT,
-    "mqtt_keepalive_sec": server.MQTT_KEEPALIVE_SEC,
-    "mqtt_qos": server.MQTT_QOS,
     "snapshot_cache_ttl_seconds": server.SNAPSHOT_CACHE_TTL_SECONDS,
 }))
 """
@@ -143,9 +137,6 @@ print(json.dumps({
         "tank_capacity_liters": 1000.0,
         "data_retention_days": 30,
         "db_target_size_mb": 0.0,
-        "mqtt_broker_port": 1883,
-        "mqtt_keepalive_sec": 30,
-        "mqtt_qos": 1,
         "snapshot_cache_ttl_seconds": 2.0,
     }
 

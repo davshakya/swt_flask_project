@@ -40,10 +40,6 @@ try:
 except Exception:
     pymysql = None
     MySqlDictCursor = None
-try:
-    import paho.mqtt.client as mqtt
-except Exception:
-    mqtt = None
 from flask import Flask, abort, g, has_request_context, jsonify, redirect, render_template, render_template_string, request, send_file, send_from_directory, session, url_for
 from flask import Response
 from flask_cors import CORS
@@ -312,11 +308,13 @@ def resolve_app_secret_key():
     if configured_secret:
         return configured_secret, "env"
 
-    persisted_secret = str(get_app_setting(APP_SECRET_KEY_SETTING, "") or "").strip()
-    if persisted_secret:
-        return persisted_secret, "persistent"
-
-    raise RuntimeError("APP_SECRET_KEY must be set explicitly when using the MySQL backend.")
+    # This runs before database helpers and schema initialization exist. Require
+    # the deployment key here rather than querying settings during import.
+    raise RuntimeError(
+        "APP_SECRET_KEY is missing or blank. Set a stable APP_SECRET_KEY in "
+        "the Flask application's device.env or process environment, then restart "
+        "the application."
+    )
 
 
 def resolve_device_key_registry():
@@ -900,15 +898,6 @@ WHATSAPP_META_TEAM_TEMPLATE = os.environ.get(
     "salewell_team_new_enquiry",
 ).strip()
 WHATSAPP_META_TEMPLATE_LANGUAGE = os.environ.get("WHATSAPP_META_TEMPLATE_LANGUAGE", "en").strip()
-MQTT_ENABLED = os.environ.get("MQTT_ENABLED", "false").lower() in {"1", "true", "yes", "on"}
-MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER_HOST", "").strip()
-MQTT_BROKER_PORT = env_int("MQTT_BROKER_PORT", 1883)
-MQTT_USERNAME = os.environ.get("MQTT_USERNAME", "").strip()
-MQTT_PASSWORD = os.environ.get("MQTT_PASSWORD", "")
-MQTT_TOPIC_PREFIX = os.environ.get("MQTT_TOPIC_PREFIX", "swt").strip().strip("/")
-MQTT_KEEPALIVE_SEC = max(15, env_int("MQTT_KEEPALIVE_SEC", 30))
-MQTT_QOS = max(0, min(2, env_int("MQTT_QOS", 1)))
-MQTT_COMMAND_RETAIN = os.environ.get("MQTT_COMMAND_RETAIN", "true").lower() in {"1", "true", "yes", "on"}
 REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS = max(0, env_int("REGISTERED_DEVICE_TOUCH_INTERVAL_SECONDS", 30))
 ALERT_TOUCH_INTERVAL_SECONDS = max(0, env_int("ALERT_TOUCH_INTERVAL_SECONDS", 30))
 
@@ -1030,22 +1019,12 @@ relay_state = {
     "last_error": None,
     "last_status_code": None,
 }
-mqtt_lock = threading.Lock()
-mqtt_client = None
-mqtt_started = False
 registered_device_touch_lock = threading.Lock()
 registered_device_touch_cache = {}
 authenticated_device_key_lock = threading.Lock()
 authenticated_device_key_cache = {}
 alert_touch_lock = threading.Lock()
 alert_touch_cache = {}
-mqtt_state = {
-    "enabled": MQTT_ENABLED and bool(MQTT_BROKER_HOST),
-    "connected": False,
-    "last_connect_at": None,
-    "last_message_at": None,
-    "last_error": None,
-}
 db_maintenance_state = {
     "last_run_at": 0.0,
     "last_reason": None,
@@ -1154,40 +1133,16 @@ def relay_urls_for_current_request(urls, default_path=None):
     return [url for url in effective_urls if url_hostname(url) != request_host]
 
 
-def mqtt_feature_enabled():
-    return mqtt_state["enabled"] and mqtt is not None
 
 
-def mqtt_topic(*parts):
-    base_parts = [part for part in (MQTT_TOPIC_PREFIX,) if part]
-    extra_parts = [str(part).strip("/") for part in parts if str(part or "").strip("/")]
-    return "/".join(base_parts + extra_parts)
 
 
-def mqtt_command_topic(device_id):
-    return mqtt_topic(device_id, "command")
 
 
-def mqtt_telemetry_topic(device_id):
-    return mqtt_topic(device_id, "telemetry")
 
 
-def mqtt_ack_topic(device_id):
-    return mqtt_topic(device_id, "command_ack")
 
 
-def mqtt_extract_device_id(topic, leaf_name):
-    topic_text = str(topic or "").strip().strip("/")
-    if not topic_text:
-        return None
-    expected_prefix = f"{MQTT_TOPIC_PREFIX}/" if MQTT_TOPIC_PREFIX else ""
-    if expected_prefix and not topic_text.startswith(expected_prefix):
-        return None
-    suffix = f"/{leaf_name}"
-    if not topic_text.endswith(suffix):
-        return None
-    middle = topic_text[len(expected_prefix): -len(suffix)]
-    return normalize_device_id(middle)
 
 
 RELAY_STATUS_URL_LIST = parse_relay_url_list(RELAY_STATUS_URLS, "/status")
@@ -18164,24 +18119,8 @@ def acknowledge_queued_command(device_id, command):
     return True
 
 
-def publish_mqtt_command(command, target_device, clear=False):
-    if not mqtt_feature_enabled():
-        return False
-    topic = mqtt_command_topic(target_device)
-    payload = "" if clear else str(command or "").strip().upper()
-    with mqtt_lock:
-        if not mqtt_client or not mqtt_state["connected"]:
-            return False
-        info = mqtt_client.publish(topic, payload=payload, qos=MQTT_QOS, retain=MQTT_COMMAND_RETAIN)
-    try:
-        info.wait_for_publish(timeout=2.0)
-    except TypeError:
-        pass
-    return getattr(info, "rc", mqtt.MQTT_ERR_SUCCESS) == mqtt.MQTT_ERR_SUCCESS
 
 
-def clear_mqtt_command(target_device):
-    publish_mqtt_command("", target_device, clear=True)
 
 
 def queue_command(command, target_device=None, request_id=None):
@@ -18198,7 +18137,6 @@ def queue_command(command, target_device=None, request_id=None):
     request_id = str(request_id or secrets.token_hex(16))
     command_id = queue_device_command(normalized_command, device_command_target, request_id=request_id)
     persist_command_activity_events(device_command_target)
-    mqtt_published = publish_mqtt_command(normalized_command, device_command_target)
     result = {
         "status": "queued",
         "command": normalized_command,
@@ -18208,7 +18146,6 @@ def queue_command(command, target_device=None, request_id=None):
         "target_device": device_command_target,
         "queued_at": now_utc().strftime(TIMESTAMP_FORMAT),
         "control_policy": CONTROL_POLICY,
-        "mqtt_delivery": "published" if mqtt_published else ("pending" if mqtt_feature_enabled() else "disabled"),
     }
     return result
 
@@ -18609,142 +18546,18 @@ def resolve_relay_alert_when_disabled():
     set_alert("relay_failure", "warning", "Cloud relay is failing.", active=False, best_effort=True)
 
 
-def handle_mqtt_telemetry_message(topic, payload_text):
-    device_id = mqtt_extract_device_id(topic, "telemetry")
-    if not device_id:
-        logger.warning("Ignoring MQTT telemetry on unexpected topic %s", topic)
-        return
-
-    try:
-        payload = json.loads(payload_text or "{}")
-    except ValueError as exc:
-        logger.warning("Invalid MQTT telemetry JSON for %s: %s", device_id, exc)
-        return
-
-    if not isinstance(payload, dict):
-        logger.warning("Ignoring MQTT telemetry for %s because payload was not an object", device_id)
-        return
-
-    payload_device_id = normalize_device_id(payload.get("device_id"))
-    if payload_device_id and payload_device_id != device_id:
-        logger.warning(
-            "Rejected MQTT telemetry for %s because payload device_id %s did not match topic device_id %s",
-            device_id,
-            payload_device_id,
-            device_id,
-        )
-        return
-
-    auth_ok, normalized_device_id, error_message, status_code = authenticate_device_identity(
-        device_id,
-        device_key=payload.get("device_key"),
-        remote_addr="mqtt",
-        require_key=False,
-    )
-    if not auth_ok:
-        logger.warning("Rejected MQTT telemetry for %s: %s (%s)", device_id, error_message, status_code)
-        return
-
-    payload["device_id"] = normalized_device_id
-    process_telemetry_payload(payload, source_ip="mqtt", transport="mqtt")
-    mqtt_state["last_message_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
 
 
-def handle_mqtt_command_ack(topic, payload_text):
-    device_id = mqtt_extract_device_id(topic, "command_ack")
-    if not device_id:
-        logger.warning("Ignoring MQTT command ack on unexpected topic %s", topic)
-        return
-
-    command = str(payload_text or "").strip().upper()
-    if not command:
-        return
-
-    if acknowledge_queued_command(device_id, command):
-        clear_mqtt_command(device_id)
-        logger.info("Acknowledged MQTT command for %s: %s", device_id, command)
-    mqtt_state["last_message_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
 
 
-def on_mqtt_connect(client, _userdata, _flags, reason_code, _properties=None):
-    mqtt_state["connected"] = False
-    if reason_code != 0:
-        mqtt_state["last_error"] = f"connect failed ({reason_code})"
-        logger.warning("MQTT connect failed: %s", reason_code)
-        return
-
-    mqtt_state["connected"] = True
-    mqtt_state["last_connect_at"] = now_utc().strftime(TIMESTAMP_FORMAT)
-    mqtt_state["last_error"] = None
-    telemetry_subscription = mqtt_topic("+", "telemetry")
-    ack_subscription = mqtt_topic("+", "command_ack")
-    client.subscribe(telemetry_subscription, qos=MQTT_QOS)
-    client.subscribe(ack_subscription, qos=MQTT_QOS)
-    logger.info("MQTT connected and subscribed to %s and %s", telemetry_subscription, ack_subscription)
 
 
-def on_mqtt_disconnect(_client, _userdata, reason_code, _properties=None):
-    mqtt_state["connected"] = False
-    if reason_code:
-        mqtt_state["last_error"] = f"disconnect ({reason_code})"
-        logger.warning("MQTT disconnected: %s", reason_code)
 
 
-def on_mqtt_message(_client, _userdata, message):
-    topic = str(message.topic or "")
-    payload_text = message.payload.decode("utf-8", errors="ignore")
-    if topic.endswith("/telemetry"):
-        handle_mqtt_telemetry_message(topic, payload_text)
-    elif topic.endswith("/command_ack"):
-        handle_mqtt_command_ack(topic, payload_text)
 
 
-def start_mqtt_bridge():
-    global mqtt_client, mqtt_started
-
-    if mqtt is None:
-        if MQTT_ENABLED:
-            logger.warning("MQTT was enabled but paho-mqtt is not installed. MQTT bridge will stay disabled.")
-        return
-
-    if not mqtt_feature_enabled() or mqtt_started:
-        return
-
-    client_id = f"smart-water-tank-backend-{os.getpid()}"
-    client = mqtt.Client(client_id=client_id)
-    if MQTT_USERNAME:
-        client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
-    client.on_connect = on_mqtt_connect
-    client.on_disconnect = on_mqtt_disconnect
-    client.on_message = on_mqtt_message
-    client.reconnect_delay_set(min_delay=2, max_delay=30)
-
-    with mqtt_lock:
-        mqtt_client = client
-        mqtt_started = True
-
-    try:
-        client.connect_async(MQTT_BROKER_HOST, MQTT_BROKER_PORT, keepalive=MQTT_KEEPALIVE_SEC)
-        client.loop_start()
-        logger.info("MQTT bridge starting for %s:%s", MQTT_BROKER_HOST, MQTT_BROKER_PORT)
-    except Exception as exc:
-        mqtt_state["last_error"] = str(exc)
-        logger.warning("MQTT bridge failed to start: %s", exc)
 
 
-def stop_mqtt_bridge():
-    with mqtt_lock:
-        client = mqtt_client
-    if not client:
-        return
-    try:
-        client.loop_stop()
-    except Exception:
-        pass
-    try:
-        client.disconnect()
-    except Exception:
-        pass
 
 
 def parse_pump_run_duration(value):
@@ -18827,7 +18640,7 @@ def device_motor_command_status(target_device, request_id):
         if not row:
             return jsonify({"error": "command not found"}), 404
         result = dict(row)
-        # Legacy MQTT acknowledgements record delivery without updating status.
+        # Legacy acknowledgements record delivery without updating status.
         if result["status"] == "queued" and result.get("delivered_at"):
             result["status"] = "delivered"
         if result["status"] in {"queued", "delivered"} and result.get("expires_at") and str(result["expires_at"]) <= now_utc().strftime(TIMESTAMP_FORMAT):
@@ -19770,8 +19583,6 @@ def device_sync():
                 command_ack.get("command_id"),
                 result=command_ack,
             )
-            if acknowledged:
-                clear_mqtt_command(device_id)
         acknowledgement = {
             "acknowledged": bool(acknowledged),
             "command_id": command_ack.get("command_id"),
@@ -19913,8 +19724,6 @@ def acknowledge_device_command():
         acknowledged = acknowledge_relay_command(device_id, command_id, device_source=request_source)
     else:
         acknowledged = acknowledge_queued_command_id(device_id, command_id, result=payload)
-        if acknowledged:
-            clear_mqtt_command(device_id)
 
     status_code = 200 if acknowledged else 404
     return {
@@ -21069,7 +20878,6 @@ def admin_device_reboot(device_id):
                 device_id=normalized_device_id,
                 details={
                     "command": result.get("command"),
-                    "mqtt_delivery": result.get("mqtt_delivery"),
                     "queued_at": result.get("queued_at"),
                 },
             )
@@ -23352,7 +23160,6 @@ def admin_device_detail_simulator(device_id):
             "prerequisite_command": prerequisite_command,
             "previous_simulator_enabled": simulator_enabled,
             "simulator_target": simulator_target,
-            "mqtt_delivery": result.get("mqtt_delivery"),
             "queued_at": result.get("queued_at"),
         },
     )
@@ -24235,9 +24042,7 @@ if not env_flag("SWT_BOOKING_WORKER_ONLY"):
     start_sales_booking_worker()
     atexit.register(sales_booking_stop.set)
     start_relay_drain_worker()
-    start_mqtt_bridge()
     start_dashboard_summary_reconciler()
-    atexit.register(stop_mqtt_bridge)
     atexit.register(dashboard_summary_reconciler_stop.set)
 
 
