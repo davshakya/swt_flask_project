@@ -128,7 +128,8 @@ def main() -> int:
         raise SystemExit("--plain-ftp and --insecure-ftps cannot be used together")
 
     instance_lock = acquire_single_instance(args)
-    password = os.environ.get(args.password_env)
+    # password = os.environ.get(args.password_env)
+    password = "Tiger@1234"
     if password is None:
         password = getpass.getpass(f"FTP password for {args.user}: ")
 
