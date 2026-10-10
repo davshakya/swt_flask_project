@@ -90,6 +90,7 @@ from flask_app.mysql_retry import statement_allows_connection_retry
 from flask_app.mysql_transport import discover_local_mysql_socket
 from flask_app.mysql_circuit import MySqlConnectionCircuit
 from flask_app.database_availability import install_database_error_handlers
+from flask_app.runtime_logging import RuntimeContextFilter, install_request_diagnostics, log_database_operation
 from flask_app.background_lease import background_lease
 from flask_app.booking_queue import BookingQueue
 from flask_app.history_sampling import HISTORY_TRANSITION_FIELDS, legacy_history_sample_due
@@ -929,12 +930,13 @@ class SwtColorFormatter(logging.Formatter):
 
     def __init__(self, color_enabled=True):
         super().__init__(
-            fmt="[%(asctime)s+05:30] [%(levelname)s] %(message)s",
+            fmt="[%(asctime)s+05:30] [%(levelname)s] [pid=%(worker_pid)s ppid=%(worker_parent_pid)s request=%(request_id)s] %(message)s",
             datefmt=TIMESTAMP_FORMAT,
         )
         self.color_enabled = color_enabled
 
     def format(self, record):
+        RuntimeContextFilter().filter(record)
         rendered = super().format(record)
         if not self.color_enabled:
             return rendered
@@ -956,6 +958,7 @@ app_log_handler.setFormatter(SwtColorFormatter(color_enabled=SWT_LOG_COLOR_ENABL
 logging.basicConfig(level=APP_LOG_LEVEL, handlers=[app_log_handler], force=True)
 
 logger = logging.getLogger("tank_server")
+install_request_diagnostics(app, logger, slow_seconds=max(0.1, env_float("SWT_LOG_SLOW_REQUEST_SECONDS", 2.0)))
 install_database_error_handlers(app, pymysql.err.OperationalError if pymysql else None, logger)
 device_connection_logger = logging.getLogger("tank_server.device_connection")
 device_connection_logger.setLevel(logging.INFO)
@@ -5825,12 +5828,15 @@ class MySqlCursorAdapter:
             self.connection_adapter.transaction_has_writes = True
         attempt = 0
         while attempt < max_attempts:
+            query_started_at = time.perf_counter()
+            query_error = None
             try:
                 self.cursor.execute(translated_sql, translated_params)
                 self.lastrowid = self.cursor.lastrowid
                 self.rowcount = self.cursor.rowcount
                 return self
             except Exception as exc:
+                query_error = exc
                 attempt += 1
                 if mysql_is_lock_error(exc):
                     raise
@@ -5857,6 +5863,12 @@ class MySqlCursorAdapter:
                 self.cursor = self.connection_adapter.connection.cursor()
                 self._buffered_rows = None
                 time.sleep(0.5 * attempt)
+            finally:
+                sql_operation = translated_sql.lstrip().split(None, 1)[0].upper() if translated_sql.strip() else "UNKNOWN"
+                if sql_operation not in {"SELECT", "INSERT", "UPDATE", "DELETE", "SET", "CREATE", "ALTER", "SHOW"}:
+                    sql_operation = "OTHER"
+                log_database_operation(logger, sql_operation, query_started_at, query_error,
+                                       slow_seconds=max(0.1, env_float("SWT_LOG_SLOW_QUERY_SECONDS", 1.0)))
         return self
 
     def fetchone(self):
@@ -5994,6 +6006,9 @@ def connect_mysql_unpooled():
                 if _MYSQL_RESOLVED_UNIX_SOCKET != socket_path:
                     logger.info("MySQL local transport selected: Unix socket %s", socket_path)
                 _MYSQL_RESOLVED_UNIX_SOCKET = socket_path
+            if attempt:
+                logger.info("MySQL connection/session recovery succeeded attempt=%s transport=%s", attempt + 1,
+                            "unix_socket" if socket_path else "tcp")
             return adapter
         except Exception as exc:
             cached_socket_unavailable = bool(socket_path and not configured_socket) and not mysql_is_connection_recoverable_error(exc) and (

@@ -27,7 +27,8 @@ def install_database_error_handlers(app, database_error_class, logger):
         if not is_transient_database_failure(error):
             logger.exception("Unexpected request failure")
             return InternalServerError()
-        logger.warning("Database temporarily unavailable for request: %s", error)
+        # Driver error strings can contain SQL values; keep the diagnostic safe.
+        logger.warning("Database temporarily unavailable for request error_type=%s", type(error).__name__)
         response = jsonify({"ok": False, "error": "Database temporarily unavailable. Please retry.",
                             "code": "database_unavailable"})
         response.status_code = 503
